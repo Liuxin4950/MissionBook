@@ -3,7 +3,14 @@
 *.log
 *.pyc
 *.swp
+*.swo
+*.tmp
+*.temp
+*.bak
+*~
 .DS_Store
+Thumbs.db
+Desktop.ini
 .atom/
 .build/
 .buildlog/
@@ -17,6 +24,15 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
+
+# Local assistant sessions and caches
+/.commandcode/
+/.codex/
+/.cache/
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
@@ -32,6 +48,52 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+.flutter-plugins
+.gradle/
+.kotlin/
+.externalNativeBuild/
+
+# Generated previews and local design drafts; keep reusable source scripts.
+# Reviewed design references belong in docs/, application assets in assets/.
+/output/**
+!/output/blog/
+!/output/blog/*.py
+/dist/
+/artifacts/
+
+# Local runtime records, attachments, exports, logs and backups
+/data/
+/runtime/
+/logs/
+/backups/
+/tmp/
+/temp/
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Local environment settings; keep sanitized templates shareable.
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.*.sample
+!.env.template
+!.env.*.template
+*.local
+
+# Release packages and crash dumps (publish packages as release assets)
+*.apk
+*.aab
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+*.dmp
 
 # Symbolication related
 app.*.symbols
