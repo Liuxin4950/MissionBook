@@ -1,8 +1,8 @@
-# Mission Book
+# MissionBook
 
 Mission Book 是一个以人的长期成长为核心的 AI 辅助规划、执行、验证与反思系统。
 
-仓库处于重新实现阶段，`lib/` 目前是 Flutter 模板入口。统一规格见 [docs/README.md](docs/README.md)，规格描述目标行为，实际进度以代码和验收为准。
+仓库处于重新实现阶段，`lib/` 目前已接入统一主题和“今天、目标、历史、我的”四个占位页面的导航框架。统一规格见 [docs/README.md](docs/README.md)，规格描述目标行为，实际进度以代码和验收为准。
 
 ## 核心闭环
 

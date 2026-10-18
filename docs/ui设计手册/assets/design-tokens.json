@@ -1,0 +1,275 @@
+{
+  "schemaVersion": 1,
+  "updated": "2026-10-18",
+  "theme": "light",
+  "reference": "今天页-v4.png",
+  "scope": "颜色与布局设计定义；非应用已接入清单；extension 为尚未单独出图的交互补充色",
+  "colors": {
+    "background": {
+      "label": "暖白背景",
+      "hex": "#F7F5ED",
+      "flutter": "0xFFF7F5ED",
+      "status": "base",
+      "usage": "页面、AppBar、导航背景"
+    },
+    "card": {
+      "label": "浅米卡片",
+      "hex": "#F6F3EB",
+      "flutter": "0xFFF6F3EB",
+      "status": "base",
+      "usage": "当前任务等轻量分组"
+    },
+    "onPrimary": {
+      "label": "纯白内容",
+      "hex": "#FFFFFF",
+      "flutter": "0xFFFFFFFF",
+      "status": "base",
+      "usage": "墨绿实心按钮上的文字与图标"
+    },
+    "primary": {
+      "label": "墨绿主色",
+      "hex": "#4A6A57",
+      "flutter": "0xFF4A6A57",
+      "status": "base",
+      "usage": "主操作、选中、链接与焦点"
+    },
+    "primarySoft": {
+      "label": "浅绿选中底",
+      "hex": "#E8EEE5",
+      "flutter": "0xFFE8EEE5",
+      "status": "base",
+      "usage": "导航选中底与轻量标签"
+    },
+    "accent": {
+      "label": "装饰强调绿",
+      "hex": "#4F8768",
+      "flutter": "0xFF4F8768",
+      "status": "base",
+      "usage": "非文字装饰，不用于普通小字"
+    },
+    "textPrimary": {
+      "label": "深墨文字",
+      "hex": "#242B26",
+      "flutter": "0xFF242B26",
+      "status": "base",
+      "usage": "标题与正文"
+    },
+    "textSecondary": {
+      "label": "次级灰绿",
+      "hex": "#626B63",
+      "flutter": "0xFF626B63",
+      "status": "base",
+      "usage": "日期、时长、状态与未选中导航"
+    },
+    "divider": {
+      "label": "装饰分隔线",
+      "hex": "#E3E2D8",
+      "flutter": "0xFFE3E2D8",
+      "status": "base",
+      "usage": "细线分组，不单独承担控件辨识"
+    },
+    "primaryPressed": {
+      "label": "按下墨绿",
+      "hex": "#3D5948",
+      "flutter": "0xFF3D5948",
+      "status": "extension",
+      "usage": "主按钮按下"
+    },
+    "outline": {
+      "label": "控件边界",
+      "hex": "#858D83",
+      "flutter": "0xFF858D83",
+      "status": "extension",
+      "usage": "输入框、描边按钮"
+    },
+    "disabled": {
+      "label": "禁用底",
+      "hex": "#E4E7DF",
+      "flutter": "0xFFE4E7DF",
+      "status": "extension",
+      "usage": "禁用按钮背景"
+    },
+    "onDisabled": {
+      "label": "禁用文字",
+      "hex": "#5E675F",
+      "flutter": "0xFF5E675F",
+      "status": "extension",
+      "usage": "禁用按钮文字"
+    },
+    "error": {
+      "label": "错误红棕",
+      "hex": "#A35448",
+      "flutter": "0xFFA35448",
+      "status": "extension",
+      "usage": "输入错误、保存失败、危险操作"
+    },
+    "errorSoft": {
+      "label": "错误浅底",
+      "hex": "#F8EAE6",
+      "flutter": "0xFFF8EAE6",
+      "status": "extension",
+      "usage": "错误说明背景"
+    },
+    "warning": {
+      "label": "提醒棕",
+      "hex": "#805D28",
+      "flutter": "0xFF805D28",
+      "status": "extension",
+      "usage": "截止提醒、需要处理"
+    },
+    "warningSoft": {
+      "label": "提醒浅底",
+      "hex": "#F4EBDD",
+      "flutter": "0xFFF4EBDD",
+      "status": "extension",
+      "usage": "提醒说明背景"
+    }
+  },
+  "contrast": [
+    {
+      "foreground": "textPrimary",
+      "background": "background",
+      "ratio": 13.28,
+      "target": 4.5,
+      "passes": true
+    },
+    {
+      "foreground": "textSecondary",
+      "background": "background",
+      "ratio": 5.06,
+      "target": 4.5,
+      "passes": true
+    },
+    {
+      "foreground": "textSecondary",
+      "background": "card",
+      "ratio": 4.98,
+      "target": 4.5,
+      "passes": true
+    },
+    {
+      "foreground": "onPrimary",
+      "background": "primary",
+      "ratio": 6.02,
+      "target": 4.5,
+      "passes": true
+    },
+    {
+      "foreground": "primary",
+      "background": "primarySoft",
+      "ratio": 5.1,
+      "target": 4.5,
+      "passes": true
+    },
+    {
+      "foreground": "primary",
+      "background": "background",
+      "ratio": 5.51,
+      "target": 4.5,
+      "passes": true
+    },
+    {
+      "foreground": "accent",
+      "background": "background",
+      "ratio": 3.85,
+      "target": 4.5,
+      "passes": false
+    },
+    {
+      "foreground": "outline",
+      "background": "background",
+      "ratio": 3.14,
+      "target": 3,
+      "passes": true
+    },
+    {
+      "foreground": "outline",
+      "background": "card",
+      "ratio": 3.09,
+      "target": 3,
+      "passes": true
+    },
+    {
+      "foreground": "error",
+      "background": "errorSoft",
+      "ratio": 4.57,
+      "target": 4.5,
+      "passes": true
+    },
+    {
+      "foreground": "error",
+      "background": "background",
+      "ratio": 4.91,
+      "target": 4.5,
+      "passes": true
+    },
+    {
+      "foreground": "warning",
+      "background": "warningSoft",
+      "ratio": 5.06,
+      "target": 4.5,
+      "passes": true
+    },
+    {
+      "foreground": "onDisabled",
+      "background": "disabled",
+      "ratio": 4.69,
+      "target": 4.5,
+      "passes": true
+    },
+    {
+      "foreground": "onPrimary",
+      "background": "primaryPressed",
+      "ratio": 7.72,
+      "target": 4.5,
+      "passes": true
+    }
+  ],
+  "layout": {
+    "unit": "Flutter logical pixels",
+    "viewportReference": {
+      "width": 412,
+      "height": 892
+    },
+    "pagePadding": 24,
+    "compactPagePadding": 16,
+    "spacing": [
+      4,
+      8,
+      12,
+      16,
+      24,
+      32,
+      48
+    ],
+    "cardPadding": 20,
+    "cardRadius": 18,
+    "buttonRadius": 12,
+    "buttonMinHeight": 48,
+    "touchTargetMin": 48,
+    "iconSize": 24,
+    "readingWidthDesktopProposal": 720
+  },
+  "typography": {
+    "pageTitle": {
+      "fontSize": 24,
+      "lineHeight": 32
+    },
+    "missionTitle": {
+      "fontSize": 22,
+      "lineHeight": 30
+    },
+    "sectionTitle": {
+      "fontSize": 16,
+      "lineHeight": 24
+    },
+    "body": {
+      "fontSize": 14,
+      "lineHeight": 22
+    },
+    "navigation": {
+      "fontSize": 12,
+      "lineHeight": 16
+    }
+  }
+}
