@@ -53,11 +53,9 @@ venv/
 .kotlin/
 .externalNativeBuild/
 
-# Generated previews and local design drafts; keep reusable source scripts.
+# Generated previews and local design drafts (source scripts belong in tool/).
 # Reviewed design references belong in docs/, application assets in assets/.
-/output/**
-!/output/blog/
-!/output/blog/*.py
+/output/
 /dist/
 /artifacts/
 
