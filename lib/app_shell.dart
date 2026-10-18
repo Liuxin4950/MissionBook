@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'presentation/today/today_page.dart';
 
+//页面聚合状态控制页面
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
 
@@ -10,30 +12,27 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  // 索引
   int _selectedIndex = 0;
-  static const List<String> _titles = [
-    '今天',
-    '目标',
-    '历史',
-    '我的',
-  ];
+  // 核心页面聚合列表
   static const List<Widget> _pages = [
-    Center(child: Text('今天页面')),
+    TodayPage(),
     Center(child: Text('目标页面')),
     Center(child: Text('历史页面')),
     Center(child: Text('我的页面')),
   ];
+  // 路由变更方法
   void _selectPage(int index) {
     setState(() {
       _selectedIndex = index;
     });
   }
-
+  // 主要渲染内容
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_titles[_selectedIndex]),
+        title: Text("MissionBook"),
       ),
       body: IndexedStack(
         index: _selectedIndex,
@@ -42,7 +41,7 @@ class _AppShellState extends State<AppShell> {
       bottomNavigationBar: _buildNavigationBar(),
     );
   }
-
+  // 底部导航模块
   Widget _buildNavigationBar() {
     return NavigationBar(
       selectedIndex: _selectedIndex,
