@@ -1,0 +1,26 @@
+Use case: ui-mockup
+Generate exactly ONE polished Chinese END-REPORT state of the SAME Mission Book task workspace. Image1 is the current running-state STYLE AND CONTEXT reference. Retain its circular forest back button, centered 执行任务 app bar, task identity, breadcrumb, warm-white/forest/citrus palette and modern sans-serif. This is an in-context state: no separate modal sheet, dimmed backdrop, new wizard page or four-tab navigation. ONE edge-to-edge flat portrait screen,9:19.5, native about853x1844 or1024x2216. No device frame, browser, collage, multiple states or annotations.
+
+Palette #F7F8F2 warm white, #244D3D forest, #D7F57B citrus, #E8EDE4 sage, #233B30 ink, #617067 secondary. No serif, photos, texture, gradients, glass, awards or decorative illustrations. Logical390 width: task identity18/24, main decision question28/36, section/control16/24, helper14/20, frozen Focus summary28/36 (reusing page-title scale), budget value18/24. Same role always same size. Margins24, whole option rows minimum64px touch height.
+
+Small OS time14:37. Same app bar as reference: forest circular back arrow, 执行任务, ellipsis.
+Keep compact task context: 学会 Flutter › State › 基础概念; 理解 setState 与 rebuild at18px, NOT a giant title; small sage 已暂停 badge. Do not say 已结束 or report saved.
+The running ring has contracted into a small calm sage summary strip: pause/clock outline, label 专注时长 and value31:42, plus 当前额度45分. NO large ring or moving countdown, because Focus is frozen. Context and value stay recognizable.
+
+Below summary, dominant question 本次完成了吗？
+Two full-width rounded RADIO option rows, stacked with breathing room:
+1 已完成 — selected citrus fill, forest filled RADIO DOT and clear outline; helper 按本次目标判断.
+2 未完成 — neutral surface, HOLLOW RADIO circle; helper 原因可留空.
+Both option labels16px. Never draw a checkbox checkmark, success tick or achievement icon. Selected 已完成 is an UNSAVED input choice, not a persisted outcome. This snapshot is after explicit user choice; initial entry would have neither selected. No textarea while completed is selected.
+
+A compact sage requirement block with paperclip outline:
+确认后需提交材料
+截止10月18日18:00
+No upload controls, files, AI score, verified label or submitted badge. Only this COMPLETED-choice + REQUIRED_EVIDENCE scenario shows this panel; an unfinished report would not require evidence.
+Keep copy short. Do NOT print END, database, route count or implementation text.
+
+Near bottom one quiet line 返回执行后仍保持暂停.
+ONE forest full-width pill 确认并整理材料, about52 logical px high, enabled because a valid choice is selected. No second cancel button (top back already returns), no extra confirm-again step. Bottom safe area and small dark home indicator.
+
+Exact scenario: existing task from reference, fixed Oct18 14:00, original45min, extension0, RUNNING paused again at2026-10-18 14:36:42 after earlier5min pause. Snapshot14:37:00 remains PAUSED, Focus31:42, no END or saved completion report yet. User selected 已完成 but has not clicked confirmation. Required-evidence deadline Oct18 18:00 is still ahead in this frozen example. A later successful confirmation would write END/report and expose material editing in the same task context. Do not display a future END timestamp or claim materials already saved.
+Calm graphical decision UI, good spacing, no long paragraphs. Preserve task context from the prior screen while replacing only the ring/control area with the local report interaction. One single state, ONE image only.

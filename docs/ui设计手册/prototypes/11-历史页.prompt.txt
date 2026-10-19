@@ -1,0 +1,18 @@
+Use case: ui-mockup.
+Create exactly ONE high fidelity Chinese MOBILE HISTORY page for Mission Book, portrait390:844 logical ratio. Reference1 今天页.png and reference2 目标列表.png are CURRENT visual style and four-item bottom navigation references. One screen only, no mockup device frame, no collage or annotations.
+Fixed current palette: warm-white #F7F8F2, forest #244D3D, citrus #D7F57B, sage #E8EDE4, ink #233B30, secondary #617067 on warm-white, divider #DCE3D8, white #FFFFFF. Modern sans Chinese and sans Latin, no serif, photos, textures, scenery, decorative gradient or shadows. Circular icons, pill filters and navigation, fine dividers, compact OPEN rows rather than separate giant cards.
+Type at logical scale: page heading28/36 semibold, EVERY task title18/24 semibold regardless of state, section16/24, metadata14/20, nav12/16. Side24; touch targets48. Do not squeeze type to fit. Task titles may wrap into2 lines.
+Status bar "14:45".
+Top header: "历史" large28 left. Ellipsis menu icon at right (contains cancelled records, menu closed). Below a compact calendar icon + month selector "2026年10月" with down chevron.
+One pill filter track: selected citrus "全部记录", inactive "待补材料 2". These are filters, no extra analytics.
+Chronological list grouped by END calendar date, newest FIRST. Exactly FIVE records below, grouped as3 dates. Use aligned thin date/time column and small nodes/outline status icons to help scanning. Spacing is NOT proportional to elapsed time. Rows share equal title font18, use small glyph plus explicit report text rather than success color alone. Do not repeat task details or full breadcrumbs. No progress rings, weekly totals, streaks, scores, search boxes or invented dashboards.
+Group heading "10月18日 · 周日":
+Row1 time "14:37", title "理解 setState 与 rebuild" (can2lines), metadata "已完成 · 专注 31:42", second metadata "材料已提交"; small chevron right. This is a closed recorded task, not running.
+Row2 time "13:15", title "复习路由导航", metadata "已完成 · 专注 15分", second metadata "自报结束"; small chevron right.
+Group heading "10月17日 · 周六":
+Row3 time "21:00", title "整理布局练习截图", metadata "已完成 · 专注 25分", second metadata "待补材料 · 截止10月18日20:00"; compact forest pill action "整理" at right. Show the complete deadline date/time legibly; may use a full-width secondary line beneath title metadata. Do not truncate deadline. No large warning box.
+Row4 time "20:10", title "梳理 State 的生命周期", metadata "未完成 · 专注 20分"; small chevron right. No materials prompt for this unfinished report, no red failure badge.
+Group heading "10月16日 · 周五":
+Row5 time "20:30", title "记录组件拆分思路", metadata "已完成 · 专注 18分", second metadata "待补材料 · 无强制截止"; compact forest pill action "整理" at right.
+Use icon grouping and comfortable row separation to keep this legible and spacious. Date section headings16. Content area scrollable conceptually but do not crop row5 or hide primary actions behind nav. All rows consistent, no oversized selected history task. If required reduce non-content spacers, never fonts.
+Bottom floating WHITE pill nav exactly matching references: "今天" house icon, "目标" target icon, "历史" clock/history icon, "我的" person icon. HISTORY is selected forest capsule with citrus icon and label. Other tabs neutral. Native home indicator below nav. No plus button or separate bottom primary button. Style must feel from the same Mission Book family as references, with historical facts distinct from future schedules.

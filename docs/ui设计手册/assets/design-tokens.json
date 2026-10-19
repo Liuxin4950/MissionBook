@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-18",
+  "updated": "2026-10-19",
   "status": "provisional-reference",
   "reference": "今天页.png",
   "scope": "当前统一UI定义；原型设计参数，尚未全部接入应用。",
@@ -93,6 +93,27 @@
       "size": 14,
       "lineHeight": 20,
       "weight": 400
+    },
+    "inputValue": {
+      "size": 18,
+      "lineHeight": 24,
+      "weight": 400
+    },
+    "fieldLabel": {
+      "size": 14,
+      "lineHeight": 20,
+      "weight": 500
+    },
+    "primaryAction": {
+      "size": 16,
+      "lineHeight": 24,
+      "weight": 600
+    },
+    "focusTimer": {
+      "size": 48,
+      "lineHeight": 56,
+      "weight": 500,
+      "tabularNumbers": true
     }
   },
   "layout": {
@@ -111,6 +132,21 @@
     "ease": "cubic-bezier(.22,.8,.24,1)",
     "respectReducedMotion": true
   },
+  "textPairings": {
+    "onBackgroundOrWhite": ["textPrimary", "textSecondary", "primary"],
+    "onSoftOrAccent": ["textPrimary", "primary"],
+    "onPrimary": ["surface", "accent"]
+  },
+  "navigation": {
+    "normalPathMaximumJumps": 3,
+    "systemPickerEntryAndRequiredReturnCountSeparately": true,
+    "normalTaskWorkRegions": ["todayTaskRow", "goalCardTaskArea", "historyRecordRow"],
+    "preserveIdentitySummaryAndAdjacentList": true,
+    "focusedDetailViewsOptional": true,
+    "conditionalCurrentTaskShortcut": true,
+    "androidCameraCaptureEmbeddedInDraft": true,
+    "implementationVerified": false
+  },
   "components": {
     "goalTree": {
       "status": "candidate",
@@ -123,6 +159,101 @@
       "disclosureRotateDurationMs": 240,
       "directCreateLabel": "建任务",
       "subtreeCountIncludesSelf": true
+    },
+    "createTaskForm": {
+      "status": "candidate",
+      "requiredFields": [
+        "title",
+        "date",
+        "plannedDuration"
+      ],
+      "initialTimeMode": "FLEXIBLE",
+      "initialReportPolicy": "SELF_REPORT",
+      "conditionalFieldsInPlace": true,
+      "successFeedbackInPlace": true
+    },
+    "taskDetail": {
+      "status": "candidate",
+      "subjectTypography": "pageTitle",
+      "listItemTypography": "taskTitle",
+      "planValueTypography": "taskTitle",
+      "whyDisclosure": true,
+      "planIsExecutionProgress": false,
+      "materialRequirementTrigger": "COMPLETED_REPORT",
+      "inPlaceTaskWorkContext": true
+    },
+    "executionTimer": {
+      "status": "candidate",
+      "numerator": "Focus",
+      "denominator": "CurrentBudget",
+      "ringDiameter": 260,
+      "ringStroke": 12,
+      "clockwise": true,
+      "maximumVisualRatio": 1,
+      "budgetTransitionMs": 360,
+      "primaryControl": "暂停/继续",
+      "endReportInTaskContext": true,
+      "autoEndAtBudget": false
+    },
+    "endReport": {
+      "status": "candidate",
+      "inTaskWorkContext": true,
+      "questionTypography": "pageTitle",
+      "frozenFocusTypography": "pageTitle",
+      "taskIdentityTypography": "taskTitle",
+      "initialSelection": null,
+      "confirmationRequired": true,
+      "stateBeforeConfirmation": "PAUSED",
+      "focusFrozenDuringReport": true,
+      "incompleteReasonOptional": true,
+      "resumeOnCancel": false,
+      "optionMinHeight": 64
+    },
+    "materialEditor": {
+      "status": "candidate",
+      "inTaskWorkContext": true,
+      "frozenFocusTypography": "pageTitle",
+      "taskIdentityTypography": "taskTitle",
+      "inputTypography": "inputValue",
+      "primaryAction": "提交材料",
+      "minimumValidDrafts": 1,
+      "successFeedbackInPlace": true,
+      "writesEndAgain": false,
+      "preserveDraftOnSaveFailure": true,
+      "fileRowMinHeight": 64
+    },
+    "executionRecord": {
+      "status": "candidate",
+      "focusTypography": "pageTitle",
+      "taskIdentityTypography": "taskTitle",
+      "summaryValueTypography": "taskTitle",
+      "timelineEncodesDuration": false,
+      "reportAndMaterialsSeparate": true,
+      "readOnlyExecutionFacts": true,
+      "materialDetailsInPlace": true,
+      "retryCreatesUnsavedDraft": true,
+      "retrySuccessFeedbackInPlace": true
+    },
+    "historyList": {
+      "status": "candidate",
+      "groupBy": "END local calendar date",
+      "sort": "END descending",
+      "itemTitleTypography": "taskTitle",
+      "timelineEncodesDuration": false,
+      "cancelledRecordsSeparate": true,
+      "materialsEditorInRecordRow": true,
+      "materialSuccessFeedbackInPlace": true,
+      "preserveListAndTaskContext": true
+    },
+    "mePage": {
+      "status": "candidate",
+      "featureTitleTypography": "taskTitle",
+      "notificationAndExactPermissionSeparate": true,
+      "capabilityFromRuntime": true,
+      "backupDisclosureBeforeExport": true,
+      "backupProgressAndFeedbackInPlace": true,
+      "backupIncludesDrafts": false,
+      "aboutDisclosureInPlace": true
     }
   },
   "timelineSemantics": "按固定开始时间排序的节点列表；节点间距和卡片高度不编码时长",

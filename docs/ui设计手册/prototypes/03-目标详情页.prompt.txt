@@ -1,0 +1,22 @@
+Use case: ui-mockup
+Create exactly ONE polished Chinese mobile GOAL DETAIL / NODE TREE screen for Mission Book. The next/latest screenshot is my precise layout reference. Render the SAME fresh warm-white, forest and citrus design system as Today v8 and Goals v2. ONE flat edge-to-edge native portrait screen, 9:19.5 aspect about853x1844 or1024x2216. No phone frame, browser, scrollbars, preview controls, collage, multiple screens or annotations.
+
+Palette: #F7F8F2 background, #244D3D forest primary, #D7F57B light citrus context highlight, #E8EDE4 soft sage, #233B30 ink, #617067 secondary, #DCE3D8 thin neutral connectors. Crisp Chinese sans-serif ONLY. Role sizes at390 logical width: goal title28/36, ALL node names18/24 semibold including English roots and Chinese children, section16/24, status/time/count/controls14/20. Uniform scale; never enlarge selected node text. Margin24. Calm open rows, small circles, capsule marks and one softly asymmetrical highlighted node. No serif, photos, plants, gradients, material texture or decorative illustration.
+
+This is a CHILD PAGE: NO four-tab bottom navigation and NO current-task dock. Small14:00 status bar. App bar: forest circular back arrow at left, quiet 目标详情 centered, ellipsis right. Then 学会 Flutter and a small 进行中 badge. Quiet collapsed 目标说明 with chevron. Compact open coverage: 节点完成记录 left, 6 / 12 right; below12 equal capsule segments, exactly6 forest and6 sage. No giant hero card, no50% duplicate, mastery or AI scores.
+
+Section 目标路径 left and + 新增节点 right.
+Clear hierarchical list, roots aligned; reserve disclosure-arrow space even for leaves. Every row has right ellipsis; parent expansion arrows are separate from node names. Thin neutral connectors and24px child indentation, NOT a completed green route line. Root/normal rows~52px; selected child64px; other child56px.
+Exact visible nodes in order:
+ROOT Dart — small completed-record circle-check, secondary 有完成记录.
+ROOT Widget — same check and 有完成记录.
+ROOT Layout — same check and 有完成记录.
+ROOT Navigation — right-facing collapsed disclosure arrow, HOLLOW no-record mark. On the title line show 子树 3/5 at right. Secondary 暂无完成记录. Do NOT show its children in this initial screen.
+ROOT State — downward expanded disclosure arrow, HOLLOW no-record mark. Title-line right 子树 0/3. Secondary 暂无完成记录.
+  CHILD 基础概念 — citrus rounded context-highlight row, same18px name. Secondary 已安排 with tiny disclosure chevron; compact forest pill exactly 建任务 at right, then ellipsis. HOLLOW mark, not completed or running. This row only is emphasized.
+  CHILD 状态实践 — same indentation, HOLLOW mark, secondary 暂无完成记录, ellipsis.
+ROOT Network — return to root alignment; HOLLOW mark, title-line right0/1, secondary 暂无完成记录, ellipsis.
+After the tree a quiet 已归档节点 › link, then bottom safe area/home indicator.
+
+Important semantics: 6/12 counts valid nodes with DIRECT completion reports, not mastery. Navigation comprises its uncompleted parent plus4 hidden children;3 children have records, so subtree3/5, never3/4 and never a check on its parent. State comprises uncompleted parent plus2 children,0/3; 基础概念 is merely scheduled, not running. Dart/Widget/Layout each count1/1. Network0/1. Thus total6/12. Small completed checks are status marks, never togglable checkboxes.
+All eight visible rows, coverage and archive entry should fit the390x844 normal first screen without shrinking type. Preserve roomy touch affordances but compact repeated rows. Only the exact necessary labels, no repeated explanation paragraphs or new metrics. Follow the layout reference closely and render every Chinese string accurately.

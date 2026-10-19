@@ -1,0 +1,102 @@
+{
+  "designVersion": "current",
+  "imageRoot": "docs/ui设计手册/assets",
+  "pages": [
+    {
+      "page": "01",
+      "name": "今天页",
+      "status": "当前风格参考",
+      "image": "docs/ui设计手册/assets/今天页.png",
+      "notes": "docs/ui设计手册/prototypes/01-今天页设计说明.md",
+      "preview": "docs/ui设计手册/prototypes/01-今天页-交互预览.html"
+    },
+    {
+      "page": "02",
+      "name": "目标列表",
+      "status": "当前风格候选",
+      "image": "docs/ui设计手册/assets/目标列表.png",
+      "notes": "docs/ui设计手册/prototypes/02-目标页设计说明.md",
+      "preview": "docs/ui设计手册/prototypes/02-目标页-交互预览.html"
+    },
+    {
+      "page": "03",
+      "name": "目标详情",
+      "status": "当前风格候选",
+      "image": "docs/ui设计手册/assets/目标详情.png",
+      "notes": "docs/ui设计手册/prototypes/03-目标详情页设计说明.md",
+      "preview": "docs/ui设计手册/prototypes/03-目标详情页-交互预览.html"
+    },
+    {
+      "page": "04",
+      "name": "节点任务",
+      "status": "当前风格候选",
+      "image": "docs/ui设计手册/assets/节点任务.png",
+      "notes": "docs/ui设计手册/prototypes/04-节点任务页设计说明.md",
+      "preview": null
+    },
+    {
+      "page": "05",
+      "name": "新建任务",
+      "status": "当前风格候选",
+      "image": "docs/ui设计手册/assets/新建任务.png",
+      "notes": "docs/ui设计手册/prototypes/05-新建任务页设计说明.md",
+      "preview": null
+    },
+    {
+      "page": "06",
+      "name": "任务详情",
+      "status": "当前风格候选",
+      "image": "docs/ui设计手册/assets/任务详情.png",
+      "notes": "docs/ui设计手册/prototypes/06-任务详情页设计说明.md",
+      "preview": null
+    },
+    {
+      "page": "07",
+      "name": "执行任务",
+      "status": "当前风格候选",
+      "image": "docs/ui设计手册/assets/执行任务.png",
+      "notes": "docs/ui设计手册/prototypes/07-执行任务页设计说明.md",
+      "preview": "docs/ui设计手册/prototypes/07-执行任务页-交互预览.html"
+    },
+    {
+      "page": "08",
+      "name": "结束报告",
+      "status": "当前风格候选",
+      "image": "docs/ui设计手册/assets/结束确认.png",
+      "notes": "docs/ui设计手册/prototypes/08-结束确认页设计说明.md",
+      "preview": null
+    },
+    {
+      "page": "09",
+      "name": "材料编辑",
+      "status": "当前风格候选",
+      "image": "docs/ui设计手册/assets/材料编辑.png",
+      "notes": "docs/ui设计手册/prototypes/09-材料编辑页设计说明.md",
+      "preview": null
+    },
+    {
+      "page": "10",
+      "name": "执行记录详情",
+      "status": "当前风格候选",
+      "image": "docs/ui设计手册/assets/执行记录详情.png",
+      "notes": "docs/ui设计手册/prototypes/10-执行记录详情页设计说明.md",
+      "preview": null
+    },
+    {
+      "page": "11",
+      "name": "历史",
+      "status": "当前风格候选",
+      "image": "docs/ui设计手册/assets/历史.png",
+      "notes": "docs/ui设计手册/prototypes/11-历史页设计说明.md",
+      "preview": null
+    },
+    {
+      "page": "12",
+      "name": "我的",
+      "status": "当前风格候选",
+      "image": "docs/ui设计手册/assets/我的.png",
+      "notes": "docs/ui设计手册/prototypes/12-我的页设计说明.md",
+      "preview": null
+    }
+  ]
+}

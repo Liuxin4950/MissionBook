@@ -1,0 +1,21 @@
+Use case: ui-mockup
+Generate exactly ONE polished Chinese CREATE TASK mobile screen for Mission Book. Image1 is the current visual-style reference ONLY. Reuse its warm-white/forest/citrus palette, sans-serif typography, circular back action, restrained line icons and soft capsule language. Do not copy the reference's task-list content. One edge-to-edge flat portrait app UI, aspect9:19.5, native about853x1844 or1024x2216. No device frame, browser, collage, extra states, keyboard or explanatory captions.
+
+Palette: #F7F8F2 background, #244D3D forest, #D7F57B citrus selected accents, #E8EDE4 sage, #233B30 ink, #617067 secondary. Modern Chinese sans-serif ONLY. Logical scale at390 width: app-bar title16/24, input values18/24, external field labels14/20, settings-row titles16/24, setting values14/20, main submit16/24. Same role always same size/weight. Margin24, generous48px targets, clean visible input boundaries. No serif, photographs, plants, textures, gradients, glass or decorative art.
+
+Layout:
+Small14:00 status bar. Forest circular back arrow on left and centered 新建任务. No four-tab bottom navigation.
+Compact sage scope area: small 所属节点, then 学会 Flutter › State › 基础概念; the final leaf can be a small citrus chip. Keep this context readable and compact, not a giant card. No already-created or execution status.
+External label 任务名称 * with a large soft rounded input containing 基础概念 in18px. It is an editable PRE-FILLED value, not a placeholder. No giant headline repeating the task name.
+Next, TWO side-by-side input areas to reduce stacked-box density:
+left about60% width: external label 日期 *, rounded date input with small calendar outline; year2026 as14px context and 10月19日 as18px value, small down-chevron. Date fully understandable including year.
+right about40%: external label 计划时长 *, rounded numeric field with18px 30 and14px 分钟. This is planned duration, not elapsed time. Use matching borders and24px corner radii. Required asterisks forest/ink, not red errors.
+Below, flat settings rows separated by subtle neutral spacing:
+时间安排 on left, a small 2-option pill control 自选 / 固定 on right. 自选 is selected citrus; 固定 inactive sage. No fixed start time field in this state.
+完成方式 on left, 自报完成 with DOWN-chevron on right, indicating in-place options. No completed check or verified badge: this is a policy choice, not an outcome.
+详细方案（选填） with down-chevron, COLLAPSED. No paragraphs, Why, objective, steps, evidence criteria or deadline expanded in this default state.
+One forest full-width pill 创建任务 at the bottom, about52 logical px tall, safely above the dark home indicator. Show no second save action and no wizard step counter. Do not stretch all settings into giant outlined cards. Airy but compact practical form, with readable labels and field values.
+
+Exact sample: NEW UNSAVED draft for 基础概念, date2026-10-19, plan30minutes, FLEXIBLE and SELF_REPORT defaults. It does not replace the existing setState45minute task. No evidence deadline fields because self-report is selected. All three required inputs have valid values, submit is enabled. No progress ring, weekly statistics, scores or database confirmation.
+Interaction design (do NOT print these instructions): date calendar, scope selection, fixed-time and evidence-policy options expand in the same form context; conditional fields appear only when needed. Submit produces feedback in this work context, not a forced fourth navigation.
+The whole initial form should fit390x844 naturally; don't shrink labels to fit. Crisp accurate Chinese, consistent typography, faithful current Mission Book style. ONE screen only.
