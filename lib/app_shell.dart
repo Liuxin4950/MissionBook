@@ -27,42 +27,29 @@ class _AppShellState extends State<AppShell> {
       _selectedIndex = index;
     });
   }
+
   // 主要渲染内容
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("MissionBook"),
+        // title: Text("MissionBook"),
       ),
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: _buildNavigationBar(),
     );
   }
+
   // 底部导航模块
   Widget _buildNavigationBar() {
     return NavigationBar(
       selectedIndex: _selectedIndex,
       onDestinationSelected: _selectPage,
       destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.today_outlined),
-          label: '今天',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.flag_outlined),
-          label: '目标',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.history),
-          label: '历史',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline),
-          label: '我的',
-        ),
+        NavigationDestination(icon: Icon(Icons.today_outlined), label: '今天'),
+        NavigationDestination(icon: Icon(Icons.flag_outlined), label: '目标'),
+        NavigationDestination(icon: Icon(Icons.history), label: '历史'),
+        NavigationDestination(icon: Icon(Icons.person_outline), label: '我的'),
       ],
     );
   }
