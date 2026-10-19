@@ -5,8 +5,14 @@ class TodayPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text('今天页面'),
+    return const Column(
+      children: [
+        // header
+
+        // plan
+
+        // time
+      ],
     );
   }
 }
