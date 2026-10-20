@@ -1,15 +1,53 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import 'application/create_mission.dart';
 import 'core/theme/app_theme.dart';
+import 'data/local/app_database.dart';
+import 'data/repositories/drift_mission_repository.dart';
 import 'app_shell.dart';
-// 定义根wight,将UI逻辑与main分离
-class App extends StatelessWidget {
+
+class App extends StatefulWidget {
   const App({super.key});
+
+  @override
+  State<App> createState() => _AppState();
+}
+
+class _AppState extends State<App> {
+  // late 表示这些属性稍后初始化。
+  // final 表示初始化后不再换成另一个对象。
+  late final AppDatabase _database;//定义数据库连接器
+  late final CreateMission _createMission;//定义业务对象
+
+  @override
+  void initState() {
+    super.initState();
+    // Flutter 创建这个 State 后调用一次 initState。
+    // 不传 executor，使用已有的本地文件连接配置。
+    _database = AppDatabase();
+    // 将同一个数据库交给真实仓储。
+    final repository = DriftMissionRepository(_database);
+    // 业务对象保存仓储引用，后续通过它执行真正的保存。
+    _createMission = CreateMission(repository);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: AppTheme.light,
-      home: const AppShell(),
+      // build 可以重复执行，但这里始终传入已创建的同一个业务对象。
+      home: AppShell(createMission: _createMission),
     );
+  }
+
+  @override
+  void dispose() {
+    // Flutter 移除这个 State 时调用 dispose。
+    // close 返回 Future，但 dispose 不能等待异步完成；
+    // unawaited 明确表示在这里发起关闭，不等待它。
+    unawaited(_database.close());
+    super.dispose();
   }
 }

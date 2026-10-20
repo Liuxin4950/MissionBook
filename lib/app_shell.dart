@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'presentation/today/today_page.dart';
+import 'application/create_mission.dart';
 
 //页面聚合状态控制页面
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({super.key, required this.createMission});
+  // 业务对象
+  final CreateMission createMission;
 
   @override
   State<AppShell> createState() {
