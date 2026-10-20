@@ -1,6 +1,12 @@
+import 'dart:convert';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/data/local/app_database.dart';
+import 'package:mission_book/data/repositories/drift_mission_repository.dart';
+import 'package:mission_book/domain/entities/mission.dart';
+import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
+import 'package:mission_book/domain/entities/execution_plan.dart';
 
 void main() {
   late AppDatabase database;
@@ -142,5 +148,166 @@ void main() {
       isEmpty,
     );
     expect(await database.select(database.executionPlans).get(), isEmpty);
+  });
+
+  group('DriftMissionRepository.create', () {
+    final createdAt = DateTime.utc(2026, 10, 20, 1);
+    final updatedAt = DateTime.utc(2026, 10, 20, 2);
+    final fixedStartAt = DateTime.utc(2026, 10, 20, 10);
+    final deadline = DateTime.utc(2026, 10, 20, 15);
+    const steps = ['阅读“第一章”', '记录\n心得'];
+
+    // 每次调用都创建三个业务对象，再走真实仓储入口。
+    // 可选参数仅用于在失败测试里故意提供错误关联或重复编号。
+    Future<void> createTask({
+      String missionId = 'mission-a',
+      String planId = 'plan-a',
+      String? scheduleMissionId,
+      String? planMissionId,
+      int revisionNumber = 1,
+      DateTime? cancelledAt,
+    }) {
+      return DriftMissionRepository(database).create(
+        mission: Mission(
+          id: missionId,
+          title: '读书',
+          description: '读完第一章',
+          why: '准备讨论',
+          verificationPolicy: VerificationPolicy.requiredEvidence,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          cancelledAt: cancelledAt,
+        ),
+        initialSchedule: MissionScheduleRevision(
+          id: 'schedule-$missionId',
+          missionId: scheduleMissionId ?? missionId,
+          revisionNumber: revisionNumber,
+          scheduledDate: '2026-10-20',
+          timeZone: 'Asia/Shanghai',
+          timePolicy: TimePolicy.fixed,
+          fixedStartAt: fixedStartAt,
+          plannedDurationMinutes: 30,
+          evidenceDeadlineAt: deadline,
+          changeReason: '首次安排',
+          changedAt: createdAt,
+        ),
+        executionPlan: ExecutionPlan(
+          id: planId,
+          missionId: planMissionId ?? missionId,
+          objective: '读完十页',
+          steps: steps,
+          verificationCriteria: '提交读书笔记',
+          notes: '重点记录问题',
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+        ),
+      );
+    }
+
+    // 失败测试不仅检查有异常，还检查没有留下任何半条任务。
+    Future<void> expectEmptyDatabase() async {
+      expect(await database.select(database.missions).get(), isEmpty);
+      expect(
+        await database.select(database.missionScheduleRevisions).get(),
+        isEmpty,
+      );
+      expect(await database.select(database.executionPlans).get(), isEmpty);
+    }
+
+    test('创建后能读回关联记录、时间、枚举和含特殊字符的步骤', () async {
+      await createTask();
+
+      // getSingle 同时检查每张表恰好有一条记录。
+      final mission = await database.select(database.missions).getSingle();
+      final schedule = await database
+          .select(database.missionScheduleRevisions)
+          .getSingle();
+      final plan = await database.select(database.executionPlans).getSingle();
+
+      expect(mission.id, 'mission-a');
+      expect(mission.title, '读书');
+      expect(mission.description, '读完第一章');
+      expect(mission.why, '准备讨论');
+      expect(mission.verificationPolicy, 'REQUIRED_EVIDENCE');
+      expect(mission.createdAt, createdAt.millisecondsSinceEpoch);
+      expect(mission.updatedAt, updatedAt.millisecondsSinceEpoch);
+      expect(mission.cancelledAt, isNull);
+
+      expect(schedule.id, 'schedule-mission-a');
+      expect(schedule.missionId, mission.id);
+      expect(schedule.revisionNumber, 1);
+      expect(schedule.scheduledDate, '2026-10-20');
+      expect(schedule.timeZone, 'Asia/Shanghai');
+      expect(schedule.timePolicy, 'FIXED');
+      expect(schedule.fixedStartAt, fixedStartAt.millisecondsSinceEpoch);
+      expect(schedule.plannedDurationMinutes, 30);
+      expect(schedule.evidenceDeadlineAt, deadline.millisecondsSinceEpoch);
+      expect(schedule.changeReason, '首次安排');
+      expect(schedule.changedAt, createdAt.millisecondsSinceEpoch);
+
+      expect(plan.id, 'plan-a');
+      expect(plan.missionId, mission.id);
+      expect(plan.objective, '读完十页');
+      // 解码后比较，确认引号、换行和步骤顺序都没有丢失。
+      expect(jsonDecode(plan.steps), steps);
+      expect(plan.verificationCriteria, '提交读书笔记');
+      expect(plan.notes, '重点记录问题');
+      expect(plan.createdAt, createdAt.millisecondsSinceEpoch);
+      expect(plan.updatedAt, updatedAt.millisecondsSinceEpoch);
+    });
+
+    test('拒绝不属于当前任务的排期，且不写入数据', () async {
+      await expectLater(
+        createTask(scheduleMissionId: 'other-mission'),
+        throwsArgumentError,
+      );
+      await expectEmptyDatabase();
+    });
+
+    test('拒绝不属于当前任务的方案，且不写入数据', () async {
+      await expectLater(
+        createTask(planMissionId: 'other-mission'),
+        throwsArgumentError,
+      );
+      await expectEmptyDatabase();
+    });
+
+    test('拒绝首次排期版本不是 1，且不写入数据', () async {
+      await expectLater(createTask(revisionNumber: 2), throwsArgumentError);
+      await expectEmptyDatabase();
+    });
+
+    test('拒绝创建已取消任务，且不写入数据', () async {
+      await expectLater(
+        createTask(cancelledAt: updatedAt),
+        throwsArgumentError,
+      );
+      await expectEmptyDatabase();
+    });
+
+    test('第三次写入失败时回滚新任务和排期，保留原有数据', () async {
+      await createTask();
+      final oldMission = await database.select(database.missions).getSingle();
+      final oldSchedule = await database
+          .select(database.missionScheduleRevisions)
+          .getSingle();
+      final oldPlan = await database
+          .select(database.executionPlans)
+          .getSingle();
+
+      // mission-b 和它的排期可以写入，但 plan-a 已存在：
+      // 第三次插入违反主键约束，必须撤销前两次写入。
+      await expectLater(
+        createTask(missionId: 'mission-b', planId: 'plan-a'),
+        throwsA(sqliteConstraint(1555)),
+      );
+
+      // 整表比较：新记录没有留下，原有记录也没有被覆盖或删除。
+      expect(await database.select(database.missions).get(), [oldMission]);
+      expect(await database.select(database.missionScheduleRevisions).get(), [
+        oldSchedule,
+      ]);
+      expect(await database.select(database.executionPlans).get(), [oldPlan]);
+    });
   });
 }
