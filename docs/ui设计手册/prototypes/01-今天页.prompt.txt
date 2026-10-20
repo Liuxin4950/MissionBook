@@ -1,0 +1,20 @@
+Use case: ui-mockup
+Generate exactly ONE polished Chinese mobile Today page for Mission Book. Use the latest screenshot as the exact revised layout reference: ONE highlighted current task and FIVE compact other task rows, SIX tasks in total. This revision fixes the previous excessive empty space. Single flat edge-to-edge portrait UI, native 853x1844 or larger at the same 390x844 logical aspect. No device frame, browser, collage, poster, captions, annotations, alternatives.
+
+Style: fresh contemporary productivity app, calm warm white #F7F8F2, forest #244D3D, citrus #D7F57B only on the selected current plan, sage #E8EDE4, ink #233B30. Clean flat colors, crisp Chinese sans-serif, refined open alignment, circular plus, softly asymmetrical current card, capsule bottom nav. No photographs, plants, visible material texture, gradients or ornamental illustrations.
+
+Layout follows the reference. Header: small 14:00 status with signal/wifi/battery; 今天; 10月18日 · 周日 with tiny chevron; forest circular plus. Section title 计划日程 and quiet 全部任务 ↗. A COMPACT CHRONOLOGICAL NODE LIST, not a scaled duration chart. Thin vertical connector, small circle nodes, start-time labels at left. Four fixed tasks:
+13:00 — 复习路由导航; secondary 已报告完成 · 计划15分. Compact open row, no large card.
+14:00 with small 现在 — current task 理解 setState / 与 rebuild on citrus card, 计划 45 分, compact forest play button 开始. This one card may be large (126 logical px tall).
+15:30 — 练习按钮事件; secondary 计划 30 分. Compact open row.
+17:00 — 整理今日笔记; secondary 计划 20 分. Compact open row.
+No hour grid, no 15:00 end tick, no large blank time gaps, no actual running progress. Node spacing expresses order only. Noncurrent rows about48-56 logical px tall with12px gaps.
+
+Independent section 自选时间, then TWO compact rows:
+module icon — 实现首页基础布局 / 计划 50 分; chevron
+book icon — 阅读布局约束 / 计划 25 分; chevron.
+Both rows ~60px high; no fixed start times.
+Then light divider and utility row with paperclip 待补材料 2 / inbox 旧任务 1.
+At bottom white floating capsule navigation with icons and labels 今天 / 目标 / 历史 / 我的. Selected 今天 is forest with citrus icon and label. Small home indicator.
+
+All SIX task titles must have the SAME font size and weight: 18/24 logical semibold, even the selected card. Page title28/36, section16/24, times/metadata/button14/20, nav12/16. Uniform raster scale. Do not enlarge selected title. Preserve 24px side margins, readable text and good separation. All six tasks, utility row and navigation fit in the 390x844 first screen. Only necessary task labels, no greeting, Goal path, Why paragraph, invented statistics or decorative oversized numbers. Match Chinese strings accurately.

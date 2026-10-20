@@ -1,0 +1,18 @@
+Use case: ui-mockup.
+Generate exactly ONE polished Chinese mobile app screen for Mission Book, EXECUTION RECORD DETAIL after formal material submission. Reference image1 材料编辑.png is the current visual system. Same task, next saved state. One straight-on portrait screen about390:844 logical ratio, no phone frame, collage, annotations or extra screens. Crisp Chinese sans-serif and sans Latin, no serif.
+Palette: warm-white #F7F8F2 background, forest #244D3D back circle/main pill button/icons, ink #233B30 text, muted #617067 metadata on warm-white, sage #E8EDE4 soft summary, citrus #D7F57B small context accents, divider #DCE3D8, white #FFFFFF. Smooth flat UI, no photo/texture/gradient/scenery, no large rectangular box around every row.
+Consistent logical text roles: task title18/24 semibold; frozen Focus number28/36 semibold; section and controls16/24; metadata14/20; nav title18. Side margin24; rounded back circle48; controls48min. Important: do not invent extra font sizes or huge 48pt timer. Generous spacing, compact meaningful content, not a wall of prose.
+Screen:
+- Status time "14:45", native status icons.
+- Top app bar: forest circular white back arrow as reference, centered "执行记录", ellipsis right.
+- Supporting breadcrumb "学会 Flutter › State › 基础概念".
+- Task identity "理解 setState 与 rebuild" at18, consistent with reference.
+- Two short status items on one line, DISTINCT FACTS: "报告：已完成" and "材料：已提交". Sage/citrus pills restrained, dark text. These are factual labels, no celebratory trophies, check-certified seals, score or mastery.
+- ONE compact summary surface with circular clock outline on left, "专注时长" label14 and "31:42" number28. Under it/open bottom portion, three equally sized quiet columns: label "原计划" value "45分"; label "增加额度" value "0分"; label "暂停" value "2次". Values18, labels14. All facts readable, no percentage or progress ring.
+- Open section "本次时间线"16, date "2026年10月18日"14 aligned right. Three compact vertical nodes joined by a thin line. Timestamp column in tabular numbers, event text aligned: "14:00:00" / "开始执行"; "14:37:15" / "结束执行"; "14:45:00" / "材料提交". Small outlined clock and document node shapes distinguish execution and material facts. Nodes are equally spaced to express EVENT ORDER ONLY, not duration. No fourth event, no fake time.
+- Section "正式材料"16 with small count "2项". Two OPEN compact rows separated by fine dividers, each has a sage circular outline document icon and ellipsis menu on right.
+  Row1 title "文字说明", secondary ONE LINE preview "在 setState 回调中递增计数…" (a preview, no huge text card).
+  Row2 filename "counter_demo.dart", metadata "2.4 KB".
+- Footer low priority muted small text "智能评价暂未接入".
+- ONE wide forest fully pill button "再次尝试" white16 above safe area; this opens an UNSAVED new retry task, do not show creation success. No Save/Confirm End/Submit button, no edit original execution, no add-first-material or delete action.
+Fit with readable spacing, unclipped footer and no excessive empty areas. Main visual is the quiet frozen Focus summary with clear secondary chronological nodes and material rows. Preserve current reference shape language and consistent text scale, reduce repeated containers and explanatory text. This is read-only stored result; no active input, keyboard, running ring, draft banner, deadline warning or live pause controls.

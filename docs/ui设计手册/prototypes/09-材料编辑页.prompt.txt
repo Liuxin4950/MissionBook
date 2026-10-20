@@ -1,0 +1,17 @@
+Use case: ui-mockup.
+Create exactly ONE high fidelity Chinese mobile app screen, material editor state of Mission Book. One straight-on screen, native portrait around 390:844 logical aspect ratio, crisp Chinese sans-serif. No phone frame, no multiple screens, no surrounding annotations. Reference image 1 (结束确认.png) is the CURRENT STYLE AND TASK WORKSPACE reference. This is a new material-edit state, do not reproduce the report radio buttons. Do not use any old serif style.
+Palette only: warm-white background #F7F8F2; forest #244D3D main action/back circle; citrus #D7F57B used sparingly for draft-context pill/icon; sage #E8EDE4; ink #233B30; secondary #617067 on warm-white; divider #DCE3D8; white #FFFFFF. Flat smooth surfaces, subtle soft rounded containers, no textures, photo backgrounds, decorative gradients or shadows. Match reference circle back, spacious alignment and pill primary button.
+Typography consistent at logical scale: section/page question heading28/36 semibold, task identity18/24 semibold, section/control/button16/24 semibold, input18/24 regular, metadata14/20. Use contemporary Chinese sans and sans Latin, NEVER serif. Side margins24. Actual touch targets48. No tiny compressed body text.
+Screen exact content and hierarchy, all readable:
+1 status bar time "14:40"; navigation row with forest circular back arrow, centered "执行任务", ellipsis right. No bottom tab navigation.
+2 compact breadcrumb "学会 Flutter › State › 基础概念"; task identity "理解 setState 与 rebuild" at18, not huge.
+3 compact low sage summary strip, clock outline + "专注 31:42" and pill "待补材料". The frozen focus is supporting summary, no live timer, no execution ring, no pause or continue. Keep same identity and workspace from reference.
+4 main state heading "整理材料"28, directly below metadata "草稿，尚未进入正式记录". Next line clock outline and "截止 10月18日 18:00". The deadline is a single compact line, not a big warning card. A collapsed disclosure "验收方向" with downward chevron.
+5 "文字说明" section label16, with ellipsis menu at right. Visible outlined rounded multiline editable text field18 with this exact body, natural 3–4 lines:
+"在 setState 回调中递增计数。
+观察到 build 再次执行，计数显示更新。"
+Use a clear forest border, warm-white/white input, generous padding. No active keyboard or fake text cursor. This is actual editing surface, not a huge ornamental card.
+6 one compact open file row: sage circular document icon, filename "counter_demo.dart", sublabel "2.4 KB", ellipsis right. Light divider, no enclosing giant rectangular card. Row about64 logical tall.
+7 secondary add entry: small citrus circular plus icon and "添加材料", about48 touch height. Keep a natural breathing gap before footer, no excessive empty half screen.
+8 bottom anchored footer above home indicator: helper14 "提交后保留原件，后续可追加修正。" then ONE wide forest fully pill button "提交材料" white16. This button is enabled because two valid drafts exist. No extra confirmation, skip, success check, evaluation, AI score or camera buttons. Content must fit with readable consistent type and unclipped footer; do not shrink fonts to fit.
+Design balance: emphasize editable material area and clear single action, task identity/supporting summary compact. Hierarchy through spacing, icon circles, thin dividers and rounded input rather than boxing every item. Consistent with current reference yet specifically a functional material editor. No invented achievements or saved-success state.

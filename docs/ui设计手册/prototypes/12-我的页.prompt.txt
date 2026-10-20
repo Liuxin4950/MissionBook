@@ -1,0 +1,16 @@
+Use case: ui-mockup.
+Generate exactly ONE high fidelity Chinese MOBILE "我的" page for Mission Book. Use reference image1 历史.png for current warm-white/forest/citrus system and exact four-tab navigation family. One straight-on portrait390:844 logical ratio, no device frame, multi-screen collage or annotations.
+Palette strictly: #F7F8F2 warm-white background, #244D3D forest controls, #D7F57B citrus contextual emphasis, #E8EDE4 soft sage, #233B30 ink, #617067 secondary only on warm-white/white, #DCE3D8 dividers, #FFFFFF. No photos, texture, landscapes, gradients, heavy shadows, or random extra colors. Chinese and Latin sans only; no serif.
+Logical hierarchy: page title28/36 semibold; feature titles18/24 semibold; section/control16/24 semibold; supporting info14/20; nav12/16. Side margin24, touch48 minimum, circular outline icons, rounded information surface and fully pill controls. Same size for peer feature titles. Spacious but don't invent filler or empty giant panels.
+Screen exact contents:
+Status time "14:45".
+Top heading "我的"28 at left, no avatar, user name, profile/login/settings gear or decorative header.
+Section label "提醒与权限"16.
+One softly rounded citrus attention panel, about140 logical high. Large outline bell in a small circle at left, feature title18 "通知未开启", helper14 "固定时间任务可能无法提醒" in dark forest. A compact forest pill "去设置" (white16) aligned logically, inside panel. Attention state only, no fake ON switch or success check. Keep bell restrained, no 3D illustration.
+Below one OPEN row with sage circular alarm outline icon, title18 "准时提醒", supporting14 "需要系统授权", compact outlined pill "去设置" at right. Thin divider below. Notification authorization and exact scheduling authorization are distinct controls.
+Next section label "数据"16.
+One clean softly rounded white/sage backup area, not an oversized block. Outline local-drive + outward arrow icon in a circle (NOT a cloud), title18 "本地备份", sublabel14 "尚未导出". Short disclosure visible BEFORE export: "包含数据与正式附件，不含草稿。" (14; naturally2lines if needed).
+One forest pill action "导出备份"16 inside this backup area. This is ENABLED idle export state, NOT export success; no invented backup size/time, storage percentage or progress indicator.
+After a calm gap, one OPEN row with simple circle info icon, title18 "关于 Mission Book", subtitle14 "版本 0.2.2（4）", downward chevron right indicating in-place disclosure. No update badge.
+Bottom floating white fully pill four-tab navigation matching reference exactly: 今天 (house), 目标 (target), 历史 (clock), 我的 (person). ONLY 我的 selected forest capsule with citrus icon/text. Home indicator below. Keep footer clear of content, allow natural breathing room.
+This screen is an Android permission-state DESIGN EXAMPLE. Do not put that implementation annotation on the image. No account/login/sync/AI configuration, import/restore backup, clear data, membership, fake stats, theme chooser or unrelated functions. Primary purpose is seeing reminder capability and safely exporting local data. No extra explanatory paragraphs, extra primary footer button or second screen. Everything crisp, text accurate, coherent with reference.

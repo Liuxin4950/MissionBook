@@ -1,0 +1,23 @@
+Use case: ui-mockup
+Generate exactly ONE polished Chinese mobile NODE TASK LIST screen for Mission Book. Input image1 is the CURRENT STYLE REFERENCE only (Goal tree), not an edit target. Reuse its typography, colors, icon line weight, circle back button and organic capsule shapes. Render ONE edge-to-edge flat portrait app screen, aspect9:19.5, native about853x1844 or1024x2216. No frame, browser, collage, multiple states or captions.
+
+Design system: warm white #F7F8F2, forest #244D3D, citrus #D7F57B on the current task only, sage #E8EDE4, ink #233B30, secondary #617067, thin line #DCE3D8. Modern Chinese sans-serif throughout, NO serif. Logical type sizes at390 width: page/node title28/36, ALL FIVE task titles18/24 semibold, section16/24, date/plan/status/buttons14/20. One uniform raster scale; current title has same size as other task names. Margins24. No textures, photos, plants, gradients or giant illustration.
+
+CHILD PAGE: small14:00 status bar, forest circular back arrow at left, quiet centered 节点任务, ellipsis right. No four-tab bottom navigation and no global task dock.
+Compact header: breadcrumb 学会 Flutter › State in14px. Title 基础概念28px and small sage 已安排 badge. Quiet collapsed 节点说明 with down chevron. No paragraph, progress ring or mastery percentage.
+
+Main visual is a compact date-ordered task list, matching the Today page's node vocabulary. Section 待开始 4 on left, forest + 建任务 text action on right. This is the ONLY creation entry, no repeated bottom create button.
+A narrow date column at left; subtle neutral connector and small hollow markers indicate chronological order only, NOT proportional duration. Show FOUR pending tasks:
+1. Left 今天 / 14:00. Right citrus softly asymmetrical rounded current task (about126 logical px high), title split 理解 setState / 与 rebuild, small 计划45分, compact forest play pill 开始. Add a subtle down-chevron for expanding details in place. No countdown, elapsed time or completed mark.
+2. Left 明天. Compact open row(~64px), title 写一个计数器示例, auxiliary 自选时间 · 计划30分, right down-chevron.
+3. Left 10月20日. Compact open row(~64px), title 验证局部刷新, auxiliary 自选时间 · 计划20分, right down-chevron.
+4. Left 10月21日 / 19:00. Compact open row(~64px), title 记录重建日志, auxiliary 计划25分, right down-chevron.
+Keep chronological gaps compact, not enormous calendar gaps. Only the current task gets a large filled shape.
+
+Then section 执行记录 1, a light divider if useful, and ONE history row:
+Left 10月17日. Title 梳理 State 的生命周期 in the same18px task type (max2 lines); neutral 未完成 label, a small clock and 专注20分. Right down-chevron for in-place record expansion. No red failure alarm, green completed check, AI evaluation or fabricated metrics.
+Finished record has actual Focus20; pending values are planned minutes. All five tasks belong directly to 基础概念. Because none has a COMPLETED report, node status stays 已安排 and goal coverage remains unchanged.
+
+Use compact repeated rows, clear spacing and generous touch areas. All five tasks should fit the390x844 normal screen without shrinking type or stretching content to fill. Natural remaining whitespace is fine. Bottom safe area and small dark home indicator only. No footer toolbar or explanatory text.
+Interaction intent, not visible copy: title/chevron reveals detail in the same row; +建任务 expands a compact title/date/planned-duration composer in this node context, rather than requiring a fourth route. Never print implementation or navigation instructions on the screen.
+Exact Chinese strings, restrained hierarchy, readable date labels and consistent font sizes. ONE screen only.
