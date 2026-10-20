@@ -53,7 +53,7 @@ venv/
 .kotlin/
 .externalNativeBuild/
 
-# Generated previews and local design drafts (source scripts belong in tool/).
+# Generated previews and local design drafts.
 # Reviewed design references belong in docs/, application assets in assets/.
 /output/
 /dist/
