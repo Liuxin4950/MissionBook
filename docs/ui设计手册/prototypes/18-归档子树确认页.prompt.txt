@@ -1,0 +1,34 @@
+Use case: ui-mockup
+ONE Chinese Mission Book mobile UI screenshot18, ARCHIVE SUBTREE CONFIRMATION in the existing Goals tree.
+Canvas priority: narrow tall phone9:19.5, EXACT853x1844 matching reference. Not9:16. One edge-to-edge screen, no device frame, collage, separate success frame or HTML.
+Reference17 supplies typography/palette/context. IMPORTANT STATE EVOLUTION: the new 每周复盘 draft from17 was successfully saved BEFORE this scene. It is now a normal third child, no editor, no underline, no 未保存. Current goal has5 effective nodes, no completed records; active goals count4. User opened 阅读与记录 node menu and chose archive; confirmation is OPEN but NOT committed. Counts must remain0/5 and4 during confirmation.
+
+Palette warm-white#F7F8F2, forest#244D3D, ink#233B30, secondary#617067, citrus#D7F57B, sage#E8EDE4, divider#DCE3D8, white#FFFFFF. Flat fills, no gradients/shadows, giant dark shapes, destructive-red full-screen warning, trash-can deletion scene, confetti or decorative art. Quiet but unambiguous reversible archive. Open tree and inline confirmation, not another stack of field cards or a full-page dialog.
+Chinese system sans-serif. Logical390x844,24margins; page28/36, expanded goal24/32, node18/24 ALL same, confirmation20/28, controls16/24, status14/20, nav12/16.48touch areas. Prioritize readability, no shrink-to-fit.
+
+Layout:
+- Standard14:00status bar.
+- Header目标 left, small sage circular＋right.
+- Compact3filterpills进行中4 selectedcitrus; 已搁置 / 已达成 inactive.
+- Expanded saved goal 建立阅读习惯, quiet goal menu; compact stat 节点完成记录0 / 5. Optional goal description/why hidden for this focused maintenance state, stored unchanged. No import receipt.
+- 目标路径 header, with small quiet 已归档节点 text entry on right.
+- Open tree with FIVE SAVED nodes; no checkboxes/completion marks:
+  ROOT选书
+  ROOT阅读与记录 (selected parent, down-chevron expanded)
+      CHILD阅读第一章
+      CHILD整理读书笔记
+      CHILD每周复盘
+  Root rows identical indent; all3children belong ONLY to阅读与记录. Light subtle highlighting/branch guide may mark the4-node archive scope;选书 must clearly remain outside selected scope. The highlighted scope is a pending operation, not completed/archived already. Nodes stay visible before confirmation.
+- Beneath selected subtree, INLINE confirmation in the same goal area, no modal overlay and no hiding other goal/context:
+  Heading exact 归档“阅读与记录”？
+  Three concise14px lines:
+  本节点及3个子节点，共4个。
+  已有任务和历史保留，之后可恢复。
+  归档后不能在这些节点建新任务。
+  Quiet button取消 on left; light-citrus pill归档4个节点 on right with forest text. One explicit archive primary action, not“删除”“完成”“保存目标”. No success check.
+- Thin divider; keep a compact neighbouring goal row学会 Flutter, small book icon/chevron, readable above nav. It is a different goal, not part of archive.
+- Persistent bottom white nav今天 / 目标 / 历史 / 我的, selected目标 smallcitruspill with foresticon/text; safe home indicator.
+Keep layout compact and natural: title/stat aroundy175..240, treeheader250, five rows~40px throughy490, confirmation aroundy510..700, neighbour~y725, nav768..825. All tree labels and actions fully visible, no overlap.
+
+Truth: archive means assigning archivedAt to阅读与记录 and ALL3descendants in one atomic operation, NOT physically deleting. Existing Mission associations, events and materials stay intact; they are not cancelled or paused. Existing tasks remain executable; only NEW task creation on archived nodes is blocked. The current sample has no tasks, so no invented history rows. Goal remainsACTIVE and Goalcount4. ONLY after confirmation AND successful commit do these4nodes leave active tree and coverage0/5becomes0/1; never show0/1 prematurely here. Restoration available through已归档节点 later, not auto-undo.
+Motion note (not printed): inline confirmation grows360ms near selected branch; success later folds only archived subtree into archive entry after commit; cancel returns same visible tree; failure retains confirmation and counts; reduced motion immediate. Show exactly this ONE pending-confirmation frame.

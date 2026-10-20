@@ -1,0 +1,34 @@
+Use case: ui-mockup
+Generate exactly ONE Mission Book app screenshot: screen24 全部任务筛选. Native853px WIDE by1844px HIGH, tall smartphone9:19.5 portrait, width/height0.46258, matching reference dimensions. Do not output935x1683 or9:16. No collage, device frame, browser/HTML or outside annotations.
+Reference image role: Today header, warm-white/forest/pale-citrus palette, open layout and light selected Today navigation ONLY. Replace empty-state area with the inline all-task filter/results below. Do not copy the empty calendar illustration or zero statistics.
+Flat pure colors #F7F8F2 background #244D3D forest #D7F57B light citrus #E8EDE4 sage #233B30 ink #617067 secondary #DCE3D8 divider #FFFFFF white. Clear Chinese sans-serif, no gradients/textures/shadows, no big cards around every row. Ordinary task names18/24 logical. Use compact open filter rows and task groups, thin rules.
+Composition:
+- statusbar14:00, signal/wifi/battery.
+- heading"今天", pale-sage circular＋top-right.
+- below heading date"2026年10月20日 · 周二" with small down-chevron.
+- expanded section heading"全部任务" with small × on far right (close returns to selected-day schedule, not delete).
+- TWO compact filter controls in one row: label"日期" with value"全部日期" and down-chevron; label"阶段" with value"待开始" highlighted light citrus and down-chevron.
+- next open filter row label"目标", selected"学会 Flutter" with down-chevron and a small × to clear this Goal condition. Do not turn this into a giant card.
+- subtle result summary row"匹配 2 项" at left, forest text action"重置筛选" at right.
+- Result1, open group:
+  task title"练习按钮事件", ellipsis at right.
+  readable metadata"2026-10-18 · 固定 15:30"
+  second metadata"待开始 · 计划 30 分"
+  small neutral text label"以前未开始" (not red failure).
+  row of actions: light-citrus compact"开始" with play icon, forest text"改期".
+- fine divider.
+- Result2, open group:
+  title"练习布局约束", ellipsis at right.
+  metadata"2026-10-20 · 自选时间"
+  second metadata"待开始 · 计划 25 分"
+  same actions light-citrus"开始" and forest"改期".
+- quiet helper below results"以前的任务不会自动延期或取消。"
+- Above bottom navigation keep ONE small pale-sage current-task shortcut outside filtered results:
+  small label"已暂停 · 专注 08:20"
+  compact title"整理阅读笔记"
+  small light-citrus button with play icon"继续" at right.
+  It is a DIFFERENT existing task, not a third matching result. Its task is independent of any Goal and not in the selected待开始 phase, but must stay accessible globally.
+- floating white bottom nav line icons+labels"今天" selected small light-citrus pill with forest icon/text, "目标","历史","我的", dark thin home indicator.
+Fit all controls and TWO task results legibly, generous enough touch targets, no overlapping task dock/nav. Avoid giant empty gaps, no activity charts in this expanded filter viewport.
+Business state: selected date of Today is20Oct2026, but all-task DATE FILTER is explicitly全部日期, therefore old18Oct and current20Oct results coexist. Phase待开始 + Goal学会Flutter yields exactly2. Neither result hasSTART/END/cancelledAt, so only计划时长, no Focus or budget shown for them, no completed ticks. Old18Oct task remains NOT_STARTED, not failed or auto-rescheduled. Current paused independent task started20Oct13:10 and paused13:18:20, Focus500sec=08:20; no RUNNING exists. Filter changes never auto-resume it. Global current-task shortcut is outside these result count2. No fake report/material badges. Cancel/edit live in result ellipsis menus, not physical delete.
+Output ONE native853×1844 raster screenshot only.

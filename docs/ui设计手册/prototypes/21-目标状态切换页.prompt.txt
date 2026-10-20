@@ -1,0 +1,27 @@
+Use case: ui-mockup
+Asset type: Mission Book mobile UI, screen21 目标状态切换
+Generate exactly ONE new mobile app screenshot. Native canvas 853×1844 pixels, portrait phone aspect ratio 9:19.5. Match reference dimensions precisely. No collage, no separate device frame, no annotations outside the UI.
+Reference image role: style and layout continuity ONLY (warm white, forest typography, light citrus actions, retained Goals list and navigation). Replace ordering controls and full tree with the inline goal-state editor below. This is a later state after sibling ordering has been saved.
+Visual style: clean flat warm-white #F7F8F2, forest #244D3D, light citrus #D7F57B, sage #E8EDE4, ink #233B30, secondary #617067, fine divider #DCE3D8, white #FFFFFF. No gradients, textures, huge dark buttons, nested cards, or rectangle around every row. Open option rows within ONE expanded goal region; clear Chinese sans-serif.
+Screen composition:
+1. Status bar 14:00, signal/wifi/battery.
+2. Large heading "目标", circular ＋ at top right.
+3. Filter chips "进行中 4" selected light citrus, "已搁置", "已达成". These represent persisted data, NOT the draft choice.
+4. Expanded saved goal "建立阅读习惯" forest title and ellipsis. Summary "节点完成记录" with "0 / 5" on right. Thin divider.
+5. Compact collapsed tree row "目标路径 · 5 个节点" with right chevron. It is a collapsed summary, do NOT draw all tree nodes or their reorder handles.
+6. Inline editor heading "调整目标状态" and smaller status "未保存".
+7. Clear secondary text "当前：进行中". Then four open, vertically stacked single-choice radio rows, left radio markers:
+   - hollow radio, "进行中", secondary "继续推进，可新建任务".
+   - selected circular radio, "已搁置", secondary "暂时放下，之后可继续". This is the draft selection, pale citrus light row highlight. Radio is a selection indicator NOT a completion check.
+   - hollow radio, "已达成", secondary "由你决定目标是否达到".
+   - hollow radio, "放弃目标", secondary "默认隐藏，可从已放弃目标恢复".
+   Use thin separators or whitespace, no four separate rectangular cards, no red delete/trash icon.
+8. Beneath choices a concise consequences block with two readable lines:
+   "搁置后不能新建任务。"
+   "已有任务仍可执行和补材料。"
+9. Two equal comfortable actions in the same region: "取消" pale sage, "确认搁置" light citrus with forest text.
+10. Below goal region a divider, small "已有目标", neighbor book icon row "学会 Flutter" with right chevron. Preserve a visible real list neighbor.
+11. Floating white bottom nav: icons+labels "今天", "目标" selected small citrus pill, "历史", "我的". Bottom home indicator. No giant deep forest fill anywhere.
+
+Logic: Goal is CURRENTLY still ACTIVE and active-goals count4. PAUSED is selected but not yet saved. Coverage0/5 and effective5 do not change when goal state changes. No success toast yet, no completed ticks, no task pause/end/cancel. The chosen action reads 确认搁置; do not call it 暂停任务. No physical delete offered. All content and actions fit above navigation, legible and unclipped.
+Output one raster screenshot, exact 853×1844.

@@ -1,0 +1,24 @@
+Use case: ui-mockup
+Asset type: Mission Book mobile prototype, screen 20 同级节点排序
+Generate ONE single polished Chinese app screen, native resolution exactly 853 x 1844 pixels, portrait phone aspect ratio 9:19.5, matching reference canvas. Do not make a board, collage, phone hardware frame, web page, or multiple animation frames.
+Input image: reference image ONLY for the established typography, warm-white/forest/light-citrus colors, headers and navigation. This is a NEW subsequent state after restoring the archived branch successfully. Replace all archive/restore UI with the sibling ordering draft described below.
+Style: flat clean warm white #F7F8F2, forest #244D3D, pale citrus #D7F57B, sage #E8EDE4, ink #233B30, secondary #617067, divider #DCE3D8, white #FFFFFF. No dark filled buttons, no gradients or textures. Open tree rows and generous natural spacing; do NOT put every field/node in a rectangle. Only one softly grouped expanded goal region. Crisp readable simplified Chinese sans-serif.
+Composition from top to bottom, keep all content above bottom navigation:
+- iOS-like status line 14:00, signal/wifi/battery.
+- Large heading "目标", top-right small circular ＋.
+- Filter chips "进行中 4" selected pale citrus, "已搁置", "已达成" pale sage.
+- Expanded saved Goal region: "建立阅读习惯" large forest title, ellipsis action right. Next line "节点完成记录" with "0 / 5" right. Thin separator.
+- Section heading "目标路径". Two ROOT nodes at same indentation, in this exact order: "选书" then "阅读与记录". Both have small neutral circular tree markers, no completion ticks.
+- Under 阅读与记录 show inline order editing subheading "调整同级顺序" with small status "未保存" in forest. Scope hint "仅调整该节点下的 3 个子节点".
+- A clearly connected tree with THREE children, all indented equally under 阅读与记录. The tentative order is exactly:
+  1 "每周复盘" selected with a very light citrus horizontal highlight, drag handle (six dots) at right.
+  2 "阅读第一章" with drag handle at right.
+  3 "整理读书笔记" with drag handle at right.
+ All three are ordinary editable ordering rows, no archived tags, no badges claiming completion, no tasks. No visible database indices. Keep branch connectors and child indentation explicit. Root 选书 remains outside this child-only scope.
+- Under tree light helper text "拖动右侧手柄调整顺序". A compact accessible selected-item action row "每周复盘" on left, "上移" grey disabled and "下移 ↓" forest on right. Since selected row is first, upward action is disabled; downward enabled. No separate rectangular card for this action.
+- Thin divider. Supporting text "保存后生效，节点归属保持不变。"
+- In the same expanded region two comfortable inline actions "取消" pale sage and "保存顺序" pale citrus with forest text. No full-width deep-green slab, no restore/archive buttons. Buttons are above bottom navigation with comfortable breathing space.
+- Below goal region, a separator and small "已有目标", visible neighbor row with book outline icon, title "学会 Flutter", right chevron.
+- Bottom floating white navigation has four items icons+labels: "今天", "目标" (selected small pale-citrus pill forest icon/text), "历史", "我的". Dark thin home indicator.
+Business invariants: five effective nodes total, no archived nodes, coverage 0/5, active goals4. This screen is a draft AFTER moving 每周复盘 from third to first; it is NOT saved yet. No success receipt, no automatic completion, no count changes. Only sibling order changes; parent links and roots remain unchanged.
+Text must be legible and exact, no clipped controls. Output only this single 853×1844 app raster image.

@@ -1,0 +1,32 @@
+Use case: ui-mockup
+Generate ONE Mission Book Chinese mobile UI screenshot19: ARCHIVED NODES VIEW with the PARENT RESTORATION GUARD visible.
+CANVAS FIRST: phone portrait9:19.5, exact853x1844 matching reference18, NOT9:16. One edge-to-edge flat UI, no device frame, multi-state collage, external captions or HTML.
+Reference18 sets the existing Goals identity/palette/type. EVOLVE THE STATE: its archive transaction has now succeeded. Four nodes are archived, only选书 remains effective. The current goal has coverage0/1 (NOT0/5yet), active-goal count remains4. User selected archived child阅读第一章→恢复. Its parent阅读与记录 is still archived, so isolated child restoration is blocked. Show a clear in-place explanation and explicit alternative to restore the whole PARENT branch of4nodes. No data is restored until that action commits.
+Palette warmwhite#F7F8F2, forest#244D3D, ink#233B30, secondary#617067, citrus#D7F57B, sage#E8EDE4, thin dividers#DCE3D8, white#FFFFFF. Flat fills, no gradients/shadows, giant dark blocks, red failure illustration, trash/deleted/undo imagery, trophies or repeated cards per row.
+Sans-serif Chinese; logical390x844,24margins; page28/36, expanded goal24/32, node18/24ALLsame, section/control16/24, auxiliary14/20,nav12/16;48touch targets. Muted archived nodes must remain readable, not low-opacity illegible text.
+
+One compact screen:
+- normal14:00status bar.
+- Goals header目标 and small sage circular＋.
+- 3statefilter pills: selectedlightcitrus进行中4; inactive已搁置 / 已达成. Archive is NODE status, not goal status. Do not select已搁置.
+- Expanded saved goal建立阅读习惯, quiet goal menu. Stat row exact节点完成记录0 / 1. Description/why collapsed during maintenance but not erased.
+- ACTIVE area heading目标路径. Exactly one active root row选书 with neutral node dot; this is outside archive section. No completion check.
+- Thin divider then subsection heading已归档节点4, with quiet circular X that closes this archived-view expansion (not deleting/restoring).
+- Archived tree has exactly4nodes, one archived root and three archived children:
+   阅读与记录 (root, small label已归档)
+       阅读第一章 (child, SELECTED row with restrainedcitrushighlight and small quiet恢复 action on its right)
+       整理读书笔记 (child)
+       每周复盘 (child)
+  All three children have identical indentation and belong only to阅读与记录. Use thin neutral connectors and clear grouping. No new-task buttons in archived rows, no completed marks. The4count includes parent, not4children.
+- Below tree, open explanatory restoration guard, not full-screen modal:
+  header先恢复父节点16px
+  text14px exact“阅读与记录”仍已归档。
+  text14px可恢复该分支，共4个节点。
+  small14px已有任务和历史保持不变。
+  Action row: quiet取消 left; lightcitruspill恢复4个节点 right with foresttext. This is explicit confirmation for parent+all3children, not silent auto-restore on child click. The child alone is NOT restored and no0/5yet.
+- Keep a compact actual neighbouring-goal row学会 Flutter below a thin separator, book icon/chevron, above nav.
+- Persistent white capsule bottom nav今天 / 目标 / 历史 / 我的, selected目标 SMALLcitruspill foresttext/icons; inactive muted; safe homeindicator.
+Layout guide: savedgoal aroundy170..240; active选书 area~y265..330; archive heading~y350; archived4rows~y395..550; guard/actions~y570..705; neighbour~y725; nav768..825. Keep all primary content readable, no tiny squeezed text.
+
+Remove reference18'sarchive confirmation, archive4button, previous0/5, large selected-scope background containing active nodes. This is a real archived-state view AFTER archive, but BEFORE restore. Use text labels not colour alone.
+Rules/motion (not printed): restoring the parent restores it and the whole subtree in one transaction, clears archivedAt while preserving IDs, parent links/order, missions/events/materials and goal status. Only success changes0/1→0/5 and archived4→0, revealing same tree in active area; cancel/failure preserves0/1 and archived4. The parent is a ROOT of this goal, so its own parent is valid/absent. Reduced motion shows final layout without spatial tween. One pending parent-restore frame only.

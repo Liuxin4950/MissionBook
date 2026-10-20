@@ -12,15 +12,14 @@ class TodayPage extends StatelessWidget {
     const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
     final dateText =
         '${today.month}月${today.day}日 · ${weekdays[today.weekday - 1]}';
-
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // header
+              // header 顶部
               Row(
                 children: [
                   // 自适应占据
@@ -61,10 +60,38 @@ class TodayPage extends StatelessWidget {
                   ),
                 ],
               ),
+              // plan 固定计划日程
+              Column(
+                children: [
+                  // 左右对齐
+                  Row(children: [
+                    Text("计划日程"),
+                    Text("全部任务")
+                  ],),
+                  // 任务表格
 
-              // plan
+                ],
+              ),
+              // time 其他自选日程
+              Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: Row(
+                        children: [
+                          Icon(Icons.insert_emoticon_rounded),
+                          Column(children: [
+                            Text("实现首页基础布局"),
+                            Text("计划n分钟")
+                          ],)
+                        ],
+                      )) ,
+                      Icon(Icons.import_contacts_sharp)
+                    ],
+                  )
+                ],
+              )
 
-              // time
             ],
           ),
         ],

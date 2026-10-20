@@ -1,0 +1,29 @@
+Use case: ui-mockup
+Create ONE Mission Book mobile screenshot, screen25旧任务改期. Native853px WIDE x1844px HIGH, tall phone portrait9:19.5, width/height0.46258, same as reference. No935x1683, no9:16, no collage/device frame/HTML/external labels.
+Reference is the established Today all-task list visual/context. NEW state: first task's rescheduling editor expanded IN PLACE. Keep Today header, current conditions, neighboring task and bottom nav. Do not show the old Start buttons for the task being edited, and do not make a fullscreen form.
+Flat colors #F7F8F2 #244D3D #D7F57B #E8EDE4 #233B30 #617067 #DCE3D8 #FFFFFF. Chinese sans-serif, open writing areas and thin dividers, pale citrus main action. No gradients/shadows/textures, deep-green buttons or rectangle around every field.
+Fit this compact composition legibly:
+1 status14:00 and signal/wifi/battery.
+2 heading今天 and pale-sage circular＋.
+3 date2026年10月20日 · 周二 with down-chevron.
+4 section全部任务 with × right.
+5 To leave room for editing, COLLAPSE the three filters into ONE compact open summary row "全部日期 · 待开始 · 学会 Flutter" with down-chevron. Under it small"匹配 2 项". No giant3filter boxes.
+6 First task heading"练习按钮事件" and ellipsis. Below exact saved-state metadata:
+   "当前排期：2026-10-18 · 固定 15:30"
+   "待开始 · 计划 30 分"
+7 Inline editor heading"调整排期" and small"未保存". This is not a new task.
+8 TWO side-by-side modest underlined editable fields:
+   label"新日期 *", value"2026-10-20" with calendar/chevron.
+   label"计划时长 *", value"30 分钟".
+9 Flat row"时间安排" with 自选 / 固定 segmented control, 固定 light-citrus selected.
+10 Flat underlined editable row"固定开始 *" with value"16:00" and clock/down-chevron.
+11 Small"上海时间 · UTC+08:00".
+12 Optional writing label"改期原因（选填）", underlined value"调整到今天下午". Ordinary18logical text, not a big card.
+13 Two adjacent local action buttons"放弃修改" pale sage, "保存改期" pale citrus with forest text. They belong to this task's draft, not cancelMission.
+14 Divider. Visible compact neighboring task"练习布局约束" with ellipsis, and metadata"2026-10-20 · 自选 · 计划 25 分". Neighbor collapsed while first task is editing; no second editor.
+15 Small separate global current-task strip near bottom: "已暂停 · 专注 08:20" then title"整理阅读笔记", small pale-citrus play button"继续". This is independent of filtered tasks.
+16 White floating bottom navigation 今天 selected small citrus pill, 目标,历史,我的; line icons, thin home indicator.
+No controls overlap nav. Task names18/24 logical, controls16/24, metadata14/20, page title28/36. Keep spacing compact but readable.
+
+Logic: saved first task stillNOT_STARTED with oldOct18fixed15:30 schedule and30min. Draft proposesOct20fixed16:00, same30min, optional reason. It has NOT been saved: don't replace saved-state metadata with new schedule, don't say已改期, don't change匹配2, don't start/cancel anything. Goal学会Flutter and no node association unchanged. This is SELF_REPORT, so no evidence deadline or required criteria here. Current timeOct20 14:00, proposed16:00 is future inShanghai. Save appends complete schedule history for SAME task, not a duplicate Mission, noSTART. Globalpaused task unaffected. Show no database version numbers in product.
+Output ONE native853×1844 app raster image.

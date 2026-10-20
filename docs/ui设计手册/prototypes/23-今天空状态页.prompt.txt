@@ -1,0 +1,22 @@
+Use case: ui-mockup
+Generate exactly ONE Mission Book mobile screenshot: screen23 今天空状态. Native853pixels WIDE by1844pixels HIGH, tall smartphone9:19.5 portrait (width/height0.46258). Match the reference's tall dimensions exactly, not935x1683 or9:16. No collage, device frame, browser/HTML, poster or external annotation.
+Input reference: established flat warm-white/forest/pale-citrus palette, open layout and light selected bottom navigation ONLY. NEW TODAY screen for a fresh initialized app with absolutely no tasks or records. Do not copy goals or progress data from reference.
+Pure colors background#F7F8F2 forest#244D3D citrus#D7F57B sage#E8EDE4 ink#233B30 secondary#617067 divider#DCE3D8 white#FFFFFF. Clean precise Chinese sans-serif. No gradients, textures, shadows, plants, characters, hero illustration, fake skeleton boxes or card grid. Use intentional breathing room and open typography. No giant dark filled buttons or dark navigation pill.
+Exact layout top to bottom:
+- Small14:00 statusbar with signal/wifi/battery.
+- Large page heading"今天", pale-sage circular＋with forest icon at top right.
+- Under heading, readable date"2026年10月20日 · 周二" with small down-chevron. It is the selected date and is today.
+- Section row"计划日程" on left, compact text action"全部任务" with right arrow on right.
+- Open central EMPTY AREA, NOT enclosed in a card or dotted rectangle. One modest simple forest calendar-outline icon, small and functional (no completed check).
+- Clear center-left or centered empty heading"今天还没有任务".
+- Short secondary description"创建一项任务，安排今天的行动。".
+- One comfortable medium-width light-citrus pill"+ 创建任务" with forest text. This opens a draft; it does not auto-start or create a fake task.
+- Generous calm whitespace below this empty action, not an abandoned loading screen.
+- Lower section separated by ONE thin rule, heading"活动概览".
+- Open summary row"近 7 天" at left, "计划 0 · 完成 0" on right.
+- Next open row"近 30 天" at left, "暂无完成记录" on right. No heatmap of fictional activity.
+- Small secondary helper"报告完成后，这里会更新记录。".
+- Plenty of safe space above floating white bottom navigation. Four line icons+labels"今天" selected in a small LIGHT CITRUS pill with forest icon/text, "目标","历史","我的" neutral grey. Thin home indicator.
+All essentials legible and fit screen. Keep the same role type system: page heading28/36 logical, section16/24, empty heading24/32, ordinary text18/24, helper14/20, navigation12/16. No huge decorative text or numbers.
+Business invariants: initialization successfully finished, genuinely empty local task dataset, no Mission, no events, no completion reports, no pending evidence, no older unstarted tasks and no RUNNING/PAUSED. Therefore NO timer, Focus, budget, task dock, resume/start button, fake timeline row, completion tick, task-count badge, waiting-material2, old-task1, streak or success percentage. Statistics are actual zero/no-record facts, not loading placeholders. The initial default create draft is FLEXIBLE + SELF_REPORT + today; conditional fields appear only after user chooses. The date is Tuesday2026-10-20. Do not portray empty data as an error, a failed sync, or a locked Goal setup.
+Return exactly one native853×1844 raster app UI image.

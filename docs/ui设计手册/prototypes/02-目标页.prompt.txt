@@ -1,18 +1,32 @@
 Use case: ui-mockup
-Create exactly ONE finished Chinese mobile Goals page for Mission Book. The latest screenshot is my precise responsive layout reference. Match its layout, type hierarchy and information density, and the warm-white/forest/citrus style already used for the accepted provisional Today v8. Single native portrait screen about 853x1844 (390x844 logical). Flat edge-to-edge app UI; no browser, device frame, collage, poster, extra states or annotations.
-
-Palette: #F7F8F2 background, #244D3D forest primary, #D7F57B light citrus emphasis, #E8EDE4 soft sage, #233B30 ink, #617067 secondary, #FFFFFF navigation and neutral cards. Crisp modern Chinese sans-serif throughout; no serif, photos, plants, texture, gradients, glass effects or decorative illustrations. Unified role-based type: page title28/36, ALL THREE goal titles18/24 semibold, descriptions/data labels14/20, count numerators18/24, navigation12/16. One raster scale. Keep margins24 logical px.
-
-Exact composition as reference:
-Small14:00 status bar.
-Header 目标 on left; quiet horizontal ellipsis then forest circular plus on right.
-Single pill status filter: 进行中 3 (selected citrus) / 已搁置 / 已达成.
-Three vertically stacked goal entries with rounded organic corners and good breathing room:
-1. Citrus featured goal, book icon, title 学会 Flutter, description 从基础练习到独立开发, subtle diagonal arrow. Bottom label 节点完成记录 and value 6 / 12. Segmented rounded progress strip EXACTLY 12 equal segments: first6 forest, remaining6 pale. Thus exactly50% coverage. No percentages or claims of mastery. Card height~176 logical px.
-2. Smaller white goal card, module icon, title 完成 Mission Book, description 串起规划、执行与记录, right chevron. 节点完成记录 with 3 / 10, progress strip EXACTLY10 equal segments first3 forest and other7 pale (30%). Card height~136.
-3. Compact sage goal entry, footprints icon, title 建立运动习惯, description 每周留出稳定的运动时间. Bottom 暂无节点 and quiet 添加节点 +. NO fake progress bar for this goal. Height~112.
-Do not enlarge one goal title above peers.
-Below goals and above navigation, a SMALL sage current-task shortcut strip (60px high), not a fourth goal card. Small status 可开始 · 45分, compact task name 理解 setState 与 rebuild, forest pill button with play icon and 开始. This shortcut directly reaches execution, so the user needn't navigate back through Today.
-Floating white capsule bottom navigation with consistent line icons 今天 / 目标 / 历史 / 我的. Only 目标 selected in forest capsule with citrus icon/text. Small dark home indicator below.
-
-The screen answers which goals are active and which nodes have completion records. It does not show undefined weekly study statistics, AI scores, mastery percentages, goal automatically achieved, or long explanations. Three goals and shortcut must all fit the390x844 first screen. Render all Chinese accurately.
+Generate exactly ONE Mission Book Goals list screenshot, native853pixels WIDE by1844pixels HIGH, tall smartphone portrait9:19.5 (width/height0.46258), matching reference canvas. Do NOT output935x1683 or9:16. No collage, device, HTML, browser, outside annotations.
+Reference image role: current flat warm-white/forest/pale-citrus visual language, open tree/list spacing and pale selected navigation ONLY. NEW normal active-goals list. Do NOT copy dropped-goal or restoration content.
+Palette: background#F7F8F2 forest#244D3D citrus#D7F57B sage#E8EDE4 ink#233B30 secondary#617067 divider#DCE3D8 white#FFFFFF. Crisp modern Chinese sans-serif. Flat pure colors, no gradients/shadows/textures/decoration. ALL goal titles ordinary18/24 logical, consistent among entries. Use open goal groups separated by whitespace and thin rules, NOT stacked big cards or a giant citrus featured goal.
+Exact content from top:
+- Statusbar14:37 with signal/wifi/battery.
+- Header big"目标" left, small page ellipsis and pale-sage circular＋right (no deep green disk).
+- Filters"进行中 3" selected light citrus, "已搁置", "已达成" neutral sage.
+- THREE OPEN goal groups, no rectangular background per group:
+  1. Small forest outline book icon, title"学会 Flutter", goal ellipsis at right.
+     secondary description"从基础练习到独立开发".
+     "节点完成记录" and"6 / 12" aligned opposite.
+     Thin continuous progress rail, forest fill EXACTLY HALF of sage full track. No discrete segments, percentages, ticks or mastery labels.
+     Compact action row"展开路径" with DOWN-chevron on left, "+ 建任务" forest text on right.
+  2. Thin divider and whitespace. Small outline module icon, title"完成 Mission Book", goal ellipsis right.
+     secondary"串起规划、执行与记录".
+     "节点完成记录" and"3 / 10".
+     Thin continuous sage progress rail forest filled30% of track.
+     Action row"展开路径" with DOWN-chevron left, "+ 建任务" right.
+  3. Thin divider and whitespace. Small outline footsteps icon, title"建立运动习惯", goal ellipsis right.
+     secondary"每周留出稳定的运动时间".
+     "暂无节点". NO progress bar, no0/0 or100%.
+     Action row"添加节点 +" left, "+ 建任务" right.
+- SMALL current-task shortcut above bottom nav, only this single strip may have a quiet pale sage background:
+  small label"已暂停 · 专注 31:42"
+  compact title"理解 setState 与 rebuild"
+  on right small light-citrus button with play icon and"继续".
+  This is an existing paused Mission, NOT another Goal. Keep smaller than ordinary goal entries.
+- Bottom floating white navigation with line icons+labels"今天","目标" selected in small light-citrus pill with forest text/icon,"历史","我的". Thin home indicator.
+All three goals, actions, shortcut and bottom navigation fit legibly on the tall screen. Use good spacing but compact enough, no tiny text, no clipping or overlap.
+Logic: snapshot2026-10-18 14:37 before this Mission's END. Exactly3ACTIVE goals. Flutter has6of12effective nodes with completed reports; currentpaused mission has not reported so does not add a completion. MissionBook3of10. Exercise zero nodes. These ratios do not changeGoalstatus. The reading goal from later import samples is not part of this earlier scenario. Menu/plus separate; plus only for manual creation orJSON import; page more exposes droppedGoals. Each展开路径 reveals the tree IN PLACE, not a mandatory new route. Goal-level建任务 may create without a node whileGoalACTIVE. No task auto-resume until explicit继续 and conflict check. NO droppedGoal recovery, no blank draft, no completed current-task check, no dark large fills.
+Output one native853×1844 image only.
