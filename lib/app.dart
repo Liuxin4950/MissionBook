@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'application/create_mission.dart';
+import 'application/get_scheduled_missions.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/theme/app_theme.dart';
 import 'data/local/app_database.dart';
 import 'data/repositories/drift_mission_repository.dart';
@@ -18,8 +20,9 @@ class App extends StatefulWidget {
 class _AppState extends State<App> {
   // late 表示这些属性稍后初始化。
   // final 表示初始化后不再换成另一个对象。
-  late final AppDatabase _database;//定义数据库连接器
-  late final CreateMission _createMission;//定义业务对象
+  late final AppDatabase _database; //定义数据库连接器
+  late final CreateMission _createMission; //定义业务对象
+  late final GetScheduledMissions _getMissions;
 
   @override
   void initState() {
@@ -31,14 +34,20 @@ class _AppState extends State<App> {
     final repository = DriftMissionRepository(_database);
     // 业务对象保存仓储引用，后续通过它执行真正的保存。
     _createMission = CreateMission(repository);
+    // 这里只组装查询入口并传入仓储，不执行查询。
+    // 今天页稍后在初始化、下拉刷新或关闭创建页后调用它的 execute。
+    _getMissions = GetScheduledMissions(repository);
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: AppTheme.light,
+      locale: const Locale('zh', 'CN'),
+      supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // build 可以重复执行，但这里始终传入已创建的同一个业务对象。
-      home: AppShell(createMission: _createMission),
+      home: AppShell(createMission: _createMission, getMissions: _getMissions),
     );
   }
 

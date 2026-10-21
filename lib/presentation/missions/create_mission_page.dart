@@ -9,10 +9,16 @@ import '../../application/create_mission.dart';
 class CreateMissionPage extends StatefulWidget {
   // required 要求打开本页的调用者提供业务对象；this 将参数存到同名属性。
   // super.key 将组件身份标识交给父类；本页目前无需手动指定 key。
-  const CreateMissionPage({super.key, required this.createMission});
+  const CreateMissionPage({
+    super.key,
+    required this.createMission,
+    this.initialScheduledDate,
+  });
 
   // 从 TodayPage 传来的同一个业务对象；后续保存时调用，不在本页重新创建。
   final CreateMission createMission;
+  // 今天页选择了其他日期时，将该日期作为表单默认值；仍允许手动修改。
+  final String? initialScheduledDate;
 
   @override
   State<CreateMissionPage> createState() {
@@ -53,7 +59,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
     final year = today.year.toString().padLeft(4, '0');
     final month = today.month.toString().padLeft(2, '0');
     final day = today.day.toString().padLeft(2, '0');
-    _initialDateText = '$year-$month-$day';
+    _initialDateText = widget.initialScheduledDate ?? '$year-$month-$day';
     // text 将默认日期真正填入控制器；hintText 仅是提示，不能代替实际值。
     _dateController = TextEditingController(text: _initialDateText);
   }

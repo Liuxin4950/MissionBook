@@ -5,10 +5,15 @@ import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
+import 'package:mission_book/domain/entities/scheduled_mission.dart';
 
 // implements 表示这个类遵守 MissionRepository 的约定，
 // 因此必须提供接口要求的 create 方法。
 class RecordingMissionRepository implements MissionRepository {
+  @override
+  Future<List<ScheduledMission>> findScheduledOn(String scheduledDate) =>
+      throw UnsupportedError('创建业务测试不调用查询');
+
   // 对象尚未收到时为 null；create 被调用后再记录下来。
   Mission? receivedMission;
   MissionScheduleRevision? receivedSchedule;
@@ -33,6 +38,10 @@ class RecordingMissionRepository implements MissionRepository {
 // 模拟“仓储保存失败”的测试替身。
 // 它遵守同一个 MissionRepository 接口，所以 CreateMission 不需要知道这是测试代码。
 class FailingMissionRepository implements MissionRepository {
+  @override
+  Future<List<ScheduledMission>> findScheduledOn(String scheduledDate) =>
+      throw UnsupportedError('创建业务测试不调用查询');
+
   @override
   Future<void> create({
     required Mission mission,
