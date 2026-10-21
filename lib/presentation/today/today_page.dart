@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../application/create_mission.dart';
+import '../missions/create_mission_page.dart';
 
 class TodayPage extends StatelessWidget {
-  const TodayPage({super.key});
+  const TodayPage({super.key, required this.createMission});
+  // 业务对象
+  final CreateMission createMission;
 
   @override
   Widget build(BuildContext context) {
@@ -15,12 +19,12 @@ class TodayPage extends StatelessWidget {
 
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // header
+              // header 头部
               Row(
                 children: [
                   // 自适应占据
@@ -51,7 +55,19 @@ class TodayPage extends StatelessWidget {
                     ),
                   ),
                   IconButton.filled(
-                    onPressed: null,
+                    onPressed: () {
+                      // 点击时才创建路由并打开表单，不在 build 中自动打开。
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (context) {
+                            // 将今天页已经收到的业务对象继续交给表单。
+                            return CreateMissionPage(
+                              createMission: createMission,
+                            );
+                          },
+                        ),
+                      );
+                    },
                     icon: const Icon(Icons.add),
                     tooltip: "创建任务",
                     style: IconButton.styleFrom(
@@ -62,9 +78,13 @@ class TodayPage extends StatelessWidget {
                 ],
               ),
 
-              // plan
+              // plan 固定计划任务 （任务列表，纵向排布，激活项放大，类似课表）
+              Column(children: []),
 
-              // time
+              // time 动态计划任务 （任务列表，纵向排布）
+              Column(children: []),
+              // 其他聚合信息
+              Column(children: []),
             ],
           ),
         ],
