@@ -15,6 +15,7 @@ import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
+import 'package:mission_book/presentation/today/flexible_mission_section.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -156,9 +157,74 @@ void main() {
     repository.requests.last.complete([example('下拉刷新的任务')]);
     await tester.pumpAndSettle();
     expect(find.text('下拉刷新的任务'), findsOneWidget);
-    // 普通 build 不会重新查询，避免重建页面带来重复读取。
+    // 父组件真正重建今天页，也复用上次准备好的显示数据，不查库或重新分组。
+    final displayedItems = tester
+        .widget<FlexibleMissionSection>(find.byType(FlexibleMissionSection))
+        .items;
+    await tester.pumpWidget(testApp(repository));
+    expect(
+      tester
+          .widget<FlexibleMissionSection>(find.byType(FlexibleMissionSection))
+          .items,
+      same(displayedItems),
+    );
+    expect(repository.requests, hasLength(2));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('自选默认前三项，可展开收起且不查库；三项时不显示展开按钮', (tester) async {
+    final repository = ControlledQueryRepository();
+    await tester.pumpWidget(testApp(repository));
+    repository.requests.single.complete([
+      for (var index = 1; index <= 5; index++) example('自选任务 $index'),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('自选任务 1'), findsOneWidget);
+    expect(find.text('自选任务 3'), findsOneWidget);
+    expect(find.text('自选任务 4'), findsNothing);
+    expect(find.text('展开全部（5）'), findsOneWidget);
+
+    await tester.ensureVisible(
+      find.byKey(const Key('flexible-missions-toggle')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('flexible-missions-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('自选任务 4'), findsOneWidget);
+    expect(find.text('自选任务 5'), findsOneWidget);
+    expect(find.text('收起'), findsOneWidget);
+    // 父页面重建不重置用户刚展开的区域，也不会多查一次数据库。
+    await tester.pumpWidget(testApp(repository));
+    expect(find.text('自选任务 5'), findsOneWidget);
+    expect(repository.requests, hasLength(1));
+
+    await tester.ensureVisible(
+      find.byKey(const Key('flexible-missions-toggle')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('flexible-missions-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('自选任务 3'), findsOneWidget);
+    expect(find.text('自选任务 4'), findsNothing);
+    expect(repository.requests, hasLength(1));
+
+    await tester.drag(
+      find.byKey(const Key('today-list')),
+      const Offset(0, 500),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
     expect(repository.requests, hasLength(2));
+    repository.requests.last.complete([
+      example('仅有的自选任务 1'),
+      example('仅有的自选任务 2'),
+      example('仅有的自选任务 3'),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('仅有的自选任务 3'), findsOneWidget);
+    expect(find.byKey(const Key('flexible-missions-toggle')), findsNothing);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -175,10 +241,17 @@ void main() {
       example('最后一个固定任务', fixed: true),
       example('很长的自选任务标题需要能够自动换行而不是发生水平溢出'),
       example('取消的任务', cancelled: true),
+      example('取消的固定任务', fixed: true, cancelled: true),
     ]);
     await tester.pumpAndSettle();
     expect(find.text('09:00'), findsNWidgets(3));
     expect(find.text('计划日程'), findsOneWidget);
+    final allMissions = find.byKey(const Key('today-all-missions'));
+    expect(tester.widget<TextButton>(allMissions).onPressed, isNull);
+    expect(
+      tester.getRect(allMissions).left,
+      greaterThanOrEqualTo(tester.getRect(find.text('计划日程')).right),
+    );
     final firstRail = tester.getRect(
       find.byKey(const ValueKey('timeline-rail-固定任务')),
     );
@@ -195,11 +268,13 @@ void main() {
     expect(middleRail.bottom, closeTo(lastRail.top, 0.01));
     expect(middleRail.height, greaterThan(firstRail.height));
     expect(find.text('取消的任务'), findsNothing);
-    await tester.ensureVisible(find.text('已取消（1）'));
+    await tester.ensureVisible(find.text('已取消（2）'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('已取消（1）'));
+    await tester.tap(find.text('已取消（2）'));
     await tester.pumpAndSettle();
     expect(find.text('取消的任务'), findsOneWidget);
+    expect(find.text('取消的固定任务'), findsOneWidget);
+    expect(find.byKey(const ValueKey('timeline-rail-取消的固定任务')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
