@@ -1,0 +1,17 @@
+# Requires flutter_lints as a dev_dependency in a Flutter package.
+# Keep this file aligned with the project's actual Dart SDK language version.
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+linter:
+  rules:
+    avoid_print: true
+    cancel_subscriptions: true
+    close_sinks: true
+    always_declare_return_types: true
+    directives_ordering: true

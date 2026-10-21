@@ -1,0 +1,27 @@
+name: Flutter quality
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable # TEAM: Pin a tested Flutter version for reproducible release builds.
+          cache: true
+      - name: Dependencies
+        run: flutter pub get
+      - name: Check format
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Static analysis
+        run: flutter analyze --fatal-infos
+      - name: Unit and widget tests
+        run: flutter test
+      # Integration tests require an available supported runner or device.
+      # SQLite migration and race tests must be added to the project's test suite.
