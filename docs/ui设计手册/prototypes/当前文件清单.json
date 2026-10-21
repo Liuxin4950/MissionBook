@@ -97,6 +97,14 @@
       "image": "docs/ui设计手册/assets/正稿v1.1/我的.png",
       "notes": "docs/ui设计手册/prototypes/12-我的页设计说明.md",
       "preview": null
+    },
+    {
+      "page": "13",
+      "name": "目标导入预览",
+      "status": "当前风格候选；目标页内状态",
+      "image": "docs/ui设计手册/assets/正稿v1.1/目标导入预览.png",
+      "notes": "docs/ui设计手册/prototypes/13-目标导入预览设计说明.md",
+      "preview": null
     }
   ]
 }
