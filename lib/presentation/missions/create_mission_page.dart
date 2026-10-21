@@ -28,12 +28,32 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
   final _titleController = TextEditingController();
   final _durationController = TextEditingController();
 
+  // late 表示在 initState 中初始化；final 保留打开表单时的日期，供返回时比较。
+  late final String _initialDateText;
+  // 与其他控制器一样保存在 State 中，不随 build 重建而重置输入。
+  late final TextEditingController _dateController;
+
+  @override
+  void initState() {
+    super.initState();
+    // 取设备当地的今天作为表单默认日期；这里尚未取得排期的 IANA 时区。
+    final today = DateTime.now();
+    // padLeft 向左补零，例如 3 → '03'，使日期符合 YYYY-MM-DD 格式。
+    final year = today.year.toString().padLeft(4, '0');
+    final month = today.month.toString().padLeft(2, '0');
+    final day = today.day.toString().padLeft(2, '0');
+    _initialDateText = '$year-$month-$day';
+    // text 将默认日期真正填入控制器；hintText 仅是提示，不能代替实际值。
+    _dateController = TextEditingController(text: _initialDateText);
+  }
+
   @override
   void dispose() {
     // Flutter 永久移除此 State 时调用；释放控制器的监听等资源。
     // 关闭确认框不会销毁创建页，也不会执行这里。
     _titleController.dispose();
     _durationController.dispose();
+    _dateController.dispose();
     super.dispose();
   }
 
@@ -42,8 +62,11 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
     // context 表示当前组件在树中的位置；查找所在焦点区域并取消焦点以收起键盘。
     FocusScope.of(context).unfocus();
     // 只读取文字判断是否有输入，不保存任务。|| 表示任一条件成立即可。
+    // 日期默认就有内容，因此与初始值比较；只修改或清空日期也需要确认丢弃。
     final hasInput =
-        _titleController.text.isNotEmpty || _durationController.text.isNotEmpty;
+        _titleController.text.isNotEmpty ||
+        _durationController.text.isNotEmpty ||
+        _dateController.text != _initialDateText;
 
     if (hasInput) {
       // showDialog 是打开对话框的函数；<bool> 指定其返回结果的类型。
@@ -136,6 +159,22 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
                   // hintText 在输入为空时提示示例，不会写进 controller.text。
                   hintText: '例如：阅读 Flutter',
                   // OutlineInputBorder 为输入区域配置轮廓边框。
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text('计划日期'),
+              const SizedBox(height: 8),
+              TextField(
+                // 显示默认日期，并保留用户修改后的文字；保存时再交给业务层校验。
+                controller: _dateController,
+                // 只是请求日期时间键盘，不保证输入一定是合法日期。
+                keyboardType: TextInputType.datetime,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  hintText: 'YYYY-MM-DD',
+                  // helperText 持续显示在输入框下方，说明填写格式。
+                  helperText: '例如：2026-10-21',
                   border: OutlineInputBorder(),
                 ),
               ),
