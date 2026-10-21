@@ -1,0 +1,26 @@
+Use case: ui-mockup
+Create exactly ONE polished Chinese mobile app screen for Mission Book: goal-outline import PREVIEW expanded inline on the Goals top-level screen. Reference image 1 (目标列表) supplies visual style and bottom navigation; reference image 2 (目标详情) supplies clean tree indentation. They are STYLE references only, not edit targets. New distinct screen, not a collage. Native portrait approximately 1024x2208, flat edge-to-edge UI, no device frame, no external annotation.
+Palette and typography: warm white #F7F8F2 background, forest #244D3D actions, citrus #D7F57B reserved subtle selection, sage #E8EDE4, dark ink #233B30, secondary #617067 on warm-white only. Clean Chinese sans-serif, crisp text, no serif/texture/gradient. Logical 390x844, outer margins24. Page title28, goal title18, controls16, helper14, nav12. Soft rounded corners, restrained surfaces and open tree rows. Keep room and hierarchy; do not shrink helpers to microtext.
+This is a PREVIEW, not a success screen. The existing Goals count is still 3. Import creates one NEW goal with exactly 4 nodes and no tasks or completion records. No merge, overwrite, progress indicators, AI labels, success checks, percentages, scores, or code keys in the preview. Do not add a back arrow or modal backdrop: it is inline in the Goals list, NOT a separate full-screen route.
+
+Exact layout top to bottom:
+1 Small system bar: 14:00 and simple signal/wifi/battery.
+2 Header “目标” left; horizontal ellipsis and forest circular plus at right.
+3 Compact segmented filter “进行中 3” selected, “已搁置”, “已达成”.
+4 Main white rounded inline creation region about 490 logical px high, subtle boundary. Small upper eyebrow “新建目标”; heading “导入预览” with compact outlined badge “尚未导入”, and accessible close X right.
+5 Compact file row with document icon, “阅读计划.json”, text action “重新选择”. Under it just one clear helper line “确认后创建新目标，不影响已有目标”.
+6 Read-only goal title “建立阅读习惯” in 18 semibold; description “从选书到整理阅读笔记” in 14. No input underline: preview values.
+7 Section line “大纲预览” left, “共 4 个节点” right.
+8 Show EXACT tree four visible rows. Neutral outline node circles, not checkmarks. Two root rows and two children:
+   root “选择书目” (no expand chevron, no children).
+   root “阅读与记录” (down chevron, expanded).
+      child “阅读第一章”
+      child “整理阅读笔记”
+A single thin branching vertical line visibly connects the two children to ONLY 阅读与记录, leaves indented one level. Four rows only, no status labels, no completion marks, no tasks, no meters. Clear spacing at least34 logical px each.
+9 Footer actions INSIDE the inline import region: quiet outlined “取消” left and wider forest primary “确认导入” right. Both about48 logical px high. NO action floating over navigation.
+10 Immediately beneath this expanded region, show one compact EXISTING neighboring goal row, book icon and “学会 Flutter”, subtitle “节点完成记录 6 / 12”, right chevron. Use warm/sage surface without adding progress strip. This row is real context for a design sample, not newly imported and not included in 4 nodes. Avoid a separate heading telling users implementation details. Further goals are scrollable.
+11 Floating white rounded bottom navigation capsule “今天 / 目标 / 历史 / 我的”; only 目标 selected with forest capsule and citrus icon/text. Home indicator below. No current-task shortcut in this scenario, since no running or paused task is assumed.
+Composition should make the preview understandable and maintain a visible neighboring goal + top-level navigation, not engulf the entire page. The mockup depicts already validated input awaiting confirmation. EXACT Chinese copy as specified, correct characters, balanced alignment, no duplicates, no unexpected explanatory paragraphs.
+
+Targeted edit after first visual inspection (built-in imagegen):
+Use case: precise-object-edit. Edit this single Mission Book import preview UI. Preserve every Chinese word, all colors, typography, card positions, buttons, navigation and dimensions exactly. ONLY fix root-level tree alignment under 大纲预览: 选择书目 and 阅读与记录 are TWO SIBLING ROOT nodes. Keep 阅读与记录 and its down-chevron unchanged. Move the circle and text of 选择书目 slightly RIGHT so its circle center shares the exact same vertical column as the circle of 阅读与记录, and its text starts at the exact same x-coordinate as 阅读与记录. Leave empty chevron gutter before 选择书目. Keep the two children 阅读第一章 and 整理阅读笔记 indented one level further right, their connector attaches only to 阅读与记录. Do not add or remove any rows. Exactly four nodes. No other changes.

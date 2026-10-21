@@ -17,13 +17,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   // 索引
   int _selectedIndex = 0;
-  // 核心页面聚合列表
-  static const List<Widget> _pages = [
-    TodayPage(),
-    Center(child: Text('目标页面')),
-    Center(child: Text('历史页面')),
-    Center(child: Text('我的页面')),
-  ];
+
   // 路由变更方法
   void _selectPage(int index) {
     setState(() {
@@ -34,11 +28,18 @@ class _AppShellState extends State<AppShell> {
   // 主要渲染内容
   @override
   Widget build(BuildContext context) {
+    // 核心页面聚合列表 widget需要在build方法中才能拿到createMission
+    final pages = <Widget>[
+      TodayPage(createMission: widget.createMission),
+      Center(child: Text('目标页面')),
+      Center(child: Text('历史页面')),
+      Center(child: Text('我的页面')),
+    ];
     return Scaffold(
       appBar: AppBar(
         // title: Text("MissionBook"),
       ),
-      body: IndexedStack(index: _selectedIndex, children: _pages),
+      body: IndexedStack(index: _selectedIndex, children: pages),
       bottomNavigationBar: _buildNavigationBar(),
     );
   }

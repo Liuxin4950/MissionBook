@@ -1,29 +1,28 @@
 Use case: ui-mockup
-Generate ONE Mission Book task execution screenshot, native853 pixels WIDE x1844 pixels HIGH, tall smartphone portrait9:19.5 (width/height0.46258). Exactly match reference canvas. Do NOT generate935x1683 or a short9:16 layout. No collage, device frame, browser, HTML, external captions or multiple states.
-Input image reference: established warm-white/forest/light-citrus palette, pale circular back, crisp type and open layout ONLY. Replace the creation form with a PAUSED execution workspace. No form fields or bottom tabs.
-Pure flat colors background#F7F8F2 forest#244D3D citrus#D7F57B sage#E8EDE4 ink#233B30 secondary#617067 divider#DCE3D8 white#FFFFFF. No gradients, texture, shadows, plants, glass or glow. Modern Chinese sans-serif, medium tabular numerals. Clear airy composition, use open rows and thin rules, not stacked rectangular cards.
-Exact composition top to bottom:
-- Small status bar14:37 with signal/wifi/battery.
-- Pale-sage circle with forest back chevron at left; centered modest title"执行任务"; ellipsis at right.
-- Compact breadcrumb"学会 Flutter › State › 基础概念" in secondary text.
-- Task identity"理解 setState 与 rebuild" at ordinary task18/24 logical font, readable across up to2 lines, NOT a giant Goal heading. Below it a small neutral sage capsule with pause icon and exact"已暂停".
-- Small metadata"计划日期 2026-10-18", making this historical sample unambiguous.
-- Central dominant but restrained circular Focus meter about260 logical diameter with sage track and forest arc. Arc starts12 o'clock and advances clockwise about70.4% to the lower-left8:27 clock position; remaining29.6% upper-left track. Rounded ends. No giant solid dark disk, no rotating decorations, no completion tick or percentage.
-  Within the ring:
-  small"专注时长"
-  one HERO numeral"31:42" at48/56 logical
-  small"当前额度 45 分"
-- Under ring a quiet sentence"计时已暂停，专注时长保持不变".
-- One open metadata row"原计划 45 分 · 已增加 0 分".
-- Another open metadata row"经过 37:00 · 暂停 5:18".
-- Small forest text action with clock outline"+ 延长时间". Small supporting line"延长不会自动继续计时".
-- Fine divider; compact disclosure row"当前目标" then"解释 setState 如何触发页面更新。" with DOWN-chevron, no big enclosing card. This expands read-only plan.
-- Compact quiet text"暂停说明：未填写" as READ-ONLY, no input field/chevron. The task is already paused, so no retrospective pause-note editing.
-- Bottom two comfortable actions side by side, above safe area:
-  primary light citrus pill with forest play icon and"继续";
-  secondary pale sage/outlined pill with forest stop icon and"结束".
- No large filled forest button. No four-tab navigation or duplicate global task dock.
-- Thin home indicator at bottom.
+Generate exactly ONE polished Chinese RUNNING TASK screen for Mission Book. Input image1 is the CURRENT visual-style reference only, not an edit target. Same warm-white/forest/citrus palette, modern sans-serif, circular back action, restrained line icons and capsule controls. One flat edge-to-edge portrait app screen, 9:19.5, native about853x1844 or1024x2216. No device frame, browser, collage, multiple states or annotations.
 
-Business snapshot: EXISTING task, not new draft. On2026-10-18 START14:00, PAUSE14:15, RESUME14:20, PAUSE again14:36:42. Snapshot14:37:00, phasePAUSED, noEND. Elapsed2220sec=37:00, Paused318sec=5:18, Focus1902sec=31:42. Original45min, extension0, budget45min, ratio1902/2700=70.444%. These are exact strings, no mistaken elapsed-as-focus. Two pauses occurred, not required to print count. Already paused, so bottom primary must say继续, NOT暂停. No extra extension saved yet and no completed/material submitted state. The same31:42/45 sample continues to the existing report screen when结束is clicked without resuming/extending.
-All visible UI copy Chinese exactly as above. Calm meaningful meter, clear pause identity and manual resume action, all essentials legible and fitting above home indicator. Exactly ONE native853×1844 image.
+Palette #F7F8F2 background, #244D3D forest, #D7F57B citrus, #E8EDE4 sage, #233B30 ink, #617067 secondary. NO serif, photos, plants, textures, gradients, glowing decoration or glass. Logical scale390 width: compact task identity18/24, app-bar and controls16/24, metadata14/20, one HERO TIME48/56 medium TABULAR sans-serif numerals. No other giant headings or decorative numbers. Margins24, touch targets48+.
+
+CHILD task-workspace state. Small OS time14:36. Forest circular back arrow left, quiet centered 执行任务, ellipsis right. No four-tab navigation or global task dock.
+Compact task identity 理解 setState 与 rebuild, max2 lines at18px, NOT a huge28px headline. Small breadcrumb 学会 Flutter › State › 基础概念 in14px. A small citrus/sage state capsule 执行中.
+
+Dominant central graphic: a clean large circular Focus meter, diameter~260 logical px, rounded12px-thick track. Sage track, FOREST used-time arc. Start at12 o'clock and advance CLOCKWISE exactly about70.4% (253.6degrees), ending around8:27 on a clock face; the remaining29.6% is the upper-left arc. A small citrus endpoint may mark current position. NO full loop, segmented milestones, completion tick, 100%, or countdown.
+Inside ring:
+small 专注时长
+large 31:42
+small 当前额度45分
+These are FOCUS elapsed minutes:seconds, not time remaining and not wall-clock elapsed.
+Below ring ONE quiet metadata line 原计划45分 · 已增加0分, not three metric cards.
+A modest forest text action + 延长时间 beneath; do not compete with the main controls.
+
+Then a compact sage disclosure row:
+当前目标
+解释 setState 如何触发页面更新。
+down-chevron on right. This reveals read-only plan in place, not an edit wizard. No long steps or evidence paragraph expanded here.
+Near the bottom, a quiet 暂停说明（选填） with down-chevron. It must NOT look mandatory before pausing.
+Bottom controls side by side: forest rounded pill with pause icon and 暂停 (main frequent control); sage/outlined rounded pill with stop icon and 结束 (secondary). Both at least52 logical px tall with readable16px labels. No red danger treatment. Bottom safe area and small dark home indicator.
+
+Exact frozen sample:2026-10-18 START14:00, PAUSE14:15, RESUME14:20, snapshot14:36:42 RUNNING. Focus1902sec=31:42; elapsed2202sec=36:42; pauses300sec; one previous pause. Original45min, extension0, current budget45min. Ring1902/2700=70.444%. Do not display elapsed as Focus. No END yet, no completion report or material-submitted badge. Material policy remains required after COMPLETED report, deadline Oct18 18:00, but does not need to be repeated here.
+
+Interaction intent only, NOT visible copy: pause freezes Focus immediately after its event; +time adds positive minutes without overwriting original plan; reaching budget never auto-ends; clicking 结束 first pauses then reveals report choice in the same task context, not a long sequence of mandatory independent pages. Back does not implicitly pause. Do not print implementation jargon.
+Crisp accurate Chinese, calm graph-first focus, all essentials fit390x844. Exactly ONE RUNNING screen, not running/paused alternatives.

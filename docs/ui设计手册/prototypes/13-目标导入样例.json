@@ -1,0 +1,28 @@
+{
+  "schema": "mission-book.goal-outline",
+  "version": 1,
+  "goal": {
+    "title": "建立阅读习惯",
+    "description": "从选书到整理阅读笔记"
+  },
+  "nodes": [
+    {
+      "key": "choose-books",
+      "title": "选择书目"
+    },
+    {
+      "key": "read-and-record",
+      "title": "阅读与记录",
+      "children": [
+        {
+          "key": "first-chapter",
+          "title": "阅读第一章"
+        },
+        {
+          "key": "reading-notes",
+          "title": "整理阅读笔记"
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 {
   "designVersion": "current",
   "imageRoot": "docs/ui设计手册/assets/正稿v1.1",
-  "newPageCanvas": { "width": 853, "height": 1844, "appliesFromPage": "13", "legacyImagesUnchanged": false, "redrawnLegacyPages": ["02", "05", "07"], "pendingLegacySizePages": [] },
   "pages": [
     {
       "page": "01",
@@ -14,13 +13,10 @@
     {
       "page": "02",
       "name": "目标列表",
-      "status": "已重绘候选；开放三目标列表、直接行动与暂停任务快捷栏",
+      "status": "当前风格候选",
       "image": "docs/ui设计手册/assets/正稿v1.1/目标列表.png",
       "notes": "docs/ui设计手册/prototypes/02-目标页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/02-目标页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
+      "preview": "docs/ui设计手册/prototypes/02-目标页-交互预览.html"
     },
     {
       "page": "03",
@@ -41,12 +37,9 @@
     {
       "page": "05",
       "name": "新建任务",
-      "status": "已重绘候选；固定时间与强制材料展开，默认及可选材料复用",
+      "status": "当前风格候选",
       "image": "docs/ui设计手册/assets/正稿v1.1/新建任务.png",
       "notes": "docs/ui设计手册/prototypes/05-新建任务页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/05-新建任务页.prompt.txt",
-      "width": 853,
-      "height": 1844,
       "preview": null
     },
     {
@@ -60,13 +53,10 @@
     {
       "page": "07",
       "name": "执行任务",
-      "status": "已重绘候选；暂停31:42/45分，明确继续，运行/延长复用",
+      "status": "当前风格候选",
       "image": "docs/ui设计手册/assets/正稿v1.1/执行任务.png",
       "notes": "docs/ui设计手册/prototypes/07-执行任务页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/07-执行任务页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
+      "preview": "docs/ui设计手册/prototypes/07-执行任务页-交互预览.html"
     },
     {
       "page": "08",
@@ -110,191 +100,10 @@
     },
     {
       "page": "13",
-      "name": "新建目标",
-      "status": "补充状态候选；独立手动表单，开放书写与选填展开，保存返回目标",
-      "image": "docs/ui设计手册/assets/正稿v1.1/新建目标.png",
-      "notes": "docs/ui设计手册/prototypes/13-新建目标页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/13-新建目标页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "14",
-      "name": "JSON导入预览",
-      "status": "补充状态候选；目标页内预览，确认前未创建，含4节点2层示例",
-      "image": "docs/ui设计手册/assets/正稿v1.1/JSON导入预览.png",
-      "notes": "docs/ui设计手册/prototypes/14-JSON导入预览页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/14-JSON导入预览页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "15",
-      "name": "JSON输入校验",
-      "status": "补充状态候选；重复key，保留源并重新校验，确认前未创建",
-      "image": "docs/ui设计手册/assets/正稿v1.1/JSON输入校验.png",
-      "notes": "docs/ui设计手册/prototypes/15-JSON输入校验页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/15-JSON输入校验页.prompt.txt",
-      "revisionPrompt": "docs/ui设计手册/prototypes/15-JSON输入校验页-画幅修正.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "16",
-      "name": "目标导入成功",
-      "status": "补充状态候选；目标及4节点已保存，进行中4、完成记录0/4",
-      "image": "docs/ui设计手册/assets/正稿v1.1/目标导入成功.png",
-      "notes": "docs/ui设计手册/prototypes/16-目标导入成功页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/16-目标导入成功页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "17",
-      "name": "新增子节点",
-      "status": "补充状态候选；同父节点下的未保存草稿，统计仍0/4",
-      "image": "docs/ui设计手册/assets/正稿v1.1/新增子节点.png",
-      "notes": "docs/ui设计手册/prototypes/17-新增子节点页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/17-新增子节点页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "18",
-      "name": "归档子树确认",
-      "status": "补充状态候选；父节点及3个后代待确认归档，统计仍0/5",
-      "image": "docs/ui设计手册/assets/正稿v1.1/归档子树确认.png",
-      "notes": "docs/ui设计手册/prototypes/18-归档子树确认页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/18-归档子树确认页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "19",
-      "name": "已归档节点恢复",
-      "status": "补充状态候选；有效1、归档4，子节点恢复需明确选择父分支",
-      "image": "docs/ui设计手册/assets/正稿v1.1/已归档节点恢复.png",
-      "notes": "docs/ui设计手册/prototypes/19-已归档节点恢复页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/19-已归档节点恢复页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "20",
-      "name": "同级节点排序",
-      "status": "补充状态候选；同父3子节点的未保存顺序，归属与0/5保持",
-      "image": "docs/ui设计手册/assets/正稿v1.1/同级节点排序.png",
-      "notes": "docs/ui设计手册/prototypes/20-同级节点排序页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/20-同级节点排序页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "21",
-      "name": "目标状态切换",
-      "status": "补充状态候选；当前进行中、搁置尚未确认，已有任务保持独立",
-      "image": "docs/ui设计手册/assets/正稿v1.1/目标状态切换.png",
-      "notes": "docs/ui设计手册/prototypes/21-目标状态切换页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/21-目标状态切换页.prompt.txt",
-      "revisionPrompt": "docs/ui设计手册/prototypes/21-目标状态切换页-画幅修正.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "22",
-      "name": "已放弃目标恢复",
-      "status": "补充状态候选；进行中3、已放弃1，明确确认后才恢复为进行中",
-      "image": "docs/ui设计手册/assets/正稿v1.1/已放弃目标恢复.png",
-      "notes": "docs/ui设计手册/prototypes/22-已放弃目标恢复页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/22-已放弃目标恢复页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "23",
-      "name": "今天空状态",
-      "status": "补充状态候选；首次无任务/记录，零统计与直接创建",
-      "image": "docs/ui设计手册/assets/正稿v1.1/今天空状态.png",
-      "notes": "docs/ui设计手册/prototypes/23-今天空状态页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/23-今天空状态页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "24",
-      "name": "全部任务筛选",
-      "status": "补充状态候选；全部日期/待开始/Goal匹配2项，暂停任务独立可达",
-      "image": "docs/ui设计手册/assets/正稿v1.1/全部任务筛选.png",
-      "notes": "docs/ui设计手册/prototypes/24-全部任务筛选页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/24-全部任务筛选页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "25",
-      "name": "旧任务改期",
-      "status": "补充状态候选；原排期与新草稿分开，保存追加快照不创建任务",
-      "image": "docs/ui设计手册/assets/正稿v1.1/旧任务改期.png",
-      "notes": "docs/ui设计手册/prototypes/25-旧任务改期页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/25-旧任务改期页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "26",
-      "name": "取消任务确认",
-      "status": "补充状态候选；待开始任务确认取消，保留记录且不写END",
-      "image": "docs/ui设计手册/assets/正稿v1.1/取消任务确认.png",
-      "notes": "docs/ui设计手册/prototypes/26-取消任务确认页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/26-取消任务确认页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "27",
-      "name": "执行任务冲突",
-      "status": "补充状态候选；目标待开始，唯一RUNNING需明确暂停/结束处理",
-      "image": "docs/ui设计手册/assets/正稿v1.1/执行任务冲突.png",
-      "notes": "docs/ui设计手册/prototypes/27-执行任务冲突页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/27-执行任务冲突页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "28",
-      "name": "额度到达与延长",
-      "status": "补充状态候选；RUNNING已达15分，新增10分尚未确认，预览25分",
-      "image": "docs/ui设计手册/assets/正稿v1.1/额度到达与延长.png",
-      "notes": "docs/ui设计手册/prototypes/28-额度到达与延长页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/28-额度到达与延长页.prompt.txt",
-      "width": 853,
-      "height": 1844,
-      "preview": null
-    },
-    {
-      "page": "29",
-      "name": "未完成报告",
-      "status": "补充状态候选；PAUSED尚未报告，原因空仍可确认未完成结束",
-      "image": "docs/ui设计手册/assets/正稿v1.1/未完成报告.png",
-      "notes": "docs/ui设计手册/prototypes/29-未完成报告页设计说明.md",
-      "prompt": "docs/ui设计手册/prototypes/29-未完成报告页.prompt.txt",
-      "width": 853,
-      "height": 1844,
+      "name": "目标导入预览",
+      "status": "当前风格候选；目标页内状态",
+      "image": "docs/ui设计手册/assets/正稿v1.1/目标导入预览.png",
+      "notes": "docs/ui设计手册/prototypes/13-目标导入预览设计说明.md",
       "preview": null
     }
   ]

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../application/create_mission.dart';
+import '../missions/create_mission_page.dart';
 
 class TodayPage extends StatelessWidget {
-  const TodayPage({super.key});
+  const TodayPage({super.key, required this.createMission});
+  // 业务对象
+  final CreateMission createMission;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +54,19 @@ class TodayPage extends StatelessWidget {
                     ),
                   ),
                   IconButton.filled(
-                    onPressed: null,
+                    onPressed: () {
+                      // 点击时才创建路由并打开表单，不在 build 中自动打开。
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (context) {
+                            // 将今天页已经收到的业务对象继续交给表单。
+                            return CreateMissionPage(
+                              createMission: createMission,
+                            );
+                          },
+                        ),
+                      );
+                    },
                     icon: const Icon(Icons.add),
                     tooltip: "创建任务",
                     style: IconButton.styleFrom(
@@ -64,12 +80,9 @@ class TodayPage extends StatelessWidget {
               Column(
                 children: [
                   // 左右对齐
-                  Row(children: [
-                    Text("计划日程"),
-                    Text("全部任务")
-                  ],),
-                  // 任务表格
+                  Row(children: [Text("计划日程"), Text("全部任务")]),
 
+                  // 任务表格
                 ],
               ),
               // time 其他自选日程
@@ -77,21 +90,19 @@ class TodayPage extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: Row(
-                        children: [
-                          Icon(Icons.insert_emoticon_rounded),
-                          Column(children: [
-                            Text("实现首页基础布局"),
-                            Text("计划n分钟")
-                          ],)
-                        ],
-                      )) ,
-                      Icon(Icons.import_contacts_sharp)
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(Icons.insert_emoticon_rounded),
+                            Column(children: [Text("实现首页基础布局"), Text("计划n分钟")]),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.import_contacts_sharp),
                     ],
-                  )
+                  ),
                 ],
-              )
-
+              ),
             ],
           ),
         ],
