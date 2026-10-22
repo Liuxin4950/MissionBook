@@ -11,6 +11,7 @@ ScheduledMission mission(
   String timeZone = 'Asia/Shanghai',
   String date = '2026-10-21',
   bool cancelled = false,
+  int plannedDurationMinutes = 25,
 }) {
   final now = DateTime.utc(2026, 10, 21);
   return ScheduledMission(
@@ -29,7 +30,7 @@ ScheduledMission mission(
       timeZone: timeZone,
       timePolicy: start == null ? TimePolicy.flexible : TimePolicy.fixed,
       fixedStartAt: start,
-      plannedDurationMinutes: 25,
+      plannedDurationMinutes: plannedDurationMinutes,
       changedAt: now,
     ),
   );
@@ -101,5 +102,150 @@ void main() {
     expect(scheduleDateLabel(selected), '1月4日 · 周日');
     expect(scheduleDateKey(DateTime(1, 1, 2)), '0001-01-02');
     expect(groupMissionsForDisplay([]).isEmpty, isTrue);
+  });
+
+  test('计划高亮包含开始、不包含结束；空档、自选和取消不高亮', () {
+    final start = DateTime.parse('2026-10-22T09:00:00+08:00');
+    final groups = groupMissionsForDisplay([
+      mission('fixed', start: start, plannedDurationMinutes: 30),
+      mission('flexible'),
+      mission('cancelled', start: start, cancelled: true),
+    ]);
+    final item = groups.fixed.single;
+    expect(
+      isInPlannedTimeSlot(
+        item,
+        start.subtract(const Duration(microseconds: 1)),
+      ),
+      isFalse,
+    );
+    expect(isInPlannedTimeSlot(item, start), isTrue);
+    expect(
+      isInPlannedTimeSlot(
+        item,
+        start.add(const Duration(minutes: 29, seconds: 59)),
+      ),
+      isTrue,
+    );
+    expect(
+      isInPlannedTimeSlot(item, start.add(const Duration(minutes: 30))),
+      isFalse,
+    );
+    expect(
+      isInPlannedTimeSlot(item, start.add(const Duration(hours: 2))),
+      isFalse,
+    );
+    expect(isInPlannedTimeSlot(groups.flexible.single, start), isFalse);
+    expect(isInPlannedTimeSlot(groups.cancelled.single, start), isFalse);
+  });
+
+  test('重叠时段分别高亮，跨午夜按绝对时刻计算，不受显示时区影响', () {
+    final start = DateTime.parse('2026-10-22T23:50:00+08:00');
+    final items = groupMissionsForDisplay([
+      mission('short', start: start, plannedDurationMinutes: 10),
+      mission('long', start: start, plannedDurationMinutes: 30),
+    ]).fixed;
+    expect(
+      items.where(
+        (item) =>
+            isInPlannedTimeSlot(item, start.add(const Duration(minutes: 5))),
+      ),
+      hasLength(2),
+    );
+    final afterMidnight = DateTime.parse('2026-10-23T00:05:00+08:00');
+    expect(isInPlannedTimeSlot(items.first, afterMidnight), isFalse);
+    expect(isInPlannedTimeSlot(items.last, afterMidnight), isTrue);
+    expect(isInPlannedTimeSlot(items.last, afterMidnight.toUtc()), isTrue);
+  });
+
+  test('每项轨道的经过比例取自身计划时长，与卡片激活边界一致', () {
+    final start = DateTime.utc(2026, 10, 22, 1);
+    final items = groupMissionsForDisplay([
+      mission('short', start: start, plannedDurationMinutes: 30),
+      mission('long', start: start, plannedDurationMinutes: 60),
+    ]).fixed;
+    expect(
+      plannedTimeSlotProgress(
+        items.first,
+        start.subtract(const Duration(seconds: 1)),
+      ),
+      0,
+    );
+    expect(plannedTimeSlotProgress(items.first, start), 0);
+    expect(
+      plannedTimeSlotProgress(
+        items.first,
+        start.add(const Duration(minutes: 15)),
+      ),
+      0.5,
+    );
+    expect(
+      plannedTimeSlotProgress(
+        items.last,
+        start.add(const Duration(minutes: 15)),
+      ),
+      0.25,
+    );
+    final end = start.add(const Duration(minutes: 30));
+    expect(plannedTimeSlotProgress(items.first, end), 1);
+    expect(isInPlannedTimeSlot(items.first, end), isFalse);
+    expect(plannedTimeSlotProgress(items.last, end), 0.5);
+    expect(isInPlannedTimeSlot(items.last, end), isTrue);
+    expect(
+      plannedTimeSlotProgress(items.last, start.add(const Duration(hours: 2))),
+      1,
+    );
+    final flexible = groupMissionsForDisplay([
+      mission('flexible'),
+    ]).flexible.single;
+    expect(plannedTimeSlotProgress(flexible, start), 0);
+  });
+
+  test('绿线按节点间真实时间插值，支持相同开始时间、单节点与时钟回拨', () {
+    final start = DateTime.utc(2026, 10, 22, 1);
+    final end = start.add(const Duration(hours: 5));
+    expect(
+      timelineSegmentProgress(
+        start,
+        end,
+        start.subtract(const Duration(seconds: 1)),
+      ),
+      0,
+    );
+    expect(timelineSegmentProgress(start, end, start), 0);
+    expect(
+      timelineSegmentProgress(
+        start,
+        end,
+        start.add(const Duration(minutes: 150)),
+      ),
+      0.5,
+    );
+    expect(timelineSegmentProgress(start, end, end), 1);
+    expect(
+      timelineSegmentProgress(start, end, end.add(const Duration(days: 1))),
+      1,
+    );
+    expect(
+      timelineSegmentProgress(
+        start,
+        start,
+        start.subtract(const Duration(seconds: 1)),
+      ),
+      0,
+    );
+    expect(timelineSegmentProgress(start, start, start), 1);
+    expect(
+      timelineSegmentProgress(
+        start,
+        end,
+        start.subtract(const Duration(hours: 1)),
+      ),
+      0,
+    );
+    expect(
+      groupMissionsForDisplay([mission('single', start: start)]).fixed,
+      hasLength(1),
+    );
   });
 }

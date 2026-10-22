@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-19",
+  "updated": "2026-10-22",
   "status": "provisional-reference",
   "reference": "今天页.png",
   "scope": "当前统一UI定义；原型设计参数，尚未全部接入应用。",
@@ -114,6 +114,22 @@
       "lineHeight": 56,
       "weight": 500,
       "tabularNumbers": true
+    },
+    "todayTaskTitle": {
+      "size": 16,
+      "lineHeight": 22,
+      "weight": 600,
+      "scope": "今天页列表；固定项向上下两端逐级缩小至75%"
+    },
+    "todayMetadata": {
+      "size": 12,
+      "lineHeight": 18,
+      "weight": 400
+    },
+    "todayFlexibleTitle": {
+      "size": 14,
+      "lineHeight": 20,
+      "weight": 600
     }
   },
   "layout": {
@@ -122,7 +138,7 @@
     "currentTaskHeight": 126,
     "compactTaskHeightMin": 48,
     "futureTaskHeight": 56,
-    "flexibleTaskHeight": 60,
+    "flexibleTaskHeight": 48,
     "touchTargetMin": 48
   },
   "motion": {
@@ -133,14 +149,28 @@
     "respectReducedMotion": true
   },
   "textPairings": {
-    "onBackgroundOrWhite": ["textPrimary", "textSecondary", "primary"],
-    "onSoftOrAccent": ["textPrimary", "primary"],
-    "onPrimary": ["surface", "accent"]
+    "onBackgroundOrWhite": [
+      "textPrimary",
+      "textSecondary",
+      "primary"
+    ],
+    "onSoftOrAccent": [
+      "textPrimary",
+      "primary"
+    ],
+    "onPrimary": [
+      "surface",
+      "accent"
+    ]
   },
   "navigation": {
     "normalPathMaximumJumps": 3,
     "systemPickerEntryAndRequiredReturnCountSeparately": true,
-    "normalTaskWorkRegions": ["todayTaskRow", "goalCardTaskArea", "historyRecordRow"],
+    "normalTaskWorkRegions": [
+      "todayTaskRow",
+      "goalCardTaskArea",
+      "historyRecordRow"
+    ],
     "preserveIdentitySummaryAndAdjacentList": true,
     "focusedDetailViewsOptional": true,
     "conditionalCurrentTaskShortcut": true,
@@ -257,5 +287,41 @@
     }
   },
   "timelineSemantics": "按固定开始时间排序的节点列表；节点间距和卡片高度不编码时长",
-  "designVersion": "current"
+  "designVersion": "current",
+  "todaySchedule": {
+    "timeline": "straight",
+    "progressWidth": 2.5,
+    "minTitleScale": 0.75,
+    "maxTitleScale": 1.0,
+    "maxTiltRadians": 0.045,
+    "focusTransitionMs": 280,
+    "reducedMotion": "关闭透视倾斜和焦点过渡",
+    "highlightInterval": "[fixedStartAt, fixedStartAt + plannedDurationMinutes)",
+    "segmentHeight": "与本项卡片共享动画中的实际布局高度",
+    "segmentGap": 8,
+    "progressRange": "本任务固定开始至计划时长结束",
+    "baselineWidth": 1.5,
+    "nodeOuterGap": 0,
+    "reachedConnector": "绿色2.5像素，与已到达轨道同轴连续",
+    "inactiveDetails": "标题与时长并排一行；窄屏/大字体空间不足时两行",
+    "activeDetails": "两行展开，时长先下移再左移，收拢反向",
+    "lensProfile": "焦点最大，上下分别递减至两端最小；重叠激活项均最大",
+    "inactiveVerticalPadding": [
+      2,
+      6
+    ],
+    "activeVerticalPadding": 12,
+    "firstSegmentStart": "首个圆点中心，上方不画线；布局段保持与卡片等高"
+  },
+  "todayFlexible": {
+    "titleMetadataGap": 2,
+    "rowGap": 8,
+    "iconContainerSize": 32,
+    "iconSize": 20,
+    "iconColumnWidth": 48,
+    "toggleFontSize": 12,
+    "toggleIconSize": 18,
+    "toggleTouchHeightMin": 48,
+    "supportsTextScaling": true
+  }
 }

@@ -46,7 +46,16 @@ class _AppShellState extends State<AppShell> {
       Center(child: Text('我的页面')),
     ];
     return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: pages),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          for (var index = 0; index < pages.length; index++)
+            TickerMode(
+              enabled: index == _selectedIndex,
+              child: pages[index],
+            ), // 只在选中时才启动动画
+        ],
+      ),
       bottomNavigationBar: _buildNavigationBar(),
     );
   }
