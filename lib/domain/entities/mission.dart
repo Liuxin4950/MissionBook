@@ -1,11 +1,11 @@
-// 用枚举列出合法策略，避免在业务代码中随意拼写字符串。
+/// 用枚举列出合法策略，避免在业务代码中随意拼写字符串。
 enum VerificationPolicy {
   selfReport, // 用户自报
   optionalEvidence, // 可选材料
   requiredEvidence, // 强制材料
 }
 
-// 一个任务的基本业务信息。
+/// 一个任务的基本业务信息。
 class Mission {
   // 构造函数
   const Mission({
@@ -19,15 +19,28 @@ class Mission {
     this.verificationPolicy = VerificationPolicy.selfReport,
   });
 
-  // final 表示对象创建后，不能直接重新赋值这些字段。
+  /// 任务的唯一身份；排期和执行方案通过 missionId 引用它。
+  // final 固定对象创建后的字段值；业务修改需要构造新对象并经过写入入口。
   final String id;
+
+  /// 去除首尾空白后的行动名称，由创建入口校验为非空。
   final String title;
-  final String? description; // 任务描述
-  final String? why; //为什么
+
+  /// 可选的任务说明，未填写时为 null。
+  final String? description;
+
+  /// 为什么安排本次行动，未填写时为 null。
+  final String? why;
+
+  /// 完成报告后的材料要求，不表示材料已经提交或通过验证。
   final VerificationPolicy verificationPolicy;
-  // 业务层使用 DateTime；数据库怎样存储由 data 层负责。
+
+  /// 任务创建的 UTC 时刻，数据库统一保存为毫秒时间戳。
   final DateTime createdAt;
+
+  /// 最近业务修改的 UTC 时刻，创建时与 createdAt 相同。
   final DateTime updatedAt;
-  // null 表示没有取消；有值表示实际取消时刻。
+
+  /// null 表示没有取消；有值表示实际取消时刻。
   final DateTime? cancelledAt;
 }

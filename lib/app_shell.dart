@@ -4,7 +4,7 @@ import 'application/create_mission.dart';
 import 'application/get_scheduled_missions.dart';
 import 'core/theme/colors.dart';
 
-//页面聚合状态控制页面
+/// 管理四个顶层导航入口，并保留各页状态、转交共享业务对象。
 class AppShell extends StatefulWidget {
   const AppShell({
     super.key,
@@ -123,16 +123,25 @@ class _AppShellState extends State<AppShell> {
   ) {
     final selected = index == _selectedIndex;
     final foreground = selected ? AppColors.accent : AppColors.textSecondary;
+
+    // 触屏和读屏都调用同一个入口，使用当前导航项的 index 切换页面。
+    void selectPage() {
+      _selectPage(index);
+    }
+
     return Expanded(
       child: Semantics(
         label: label,
         button: true,
         selected: selected,
+        enabled: true,
+        // 替换子节点语义后，需要在这里同时提供标签和实际点击动作。
         excludeSemantics: true,
+        onTap: selectPage,
         child: Tooltip(
           message: label,
           child: InkWell(
-            onTap: () => _selectPage(index),
+            onTap: selectPage,
             customBorder: const StadiumBorder(),
             child: Ink(
               decoration: ShapeDecoration(

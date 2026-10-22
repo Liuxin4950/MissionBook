@@ -165,12 +165,23 @@ void main() {
       '2026-2-1',
       '',
       '2026-10-21T00:00:00',
+      '2026-10-21\n',
     ]) {
-      expect(
-        () => getMissions.execute(scheduledDate: invalid),
-        throwsArgumentError,
-      );
+      // 先取得 Future，再检查异步错误；若 execute 同步抛错，本测试会直接失败。
+      final query = getMissions.execute(scheduledDate: invalid);
+      await expectLater(query, throwsArgumentError);
     }
     expect(await getMissions.execute(scheduledDate: date), isEmpty);
+  });
+
+  test('查询接受合法闰日和设备时区可能跳过的日历日期', () async {
+    final getMissions = GetScheduledMissions(repository);
+    final validDates = ['2011-12-30', '2024-02-29', '0001-01-01', '9999-12-31'];
+    for (final selectedDate in validDates) {
+      await addTask('calendar-$selectedDate', day: selectedDate);
+      final result = await getMissions.execute(scheduledDate: selectedDate);
+      expect(result, hasLength(1));
+      expect(result.single.schedule.scheduledDate, selectedDate);
+    }
   });
 }

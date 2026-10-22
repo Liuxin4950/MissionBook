@@ -116,6 +116,25 @@ void main() {
     expect(plan.createdAt, mission.createdAt);
     expect(plan.updatedAt, mission.createdAt);
   });
+  test('合法日历日期原样保存，包括闰日和设备时区可能跳过的日期', () async {
+    final validDates = ['2011-12-30', '2024-02-29', '0001-01-01', '9999-12-31'];
+    for (final date in validDates) {
+      final repository = RecordingMissionRepository();
+      final createMission = CreateMission(repository);
+
+      await createMission.execute(
+        title: '日历日期测试',
+        scheduledDate: date,
+        timeZone: 'Asia/Shanghai',
+        plannedDurationMinutes: 20,
+      );
+
+      expect(repository.createCallCount, 1);
+      expect(repository.receivedSchedule!.scheduledDate, date);
+      expect(repository.receivedSchedule!.timeZone, 'Asia/Shanghai');
+    }
+  });
+
   // 错误异常测试
   test('空白标题被拒绝，且不调用仓储', () async {
     final repository = RecordingMissionRepository();
@@ -159,16 +178,19 @@ void main() {
     final repository = RecordingMissionRepository();
     final createMission = CreateMission(repository);
 
-    // 斜杠格式不满足正则，会在解析日期之前被拒绝。
-    await expectLater(
-      createMission.execute(
-        title: '阅读 20 分钟',
-        scheduledDate: '2026/10/20',
-        timeZone: 'Asia/Shanghai',
-        plannedDurationMinutes: 20,
-      ),
-      throwsArgumentError,
-    );
+    // 业务入口要求精确日期键；页面可以先清理输入，其他调用者不能传入多余字符。
+    final invalidDates = ['2026/10/20', '2026-10-20\n', ' 2026-10-20'];
+    for (final date in invalidDates) {
+      await expectLater(
+        createMission.execute(
+          title: '阅读 20 分钟',
+          scheduledDate: date,
+          timeZone: 'Asia/Shanghai',
+          plannedDurationMinutes: 20,
+        ),
+        throwsArgumentError,
+      );
+    }
 
     expect(repository.createCallCount, 0);
   });
@@ -177,17 +199,26 @@ void main() {
     final repository = RecordingMissionRepository();
     final createMission = CreateMission(repository);
 
-    // 2 月 30 日格式正确，但 Dart 会把它顺延到 3 月 2 日；
-    // 业务代码比较解析后的日期文本，因此能识别原始日期不存在。
-    await expectLater(
-      createMission.execute(
-        title: '阅读 20 分钟',
-        scheduledDate: '2026-02-30',
-        timeZone: 'Asia/Shanghai',
-        plannedDurationMinutes: 20,
-      ),
-      throwsArgumentError,
-    );
+    // 格式正确也不代表日期存在：分别覆盖闰年、月份和日期越界。
+    final invalidDates = [
+      '2026-02-30',
+      '1900-02-29',
+      '2026-00-01',
+      '2026-13-01',
+      '2026-02-00',
+      '2026-04-31',
+    ];
+    for (final date in invalidDates) {
+      await expectLater(
+        createMission.execute(
+          title: '阅读 20 分钟',
+          scheduledDate: date,
+          timeZone: 'Asia/Shanghai',
+          plannedDurationMinutes: 20,
+        ),
+        throwsArgumentError,
+      );
+    }
 
     expect(repository.createCallCount, 0);
   });

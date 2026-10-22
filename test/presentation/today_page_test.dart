@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +16,6 @@ import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
-import 'package:mission_book/presentation/today/flexible_mission_section.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -85,6 +85,48 @@ ScheduledMission example(
 }
 
 void main() {
+  testWidgets('四个导航项具有读屏点击动作，读屏切页后更新选中状态', (tester) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      final repository = ControlledQueryRepository();
+      await tester.pumpWidget(testApp(repository, shell: true));
+      repository.requests.single.complete([]);
+      await tester.pumpAndSettle();
+
+      for (final label in ['今天', '目标', '历史', '我的']) {
+        // “今天”也出现在页头，所以同时按按钮角色定位导航项。
+        final navigationItem = find.byWidgetPredicate((widget) {
+          return widget is Semantics &&
+              widget.properties.label == label &&
+              widget.properties.button == true;
+        });
+        final node = tester.getSemantics(navigationItem);
+        final data = node.getSemanticsData();
+        expect(data.hasAction(SemanticsAction.tap), isTrue);
+        expect(data.flagsCollection.isButton, isTrue);
+      }
+
+      final target = tester.getSemantics(find.bySemanticsLabel('目标'));
+      final owner = target.owner;
+      if (owner == null) {
+        throw StateError('导航语义节点尚未挂载');
+      }
+      // 从语义树派发动作，验证读屏实际走到切页逻辑，而非只检查有一个回调。
+      owner.performAction(target.id, SemanticsAction.tap);
+      await tester.pumpAndSettle();
+      expect(find.text('目标页面'), findsOneWidget);
+      final selectedTarget = tester.getSemantics(find.bySemanticsLabel('目标'));
+      expect(
+        selectedTarget.getSemanticsData().flagsCollection.isSelected,
+        Tristate.isTrue,
+      );
+      expect(repository.requests, hasLength(1));
+      await tester.pumpWidget(const SizedBox.shrink());
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets('真实创建保存后返回今天页，返回时刷新且只出现一次；导航切换保留列表', (tester) async {
     final database = AppDatabase(executor: NativeDatabase.memory());
     final repository = DriftMissionRepository(database);
@@ -157,17 +199,9 @@ void main() {
     repository.requests.last.complete([example('下拉刷新的任务')]);
     await tester.pumpAndSettle();
     expect(find.text('下拉刷新的任务'), findsOneWidget);
-    // 父组件真正重建今天页，也复用上次准备好的显示数据，不查库或重新分组。
-    final displayedItems = tester
-        .widget<FlexibleMissionSection>(find.byType(FlexibleMissionSection))
-        .items;
+    // 父组件重建后仍显示已加载的数据，不依赖今天页内部的私有组件类型。
     await tester.pumpWidget(testApp(repository));
-    expect(
-      tester
-          .widget<FlexibleMissionSection>(find.byType(FlexibleMissionSection))
-          .items,
-      same(displayedItems),
-    );
+    expect(find.text('下拉刷新的任务'), findsOneWidget);
     expect(repository.requests, hasLength(2));
     await tester.pumpWidget(const SizedBox.shrink());
   });

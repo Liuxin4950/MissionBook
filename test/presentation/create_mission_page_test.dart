@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsAction;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,6 +46,36 @@ Future<void> openForm(WidgetTester tester, PendingRepository repository) async {
 }
 
 void main() {
+  testWidgets('输入框填写后仍有用途标签、当前值和编辑动作，且标签不重复', (tester) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CreateMissionPage(
+            createMission: CreateMission(PendingRepository()),
+          ),
+        ),
+      );
+      final labels = ['任务名称', '计划日期', '计划时长'];
+      final values = ['阅读 Flutter', '2026-10-22', '20'];
+      for (var index = 0; index < labels.length; index++) {
+        final field = find.byType(TextField).at(index);
+        await tester.ensureVisible(field);
+        await tester.enterText(field, values[index]);
+        await tester.pumpAndSettle();
+        final node = tester.getSemantics(find.byType(EditableText).at(index));
+        final data = node.getSemanticsData();
+        expect(data.label, contains(labels[index]));
+        expect(data.value, values[index]);
+        expect(data.hasAction(SemanticsAction.setText), isTrue);
+        expect(find.bySemanticsLabel(RegExp(labels[index])), findsOneWidget);
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets('上海默认日期，等待事务、防重复提交及成功锁定', (tester) async {
     final repository = PendingRepository();
     await openForm(tester, repository);

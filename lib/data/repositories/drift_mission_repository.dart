@@ -10,7 +10,8 @@ import '../local/app_database.dart';
 
 import '../../domain/repositories/mission_repository.dart';
 
-// 执行数据库操作需要Companion对象，这里提前写好，避免修改，更新的时候现写
+/// 将任务转换为插入参数；枚举保存为稳定文本，绝对时刻保存为毫秒时间戳。
+// Companion 只是写入参数；实际执行和提交由下方仓储负责。
 MissionsCompanion missionToCompanion(Mission mission) {
   // 使用生成的构造函数，组装这次要写入的字段，再返回给调用者。
   return MissionsCompanion.insert(
@@ -40,7 +41,7 @@ MissionsCompanion missionToCompanion(Mission mission) {
   );
 }
 
-// 将数据库里读出的一条任务记录，还原为业务对象。反序列化数据
+/// 将数据库行还原为任务，使用 UTC 时间；未知策略抛出 [FormatException]。
 Mission missionFromRow(MissionRow row) {
   // 先取出可能为空的取消时间。
   final cancelledAt = row.cancelledAt;
@@ -75,7 +76,9 @@ Mission missionFromRow(MissionRow row) {
   );
 }
 
-// 查询返回的排期行转回业务对象；日期仍保留计划时区下的日历日期。
+/// 将排期行还原为业务对象，保留日历日期并还原 UTC 绝对时刻。
+///
+/// 时间策略未知或与固定开始时刻矛盾时抛出 [FormatException]。
 MissionScheduleRevision scheduleFromRow(MissionScheduleRevisionRow row) {
   DateTime? utcTime(int? milliseconds) => milliseconds == null
       ? null
@@ -105,7 +108,7 @@ MissionScheduleRevision scheduleFromRow(MissionScheduleRevisionRow row) {
   );
 }
 
-// 把一条排期转换为数据库写入对象，返回给仓储使用。
+/// 将排期转换为插入参数，保留日期字符串并将绝对时刻转换为毫秒。
 MissionScheduleRevisionsCompanion scheduleToCompanion(
   MissionScheduleRevision schedule,
 ) {
@@ -130,7 +133,7 @@ MissionScheduleRevisionsCompanion scheduleToCompanion(
   );
 }
 
-// 把一份执行方案转换为数据库写入对象，不在这里保存。
+/// 将方案转换为插入参数，步骤按原顺序编码为 JSON；不执行写入。
 ExecutionPlansCompanion executionPlanToCompanion(ExecutionPlan plan) {
   return ExecutionPlansCompanion.insert(
     id: plan.id,
@@ -145,11 +148,12 @@ ExecutionPlansCompanion executionPlanToCompanion(ExecutionPlan plan) {
   );
 }
 
-// 实现类实现MissionRepository接口
+/// 使用同一数据库连接完成任务的原子创建和当前排期查询。
 class DriftMissionRepository implements MissionRepository {
-  // 创建仓储对象
+  /// 接收应用持有的连接；本仓储不自行创建或关闭数据库。
   DriftMissionRepository(this.database);
-  // 数据库连接器
+
+  /// 创建与查询共用的数据库连接。
   final AppDatabase database;
 
   @override

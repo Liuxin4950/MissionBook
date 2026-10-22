@@ -7,6 +7,7 @@ import '../domain/entities/mission_schedule_revision.dart';
 import '../domain/entities/execution_plan.dart';
 import '../domain/repositories/mission_repository.dart';
 
+/// 创建默认的独立、自报、自选时间任务，并原子保存任务、首条排期和方案。
 class CreateMission {
   // 调用者传入仓储对象，保存到下面的 repository 属性。
   CreateMission(this.repository) {
@@ -20,8 +21,10 @@ class CreateMission {
   // 创建一个编号生成器，后面用 v4() 生成唯一编号。
   final Uuid uuid = const Uuid();
 
-  // execute 是我们给这个业务方法取的名字。
-  // 四个参数以后由页面收集，测试时也可以直接传入。
+  /// 校验表单的标题、日历日期、IANA 时区和正整数分钟，再等待仓储提交。
+  ///
+  /// 输入无效时以 ArgumentError 结束 Future，且不调用仓储。
+  /// 仓储保存失败时继续向调用者传递异常；成功完成才表示三表事务已提交。
   Future<void> execute({
     required String title,
     required String scheduledDate, // 例如 '2026-10-20'
@@ -39,18 +42,8 @@ class CreateMission {
       throw ArgumentError('计划时长必须大于 0 分钟');
     }
 
-    // 先要求日期是四位年、两位月、两位日的格式。
-    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(scheduledDate)) {
-      throw ArgumentError('日期格式必须为 YYYY-MM-DD');
-    }
-
-    // tryParse 尝试读取日期，失败时返回 null。
-    // Dart 会把“2 月 30 日”顺延，因此还要和原日期比较。
-    final date = DateTime.tryParse(scheduledDate);
-    if (date == null ||
-        date.toIso8601String().substring(0, 10) != scheduledDate) {
-      throw ArgumentError('计划日期不存在');
-    }
+    // 与查询入口共用日历校验，不把日期解释成设备本地的午夜时刻。
+    validateScheduledDate(scheduledDate);
 
     // 查询时区资料；名称不存在时，转成明确的输入错误。
     try {

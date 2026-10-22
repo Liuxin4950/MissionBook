@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mission_book/application/create_mission.dart';
+import 'package:mission_book/application/get_scheduled_missions.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/mission.dart';
@@ -9,6 +12,51 @@ import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/execution_plan.dart';
 
 void main() {
+  test('真实文件数据库关闭重开后能读回任务、排期和执行方案', () async {
+    // 使用专属临时目录，不访问应用真实数据；检查结束后删除整个测试目录。
+    final directory = await Directory.systemTemp.createTemp(
+      'missionbook-test-',
+    );
+    try {
+      final file = File('${directory.path}/mission_book.sqlite');
+      final firstConnection = AppDatabase(executor: NativeDatabase(file));
+      try {
+        final repository = DriftMissionRepository(firstConnection);
+        await CreateMission(repository).execute(
+          title: '  文件持久化检查  ',
+          scheduledDate: '2026-10-22',
+          timeZone: 'Asia/Shanghai',
+          plannedDurationMinutes: 20,
+        );
+      } finally {
+        await firstConnection.close();
+      }
+
+      // 创建全新的连接，确保读到的是磁盘记录，不是上一次连接的内存状态。
+      final secondConnection = AppDatabase(executor: NativeDatabase(file));
+      try {
+        final repository = DriftMissionRepository(secondConnection);
+        final missions = await GetScheduledMissions(
+          repository,
+        ).execute(scheduledDate: '2026-10-22');
+        expect(missions, hasLength(1));
+        expect(missions.single.mission.title, '文件持久化检查');
+        expect(missions.single.schedule.missionId, missions.single.mission.id);
+        expect(missions.single.schedule.plannedDurationMinutes, 20);
+        final plans = await secondConnection
+            .select(secondConnection.executionPlans)
+            .get();
+        expect(plans, hasLength(1));
+        expect(plans.single.missionId, missions.single.mission.id);
+        expect(plans.single.objective, '文件持久化检查');
+      } finally {
+        await secondConnection.close();
+      }
+    } finally {
+      await directory.delete(recursive: true);
+    }
+  });
+
   late AppDatabase database;
   const timestamp = 1792368000000;
 

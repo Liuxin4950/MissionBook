@@ -1,9 +1,10 @@
 import 'package:timezone/data/latest.dart' as tzdata;
 
+import '../domain/entities/mission_schedule_revision.dart';
 import '../domain/entities/scheduled_mission.dart';
 import '../domain/repositories/mission_repository.dart';
 
-// 今天页的查询入口，与负责写入的 CreateMission 分开。
+/// 按计划日期读取一次任务及当前排期，不订阅后续变化。
 class GetScheduledMissions {
   GetScheduledMissions(this.repository) {
     // 页面按排期时区显示固定开始时间，也使用上海日历取得默认日期。
@@ -12,15 +13,16 @@ class GetScheduledMissions {
 
   final MissionRepository repository;
 
-  // 今天页的 _loadMissions 调用本方法：传入所选日期，等待一次查询结果。
-  Future<List<ScheduledMission>> execute({required String scheduledDate}) {
-    final parsed = DateTime.tryParse(scheduledDate);
-    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(scheduledDate) ||
-        parsed == null ||
-        parsed.toIso8601String().substring(0, 10) != scheduledDate) {
-      throw ArgumentError('计划日期必须是有效的 YYYY-MM-DD 日期');
-    }
+  /// 检查 YYYY-MM-DD 日历日期，返回按仓储约定排序的查询结果。
+  ///
+  /// 无效输入以 ArgumentError 结束 Future，仓储错误继续向上传递。
+  /// 今天页的 _loadMissions 提供所选日期，并等待此 Future 后显示结果。
+  Future<List<ScheduledMission>> execute({
+    required String scheduledDate,
+  }) async {
+    validateScheduledDate(scheduledDate);
     // 这里只约束输入；读表和存储类型转换由真实仓储负责。
-    return repository.findScheduledOn(scheduledDate);
+    final missions = await repository.findScheduledOn(scheduledDate);
+    return missions;
   }
 }

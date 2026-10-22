@@ -10,6 +10,7 @@ import 'data/local/app_database.dart';
 import 'data/repositories/drift_mission_repository.dart';
 import 'app_shell.dart';
 
+/// 装配本地数据库、任务仓储和业务入口，并提供全局主题及中文界面。
 class App extends StatefulWidget {
   const App({super.key});
 

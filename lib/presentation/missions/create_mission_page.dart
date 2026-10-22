@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../../application/create_mission.dart';
 
+/// 收集默认独立任务的输入，等待保存，并保护尚未提交的表单内容。
 // Widget 描述页面配置；可变化的输入与资源交给下面的 State 管理。
 class CreateMissionPage extends StatefulWidget {
   // required 要求打开本页的调用者提供业务对象；this 将参数存到同名属性。
@@ -198,6 +199,14 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 用明确的分支准备按钮文字，避免把三种状态挤进嵌套条件表达式。
+    String createButtonLabel = '创建任务';
+    if (_isCreated) {
+      createButtonLabel = '已创建';
+    } else if (_isSaving) {
+      createButtonLabel = '正在创建…';
+    }
+
     // build 返回组件树。child 接收一个子组件；children 接收多个子组件的列表。
     // PopScope 监听页面返回，保护表单输入；它自身不绘制可见内容。
     return PopScope<void>(
@@ -231,59 +240,72 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
             // EdgeInsets 是内边距配置；fromLTRB 参数依次为左、上、右、下，单位是逻辑像素。
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
             children: [
-              const Text('任务名称'),
+              // 标题仍按原样显示，读屏标签由下面的输入节点提供，避免重复朗读。
+              const ExcludeSemantics(child: Text('任务名称')),
               // SizedBox 留出固定空白；这里用 height 分隔标签与输入框。
               const SizedBox(height: 8),
               // TextField 是可编辑的文本输入组件，用户输入后会更新关联的控制器。
-              TextField(
-                controller: _titleController,
-                // 保存期间和成功后锁定输入，确保展示内容对应本次提交。
-                enabled: !_isSaving && !_isCreated,
-                // 将软键盘操作键设为“下一项”，默认编辑行为会尝试转到下一个输入框。
-                textInputAction: TextInputAction.next,
-                // InputDecoration 是外观配置对象，不是独立的 Widget。
-                decoration: const InputDecoration(
-                  // hintText 在输入为空时提示示例，不会写进 controller.text。
-                  hintText: '例如：阅读 Flutter',
-                  // OutlineInputBorder 为输入区域配置轮廓边框。
-                  border: OutlineInputBorder(),
+              // 给输入节点绑定用途；保留子节点提供的编辑动作和当前值。
+              Semantics(
+                label: '任务名称',
+                child: TextField(
+                  controller: _titleController,
+                  // 保存期间和成功后锁定输入，确保展示内容对应本次提交。
+                  enabled: !_isSaving && !_isCreated,
+                  // 将软键盘操作键设为“下一项”，默认编辑行为会尝试转到下一个输入框。
+                  textInputAction: TextInputAction.next,
+                  // InputDecoration 是外观配置对象，不是独立的 Widget。
+                  decoration: const InputDecoration(
+                    // hintText 在输入为空时提示示例，不会写进 controller.text。
+                    hintText: '例如：阅读 Flutter',
+                    // OutlineInputBorder 为输入区域配置轮廓边框。
+                    border: OutlineInputBorder(),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
-              const Text('计划日期'),
+              const ExcludeSemantics(child: Text('计划日期')),
               const SizedBox(height: 8),
-              TextField(
-                // 显示默认日期，并保留用户修改后的文字；保存时再交给业务层校验。
-                controller: _dateController,
-                // 保存期间和成功后锁定输入，确保展示内容对应本次提交。
-                enabled: !_isSaving && !_isCreated,
-                // 只是请求日期时间键盘，不保证输入一定是合法日期。
-                keyboardType: TextInputType.datetime,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  hintText: 'YYYY-MM-DD',
-                  // helperText 持续显示在输入框下方，说明填写格式。
-                  helperText: '例如：2026-10-21',
-                  border: OutlineInputBorder(),
+              // 给输入节点绑定用途；保留子节点提供的编辑动作和当前值。
+              Semantics(
+                label: '计划日期',
+                child: TextField(
+                  // 显示默认日期，并保留用户修改后的文字；保存时再交给业务层校验。
+                  controller: _dateController,
+                  // 保存期间和成功后锁定输入，确保展示内容对应本次提交。
+                  enabled: !_isSaving && !_isCreated,
+                  // 只是请求日期时间键盘，不保证输入一定是合法日期。
+                  keyboardType: TextInputType.datetime,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    hintText: 'YYYY-MM-DD',
+                    // helperText 持续显示在输入框下方，说明填写格式。
+                    helperText: '例如：2026-10-21',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
-              const Text('计划时长'),
+              const ExcludeSemantics(child: Text('计划时长')),
               const SizedBox(height: 8),
-              TextField(
-                // 即使请求数字键盘，控制器读取出来的仍然是字符串，例如 '20'。
-                controller: _durationController,
-                // 保存期间和成功后锁定输入，确保展示内容对应本次提交。
-                enabled: !_isSaving && !_isCreated,
-                // keyboardType 只是请求数字键盘，不能独自限制粘贴或实体键盘输入。
-                keyboardType: TextInputType.number,
-                // 格式器过滤输入，仅保留 0–9；不代表业务校验通过，0 仍需在保存时拒绝。
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  hintText: '例如：20',
-                  // suffixText 在输入区域末尾显示单位，不属于用户输入的字符串。
-                  suffixText: '分钟',
-                  border: OutlineInputBorder(),
+              // 给输入节点绑定用途；保留子节点提供的编辑动作和当前值。
+              Semantics(
+                label: '计划时长',
+                child: TextField(
+                  // 即使请求数字键盘，控制器读取出来的仍然是字符串，例如 '20'。
+                  controller: _durationController,
+                  // 保存期间和成功后锁定输入，确保展示内容对应本次提交。
+                  enabled: !_isSaving && !_isCreated,
+                  // keyboardType 只是请求数字键盘，不能独自限制粘贴或实体键盘输入。
+                  keyboardType: TextInputType.number,
+                  // 格式器过滤输入，仅保留 0–9；不代表业务校验通过，0 仍需在保存时拒绝。
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(
+                    hintText: '例如：20',
+                    // suffixText 在输入区域末尾显示单位，不属于用户输入的字符串。
+                    suffixText: '分钟',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -307,9 +329,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
                 child: FilledButton(
                   // 条件表达式在保存中或成功后返回 null，使按钮禁用。
                   onPressed: _isSaving || _isCreated ? null : _save,
-                  child: Text(
-                    _isCreated ? '已创建' : (_isSaving ? '正在创建…' : '创建任务'),
-                  ),
+                  child: Text(createButtonLabel),
                 ),
               ),
             ],

@@ -51,7 +51,7 @@ void main() {
       mission('cancelled-flex', cancelled: true),
       mission('flex-a'),
     ];
-    final result = TodayDisplay.missions(source);
+    final result = groupMissionsForDisplay(source);
     expect(result.fixed.map((item) => item.id), ['fixed-b', 'fixed-a']);
     expect(result.flexible.map((item) => item.id), ['flex-b', 'flex-a']);
     expect(result.cancelled.map((item) => item.id), [
@@ -68,7 +68,7 @@ void main() {
   });
 
   test('固定时间使用排期时区并处理跨日和夏令时；自选不产生固定时刻', () {
-    final result = TodayDisplay.missions([
+    final result = groupMissionsForDisplay([
       mission('shanghai', start: DateTime.utc(2026, 10, 20, 17, 5)),
       mission(
         'new-york-summer',
@@ -97,9 +97,9 @@ void main() {
 
   test('同一天的查询键与页头文字共用日历日期，空结果三个分区均为空', () {
     final selected = DateTime(2026, 1, 4, 23, 59);
-    expect(TodayDisplay.dateKey(selected), '2026-01-04');
-    expect(TodayDisplay.dateLabel(selected), '1月4日 · 周日');
-    expect(TodayDisplay.dateKey(DateTime(1, 1, 2)), '0001-01-02');
-    expect(TodayDisplay.missions([]).isEmpty, isTrue);
+    expect(scheduleDateKey(selected), '2026-01-04');
+    expect(scheduleDateLabel(selected), '1月4日 · 周日');
+    expect(scheduleDateKey(DateTime(1, 1, 2)), '0001-01-02');
+    expect(groupMissionsForDisplay([]).isEmpty, isTrue);
   });
 }
