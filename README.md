@@ -2,7 +2,7 @@
 
 Mission Book 是一个以人的长期成长为核心的 AI 辅助规划、执行、验证与反思系统。
 
-仓库处于重新实现阶段，`lib/` 目前已接入统一主题和“今天、目标、历史、我的”四个占位页面的导航框架。统一规格见 [docs/README.md](docs/README.md)，规格描述目标行为，实际进度以代码和验收为准。
+仓库处于重新实现阶段，`lib/` 已接入统一主题、四个顶层导航入口、独立任务创建及今天页真实列表；目标、历史、我的页面仍为占位。统一规格见 [docs/README.md](docs/README.md)，规格描述目标行为，实际进度以代码和验收为准。
 
 ## 核心闭环
 
@@ -26,6 +26,15 @@ flutter run -d windows
 flutter devices
 flutter run -d <device-id>
 ```
+
+### 本机浏览器预览
+
+```bash
+flutter pub get
+flutter run -d web-server --web-hostname 127.0.0.1 --web-port 8085 --cross-origin-isolation --no-web-resources-cdn --no-pub
+```
+
+打开 [MissionBook](http://127.0.0.1:8085)。浏览器与原生应用各自保存数据，不自动同步；固定访问地址后可刷新读回。当前只预览已实现的创建和查询链路，配置、资源重编译及验证边界见 [Web 浏览器预览](docs/开发/Web浏览器预览.md)。
 
 ## 文档
 

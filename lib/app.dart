@@ -29,7 +29,7 @@ class _AppState extends State<App> {
   void initState() {
     super.initState();
     // Flutter 创建这个 State 后调用一次 initState。
-    // 不传 executor，使用已有的本地文件连接配置。
+    // 不传 executor，由 AppDatabase 按平台选择原生文件或浏览器存储。
     _database = AppDatabase();
     // 将同一个数据库交给真实仓储。
     final repository = DriftMissionRepository(_database);
@@ -43,6 +43,7 @@ class _AppState extends State<App> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'MissionBook',
       theme: AppTheme.light,
       locale: const Locale('zh', 'CN'),
       supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],

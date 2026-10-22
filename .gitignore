@@ -106,3 +106,6 @@ app.*.map.json
 /android/build/
 # Widget Preview related
 .widget_preview/
+
+# Dart 编译 Web 数据库 Worker 时产生的本机依赖清单；正式 JS 和 WASM 仍提交。
+/web/drift_worker.js.deps
