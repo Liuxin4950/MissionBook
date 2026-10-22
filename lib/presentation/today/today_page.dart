@@ -186,7 +186,7 @@ class _TodayPageState extends State<TodayPage> {
                 ),
                 const SizedBox(height: 24),
                 // 构建元素
-                _buildContent(context),
+                _buildContent(),
               ],
             ),
           ),
@@ -195,8 +195,9 @@ class _TodayPageState extends State<TodayPage> {
     );
   }
 
-  // build 调用此方法，按状态选择加载/失败/空/列表；这里不发起任何异步工作。
-  Widget _buildContent(BuildContext context) {
+  // build 调用此方法，按状态选择加载/失败/内容；这里不发起任何异步工作。
+  Widget _buildContent() {
+    // 首次进入或清空重查时还没有任何分区结果，仍整块显示等待或错误提示。
     if (_isLoading && _missions.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 48),
@@ -210,28 +211,6 @@ class _TodayPageState extends State<TodayPage> {
           const SizedBox(height: 8),
           OutlinedButton(onPressed: _loadMissions, child: const Text('重新加载')),
         ],
-      );
-    }
-    if (_missions.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        child: Column(
-          children: [
-            Icon(
-              Icons.event_note_outlined,
-              size: 48,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            const Text('这一天还没有任务'),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _openCreate,
-              icon: const Icon(Icons.add),
-              label: const Text('创建任务'),
-            ),
-          ],
-        ),
       );
     }
     // 正常内容沿页面视觉顺序排列。分组由加载过程完成，这里只交付对应列表。
@@ -250,12 +229,9 @@ class _TodayPageState extends State<TodayPage> {
               TextButton(onPressed: _loadMissions, child: const Text('重试')),
             ],
           ),
-        if (_missions.fixed.isEmpty && _missions.flexible.isEmpty)
-          const Text('这一天没有未取消的任务'),
-        if (_missions.fixed.isNotEmpty)
-          _FixedMissionSection(items: _missions.fixed, clock: widget.clock),
-        if (_missions.flexible.isNotEmpty)
-          _FlexibleMissionSection(items: _missions.flexible),
+        // 两个任务区域常驻：没有数据的一侧保留标题和头部入口，列表位置显示空态提示。
+        _FixedMissionSection(items: _missions.fixed, clock: widget.clock),
+        _FlexibleMissionSection(items: _missions.flexible),
         if (_missions.cancelled.isNotEmpty)
           ExpansionTile(
             key: const Key('cancelled-missions'),
@@ -414,6 +390,10 @@ class _FixedMissionSectionState extends State<_FixedMissionSection>
   void didUpdateWidget(covariant _FixedMissionSection oldWidget) {
     super.didUpdateWidget(oldWidget);
     _clock.value = widget.clock();
+    // 切日期可能让本区在“空”与“有任务”之间切换：空列表停用每秒时钟，恢复任务后重新启动。
+    if (oldWidget.items.isEmpty != widget.items.isEmpty) {
+      _syncClock();
+    }
     _retargetLayout();
   }
 
@@ -432,7 +412,8 @@ class _FixedMissionSectionState extends State<_FixedMissionSection>
   void _syncClock() {
     _timer?.cancel();
     _timer = null;
-    if (_isVisible && _isForeground) {
+    // 空列表没有时间轴可画：标题和空态提示不需要每秒读取真实时钟。
+    if (_isVisible && _isForeground && widget.items.isNotEmpty) {
       // 恢复时直接投影最新系统时间，隐藏期间不累加 tick 或补播过渡。
       _clock.value = widget.clock();
       _retargetLayout(animate: false);
@@ -523,80 +504,85 @@ class _FixedMissionSectionState extends State<_FixedMissionSection>
             ],
           ),
           const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final items = widget.items;
-              final current = [
-                for (final item in items)
-                  display.isInPlannedTimeSlot(item, _now),
-              ];
-              return AnimatedBuilder(
-                animation: _layoutAnimation,
-                builder: (context, child) {
-                  final t = Curves.easeOutCubic.transform(
-                    _layoutAnimation.value,
-                  );
-                  final animatedFocus =
-                      _fromFocus + (_toFocus - _fromFocus) * t;
-                  final emphasis = [
-                    for (final item in items)
-                      (_fromEmphasis[item.id] ?? 0) +
-                          ((_toEmphasis[item.id] ?? 0) -
-                                  (_fromEmphasis[item.id] ?? 0)) *
-                              t,
-                  ];
-                  // 焦点向上下两端分别递减，两端最小；重叠激活项都保持最大。
-                  final weights = [
-                    for (var index = 0; index < items.length; index++)
-                      math.max(
-                        emphasis[index],
-                        _timelineWeight(index, animatedFocus, items.length),
-                      ),
-                  ];
-                  final scales = [
-                    for (final weight in weights) 0.75 + 0.25 * weight,
-                  ];
-                  final layouts = [
-                    for (var index = 0; index < items.length; index++)
-                      _measureFixedRow(
-                        context,
-                        constraints.maxWidth,
-                        items[index],
-                        current[index],
-                        scale: scales[index],
-                        emphasis: emphasis[index],
-                        lensWeight: weights[index],
-                      ),
-                  ];
-                  // 一条任务对应一段轨道，段高直接使用这一帧的卡片高度。
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+          // 没有固定任务时标题和“全部任务”入口仍显示，列表位置换成空态提示，
+          // 不进入每秒刷新的时间轴布局。
+          if (widget.items.isEmpty)
+            const _SectionEmptyHint('这一天还没有固定任务')
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final items = widget.items;
+                final current = [
+                  for (final item in items)
+                    display.isInPlannedTimeSlot(item, _now),
+                ];
+                return AnimatedBuilder(
+                  animation: _layoutAnimation,
+                  builder: (context, child) {
+                    final t = Curves.easeOutCubic.transform(
+                      _layoutAnimation.value,
+                    );
+                    final animatedFocus =
+                        _fromFocus + (_toFocus - _fromFocus) * t;
+                    final emphasis = [
+                      for (final item in items)
+                        (_fromEmphasis[item.id] ?? 0) +
+                            ((_toEmphasis[item.id] ?? 0) -
+                                    (_fromEmphasis[item.id] ?? 0)) *
+                                t,
+                    ];
+                    // 焦点向上下两端分别递减，两端最小；重叠激活项都保持最大。
+                    final weights = [
                       for (var index = 0; index < items.length; index++)
-                        _FixedMissionRow(
-                          item: items[index],
+                        math.max(
+                          emphasis[index],
+                          _timelineWeight(index, animatedFocus, items.length),
+                        ),
+                    ];
+                    final scales = [
+                      for (final weight in weights) 0.75 + 0.25 * weight,
+                    ];
+                    final layouts = [
+                      for (var index = 0; index < items.length; index++)
+                        _measureFixedRow(
+                          context,
+                          constraints.maxWidth,
+                          items[index],
+                          current[index],
                           scale: scales[index],
                           emphasis: emphasis[index],
-                          clock: _clock,
-                          tilt: MediaQuery.disableAnimationsOf(context)
-                              ? 0
-                              : ((index - animatedFocus) * 0.018)
-                                    .clamp(-0.045, 0.045)
-                                    .toDouble(),
-                          layout: layouts[index],
-                          isCurrent: current[index],
-                          hasReachedNext:
-                              index < items.length - 1 &&
-                              !_now.isBefore(items[index + 1].fixedStartAt!),
-                          connectNext: index < items.length - 1,
-                          connectPrevious: index > 0,
+                          lensWeight: weights[index],
                         ),
-                    ],
-                  );
-                },
-              );
-            },
-          ),
+                    ];
+                    // 一条任务对应一段轨道，段高直接使用这一帧的卡片高度。
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var index = 0; index < items.length; index++)
+                          _FixedMissionRow(
+                            item: items[index],
+                            scale: scales[index],
+                            emphasis: emphasis[index],
+                            clock: _clock,
+                            tilt: MediaQuery.disableAnimationsOf(context)
+                                ? 0
+                                : ((index - animatedFocus) * 0.018)
+                                      .clamp(-0.045, 0.045)
+                                      .toDouble(),
+                            layout: layouts[index],
+                            isCurrent: current[index],
+                            hasReachedNext:
+                                index < items.length - 1 &&
+                                !_now.isBefore(items[index + 1].fixedStartAt!),
+                            connectNext: index < items.length - 1,
+                            connectPrevious: index > 0,
+                          ),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
         ],
       ),
     );
@@ -1119,31 +1105,36 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
             ),
           ),
           const SizedBox(height: 16),
-          for (final item in visibleItems) _FlexibleMissionRow(item: item),
-          if (hasMore)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: MergeSemantics(
-                child: Semantics(
-                  expanded: _expanded,
-                  child: TextButton.icon(
-                    key: const Key('flexible-missions-toggle'),
-                    onPressed: () => setState(() => _expanded = !_expanded),
-                    style: TextButton.styleFrom(
-                      textStyle: _todayMetadataStyle(context),
-                      minimumSize: const Size(48, 48),
-                    ),
-                    icon: Icon(
-                      _expanded ? Icons.expand_less : Icons.expand_more,
-                      size: 18,
-                    ),
-                    label: Text(
-                      _expanded ? '收起' : '展开全部（${widget.items.length}）',
+          // 没有自选任务时同样保留标题，用一行提示占位；有任务才渲染行和展开入口。
+          if (widget.items.isEmpty)
+            const _SectionEmptyHint('这一天还没有自选任务')
+          else ...[
+            for (final item in visibleItems) _FlexibleMissionRow(item: item),
+            if (hasMore)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: MergeSemantics(
+                  child: Semantics(
+                    expanded: _expanded,
+                    child: TextButton.icon(
+                      key: const Key('flexible-missions-toggle'),
+                      onPressed: () => setState(() => _expanded = !_expanded),
+                      style: TextButton.styleFrom(
+                        textStyle: _todayMetadataStyle(context),
+                        minimumSize: const Size(48, 48),
+                      ),
+                      icon: Icon(
+                        _expanded ? Icons.expand_less : Icons.expand_more,
+                        size: 18,
+                      ),
+                      label: Text(
+                        _expanded ? '收起' : '展开全部（${widget.items.length}）',
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+          ],
         ],
       ),
     );
@@ -1225,6 +1216,27 @@ class _MissionDetails extends StatelessWidget {
         if (item.timeZoneLabel != null)
           Text(item.timeZoneLabel!, style: theme.textTheme.bodySmall),
       ],
+    );
+  }
+}
+
+// 两个任务区域共用的空态提示行。区域标题常驻，列表为空时用它说明；
+// 创建入口统一是页头加号，这里不重复放按钮，也不提供其他交互。
+class _SectionEmptyHint extends StatelessWidget {
+  const _SectionEmptyHint(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        message,
+        style: _todayMetadataStyle(
+          context,
+        ).copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      ),
     );
   }
 }

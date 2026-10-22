@@ -152,7 +152,11 @@ void main() {
     final repository = DriftMissionRepository(database);
     await tester.pumpWidget(testApp(repository, shell: true));
     await tester.pumpAndSettle();
-    expect(find.text('这一天还没有任务'), findsOneWidget);
+    // 空数据时两个区域标题常驻，各显示一行空态提示。
+    expect(find.text('计划日程'), findsOneWidget);
+    expect(find.text('自选时间'), findsOneWidget);
+    expect(find.text('这一天还没有固定任务'), findsOneWidget);
+    expect(find.text('这一天还没有自选任务'), findsOneWidget);
 
     await tester.tap(find.byTooltip('创建任务'));
     await tester.pumpAndSettle();
@@ -198,7 +202,52 @@ void main() {
     expect(repository.requests, hasLength(2));
     repository.requests.last.complete([]);
     await tester.pumpAndSettle();
-    expect(find.text('这一天还没有任务'), findsOneWidget);
+    expect(find.text('计划日程'), findsOneWidget);
+    expect(find.text('自选时间'), findsOneWidget);
+    expect(find.text('这一天还没有固定任务'), findsOneWidget);
+    expect(find.text('这一天还没有自选任务'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('区域标题在空数据时仍显示，空固定列表不启动每秒时钟', (tester) async {
+    var reads = 0;
+    final repository = ControlledQueryRepository();
+    await tester.pumpWidget(
+      testApp(
+        repository,
+        clock: () {
+          reads++;
+          return DateTime.utc(2026, 10, 22, 1);
+        },
+      ),
+    );
+    repository.requests.single.complete([example('仅有自选任务')]);
+    await tester.pumpAndSettle();
+    // 固定区没有任务：标题和“全部任务”入口仍在，列表位置是空态提示。
+    expect(find.text('计划日程'), findsOneWidget);
+    expect(find.text('这一天还没有固定任务'), findsOneWidget);
+    expect(find.text('仅有自选任务'), findsOneWidget);
+    expect(find.text('这一天还没有自选任务'), findsNothing);
+    // 空固定列表没有时间轴可画，不应进入每秒读取。
+    final readsAfterLoad = reads;
+    await tester.pump(const Duration(seconds: 3));
+    expect(reads, readsAfterLoad);
+
+    // 刷新成只剩取消任务的一天：两个区域仍常驻，不再用整句替换内容。
+    await tester.drag(
+      find.byKey(const Key('today-list')),
+      const Offset(0, 400),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    repository.requests.last.complete([example('已取消任务', cancelled: true)]);
+    await tester.pumpAndSettle();
+    expect(find.text('计划日程'), findsOneWidget);
+    expect(find.text('自选时间'), findsOneWidget);
+    expect(find.text('这一天还没有固定任务'), findsOneWidget);
+    expect(find.text('这一天还没有自选任务'), findsOneWidget);
+    expect(find.text('这一天没有未取消的任务'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
