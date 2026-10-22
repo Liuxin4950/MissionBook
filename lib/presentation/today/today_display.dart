@@ -72,6 +72,8 @@ TodayMissionItem _missionItem(ScheduledMission item) {
     isFixed: isFixed,
     isCancelled: isCancelled,
     startTime: startTime,
+    fixedStartAt: schedule.fixedStartAt,
+    plannedDurationMinutes: schedule.plannedDurationMinutes,
     durationLabel:
         '${isCancelled ? '已取消 · ' : ''}'
         '计划 ${schedule.plannedDurationMinutes} 分钟',
@@ -111,6 +113,8 @@ class TodayMissionItem {
     required this.isFixed,
     required this.isCancelled,
     required this.startTime,
+    required this.fixedStartAt,
+    required this.plannedDurationMinutes,
     required this.durationLabel,
     required this.timeZoneLabel,
   });
@@ -120,6 +124,43 @@ class TodayMissionItem {
   final bool isFixed;
   final bool isCancelled;
   final String startTime;
+  final DateTime? fixedStartAt;
+  final int plannedDurationMinutes;
   final String durationLabel;
   final String? timeZoneLabel;
+}
+
+/// 当前是否处于计划时间段：[开始，开始 + 计划分钟数)。仅用于视觉强调。
+/// 不表示用户已开始执行，也不生成执行、完成或取消事实。
+bool isInPlannedTimeSlot(TodayMissionItem item, DateTime now) {
+  final start = item.fixedStartAt;
+  if (!item.isFixed || item.isCancelled || start == null) return false;
+  final end = start.add(Duration(minutes: item.plannedDurationMinutes));
+  return !now.isBefore(start) && now.isBefore(end);
+}
+
+/// 一条任务自身计划时段的经过比例，供与卡片等高的轨道段使用。
+double plannedTimeSlotProgress(TodayMissionItem item, DateTime now) {
+  final start = item.fixedStartAt;
+  if (!item.isFixed ||
+      item.isCancelled ||
+      start == null ||
+      item.plannedDurationMinutes <= 0) {
+    return 0;
+  }
+  return timelineSegmentProgress(
+    start,
+    start.add(Duration(minutes: item.plannedDurationMinutes)),
+    now,
+  );
+}
+
+/// 将真实时刻投影到两个相邻开始节点之间；节点间距仍沿用紧凑排版。
+/// 同一时刻的多个节点一起到达，不进行除零运算。
+double timelineSegmentProgress(DateTime start, DateTime end, DateTime now) {
+  if (now.isBefore(start)) return 0;
+  if (!now.isBefore(end)) return 1;
+  final interval = end.difference(start).inMicroseconds;
+  if (interval <= 0) return 1;
+  return now.difference(start).inMicroseconds / interval;
 }
