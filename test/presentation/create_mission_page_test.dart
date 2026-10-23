@@ -3,17 +3,22 @@ import 'dart:ui' show SemanticsAction;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mission_book/application/create_mission.dart';
+import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
+import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/presentation/missions/create_mission_page.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 // 用可控制完成时机的仓储替代磁盘，验证页面确实等待业务保存结果。
 class PendingRepository implements MissionRepository {
+  @override
+  Future<MissionDetail?> findDetail(String missionId) =>
+      throw UnsupportedError('创建表单测试不读取详情');
+
   @override
   Future<List<ScheduledMission>> findScheduledOn(String scheduledDate) =>
       throw UnsupportedError('表单保存测试不调用查询');
@@ -37,7 +42,7 @@ class PendingRepository implements MissionRepository {
 Future<void> openForm(WidgetTester tester, PendingRepository repository) async {
   await tester.pumpWidget(
     MaterialApp(
-      home: CreateMissionPage(createMission: CreateMission(repository)),
+      home: CreateMissionPage(missionService: MissionService(repository)),
     ),
   );
   await tester.enterText(find.byType(TextField).at(0), '阅读 Flutter');
@@ -52,7 +57,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: CreateMissionPage(
-            createMission: CreateMission(PendingRepository()),
+            missionService: MissionService(PendingRepository()),
           ),
         ),
       );

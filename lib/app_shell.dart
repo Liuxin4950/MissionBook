@@ -1,19 +1,13 @@
 import 'package:flutter/material.dart';
 import 'presentation/today/today_page.dart';
-import 'application/create_mission.dart';
-import 'application/get_scheduled_missions.dart';
+import 'application/missions/mission_service.dart';
 import 'core/theme/colors.dart';
 
 /// 管理四个顶层导航入口，并保留各页状态、转交共享业务对象。
 class AppShell extends StatefulWidget {
-  const AppShell({
-    super.key,
-    required this.createMission,
-    required this.getMissions,
-  });
-  // App 通过构造函数传入的两个业务入口；本层只转交给今天页，不执行查询。
-  final CreateMission createMission;
-  final GetScheduledMissions getMissions;
+  const AppShell({super.key, required this.missionService});
+  // App 传入共享的任务业务对象；本层只转交给今天页，不执行业务方法。
+  final MissionService missionService;
 
   @override
   State<AppShell> createState() {
@@ -35,12 +29,9 @@ class _AppShellState extends State<AppShell> {
   // 主要渲染内容
   @override
   Widget build(BuildContext context) {
-    // 核心页面聚合列表 widget需要在build方法中才能拿到createMission
+    // 通过 widget 读取 App 传入的服务引用；重建页面时不重新创建服务。
     final pages = <Widget>[
-      TodayPage(
-        createMission: widget.createMission,
-        getMissions: widget.getMissions,
-      ),
+      TodayPage(missionService: widget.missionService),
       Center(child: Text('目标页面')),
       Center(child: Text('历史页面')),
       Center(child: Text('我的页面')),

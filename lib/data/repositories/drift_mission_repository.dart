@@ -6,6 +6,7 @@ import '../../domain/entities/execution_plan.dart';
 import '../../domain/entities/mission.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/scheduled_mission.dart';
+import '../../domain/entities/mission_detail.dart';
 import '../local/app_database.dart';
 
 import '../../domain/repositories/mission_repository.dart';
@@ -148,7 +149,36 @@ ExecutionPlansCompanion executionPlanToCompanion(ExecutionPlan plan) {
   );
 }
 
-/// 使用同一数据库连接完成任务的原子创建和当前排期查询。
+/// 将方案行还原为业务对象；步骤必须是只包含字符串的 JSON 数组。
+ExecutionPlan executionPlanFromRow(ExecutionPlanRow row) {
+  // 写入时 jsonEncode 把列表变成文本；读取时 jsonDecode 做反向转换。
+  // JSON 也可能是数字、对象或混合数组，因此不能直接强制转换成 List<String>。
+  // Object? 可以接住任意 JSON 值（包括 null）；检查后才把字符串收进 steps。
+  final Object? decoded = jsonDecode(row.steps);
+  if (decoded is! List<Object?>) {
+    throw const FormatException('执行步骤必须是 JSON 数组');
+  }
+  final steps = <String>[];
+  for (final step in decoded) {
+    if (step is! String) {
+      throw const FormatException('每个执行步骤必须是文字');
+    }
+    steps.add(step);
+  }
+
+  return ExecutionPlan(
+    id: row.id,
+    missionId: row.missionId,
+    objective: row.objective,
+    steps: steps,
+    verificationCriteria: row.verificationCriteria,
+    notes: row.notes,
+    createdAt: DateTime.fromMillisecondsSinceEpoch(row.createdAt, isUtc: true),
+    updatedAt: DateTime.fromMillisecondsSinceEpoch(row.updatedAt, isUtc: true),
+  );
+}
+
+/// 使用同一数据库连接完成原子创建、列表查询与详情读取。
 class DriftMissionRepository implements MissionRepository {
   /// 接收应用持有的连接；本仓储不自行创建或关闭数据库。
   DriftMissionRepository(this.database);
@@ -157,7 +187,41 @@ class DriftMissionRepository implements MissionRepository {
   final AppDatabase database;
 
   @override
-  // 调用者：GetScheduledMissions.execute。
+  Future<MissionDetail?> findDetail(String missionId) async {
+    final missions = database.missions;
+    final schedules = database.missionScheduleRevisions;
+    final plans = database.executionPlans;
+
+    // MissionService.findDetail 传来任务编号。关联三表后按排期版本倒序，只取最新的一条。
+    // leftOuterJoin 会保留任务本身，即使它缺少排期/方案，也能与“任务不存在”区分。
+    final query = database.select(missions).join([
+      leftOuterJoin(schedules, schedules.missionId.equalsExp(missions.id)),
+      leftOuterJoin(plans, plans.missionId.equalsExp(missions.id)),
+    ]);
+    query.where(missions.id.equals(missionId));
+    query.orderBy([OrderingTerm.desc(schedules.revisionNumber)]);
+    query.limit(1);
+
+    // 到这里才执行 SQL；同一条语句读取三表，避免分开读时混入不同次修改的结果。
+    final row = await query.getSingleOrNull();
+    if (row == null) return null;
+
+    final scheduleRow = row.readTableOrNull(schedules);
+    final planRow = row.readTableOrNull(plans);
+    if (scheduleRow == null || planRow == null) {
+      throw const FormatException('任务缺少排期或执行方案');
+    }
+
+    // 数据库行只在 data 层使用；页面最终收到的是三个已有业务对象的组合。
+    return MissionDetail(
+      mission: missionFromRow(row.readTable(missions)),
+      schedule: scheduleFromRow(scheduleRow),
+      executionPlan: executionPlanFromRow(planRow),
+    );
+  }
+
+  @override
+  // 调用者：MissionService.findScheduledOn。
   // 输入：计划日期。过程：关联 → 筛选 → 排序 → 执行 → 转换。输出：业务列表。
   Future<List<ScheduledMission>> findScheduledOn(String scheduledDate) async {
     // 1. 指定要读取的两张表，并说明它们通过任务编号关联。

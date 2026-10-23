@@ -2,16 +2,21 @@ import 'package:uuid/uuid.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
-import '../domain/entities/mission.dart';
-import '../domain/entities/mission_schedule_revision.dart';
-import '../domain/entities/execution_plan.dart';
-import '../domain/repositories/mission_repository.dart';
+import '../../domain/entities/mission.dart';
+import '../../domain/entities/mission_schedule_revision.dart';
+import '../../domain/entities/execution_plan.dart';
+import '../../domain/repositories/mission_repository.dart';
+import '../../domain/entities/scheduled_mission.dart';
+import '../../domain/entities/mission_detail.dart';
 
-/// 创建默认的独立、自报、自选时间任务，并原子保存任务、首条排期和方案。
-class CreateMission {
+/// 任务的应用业务入口：组织创建、按日期查询和详情查询。
+///
+/// App 只创建一个 MissionService，页面通过方法名选择要做的事。
+/// 本类负责输入检查与业务对象组织；SQL、行转换和事务保存仍由仓储完成。
+class MissionService {
   // 调用者传入仓储对象，保存到下面的 repository 属性。
-  CreateMission(this.repository) {
-    // 读入包内置的时区资料，供下面检查时区名称使用。
+  MissionService(this.repository) {
+    // 创建共享服务时准备时区资料；三个方法共用，不再各建一个业务入口初始化。
     tzdata.initializeTimeZones();
   }
 
@@ -21,11 +26,11 @@ class CreateMission {
   // 创建一个编号生成器，后面用 v4() 生成唯一编号。
   final Uuid uuid = const Uuid();
 
-  /// 校验表单的标题、日历日期、IANA 时区和正整数分钟，再等待仓储提交。
+  /// 创建默认独立、自报、自选时间任务，校验输入后等待三表事务提交。
   ///
   /// 输入无效时以 ArgumentError 结束 Future，且不调用仓储。
   /// 仓储保存失败时继续向调用者传递异常；成功完成才表示三表事务已提交。
-  Future<void> execute({
+  Future<void> create({
     required String title,
     required String scheduledDate, // 例如 '2026-10-20'
     required String timeZone, // 例如 'Asia/Shanghai'
@@ -91,5 +96,36 @@ class CreateMission {
       initialSchedule: schedule,
       executionPlan: plan,
     );
+  }
+
+  /// 检查 YYYY-MM-DD 日历日期，返回按仓储约定排序的查询结果。
+  ///
+  /// 无效输入以 ArgumentError 结束 Future，仓储错误继续向上传递。
+  /// 今天页的 _loadMissions 提供所选日期，并等待此 Future 后显示结果。
+  Future<List<ScheduledMission>> findScheduledOn({
+    required String scheduledDate,
+  }) async {
+    validateScheduledDate(scheduledDate);
+    // 这里只约束输入；读表和存储类型转换由真实仓储负责。
+    final missions = await repository.findScheduledOn(scheduledDate);
+    return missions;
+  }
+
+  /// 按编号读取任务详情；不存在返回 null，读取或转换失败通过 Future 传出错误。
+  ///
+  /// missionId 来自用户点击的那条任务，不用标题或列表位置代替唯一编号。
+  Future<MissionDetail?> findDetail({required String missionId}) async {
+    if (missionId.trim().isEmpty) {
+      throw ArgumentError('任务编号不能为空');
+    }
+
+    // await 等仓储读完，再把完整结果交回详情页；这里不创建或修改任务。
+    final detail = await repository.findDetail(missionId);
+    if (detail != null) {
+      // 页面需要按此时区换算时刻。无效时区在 Future 中报错，走页面的重试状态，
+      // 避免等到 Widget 排版时才抛错，导致整个详情区域无法构建。
+      tz.getLocation(detail.schedule.timeZone);
+    }
+    return detail;
   }
 }
