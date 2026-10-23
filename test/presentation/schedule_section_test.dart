@@ -85,7 +85,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('当日日程'), findsOneWidget);
     expect(find.byType(ScheduleMissionRow), findsNWidgets(12));
-    await tester.pageBack();
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
     expect(repository.requests, hasLength(3));
     repository.requests.last.complete(items.take(1).toList());

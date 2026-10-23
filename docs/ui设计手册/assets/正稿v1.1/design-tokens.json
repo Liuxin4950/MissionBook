@@ -297,7 +297,7 @@
   "timelineSemantics": "按固定开始时间排序的节点列表；节点间距和卡片高度不编码时长",
   "designVersion": "current",
   "todaySchedule": {
-    "status": "implemented-awaiting-user-validation",
+    "status": "implemented-user-validated-platform-unspecified",
     "timeline": "compact-connected-nodes",
     "sectionRadius": 20,
     "rowRadius": 14,
@@ -325,8 +325,7 @@
     "currentDataStates": [
       "待到时",
       "当前时段",
-      "时段已过",
-      "已取消"
+      "时段已过"
     ],
     "overviewMetrics": [
       "固定日程",

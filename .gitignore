@@ -59,6 +59,9 @@ venv/
 /dist/
 /artifacts/
 
+# 本机验收截图，仅保留在本地，不进入版本库
+/docs/开发/assets/
+
 # Local runtime records, attachments, exports, logs and backups
 /data/
 /runtime/

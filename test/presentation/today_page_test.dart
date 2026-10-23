@@ -194,6 +194,11 @@ void main() {
     expect(find.text('自选时间'), findsOneWidget);
     expect(find.text('计划 20 分钟'), findsOneWidget);
     // 从真实列表进入真实详情查询：标题同时是默认具体目标，所以详情中出现两次。
+    await Scrollable.ensureVisible(
+      tester.element(find.text('真实阅读任务')),
+      alignment: 0.5,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('真实阅读任务'));
     await tester.pumpAndSettle();
     expect(find.byType(MissionDetailPage), findsOneWidget);

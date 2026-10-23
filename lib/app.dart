@@ -20,8 +20,8 @@ class App extends StatefulWidget {
 class _AppState extends State<App> {
   // late 表示这些属性稍后初始化。
   // final 表示初始化后不再换成另一个对象。
-  late final AppDatabase _database; //定义数据库连接器
-  late final MissionService _missionService;
+  late final AppDatabase _database; // 定义数据库连接器
+  late final MissionService _missionService;// 业务操作对象
 
   @override
   void initState() {

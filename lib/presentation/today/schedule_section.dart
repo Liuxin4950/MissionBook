@@ -142,6 +142,9 @@ class _ScheduleSectionState extends State<ScheduleSection>
                   TextButton(
                     key: const Key('today-all-missions'),
                     onPressed: widget.onOpenAll,
+                    style: TextButton.styleFrom(
+                      textStyle: theme.textTheme.labelMedium,
+                    ),
                     child: const Text('查看全部 ›'),
                   ),
               ],
@@ -153,12 +156,12 @@ class _ScheduleSectionState extends State<ScheduleSection>
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    Text('现在', style: theme.textTheme.bodySmall),
+                    Text('现在', style: theme.textTheme.bodyMedium),
                     const SizedBox(width: 6),
                     Text(
                       '${local.hour.toString().padLeft(2, '0')}:'
                       '${local.minute.toString().padLeft(2, '0')}',
-                      style: theme.textTheme.bodySmall,
+                      style: theme.textTheme.bodyMedium,
                     ),
                   ],
                 ),
@@ -173,9 +176,9 @@ class _ScheduleSectionState extends State<ScheduleSection>
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(height: 12),
-                    const Text('这一天还没有固定任务'),
+                    Text('这一天还没有固定任务', style: theme.textTheme.bodyMedium),
                     const SizedBox(height: 4),
-                    Text('留一点空白，按自己的节奏安排', style: theme.textTheme.bodySmall),
+                    Text('留一点空白，按自己的节奏安排', style: theme.textTheme.bodyMedium),
                     if (widget.onCreate != null) ...[
                       const SizedBox(height: 12),
                       FilledButton.tonalIcon(
@@ -211,6 +214,9 @@ class _ScheduleSectionState extends State<ScheduleSection>
               TextButton(
                 key: const Key('schedule-more'),
                 onPressed: widget.onOpenAll,
+                style: TextButton.styleFrom(
+                  textStyle: theme.textTheme.labelMedium,
+                ),
                 child: Text('另有 $hidden 项 · 查看全部 ›'),
               ),
           ],
@@ -389,7 +395,7 @@ class ScheduleMissionRow extends StatelessWidget {
                                   if (!current)
                                     Text(
                                       item.durationLabel,
-                                      style: theme.textTheme.bodySmall,
+                                      style: theme.textTheme.bodyMedium,
                                     ),
                                   if (item.timeZoneLabel != null)
                                     Text(
@@ -423,11 +429,11 @@ class ScheduleMissionRow extends StatelessWidget {
                               children: [
                                 Text(
                                   '计划时段剩余 $remainingMinutes 分钟',
-                                  style: theme.textTheme.bodySmall,
+                                  style: theme.textTheme.bodyMedium,
                                 ),
                                 Text(
                                   '${(progress * 100).floor()}%',
-                                  style: theme.textTheme.bodySmall,
+                                  style: theme.textTheme.bodyMedium,
                                 ),
                                 // 整行就是详情按钮，这里只是同一动作的视觉提示。
                                 DecoratedBox(
@@ -481,7 +487,7 @@ class _StatusLabel extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         child: Text(
           status,
-          style: theme.textTheme.bodySmall?.copyWith(
+          style: theme.textTheme.bodyMedium?.copyWith(
             color: current
                 ? theme.colorScheme.onSecondary
                 : theme.colorScheme.onSurfaceVariant,

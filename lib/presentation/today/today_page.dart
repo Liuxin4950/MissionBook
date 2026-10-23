@@ -231,7 +231,10 @@ class _TodayPageState extends State<TodayPage> {
                 if (widget.fullSchedule)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(display.scheduleDateLabel(_selectedDate)),
+                    child: Text(
+                      display.scheduleDateLabel(_selectedDate),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
                   )
                 else ...[
                   _WeekStrip(
@@ -437,6 +440,9 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                 ),
                 TextButton.icon(
                   onPressed: widget.onCreate,
+                  style: TextButton.styleFrom(
+                    textStyle: theme.textTheme.labelMedium,
+                  ),
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('添加'),
                 ),
@@ -461,7 +467,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                         key: const Key('flexible-missions-toggle'),
                         onPressed: () => setState(() => _expanded = !_expanded),
                         style: TextButton.styleFrom(
-                          textStyle: _todayMetadataStyle(context),
+                          textStyle: theme.textTheme.labelMedium,
                           minimumSize: const Size(48, 48),
                         ),
                         icon: Icon(
@@ -759,7 +765,7 @@ class _ScheduleOverview extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           entry.$3,
-                          style: theme.textTheme.bodySmall,
+                          style: theme.textTheme.bodyMedium,
                           textAlign: TextAlign.center,
                         ),
                       ],
