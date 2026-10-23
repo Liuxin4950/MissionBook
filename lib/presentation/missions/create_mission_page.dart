@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../../application/missions/mission_service.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
+import '../widgets/app_confirm_dialog.dart';
 import '../widgets/app_top_bar.dart';
 
 /// 收集默认独立任务的输入，等待保存，并保护尚未提交的表单内容。
@@ -207,42 +208,24 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
         _minuteController.text.isNotEmpty;
 
     if (hasInput) {
-      // showDialog 是打开对话框的函数；<bool> 指定其返回结果的类型。
-      // await 等待确认框关闭：继续填写返回 false，放弃返回 true，取消可能为 null。
+      // 公共框只返回选择；是否关闭表单仍由本页判断。
+      // await 等待用户选择：明确放弃返回 true，其余关闭方式返回 false。
       _isClosing = true;
-      bool? discard;
+      bool discard;
       try {
-        discard = await showDialog<bool>(
+        discard = await AppConfirmDialog.show(
           context: context,
-          // Flutter 调用 builder 来构建确认框，提供框内的 dialogContext。
-          builder: (dialogContext) {
-            // AlertDialog 是确认对话框组件，title/content/actions 分别是标题、正文和操作区。
-            return AlertDialog(
-              // Text 显示文字；const 表示这份固定组件配置可以在编译时确定。
-              title: const Text('放弃本次填写？'),
-              content: const Text('返回后，已填写的内容不会保存。'),
-              actions: [
-                // TextButton 是文字按钮；child 指定按钮内容，onPressed 接收点击回调。
-                TextButton(
-                  // => 是单表达式函数的简写；点击时关闭确认框，并返回 false。
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('继续填写'),
-                ),
-                TextButton(
-                  // dialogContext 用于找到确认框所在的导航器；这里尚未关闭创建页。
-                  onPressed: () => Navigator.of(dialogContext).pop(true),
-                  child: const Text('放弃填写'),
-                ),
-              ],
-            );
-          },
+          title: '放弃本次填写？',
+          message: '返回后，已填写的内容不会保存。',
+          cancelText: '继续填写',
+          confirmText: '放弃填写',
         );
       } finally {
         // 无论用户怎样关闭确认框，都允许后续再次处理返回。
         _isClosing = false;
       }
       // await 期间页面可能被移除；mounted 表示 State 是否仍挂在组件树上。
-      // ! 表示取反；仅在页面仍存在且明确选择 true 时继续，false/null 都保留输入。
+      // ! 表示取反；仅在页面仍存在且明确选择 true 时继续，false 保留输入。
       // discard 在 if (hasInput) 内声明，所以这个判断也必须放在同一作用域中。
       if (!mounted || discard != true) {
         return;
@@ -657,21 +640,34 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
                 // 日历留在当前表单，选择后只更新日期；不会写库或额外增加页面往返。
                 IgnorePointer(
                   ignoring: !_canEdit,
-                  child: CalendarDatePicker(
-                    initialDate: _scheduledDate,
-                    firstDate: DateTime.utc(1),
-                    lastDate: DateTime.utc(9999, 12, 31),
-                    onDateChanged: (date) {
-                      if (!_canEdit) return;
-                      setState(() {
-                        _scheduledDate = DateTime.utc(
-                          date.year,
-                          date.month,
-                          date.day,
-                        );
-                        _calendarExpanded = false;
-                        _errorText = null;
-                      });
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // 部分手机的逻辑宽度带小数；跨1至9999年的月份页累计宽度
+                      // 会触发 Flutter 滚动精度断言。取整并居中，最多收窄不到1，
+                      // 不缩小可选日期范围，也不修改 Flutter SDK。
+                      return Align(
+                        alignment: Alignment.topCenter,
+                        child: SizedBox(
+                          width: constraints.maxWidth.floorToDouble(),
+                          child: CalendarDatePicker(
+                            initialDate: _scheduledDate,
+                            firstDate: DateTime.utc(1),
+                            lastDate: DateTime.utc(9999, 12, 31),
+                            onDateChanged: (date) {
+                              if (!_canEdit) return;
+                              setState(() {
+                                _scheduledDate = DateTime.utc(
+                                  date.year,
+                                  date.month,
+                                  date.day,
+                                );
+                                _calendarExpanded = false;
+                                _errorText = null;
+                              });
+                            },
+                          ),
+                        ),
+                      );
                     },
                   ),
                 ),

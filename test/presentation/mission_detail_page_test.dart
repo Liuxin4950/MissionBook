@@ -12,11 +12,22 @@ import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
 import 'package:mission_book/presentation/missions/mission_detail_page.dart';
+import 'package:mission_book/presentation/widgets/app_confirm_dialog.dart';
 
 // 由测试决定读取何时完成，才能观察等待、失败、重试、离页和乱序返回。
 class DetailRepository implements MissionRepository {
   final ids = <String>[];
   final requests = <Completer<MissionDetail?>>[];
+  final cancelIds = <String>[];
+  final cancellations = <Completer<void>>[];
+
+  @override
+  Future<void> cancel(String missionId) {
+    cancelIds.add(missionId);
+    final request = Completer<void>();
+    cancellations.add(request);
+    return request.future;
+  }
 
   @override
   Future<MissionDetail?> findDetail(String missionId) {
@@ -35,7 +46,7 @@ class DetailRepository implements MissionRepository {
     required Mission mission,
     required MissionScheduleRevision initialSchedule,
     required ExecutionPlan executionPlan,
-  }) => throw UnsupportedError('详情页面不能创建或修改任务');
+  }) => throw UnsupportedError('详情页面不能创建任务');
 }
 
 MissionDetail exampleDetail({bool full = false, bool cancelled = false}) {
@@ -98,6 +109,24 @@ Widget testApp(
   );
 }
 
+Future<void> openLoadedDetail(
+  WidgetTester tester,
+  DetailRepository repository, {
+  double textScale = 1,
+}) async {
+  await tester.pumpWidget(
+    testApp(MissionService(repository), textScale: textScale),
+  );
+  repository.requests.single.complete(exampleDetail());
+  await tester.pumpAndSettle();
+  await tester.scrollUntilVisible(
+    find.byKey(const Key('cancel-mission')),
+    180,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('一次读取后显示自选详情，隐藏未填写内容和未实现动作；重建不重复查询', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -156,13 +185,224 @@ void main() {
       '材料截止',
       '开始任务',
       '编辑',
-      '取消任务',
     ]) {
       expect(find.text(absent), findsNothing);
     }
+    expect(find.text('取消任务'), findsOneWidget);
     await tester.pumpWidget(testApp(missionService));
     await tester.pump();
     expect(repository.ids, ['detail-a']);
+  });
+
+  testWidgets('重复触发只弹一次确认，保留/遮罩/系统返回均不写入或重复查询', (tester) async {
+    final repository = DetailRepository();
+    await openLoadedDetail(tester, repository);
+    final action = tester
+        .widget<OutlinedButton>(find.byKey(const Key('cancel-mission')))
+        .onPressed!;
+    action();
+    action();
+    await tester.pumpAndSettle();
+    expect(find.byType(AppConfirmDialog), findsOneWidget);
+    await tester.tap(find.text('保留任务'));
+    await tester.pumpAndSettle();
+    for (final systemBack in [false, true]) {
+      await tester.tap(find.byKey(const Key('cancel-mission')));
+      await tester.pumpAndSettle();
+      if (systemBack) {
+        await tester.binding.handlePopRoute();
+      } else {
+        await tester.tapAt(const Offset(4, 4));
+      }
+      await tester.pumpAndSettle();
+      expect(find.byType(AppConfirmDialog), findsNothing);
+      expect(find.text('临时任务 · 待开始'), findsOneWidget);
+    }
+    expect(repository.cancelIds, isEmpty);
+    expect(repository.requests, hasLength(1));
+  });
+
+  testWidgets('等待取消保存时禁止重复点击和离页，成功后重读真实取消事实', (tester) async {
+    final repository = DetailRepository();
+    final service = MissionService(repository);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => MissionDetailPage(
+                  missionId: 'detail-a',
+                  missionService: service,
+                ),
+              ),
+            ),
+            child: const Text('打开详情'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开详情'));
+    await tester.pump();
+    repository.requests.single.complete(exampleDetail());
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('cancel-mission')));
+    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认取消'));
+    await tester.pumpAndSettle();
+    expect(repository.cancelIds, ['detail-a']);
+    expect(find.text('正在取消…'), findsOneWidget);
+    expect(
+      tester
+          .widget<OutlinedButton>(find.byKey(const Key('cancel-mission')))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.arrow_back))
+          .onPressed,
+      isNull,
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(MissionDetailPage), findsOneWidget);
+    expect(repository.requests, hasLength(1));
+    repository.cancellations.single.complete();
+    await tester.pump();
+    expect(repository.requests, hasLength(2));
+    repository.requests.last.complete(exampleDetail(cancelled: true));
+    await tester.pumpAndSettle();
+    expect(find.text('临时任务 · 已取消'), findsOneWidget);
+    expect(find.text('取消时间'), findsOneWidget);
+    expect(find.text('没有执行记录'), findsOneWidget);
+    expect(find.byKey(const Key('cancel-mission')), findsNothing);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('打开详情'), findsOneWidget);
+  });
+
+  testWidgets('取消失败保留原详情，可再次确认重试且只提交当前任务', (tester) async {
+    final repository = DetailRepository();
+    await openLoadedDetail(tester, repository);
+    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认取消'));
+    await tester.pumpAndSettle();
+    repository.cancellations.single.completeError(StateError('模拟取消保存失败'));
+    await tester.pumpAndSettle();
+    expect(find.text('取消失败，请重试'), findsOneWidget);
+    expect(find.text('临时任务 · 待开始'), findsOneWidget);
+    expect(repository.requests, hasLength(1));
+    expect(
+      tester
+          .widget<OutlinedButton>(find.byKey(const Key('cancel-mission')))
+          .onPressed,
+      isNotNull,
+    );
+    await tester.ensureVisible(find.byKey(const Key('cancel-mission')));
+    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认取消'));
+    await tester.pumpAndSettle();
+    expect(repository.cancelIds, ['detail-a', 'detail-a']);
+    repository.cancellations.last.complete();
+    await tester.pump();
+    repository.requests.last.complete(exampleDetail(cancelled: true));
+    await tester.pumpAndSettle();
+    expect(find.text('临时任务 · 已取消'), findsOneWidget);
+    expect(find.text('取消失败，请重试'), findsNothing);
+  });
+
+  testWidgets('保存已成功但重新读取失败时显示读取错误，重试只读取不再次取消', (tester) async {
+    final repository = DetailRepository();
+    await openLoadedDetail(tester, repository);
+    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认取消'));
+    await tester.pumpAndSettle();
+    repository.cancellations.single.complete();
+    await tester.pump();
+    repository.requests.last.completeError(StateError('写入后查询失败'));
+    await tester.pumpAndSettle();
+    expect(find.text('任务详情读取失败，请重试'), findsOneWidget);
+    expect(find.text('取消失败，请重试'), findsNothing);
+    await tester.tap(find.text('重新读取'));
+    await tester.pump();
+    repository.requests.last.complete(exampleDetail(cancelled: true));
+    await tester.pumpAndSettle();
+    expect(find.text('临时任务 · 已取消'), findsOneWidget);
+    expect(repository.cancelIds, ['detail-a']);
+  });
+
+  testWidgets('确认期间换任务不提交旧选择，写入期间换任务忽略旧错误', (tester) async {
+    final repository = DetailRepository();
+    final service = MissionService(repository);
+    await tester.pumpWidget(testApp(service));
+    repository.requests.single.complete(exampleDetail());
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('cancel-mission')));
+    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(testApp(service, id: 'detail-b'));
+    repository.requests.last.complete(exampleDetail());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认取消'));
+    await tester.pumpAndSettle();
+    expect(repository.cancelIds, isEmpty);
+    await tester.ensureVisible(find.byKey(const Key('cancel-mission')));
+    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认取消'));
+    await tester.pumpAndSettle();
+    expect(repository.cancelIds, ['detail-b']);
+    await tester.pumpWidget(testApp(service, id: 'detail-c'));
+    repository.requests.last.complete(null);
+    await tester.pumpAndSettle();
+    repository.cancellations.single.completeError(StateError('旧任务的错误'));
+    await tester.pumpAndSettle();
+    expect(find.text('未找到这个任务，请返回列表刷新'), findsOneWidget);
+    expect(find.text('取消失败，请重试'), findsNothing);
+    expect(repository.requests, hasLength(3));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('取消期间组件被移除，迟到错误不触发失效更新', (tester) async {
+    final repository = DetailRepository();
+    await openLoadedDetail(tester, repository);
+    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认取消'));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    repository.cancellations.single.completeError(StateError('离页后的错误'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('320宽双倍字体可滚动操作取消，读屏保留操作名称', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final semantics = tester.ensureSemantics();
+    try {
+      final repository = DetailRepository();
+      await openLoadedDetail(tester, repository, textScale: 2);
+      expect(find.bySemanticsLabel('取消任务'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('cancel-mission')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('保留任务'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('保留任务'));
+      await tester.pumpAndSettle();
+      expect(repository.cancelIds, isEmpty);
+      expect(tester.takeException(), isNull);
+    } finally {
+      semantics.dispose();
+    }
   });
 
   testWidgets('读取失败可重试；未找到显示独立提示，不能混成读取失败', (tester) async {

@@ -9,14 +9,14 @@ import '../../domain/repositories/mission_repository.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../../domain/entities/mission_detail.dart';
 
-/// 任务的应用业务入口：组织创建、按日期查询和详情查询。
+/// 任务的应用业务入口：组织创建、查询和取消。
 ///
 /// App 只创建一个 MissionService，页面通过方法名选择要做的事。
 /// 本类负责输入检查与业务对象组织；SQL、行转换和事务保存仍由仓储完成。
 class MissionService {
   // 调用者传入仓储对象，保存到下面的 repository 属性。
   MissionService(this.repository) {
-    // 创建共享服务时准备时区资料；三个方法共用，不再各建一个业务入口初始化。
+    // 创建共享服务时准备时区资料，多个业务方法共用。
     tzdata.initializeTimeZones();
   }
 
@@ -25,6 +25,15 @@ class MissionService {
 
   // 创建一个编号生成器，后面用 v4() 生成唯一编号。
   final Uuid uuid = const Uuid();
+
+  /// 详情页传入当前任务编号；等待仓储事务完成，页面才能显示取消结果。
+  Future<void> cancel({required String missionId}) async {
+    if (missionId.trim().isEmpty) {
+      throw ArgumentError('任务编号不能为空');
+    }
+    // 不使用页面之前读到的状态判断是否已取消；由仓储重读最新事实。
+    await repository.cancel(missionId);
+  }
 
   /// 创建独立、自报任务；默认自选时间，也可指定固定开始时刻。
   ///

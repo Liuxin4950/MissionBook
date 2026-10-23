@@ -17,7 +17,9 @@ DateTime todayInScheduleTimeZone() =>
 String scheduleDateKey(DateTime date) =>
     '${date.year.toString().padLeft(4, '0')}-'
     '${date.month.toString().padLeft(2, '0')}-'
-    '${date.day.toString().padLeft(2, '0')}';
+    '${date.day.
+
+    toString().padLeft(2, '0')}';
 
 /// 将所选日历日期转换为页头的月日和星期文字。
 String scheduleDateLabel(DateTime date) =>

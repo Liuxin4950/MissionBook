@@ -12,6 +12,10 @@ import 'package:mission_book/domain/entities/mission_detail.dart';
 // 因此必须提供接口要求的 create 方法。
 class RecordingMissionRepository implements MissionRepository {
   @override
+  Future<void> cancel(String missionId) =>
+      throw UnsupportedError('创建业务测试不取消任务');
+
+  @override
   Future<MissionDetail?> findDetail(String missionId) =>
       throw UnsupportedError('创建业务测试不读取详情');
 
@@ -43,6 +47,10 @@ class RecordingMissionRepository implements MissionRepository {
 // 模拟“仓储保存失败”的测试替身。
 // 它遵守同一个 MissionRepository 接口，所以 MissionService 不需要知道这是测试代码。
 class FailingMissionRepository implements MissionRepository {
+  @override
+  Future<void> cancel(String missionId) =>
+      throw UnsupportedError('创建业务测试不取消任务');
+
   @override
   Future<MissionDetail?> findDetail(String missionId) =>
       throw UnsupportedError('创建业务测试不读取详情');

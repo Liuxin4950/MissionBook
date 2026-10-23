@@ -187,6 +187,41 @@ class DriftMissionRepository implements MissionRepository {
   final AppDatabase database;
 
   @override
+  Future<void> cancel(String missionId) async {
+    if (missionId.trim().isEmpty) {
+      throw ArgumentError('任务编号不能为空');
+    }
+
+    // 页面展示的是旧快照；在同一写事务内重读，再决定是否修改。
+    await database.transaction(() async {
+      final missions = database.missions;
+      final query = database.select(missions);
+      query.where((table) => table.id.equals(missionId));
+      final row = await query.getSingleOrNull();
+      if (row == null) {
+        throw StateError('任务不存在，无法取消');
+      }
+      // 重复请求不覆盖第一次取消的时间，也不更新 updatedAt。
+      if (row.cancelledAt != null) return;
+
+      // 当前只有任务、排期和方案三表，没有 START 事实。
+      // U08/U09 接入执行事件后，须在此事务内检查任务尚未开始。
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+      final update = database.update(missions);
+      update.where(
+        (table) => table.id.equals(missionId) & table.cancelledAt.isNull(),
+      );
+      // 普通 Companion 只写这两个字段；标题、排期历史和方案保持原样。
+      final changed = await update.write(
+        MissionsCompanion(cancelledAt: Value(now), updatedAt: Value(now)),
+      );
+      if (changed != 1) {
+        throw StateError('任务状态已变化，请刷新后重试');
+      }
+    });
+  }
+
+  @override
   Future<MissionDetail?> findDetail(String missionId) async {
     final missions = database.missions;
     final schedules = database.missionScheduleRevisions;

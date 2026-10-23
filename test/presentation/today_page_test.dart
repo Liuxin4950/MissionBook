@@ -25,6 +25,10 @@ import 'package:timezone/timezone.dart' as tz;
 
 // 每次读取都有独立 Future，用来控制等待、失败、重试和乱序返回。
 class ControlledQueryRepository implements MissionRepository {
+  @override
+  Future<void> cancel(String missionId) =>
+      throw UnsupportedError('列表查询替身不取消任务');
+
   // 列表测试默认不会进入详情；导航测试可指定要返回的完整结果。
   MissionDetail? detail;
   final detailIds = <String>[];
@@ -156,7 +160,7 @@ void main() {
     }
   });
 
-  testWidgets('真实创建保存后返回今天页，返回时刷新且只出现一次；导航切换保留列表', (tester) async {
+  testWidgets('真实创建、详情取消与返回刷新走完整链路，取消折叠保留任务', (tester) async {
     final database = AppDatabase(executor: NativeDatabase.memory());
     final repository = DriftMissionRepository(database);
     await tester.pumpWidget(testApp(repository, shell: true));
@@ -204,6 +208,39 @@ void main() {
     await tester.tap(find.byTooltip('今天'));
     await tester.pumpAndSettle();
     expect(find.text('真实阅读任务'), findsOneWidget);
+    // 通过真实详情、业务入口及数据库取消；返回后复用原有日期刷新。
+    await tester.tap(find.text('真实阅读任务'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('cancel-mission')),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    expect(find.text('取消这个任务？'), findsOneWidget);
+    await tester.tap(find.text('确认取消'));
+    await tester.pumpAndSettle();
+    expect(find.text('临时任务 · 已取消'), findsOneWidget);
+    expect(find.text('没有执行记录'), findsOneWidget);
+    expect(find.byKey(const Key('cancel-mission')), findsNothing);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('真实阅读任务'), findsNothing);
+    expect(find.byKey(const Key('cancelled-missions')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('cancelled-missions')));
+    await tester.tap(find.byKey(const Key('cancelled-missions')));
+    await tester.pumpAndSettle();
+    expect(find.text('真实阅读任务'), findsOneWidget);
+    final cancelled = await tester.runAsync(
+      () => database.select(database.missions).get(),
+    );
+    expect(cancelled, hasLength(1));
+    expect(cancelled!.single.cancelledAt, isNotNull);
+    await tester.tap(find.text('真实阅读任务'));
+    await tester.pumpAndSettle();
+    expect(find.text('临时任务 · 已取消'), findsOneWidget);
+    expect(find.byKey(const Key('cancel-mission')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     // 先发起关闭，再推进 Widget 测试的异步任务。
@@ -261,9 +298,9 @@ void main() {
         if (item.mission.cancelledAt != null) {
           final expansion = find.byKey(const Key('cancelled-missions'));
           await tester.ensureVisible(expansion);
-          // 刷新沿用同一个 ExpansionTile State：只在第一次需要时展开。
+          // 刷新沿用同一个取消分区 State：只在第一次需要时展开。
           if (find.text(item.mission.title).evaluate().isEmpty) {
-            await tester.tap(find.text('已取消（2）'));
+            await tester.tap(find.byKey(const Key('cancelled-missions')));
             await tester.pumpAndSettle();
           }
         }
@@ -477,6 +514,7 @@ void main() {
       Tristate.isFalse,
     );
     await tester.ensureVisible(toggle);
+    await tester.pumpAndSettle();
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(
@@ -524,11 +562,105 @@ void main() {
     expect(reads, hiddenReads);
     visible.value = true;
     await tester.pump();
-    expect(find.text('现在'), findsNothing);
+    expect(find.text('现在'), findsOneWidget);
+    expect(find.text('10:00'), findsOneWidget);
     expect(reads, greaterThan(hiddenReads));
     expect(repository.requests, hasLength(1));
     await tester.pumpWidget(const SizedBox.shrink());
     visible.dispose();
+  });
+
+  testWidgets('单个未来任务前也显示实际时间和推进的绿轨；经过后、跨日及回拨保持一致', (tester) async {
+    final repository = ControlledQueryRepository();
+    final start = DateTime.utc(2026, 10, 22, 8); // 上海16:00。
+    var now = DateTime.utc(2026, 10, 22); // 上海08:00，尚无任务处于计划时段。
+    const captureKey = Key('single-future-capture');
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: captureKey,
+        child: testApp(repository, clock: () => now),
+      ),
+    );
+    repository.requests.single.complete([
+      example('未来唯一任务', fixed: true, start: start),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('现在'), findsOneWidget);
+    expect(find.text('08:00'), findsOneWidget);
+    final title = tester.widget<Text>(find.text('未来唯一任务'));
+    final root = tester.getRect(find.byKey(captureKey));
+    final track = tester.getRect(find.byKey(const Key('timeline-track')));
+    final rail = tester.getRect(
+      find.byKey(const ValueKey('timeline-rail-未来唯一任务')),
+    );
+    final nodeY = tester.getRect(find.text('未来唯一任务')).center.dy;
+    final beforeNode = track.top + (nodeY - track.top) * 0.6;
+    final primary = AppTheme.light.colorScheme.primary.toARGB32() & 0xFFFFFF;
+    Future<int> pixelAt(double y) async {
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(captureKey),
+      );
+      final rgb = await tester.runAsync(() async {
+        final image = await boundary.toImage(pixelRatio: 1);
+        final bytes = await image.toByteData(format: ImageByteFormat.rawRgba);
+        final offset =
+            (((y - root.top).floor() * image.width) +
+                (rail.center.dx - root.left).floor()) *
+            4;
+        image.dispose();
+        if (bytes == null) throw StateError('轨道截图读取失败');
+        return (bytes.getUint8(offset) << 16) |
+            (bytes.getUint8(offset + 1) << 8) |
+            bytes.getUint8(offset + 2);
+      });
+      return rgb!;
+    }
+
+    expect(await pixelAt(beforeNode), isNot(primary));
+    now = DateTime.utc(2026, 10, 22, 7); // 上海15:00，仍在首项之前。
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('15:00'), findsOneWidget);
+    expect(await pixelAt(beforeNode), primary);
+    expect(await pixelAt(nodeY), isNot(primary), reason: '现在不能覆盖尚未开始任务的空心节点');
+    expect(await pixelAt(nodeY + 10), isNot(primary));
+    expect(identical(tester.widget<Text>(find.text('未来唯一任务')), title), isTrue);
+    now = DateTime.utc(2026, 10, 22, 12); // 上海20:00，已经过最后一项。
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('20:00'), findsOneWidget);
+    expect(await pixelAt(nodeY + 10), primary);
+    now = DateTime.utc(2026, 10, 22, 16); // 次日00:00，原日期不能再显示“现在”。
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byKey(const Key('timeline-current-time')), findsNothing);
+    now = DateTime.utc(2026, 10, 22, 7);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('15:00'), findsOneWidget);
+    expect(await pixelAt(nodeY + 10), isNot(primary));
+    expect(repository.requests, hasLength(1));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('两项任务的空档也保留唯一当前时间，不误亮任何计划时段', (tester) async {
+    final repository = ControlledQueryRepository();
+    final first = DateTime.utc(2026, 10, 22, 6); // 上海14:00，14:20结束。
+    final now = first.add(const Duration(hours: 1)); // 上海15:00，下一项16:00。
+    await tester.pumpWidget(testApp(repository, clock: () => now));
+    repository.requests.single.complete([
+      example('已过时段', fixed: true, start: first),
+      example('未来时段', fixed: true, start: first.add(const Duration(hours: 2))),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('现在'), findsOneWidget);
+    expect(find.text('15:00'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Semantics && widget.properties.label == '当前计划时段',
+      ),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('timeline-track')), findsOneWidget);
+    expect(repository.requests, hasLength(1));
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('稳定计划时段只重绘进度，任务文字不重建且绿色确实推进', (tester) async {
@@ -544,6 +676,7 @@ void main() {
     );
     repository.requests.single.complete([
       example('稳定任务', fixed: true, start: start, plannedDurationMinutes: 60),
+      example('下一时刻', fixed: true, start: start.add(const Duration(hours: 1))),
     ]);
     await tester.pumpAndSettle();
     final title = tester.widget<Text>(find.text('稳定任务'));
@@ -553,7 +686,10 @@ void main() {
     final root = tester.getRect(find.byKey(captureKey));
     final point = Offset(
       rail.center.dx - root.left,
-      rail.top + rail.height * 0.65 - root.top,
+      (tester.getRect(find.text('稳定任务')).center.dy +
+                  tester.getRect(find.text('下一时刻')).center.dy) /
+              2 -
+          root.top,
     );
     Future<int> readPixel() async {
       final boundary = tester.renderObject<RenderRepaintBoundary>(
@@ -743,9 +879,9 @@ void main() {
       expect(boxes.map((box) => box.top).toSet(), hasLength(1));
     }
     expect(find.text('取消的任务'), findsNothing);
-    await tester.ensureVisible(find.text('已取消（2）'));
+    await tester.ensureVisible(find.byKey(const Key('cancelled-missions')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('已取消（2）'));
+    await tester.tap(find.byKey(const Key('cancelled-missions')));
     await tester.pumpAndSettle();
     expect(find.text('取消的任务'), findsOneWidget);
     expect(find.text('取消的固定任务'), findsOneWidget);
@@ -764,18 +900,22 @@ void main() {
       example('长时段', fixed: true, start: start, plannedDurationMinutes: 30),
     ]);
     await tester.pumpAndSettle();
-    expect(find.text('现在'), findsNothing);
+    expect(find.text('现在'), findsOneWidget);
+    expect(find.text('08:59'), findsOneWidget);
 
     now = start;
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('现在'), findsNWidgets(2));
+    expect(find.text('现在'), findsOneWidget);
     now = start.add(const Duration(minutes: 10));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('现在'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('mission-长时段')),
-        matching: find.text('现在'),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics && widget.properties.label == '当前计划时段',
+        ),
       ),
       findsOneWidget,
     );
@@ -785,12 +925,14 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
-    expect(find.text('现在'), findsNothing);
+    expect(find.text('现在'), findsOneWidget);
+    expect(find.text('09:30'), findsOneWidget);
 
     // 回拨时重新投影真实时刻，不把上次的视觉状态当成事实累加。
     now = start.add(const Duration(minutes: 5));
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('现在'), findsNWidgets(2));
+    expect(find.text('现在'), findsOneWidget);
+    expect(find.text('09:05'), findsOneWidget);
     expect(repository.requests, hasLength(1));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -798,7 +940,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('时间线从首个圆点起笔，已到达轨道和激活节点之间连续', (tester) async {
+  testWidgets('全天轨道经过首节点且已到达轨道与激活节点连续', (tester) async {
     final start = DateTime.utc(2026, 10, 22, 1);
     final now = start.add(const Duration(minutes: 15));
     final repository = ControlledQueryRepository();
@@ -847,12 +989,7 @@ void main() {
         0xFFFFFF;
     final x = (rail.center.dx - root.left).floor();
     final brokenRows = <int>[];
-    final backgroundColor =
-        Theme.of(
-          tester.element(find.text('过去项')),
-        ).scaffoldBackgroundColor.toARGB32() &
-        0xFFFFFF;
-    // 首个圆点半径含描边小于6；其上方必须是背景，不能有灰线或绿线。
+    // 已经过的当天时间从首节点上方接入，不因第一个任务开始而重新归零。
     for (
       var y = (firstCard.top - root.top + 1).ceil();
       y < (firstTitle.center.dy - root.top - 6).floor();
@@ -863,7 +1000,7 @@ void main() {
           (snapshot.raw.getUint8(offset) << 16) |
           (snapshot.raw.getUint8(offset + 1) << 8) |
           snapshot.raw.getUint8(offset + 2);
-      expect(rgb, backgroundColor, reason: '首个圆点上方不能有多余线头');
+      expect(rgb, expectedColor, reason: '首个任务之前经过的时间也属于当天进度');
     }
     // 从首个圆点中心到激活节点下方，包含圆点两侧和8像素连接区。
     for (

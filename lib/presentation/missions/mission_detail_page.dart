@@ -5,10 +5,11 @@ import '../../application/missions/mission_service.dart';
 import '../../domain/entities/mission.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
+import '../widgets/app_confirm_dialog.dart';
 import '../widgets/app_top_bar.dart';
 
-/// 一个任务的只读详情。由今天页传入任务编号和应用共享的查询入口。
-/// 本轮只接通阅读、重试与返回；开始、编辑、改期和取消由后续单元接入。
+/// 阅读任务详情并取消待开始任务；由今天页传入编号和共享业务入口。
+/// 开始、编辑、改期由后续单元接入。
 class MissionDetailPage extends StatefulWidget {
   const MissionDetailPage({
     super.key,
@@ -26,6 +27,13 @@ class MissionDetailPage extends StatefulWidget {
 class _MissionDetailPageState extends State<MissionDetailPage> {
   // Future 是“这一次读取的结果”，不是数据库连接；可能得到详情、null 或错误。
   late Future<MissionDetail?> _detail;
+  bool _isConfirmingCancel = false;
+  bool _isCancelling = false;
+  String? _cancelError;
+  // 页面换任务后，旧操作的返回结果不能修改新任务的界面。
+  int _cancelRequest = 0;
+
+  bool get _isCancelBusy => _isConfirmingCancel || _isCancelling;
 
   @override
   void initState() {
@@ -33,10 +41,16 @@ class _MissionDetailPageState extends State<MissionDetailPage> {
     _detail = _readDetail();
   }
 
-  // 网络请求
+  // 一次本地详情查询。
   Future<MissionDetail?> _readDetail() {
     // widget 指向与此 State 配对的 MissionDetailPage，两个参数由今天页提供。
-    return widget.missionService.findDetail(missionId: widget.missionId);
+    final result = widget.missionService.findDetail(
+      missionId: widget.missionId,
+    );
+    // 下一帧 FutureBuilder 才会订阅新查询；先接收可能提前到达的错误。
+    // ignore 不改变原 Future 的结果，FutureBuilder 仍会显示读取失败和重试。
+    result.ignore();
+    return result;
   }
 
   @override
@@ -46,6 +60,10 @@ class _MissionDetailPageState extends State<MissionDetailPage> {
     // Flutter 随后会再次 build；FutureBuilder 也会忽略上一次尚未返回的结果。
     if (oldWidget.missionId != widget.missionId ||
         oldWidget.missionService != widget.missionService) {
+      _cancelRequest++;
+      _isConfirmingCancel = false;
+      _isCancelling = false;
+      _cancelError = null;
       _detail = _readDetail();
     }
   }
@@ -57,33 +75,91 @@ class _MissionDetailPageState extends State<MissionDetailPage> {
     });
   }
 
+  Future<void> _requestCancel() async {
+    if (_isCancelBusy) return;
+    // 先固定这次操作的对象；await 期间 widget 可能已经改读另一个任务。
+    final request = ++_cancelRequest;
+    final missionId = widget.missionId;
+    final service = widget.missionService;
+    setState(() {
+      _isConfirmingCancel = true;
+      _cancelError = null;
+    });
+    try {
+      final confirmed = await AppConfirmDialog.show(
+        context: context,
+        title: '取消这个任务？',
+        message: '取消后仍会保留任务和原计划，可以在已取消列表中查看。',
+        cancelText: '保留任务',
+        confirmText: '确认取消',
+      );
+      if (!mounted || request != _cancelRequest) return;
+      if (!confirmed) return;
+      setState(() {
+        _isConfirmingCancel = false;
+        _isCancelling = true;
+      });
+      // await 等待真实写事务完成；按钮禁用只防重复操作，不代替仓储校验。
+      await service.cancel(missionId: missionId);
+      if (!mounted || request != _cancelRequest) return;
+      setState(() {
+        // 重新查询已保存的取消时间，不在页面伪造“已取消”。
+        // 查询错误交给 FutureBuilder，不混成“取消保存失败”。
+        _detail = _readDetail();
+      });
+    } catch (error, stackTrace) {
+      if (!mounted || request != _cancelRequest) return;
+      debugPrint('取消任务失败：$error\n$stackTrace');
+      setState(() {
+        _cancelError = '取消失败，请重试';
+      });
+    } finally {
+      if (mounted && request == _cancelRequest) {
+        setState(() {
+          _isConfirmingCancel = false;
+          _isCancelling = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const AppTopBar(title: '任务详情'),
-      // 详情是独立阅读页，有自己的返回按钮，不复制 AppShell 的底部导航。
-      body: SafeArea(
-        top: false,
-        child: FutureBuilder<MissionDetail?>(
-          // 监听 _detail，读取完成后由框架重新调用这里。
-          future: _detail,
-          builder: (context, snapshot) {
-            // FutureBuilder 监听 _detail，读取完成后由框架重新调用这里。
-            // 等待时不显示上一次结果，避免重试或换任务时短暂展示旧数据。
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(
-                child: CircularProgressIndicator(semanticsLabel: '正在读取任务详情'),
+    return PopScope<void>(
+      // 写入期间留在当前页，等待事务结果；对话框自身仍可用系统返回关闭。
+      canPop: !_isCancelBusy,
+      child: Scaffold(
+        appBar: AppTopBar(title: '任务详情', canGoBack: !_isCancelBusy),
+        // 详情是独立阅读页，有自己的返回按钮，不复制 AppShell 的底部导航。
+        body: SafeArea(
+          top: false,
+          child: FutureBuilder<MissionDetail?>(
+            // 监听 _detail，读取完成后由框架重新调用这里。
+            future: _detail,
+            builder: (context, snapshot) {
+              // FutureBuilder 监听 _detail，读取完成后由框架重新调用这里。
+              // 等待时不显示上一次结果，避免重试或换任务时短暂展示旧数据。
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(
+                  child: CircularProgressIndicator(semanticsLabel: '正在读取任务详情'),
+                );
+              }
+              if (snapshot.hasError) {
+                return _DetailMessage(message: '任务详情读取失败，请重试', onRetry: _retry);
+              }
+              final detail = snapshot.data;
+              if (detail == null) {
+                return const _DetailMessage(message: '未找到这个任务，请返回列表刷新');
+              }
+              return _MissionDetailContent(
+                detail: detail,
+                onCancel: _requestCancel,
+                isCancelBusy: _isCancelBusy,
+                isCancelling: _isCancelling,
+                cancelError: _cancelError,
               );
-            }
-            if (snapshot.hasError) {
-              return _DetailMessage(message: '任务详情读取失败，请重试', onRetry: _retry);
-            }
-            final detail = snapshot.data;
-            if (detail == null) {
-              return const _DetailMessage(message: '未找到这个任务，请返回列表刷新');
-            }
-            return _MissionDetailContent(detail: detail);
-          },
+            },
+          ),
         ),
       ),
     );
@@ -117,9 +193,19 @@ class _DetailMessage extends StatelessWidget {
 
 // 布局只读取业务对象；不保存页面自己的“阶段”，也不接触 Drift 行类型。
 class _MissionDetailContent extends StatelessWidget {
-  const _MissionDetailContent({required this.detail});
+  const _MissionDetailContent({
+    required this.detail,
+    required this.onCancel,
+    required this.isCancelBusy,
+    required this.isCancelling,
+    this.cancelError,
+  });
 
   final MissionDetail detail;
+  final VoidCallback onCancel;
+  final bool isCancelBusy;
+  final bool isCancelling;
+  final String? cancelError;
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +244,13 @@ class _MissionDetailContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              Text('临时任务 · $status', style: theme.textTheme.bodyMedium),
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  '临时任务 · $status',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
               const SizedBox(height: 24),
               _ScheduleCard(schedule: schedule),
               const SizedBox(height: 24),
@@ -218,6 +310,42 @@ class _MissionDetailContent extends StatelessWidget {
                   title: '取消时间',
                   child: Text(_localTimeLabel(cancelledAt, schedule.timeZone)),
                 ),
+              if (cancelledAt != null)
+                Text('没有执行记录', style: theme.textTheme.bodyMedium),
+              if (cancelledAt == null) ...[
+                if (cancelError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        cancelError!,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ),
+                OutlinedButton.icon(
+                  key: const Key('cancel-mission'),
+                  onPressed: isCancelBusy ? null : onCancel,
+                  icon: const Icon(Icons.block_outlined, size: 20),
+                  label: Text(isCancelling ? '正在取消…' : '取消任务'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                    side: BorderSide(color: theme.colorScheme.outline),
+                    minimumSize: const Size(0, 48),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    textStyle: theme.textTheme.titleLarge,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

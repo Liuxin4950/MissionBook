@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart' show ValueListenable, listEquals;
 import 'package:flutter/material.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 import '../../application/missions/mission_service.dart';
 import '../missions/create_mission_page.dart';
@@ -13,6 +14,7 @@ import 'today_display.dart' as display;
 const _timelineColumnWidth = 32.0;
 const _timelineContentGap = 36.0;
 const _timelineSegmentGap = 8.0;
+const _timelineEdgeSpace = 36.0;
 const _missionCardHorizontalPadding = 12.0;
 // 任务卡片语义标签
 String _missionSemanticsLabel(
@@ -65,7 +67,7 @@ class _TodayPageState extends State<TodayPage> {
   @override
   void initState() {
     super.initState();
-    _selectedDate = DateUtils.dateOnly(display.todayInScheduleTimeZone());
+    _selectedDate = DateUtils.dateOnly(_scheduleTime(widget.clock()));
     _loadMissions();
   }
 
@@ -255,6 +257,7 @@ class _TodayPageState extends State<TodayPage> {
         // 两个任务区域常驻：没有数据的一侧保留标题和头部入口，列表位置显示空态提示。
         _FixedMissionSection(
           items: _missions.fixed,
+          selectedDate: _selectedDate,
           clock: widget.clock,
           onOpenMission: _openDetail,
         ),
@@ -263,24 +266,9 @@ class _TodayPageState extends State<TodayPage> {
           onOpenMission: _openDetail,
         ),
         if (_missions.cancelled.isNotEmpty)
-          ExpansionTile(
-            key: const Key('cancelled-missions'),
-            tilePadding: EdgeInsets.zero,
-            title: Text('已取消（${_missions.cancelled.length}）'),
-            children: [
-              for (final item in _missions.cancelled)
-                if (item.isFixed)
-                  _FixedMissionRow(
-                    item: item,
-                    showTimeline: false,
-                    onTap: () => _openDetail(item.id),
-                  )
-                else
-                  _FlexibleMissionRow(
-                    item: item,
-                    onTap: () => _openDetail(item.id),
-                  ),
-            ],
+          _CancelledMissionSection(
+            items: _missions.cancelled,
+            onOpenMission: _openDetail,
           ),
       ],
     );
@@ -367,11 +355,13 @@ class _TodayHeader extends StatelessWidget {
 class _FixedMissionSection extends StatefulWidget {
   const _FixedMissionSection({
     required this.items,
+    required this.selectedDate,
     required this.clock,
     required this.onOpenMission,
   });
 
   final List<display.TodayMissionItem> items;
+  final DateTime selectedDate;
   final DateTime Function() clock;
   // 区域只把被点任务的编号交回 TodayPage，不在每一行重复管理路由。
   final ValueChanged<String> onOpenMission;
@@ -546,6 +536,45 @@ class _FixedMissionSectionState extends State<_FixedMissionSection>
               ),
             ],
           ),
+          if (widget.items.isNotEmpty)
+            ValueListenableBuilder<DateTime>(
+              valueListenable: _clock,
+              builder: (context, now, child) {
+                final local = _scheduleTime(now);
+                if (!DateUtils.isSameDay(local, widget.selectedDate)) {
+                  return const SizedBox.shrink();
+                }
+                final time =
+                    '${local.hour.toString().padLeft(2, '0')}:'
+                    '${local.minute.toString().padLeft(2, '0')}';
+                return Semantics(
+                  label: '当前时间 $time，上海时间；绿色表示时间已经经过',
+                  excludeSemantics: true,
+                  child: Padding(
+                    key: const Key('timeline-current-time'),
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      children: [
+                        Text(
+                          '现在',
+                          style: _todayMetadataStyle(context).copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          time,
+                          style: _todayMetadataStyle(context).copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
           const SizedBox(height: 16),
           // 没有固定任务时标题和“全部任务”入口仍显示，列表位置换成空态提示，
           // 不进入每秒刷新的时间轴布局。
@@ -597,30 +626,64 @@ class _FixedMissionSectionState extends State<_FixedMissionSection>
                           lensWeight: weights[index],
                         ),
                     ];
-                    // 一条任务对应一段轨道，段高直接使用这一帧的卡片高度。
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                    // 任务行仍共享原动画测量；整条轨道按同一组时间节点投影“现在”。
+                    var offset = _timelineEdgeSpace;
+                    final nodes = <double>[];
+                    for (var index = 0; index < items.length; index++) {
+                      nodes.add(offset + layouts[index].nodeY);
+                      offset += layouts[index].height;
+                    }
+                    return Stack(
                       children: [
-                        for (var index = 0; index < items.length; index++)
-                          _FixedMissionRow(
-                            item: items[index],
-                            onTap: () => widget.onOpenMission(items[index].id),
-                            scale: scales[index],
-                            emphasis: emphasis[index],
-                            clock: _clock,
-                            tilt: MediaQuery.disableAnimationsOf(context)
-                                ? 0
-                                : ((index - animatedFocus) * 0.018)
-                                      .clamp(-0.045, 0.045)
-                                      .toDouble(),
-                            layout: layouts[index],
-                            isCurrent: current[index],
-                            hasReachedNext:
-                                index < items.length - 1 &&
-                                !_now.isBefore(items[index + 1].fixedStartAt!),
-                            connectNext: index < items.length - 1,
-                            connectPrevious: index > 0,
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: RepaintBoundary(
+                              child: CustomPaint(
+                                key: const Key('timeline-track'),
+                                painter: _TimelinePainter(
+                                  clock: _clock,
+                                  items: items,
+                                  nodes: nodes,
+                                  emphasis: emphasis,
+                                  x:
+                                      layouts.first.timeWidth +
+                                      _timelineColumnWidth / 2,
+                                  selectedDate: widget.selectedDate,
+                                  colors: Theme.of(context).colorScheme,
+                                  background: Theme.of(
+                                    context,
+                                  ).scaffoldBackgroundColor,
+                                ),
+                              ),
+                            ),
                           ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: _timelineEdgeSpace,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (var index = 0; index < items.length; index++)
+                                _FixedMissionRow(
+                                  item: items[index],
+                                  onTap: () =>
+                                      widget.onOpenMission(items[index].id),
+                                  scale: scales[index],
+                                  emphasis: emphasis[index],
+                                  tilt: MediaQuery.disableAnimationsOf(context)
+                                      ? 0
+                                      : ((index - animatedFocus) * 0.018)
+                                            .clamp(-0.045, 0.045)
+                                            .toDouble(),
+                                  layout: layouts[index],
+                                  isCurrent: current[index],
+                                  connectNext: index < items.length - 1,
+                                ),
+                            ],
+                          ),
+                        ),
                       ],
                     );
                   },
@@ -774,7 +837,7 @@ _FixedRowLayout _measureFixedRow(
     maxLines: 1,
   ).height;
   final timeTop = cardPadding + (firstLineHeight - timeHeight) / 2;
-  final timeBottom = timeTop + timeHeight * (isCurrent ? 2 : 1);
+  final timeBottom = timeTop + timeHeight;
   if (timeBottom > detailsHeight) detailsHeight = timeBottom;
   return (
     height: detailsHeight + _timelineSegmentGap,
@@ -801,27 +864,21 @@ class _FixedMissionRow extends StatelessWidget {
     this.layout,
     this.scale = 1,
     this.emphasis = 0,
-    this.clock,
     this.tilt = 0,
     this.showTimeline = true,
     this.isCurrent = false,
-    this.hasReachedNext = false,
     this.connectNext = false,
-    this.connectPrevious = false,
-  }) : assert(!showTimeline || clock != null);
+  });
 
   final display.TodayMissionItem item;
   final VoidCallback onTap;
   final _FixedRowLayout? layout;
   final double scale;
   final double emphasis;
-  final ValueListenable<DateTime>? clock;
   final double tilt;
   final bool showTimeline;
   final bool isCurrent;
-  final bool hasReachedNext;
   final bool connectNext;
-  final bool connectPrevious;
 
   @override
   Widget build(BuildContext context) {
@@ -846,24 +903,7 @@ class _FixedMissionRow extends StatelessWidget {
                     width: _timelineColumnWidth,
                     top: 0,
                     height: measured.cardHeight,
-                    child: IgnorePointer(
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          key: ValueKey('timeline-rail-${item.id}'),
-                          painter: _TimelinePainter(
-                            nodeY: measured.nodeY,
-                            clock: clock!,
-                            item: item,
-                            emphasis: emphasis,
-                            connectPrevious: connectPrevious,
-                            lineColor: colors.outlineVariant,
-                            nodeColor: colors.onSurfaceVariant,
-                            progressColor: colors.primary,
-                            background: theme.scaffoldBackgroundColor,
-                          ),
-                        ),
-                      ),
-                    ),
+                    child: SizedBox(key: ValueKey('timeline-rail-${item.id}')),
                   ),
                 if (showTimeline && connectNext)
                   Positioned(
@@ -872,15 +912,7 @@ class _FixedMissionRow extends StatelessWidget {
                     width: _timelineColumnWidth,
                     top: measured.cardHeight,
                     height: _timelineSegmentGap,
-                    child: Center(
-                      child: Container(
-                        width: hasReachedNext ? 2.5 : 1.5,
-                        height: _timelineSegmentGap,
-                        color: hasReachedNext
-                            ? colors.primary
-                            : colors.outlineVariant,
-                      ),
-                    ),
+                    child: const SizedBox(),
                   ),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -904,14 +936,6 @@ class _FixedMissionRow extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            if (isCurrent)
-                              Text(
-                                '现在',
-                                style: _todayMetadataStyle(context).copyWith(
-                                  color: colors.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
                           ],
                         ),
                       ),
@@ -1030,85 +1054,151 @@ class _FixedMissionDetails extends StatelessWidget {
   }
 }
 
-// 灰轨代表计划顺序，绿轨代表时间经过；节点不冒充完成报告或执行事件。
+// 页面统一按上海时区显示当前时刻，避免设备本地时区改变今天的参照。
+DateTime _scheduleTime(DateTime instant) =>
+    tz.TZDateTime.from(instant, tz.getLocation(display.todayScheduleTimeZone));
+
+// 一条连续轨道：节点来自当前帧任务位置，绿色只在真实“现在”处结束。
+// 两侧留出当天起止的空间，首项未开始和最后一项结束后仍可定位现在。
 class _TimelinePainter extends CustomPainter {
   _TimelinePainter({
-    required this.nodeY,
     required this.clock,
-    required this.item,
+    required this.items,
+    required this.nodes,
     required this.emphasis,
-    required this.connectPrevious,
-    required this.lineColor,
-    required this.nodeColor,
-    required this.progressColor,
+    required this.x,
+    required this.selectedDate,
+    required this.colors,
     required this.background,
   }) : super(repaint: clock);
 
-  final double nodeY;
   final ValueListenable<DateTime> clock;
-  final display.TodayMissionItem item;
-  final double emphasis;
-  final bool connectPrevious;
-  final Color lineColor;
-  final Color nodeColor;
-  final Color progressColor;
+  final List<display.TodayMissionItem> items;
+  final List<double> nodes;
+  final List<double> emphasis;
+  final double x;
+  final DateTime selectedDate;
+  final ColorScheme colors;
   final Color background;
+
+  // 压缩排版不等于分钟网格；真实时间在相邻时间节点之间按比例映射。
+  double _nowY(Size size) {
+    final location = tz.getLocation(display.todayScheduleTimeZone);
+    final dayStart = tz.TZDateTime(
+      location,
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
+    final dayEnd = tz.TZDateTime(
+      location,
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day + 1,
+    );
+    DateTime previousTime = dayStart;
+    var previousY = 0.0;
+    final now = clock.value;
+    if (now.isBefore(dayStart)) return 0;
+    for (var index = 0; index < items.length; index++) {
+      final nextTime = items[index].fixedStartAt!;
+      if (now.isBefore(nextTime)) {
+        final projected =
+            previousY +
+            (nodes[index] - previousY) *
+                display.timelineSegmentProgress(previousTime, nextTime, now);
+        return _separateNowFromNodes(projected, size);
+      }
+      previousTime = nextTime;
+      previousY = nodes[index];
+    }
+    final projected =
+        previousY +
+        (size.height - previousY) *
+            display.timelineSegmentProgress(previousTime, dayEnd, now);
+    return _separateNowFromNodes(projected, size);
+  }
+
+  double _separateNowFromNodes(double projected, Size size) {
+    final now = clock.value;
+    if (!DateUtils.isSameDay(_scheduleTime(now), selectedDate)) {
+      return projected;
+    }
+    var lower = 0.0;
+    for (var index = 0; index < items.length; index++) {
+      final start = items[index].fixedStartAt!;
+      if (now.isAtSameMomentAs(start)) return nodes[index];
+      if (now.isBefore(start)) {
+        final upper = nodes[index] - 12;
+        // 压缩时间轴临近任务开始时，仍留出最小间距，不能看成已到达未来节点。
+        if (upper < lower) return (upper + lower) / 2;
+        return projected.clamp(lower, upper);
+      }
+      lower = nodes[index] + 12;
+    }
+    return projected.clamp(lower, size.height);
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final x = size.width / 2;
-    final center = Offset(x, nodeY);
-    final hasReachedStart = !clock.value.isBefore(item.fixedStartAt!);
-    final progress = display.plannedTimeSlotProgress(item, clock.value);
-    // 首项从圆点起笔，其余从段顶部接续；布局段仍与卡片等高。
-    final lineStart = Offset(x, connectPrevious ? 0 : nodeY);
+    final now = clock.value;
+    final nowY = _nowY(size);
     canvas.drawLine(
-      lineStart,
+      Offset(x, 0),
       Offset(x, size.height),
       Paint()
-        ..color = Color.lerp(
-          lineColor,
-          progressColor.withValues(alpha: 0.35),
-          emphasis,
-        )!
-        ..strokeWidth = 1.5 + emphasis,
+        ..color = colors.outlineVariant
+        ..strokeWidth = 1.5,
     );
-    if (hasReachedStart) {
+    if (nowY > 0) {
       canvas.drawLine(
-        lineStart,
-        // 到点时先接通标题节点，再在本项剩余高度内推进，避免绿色节点悬空。
-        Offset(x, nodeY + (size.height - nodeY) * progress),
+        Offset(x, 0),
+        Offset(x, nowY),
         Paint()
-          ..color = progressColor
+          ..color = colors.primary
           ..strokeWidth = 2.5,
       );
     }
-    final radius = 4.5 + emphasis;
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()..color = hasReachedStart ? progressColor : background,
-    );
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..color = hasReachedStart ? progressColor : nodeColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4,
-    );
+    for (var index = 0; index < items.length; index++) {
+      final reached = !now.isBefore(items[index].fixedStartAt!);
+      final center = Offset(x, nodes[index]);
+      final radius = 4.5 + emphasis[index];
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()..color = reached ? colors.primary : background,
+      );
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..color = reached ? colors.primary : colors.onSurfaceVariant
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4,
+      );
+    }
+    if (DateUtils.isSameDay(_scheduleTime(now), selectedDate)) {
+      // 横向短针与实心绿点共同标识唯一的“现在”，不与任务空心节点混淆。
+      canvas.drawLine(
+        Offset(x - 10, nowY),
+        Offset(x + 10, nowY),
+        Paint()
+          ..color = colors.primary
+          ..strokeWidth = 2.5,
+      );
+      canvas.drawCircle(Offset(x, nowY), 4, Paint()..color = colors.primary);
+    }
   }
 
   @override
   bool shouldRepaint(covariant _TimelinePainter old) =>
-      nodeY != old.nodeY ||
       clock != old.clock ||
-      item != old.item ||
-      emphasis != old.emphasis ||
-      connectPrevious != old.connectPrevious ||
-      lineColor != old.lineColor ||
-      nodeColor != old.nodeColor ||
-      progressColor != old.progressColor ||
+      !listEquals(items, old.items) ||
+      !listEquals(nodes, old.nodes) ||
+      !listEquals(emphasis, old.emphasis) ||
+      x != old.x ||
+      selectedDate != old.selectedDate ||
+      colors != old.colors ||
       background != old.background;
 }
 
@@ -1194,6 +1284,126 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
   }
 }
 
+// 底部次级入口靠右排列；展开状态只管理显示，不参与任务查询或取消保存。
+class _CancelledMissionSection extends StatefulWidget {
+  const _CancelledMissionSection({
+    required this.items,
+    required this.onOpenMission,
+  });
+
+  final List<display.TodayMissionItem> items;
+  final ValueChanged<String> onOpenMission;
+
+  @override
+  State<_CancelledMissionSection> createState() =>
+      _CancelledMissionSectionState();
+}
+
+class _CancelledMissionSectionState extends State<_CancelledMissionSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 细线沿用页面两侧边界；按钮按内容收窄，反馈不再铺满整行。
+        Divider(height: 1, thickness: 1, color: colors.outlineVariant),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Semantics(
+            button: true,
+            expanded: _expanded,
+            label: '已取消（${widget.items.length}）',
+            onTap: () => setState(() => _expanded = !_expanded),
+            excludeSemantics: true,
+            child: TextButton(
+              key: const Key('cancelled-missions'),
+              onPressed: () => setState(() => _expanded = !_expanded),
+              style:
+                  TextButton.styleFrom(
+                    foregroundColor: colors.onSurfaceVariant,
+                    textStyle: theme.textTheme.bodyMedium,
+                    minimumSize: const Size(48, 48),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ).copyWith(
+                    overlayColor: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.pressed)) {
+                        return colors.primary.withValues(alpha: 0.08);
+                      }
+                      if (states.contains(WidgetState.focused)) {
+                        return colors.primary.withValues(alpha: 0.10);
+                      }
+                      if (states.contains(WidgetState.hovered)) {
+                        return colors.primary.withValues(alpha: 0.04);
+                      }
+                      return null;
+                    }),
+                  ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.inventory_2_outlined, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('已取消'),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.primaryContainer,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${widget.items.length}',
+                      style: _todayMetadataStyle(context).copyWith(
+                        color: colors.onPrimaryContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // 按钮位置与列表宽度分开：展开记录仍沿用原任务行的完整排版。
+        if (_expanded) ...[
+          const SizedBox(height: 8),
+          for (final item in widget.items)
+            if (item.isFixed)
+              _FixedMissionRow(
+                item: item,
+                showTimeline: false,
+                onTap: () => widget.onOpenMission(item.id),
+              )
+            else
+              _FlexibleMissionRow(
+                item: item,
+                onTap: () => widget.onOpenMission(item.id),
+              ),
+        ],
+      ],
+    );
+  }
+}
+
 // 同一套行布局也用于取消折叠区，避免复制图标和文字排版。
 class _FlexibleMissionRow extends StatelessWidget {
   const _FlexibleMissionRow({required this.item, required this.onTap});
@@ -1225,13 +1435,17 @@ class _FlexibleMissionRow extends StatelessWidget {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: colors.primaryContainer,
+                      color: item.isCancelled
+                          ? colors.surface
+                          : colors.primaryContainer,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       Icons.description_outlined,
                       size: 20,
-                      color: colors.primary,
+                      color: item.isCancelled
+                          ? colors.onSurfaceVariant
+                          : colors.primary,
                     ),
                   ),
                 ),
@@ -1301,7 +1515,9 @@ class _MissionDetails extends StatelessWidget {
           style: _todayTitleStyle(context, 1).copyWith(
             fontSize: compact ? 14 : 16,
             height: compact ? 20 / 14 : 22 / 16,
-            decoration: item.isCancelled ? TextDecoration.lineThrough : null,
+            // 已取消由分区和状态文字表达，保留可阅读的完整标题。
+            color: item.isCancelled ? theme.colorScheme.onSurfaceVariant : null,
+            fontWeight: item.isCancelled ? FontWeight.w500 : FontWeight.w600,
           ),
         ),
         SizedBox(height: compact ? 2 : 4),

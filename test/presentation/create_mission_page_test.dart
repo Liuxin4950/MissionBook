@@ -17,6 +17,10 @@ import 'package:timezone/timezone.dart' as tz;
 // 用可控制完成时机的仓储替代磁盘，验证页面确实等待业务保存结果。
 class PendingRepository implements MissionRepository {
   @override
+  Future<void> cancel(String missionId) =>
+      throw UnsupportedError('创建表单测试不取消任务');
+
+  @override
   Future<MissionDetail?> findDetail(String missionId) =>
       throw UnsupportedError('创建表单测试不读取详情');
 
@@ -250,6 +254,47 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('非整数逻辑宽度下日历可打开、翻月、选日期并重新打开', (tester) async {
+    // 1280 / 3 - 表单两侧48 = 378.666…，对应实机报错的月份页宽。
+    tester.view.physicalSize = const Size(1280, 2800);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = PendingRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: CreateMissionPage(
+          missionService: MissionService(repository),
+          initialScheduledDate: '2026-10-24',
+        ),
+      ),
+    );
+    final dateButton = find.byKey(const ValueKey('mission-date'));
+    await tester.tap(dateButton);
+    await tester.pumpAndSettle();
+    expect(find.byType(CalendarDatePicker), findsOneWidget);
+    await tester.ensureVisible(find.byType(CalendarDatePicker));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Next month'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('25').last);
+    await tester.pumpAndSettle();
+    expect(find.text('11月25日'), findsOneWidget);
+    expect(find.byType(CalendarDatePicker), findsNothing);
+    await tester.ensureVisible(dateButton);
+    await tester.tap(dateButton);
+    await tester.pumpAndSettle();
+    final calendar = tester.widget<CalendarDatePicker>(
+      find.byType(CalendarDatePicker),
+    );
+    expect(calendar.initialDate, DateTime(2026, 11, 25));
+    expect(calendar.firstDate.year, 1);
+    expect(calendar.lastDate.year, 9999);
+    expect(repository.calls, 0);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('日期原位选择后，固定时刻使用新日期；成功后锁定日历', (tester) async {
     final repository = PendingRepository();
     await tester.pumpWidget(
@@ -319,14 +364,34 @@ void main() {
     );
     await tester.tap(find.text('打开表单'));
     await tester.pumpAndSettle();
+    // 空表单可以直接退出，不应打开确认框。
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CreateMissionPage), findsNothing);
+    await tester.tap(find.text('打开表单'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('固定'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('mission-hour')), '14');
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.text('放弃本次填写？'), findsOneWidget);
+    // 模拟弹框期间键盘/视口变化引起页面重建；继续后必须恢复编辑。
+    addTearDown(tester.view.resetViewInsets);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 200);
+    await tester.pumpAndSettle();
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    tester.element(find.byType(CreateMissionPage)).markNeedsBuild();
+    await tester.pump();
     await tester.tap(find.text('继续填写'));
     await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('mission-hour')))
+          .enabled,
+      isTrue,
+    );
     expect(
       tester
           .widget<TextField>(find.byKey(const ValueKey('mission-hour')))
@@ -335,6 +400,27 @@ void main() {
       '14',
     );
     expect(repository.calls, 0);
+    // 点击遮罩或系统返回只关确认框，表单时分和页面仍然保留。
+    for (final systemBack in [false, true]) {
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      if (systemBack) {
+        await tester.binding.handlePopRoute();
+      } else {
+        await tester.tapAt(const Offset(4, 4));
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('放弃本次填写？'), findsNothing);
+      expect(find.byType(CreateMissionPage), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('mission-hour')))
+            .controller!
+            .text,
+        '14',
+      );
+      expect(repository.calls, 0);
+    }
     // 共用顶栏仍分发到表单的丢弃确认；明确放弃后才关闭页面。
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();

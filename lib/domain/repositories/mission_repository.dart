@@ -6,6 +6,11 @@ import '../entities/mission_detail.dart';
 
 /// 任务仓储接口：约定任务相关的数据访问能力。
 abstract interface class MissionRepository {
+  /// 在写事务中重读任务并取消，只修改 cancelledAt 和 updatedAt。
+  /// 不存在时抛 StateError；已取消时直接成功，保留首次取消时间。
+  /// 当前三表尚无执行事件；接入 START 时必须在同一事务内校验未开始。
+  Future<void> cancel(String missionId);
+
   /// 按唯一编号读取任务、最大版本号的排期和执行方案；包含已取消任务。
   /// 任务不存在返回 null；关联数据不完整或无法转换时抛错，不伪装成“未找到”。
   /// 一次读取应取得一致的快照，且不修改任何已有记录。
