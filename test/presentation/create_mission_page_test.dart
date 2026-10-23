@@ -3,6 +3,7 @@ import 'dart:ui' show SemanticsAction;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/entities/mission.dart';
@@ -42,12 +43,17 @@ class PendingRepository implements MissionRepository {
 Future<void> openForm(WidgetTester tester, PendingRepository repository) async {
   await tester.pumpWidget(
     MaterialApp(
+      theme: AppTheme.light,
       home: CreateMissionPage(missionService: MissionService(repository)),
     ),
   );
-  await tester.enterText(find.byType(TextField).at(0), '阅读 Flutter');
-  await tester.enterText(find.byType(TextField).at(2), '20');
+  await tester.enterText(
+    find.byKey(const ValueKey('mission-title')),
+    '阅读 Flutter',
+  );
+  await tester.enterText(find.byKey(const ValueKey('mission-duration')), '20');
   await tester.ensureVisible(find.byType(FilledButton));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -61,11 +67,12 @@ void main() {
           ),
         ),
       );
-      final labels = ['任务名称', '计划日期', '计划时长'];
-      final values = ['阅读 Flutter', '2026-10-22', '20'];
+      final labels = ['任务名称', '计划时长'];
+      final values = ['阅读 Flutter', '20'];
       for (var index = 0; index < labels.length; index++) {
         final field = find.byType(TextField).at(index);
         await tester.ensureVisible(field);
+        await tester.pumpAndSettle();
         await tester.enterText(field, values[index]);
         await tester.pumpAndSettle();
         final node = tester.getSemantics(find.byType(EditableText).at(index));
@@ -89,13 +96,16 @@ void main() {
         '${today.year.toString().padLeft(4, '0')}-'
         '${today.month.toString().padLeft(2, '0')}-'
         '${today.day.toString().padLeft(2, '0')}';
-    expect(
-      tester.widget<TextField>(find.byType(TextField).at(1)).controller!.text,
-      date,
-    );
+    expect(find.text('${today.month}月${today.day}日'), findsOneWidget);
     await tester.tap(find.byType(FilledButton));
     await tester.pump();
     expect(find.text('正在创建…'), findsOneWidget);
+    expect(
+      tester
+          .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.arrow_back))
+          .onPressed,
+      isNull,
+    );
     expect(
       tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
       isNull,
@@ -108,6 +118,12 @@ void main() {
     repository.completion.complete();
     await tester.pumpAndSettle();
     expect(find.text('任务已创建，可返回今天页'), findsOneWidget);
+    expect(
+      tester
+          .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.arrow_back))
+          .onPressed,
+      isNotNull,
+    );
     expect(
       tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
       isNull,
@@ -126,20 +142,296 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('保存失败，输入已保留，请重试'), findsOneWidget);
     expect(
-      tester.widget<TextField>(find.byType(TextField).at(0)).controller!.text,
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('mission-title')))
+          .controller!
+          .text,
       '阅读 Flutter',
     );
     expect(
-      tester.widget<TextField>(find.byType(TextField).at(2)).controller!.text,
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('mission-duration')))
+          .controller!
+          .text,
       '20',
     );
     repository.completion = Completer<void>();
     await tester.ensureVisible(find.byType(FilledButton));
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(FilledButton));
     await tester.pump();
     expect(repository.calls, 2);
     repository.completion.complete();
     await tester.pumpAndSettle();
     expect(find.text('任务已创建，可返回今天页'), findsOneWidget);
+  });
+  testWidgets('固定时刻按上海时间保存，失败后日期和时分保留；切回自选不带出旧时刻', (tester) async {
+    final repository = PendingRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: CreateMissionPage(
+          missionService: MissionService(repository),
+          initialScheduledDate: '2026-10-24',
+        ),
+      ),
+    );
+    await tester.enterText(find.byKey(const ValueKey('mission-title')), '固定任务');
+    await tester.enterText(
+      find.byKey(const ValueKey('mission-duration')),
+      '45',
+    );
+    await tester.tap(find.text('固定'));
+    await tester.pumpAndSettle();
+    // 没有填写时分不能用默认 00:00 静默保存。
+    await tester.tap(find.byType(FilledButton));
+    await tester.pumpAndSettle();
+    expect(repository.calls, 0);
+    expect(find.textContaining('请填写有效的开始时间'), findsOneWidget);
+    for (final invalid in [('24', '00'), ('23', '60')]) {
+      await tester.ensureVisible(find.byKey(const ValueKey('mission-hour')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('mission-hour')),
+        invalid.$1,
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('mission-minute')),
+        invalid.$2,
+      );
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
+      expect(repository.calls, 0);
+    }
+    await tester.enterText(find.byKey(const ValueKey('mission-hour')), '00');
+    await tester.enterText(find.byKey(const ValueKey('mission-minute')), '15');
+    await tester.tap(find.byType(FilledButton));
+    await tester.pump();
+    expect(repository.schedule!.timePolicy, TimePolicy.fixed);
+    expect(
+      repository.schedule!.fixedStartAt,
+      DateTime.utc(2026, 10, 23, 16, 15),
+    );
+    expect(repository.schedule!.scheduledDate, '2026-10-24');
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const ValueKey(TimePolicy.fixed)))
+          .onPressed,
+      isNull,
+    );
+    repository.completion.completeError(StateError('模拟保存失败'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('mission-hour')))
+          .controller!
+          .text,
+      '00',
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('mission-minute')))
+          .controller!
+          .text,
+      '15',
+    );
+    expect(find.text('10月24日'), findsOneWidget);
+    await tester.ensureVisible(find.text('自选'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('自选'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mission-hour')), findsNothing);
+    repository.completion = Completer<void>();
+    await tester.tap(find.byType(FilledButton));
+    await tester.pump();
+    expect(repository.schedule!.timePolicy, TimePolicy.flexible);
+    expect(repository.schedule!.fixedStartAt, isNull);
+    repository.completion.complete();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('日期原位选择后，固定时刻使用新日期；成功后锁定日历', (tester) async {
+    final repository = PendingRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: CreateMissionPage(
+          missionService: MissionService(repository),
+          initialScheduledDate: '2026-10-24',
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('mission-date')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CalendarDatePicker), findsOneWidget);
+    await tester.ensureVisible(find.text('25').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('25').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(CalendarDatePicker), findsNothing);
+    expect(find.text('10月25日'), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('mission-title')), '改日期');
+    await tester.enterText(
+      find.byKey(const ValueKey('mission-duration')),
+      '20',
+    );
+    await tester.ensureVisible(find.text('固定'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('固定'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('mission-minute')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('mission-hour')), '23');
+    await tester.enterText(find.byKey(const ValueKey('mission-minute')), '59');
+    await tester.tap(find.byType(FilledButton));
+    await tester.pump();
+    expect(
+      repository.schedule!.fixedStartAt,
+      DateTime.utc(2026, 10, 25, 15, 59),
+    );
+    repository.completion.complete();
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('mission-date')));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<InkWell>(find.byKey(const ValueKey('mission-date'))).onTap,
+      isNull,
+    );
+  });
+
+  testWidgets('仅修改时间也触发丢弃确认，继续填写保留时分', (tester) async {
+    final repository = PendingRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => CreateMissionPage(
+                  missionService: MissionService(repository),
+                ),
+              ),
+            ),
+            child: const Text('打开表单'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开表单'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('固定'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('mission-hour')), '14');
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('放弃本次填写？'), findsOneWidget);
+    await tester.tap(find.text('继续填写'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('mission-hour')))
+          .controller!
+          .text,
+      '14',
+    );
+    expect(repository.calls, 0);
+    // 共用顶栏仍分发到表单的丢弃确认；明确放弃后才关闭页面。
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('放弃填写'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CreateMissionPage), findsNothing);
+    expect(find.text('打开表单'), findsOneWidget);
+  });
+
+  testWidgets('320宽双倍字体和键盘下可滚动，无溢出；日期按钮有名称值和动作', (tester) async {
+    tester.view.physicalSize = const Size(320, 780);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final handle = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: CreateMissionPage(
+            missionService: MissionService(PendingRepository()),
+            initialScheduledDate: '2026-10-24',
+          ),
+        ),
+      );
+      final node = tester.getSemantics(find.bySemanticsLabel('计划日期'));
+      expect(node.getSemanticsData().value, '2026-10-24');
+      expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('mission-duration')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const ValueKey('mission-duration'))).top,
+        greaterThan(
+          tester.getRect(find.byKey(const ValueKey('mission-date'))).bottom,
+        ),
+      );
+      await tester.ensureVisible(find.text('固定'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('固定'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('mission-hour')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('mission-hour')), '14');
+      tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('mission-minute')));
+      await tester.pumpAndSettle();
+      // 溢出由测试框架保留完整诊断。
+      expect(find.byType(FilledButton), findsOneWidget);
+    } finally {
+      handle.dispose();
+    }
+  });
+  testWidgets('390宽日期和时长边界对齐，返回白色箭头且单位常驻', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: CreateMissionPage(
+          missionService: MissionService(PendingRepository()),
+          initialScheduledDate: '2026-10-24',
+        ),
+      ),
+    );
+    final dateRect = tester.getRect(find.byKey(const ValueKey('mission-date')));
+    final durationRect = tester.getRect(
+      find.byKey(const ValueKey('mission-duration')),
+    );
+    expect(dateRect.top, closeTo(durationRect.top, 1));
+    expect(dateRect.height, closeTo(durationRect.height, 1));
+    final arrow = tester.widget<Icon>(find.byIcon(Icons.arrow_back));
+    expect(arrow.color, AppTheme.light.colorScheme.onPrimary);
+    final backRect = tester.getRect(
+      find.widgetWithIcon(IconButton, Icons.arrow_back),
+    );
+    expect(backRect.size, const Size(48, 48));
+    expect(backRect.left, 24);
+    expect(tester.getRect(find.text('新建任务')).center.dx, closeTo(195, 1));
+    final timeLabel = tester.getRect(find.text('时间安排'));
+    final choice = tester.getRect(
+      find.byKey(const ValueKey(TimePolicy.flexible)),
+    );
+    expect(timeLabel.center.dy, closeTo(choice.center.dy, 1));
+    expect(choice.height, greaterThanOrEqualTo(48));
+    expect(find.text('分钟'), findsOneWidget);
+    expect(find.text('所属节点'), findsNothing);
   });
 }

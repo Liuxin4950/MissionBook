@@ -267,4 +267,53 @@ void main() {
       throwsStateError,
     );
   });
+  test('固定时刻使用排期时区校验，统一UTC，允许过去日期和跨UTC日界', () async {
+    final repository = RecordingMissionRepository();
+    final service = MissionService(repository);
+    for (final clock in [
+      '2020-01-02T00:15:00+08:00',
+      '2020-01-02T23:59:00+08:00',
+    ]) {
+      await service.create(
+        title: '固定任务',
+        scheduledDate: '2020-01-02',
+        timeZone: 'Asia/Shanghai',
+        plannedDurationMinutes: 45,
+        timePolicy: TimePolicy.fixed,
+        fixedStartAt: DateTime.parse(clock),
+      );
+      final schedule = repository.receivedSchedule!;
+      expect(schedule.timePolicy, TimePolicy.fixed);
+      expect(schedule.fixedStartAt, DateTime.parse(clock).toUtc());
+      expect(schedule.fixedStartAt!.isUtc, isTrue);
+      expect(schedule.scheduledDate, '2020-01-02');
+      expect(schedule.revisionNumber, 1);
+      expect(repository.receivedMission!.cancelledAt, isNull);
+    }
+  });
+
+  test('固定缺时刻、自选带时刻和时区日期不匹配全部在写入前拒绝', () async {
+    final repository = RecordingMissionRepository();
+    final service = MissionService(repository);
+    for (final input in [
+      (TimePolicy.fixed, null),
+      (TimePolicy.flexible, DateTime.utc(2026, 10, 24, 6)),
+      // UTC 10月24日16:00 已是上海10月25日，不能只比较UTC日期。
+      (TimePolicy.fixed, DateTime.utc(2026, 10, 24, 16)),
+      (TimePolicy.fixed, DateTime.utc(2026, 10, 23, 15, 59)),
+    ]) {
+      await expectLater(
+        service.create(
+          title: '非法排期',
+          scheduledDate: '2026-10-24',
+          timeZone: 'Asia/Shanghai',
+          plannedDurationMinutes: 20,
+          timePolicy: input.$1,
+          fixedStartAt: input.$2,
+        ),
+        throwsArgumentError,
+      );
+    }
+    expect(repository.createCallCount, 0);
+  });
 }

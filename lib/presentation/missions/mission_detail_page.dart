@@ -5,6 +5,7 @@ import '../../application/missions/mission_service.dart';
 import '../../domain/entities/mission.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
+import '../widgets/app_top_bar.dart';
 
 /// 一个任务的只读详情。由今天页传入任务编号和应用共享的查询入口。
 /// 本轮只接通阅读、重试与返回；开始、编辑、改期和取消由后续单元接入。
@@ -32,6 +33,7 @@ class _MissionDetailPageState extends State<MissionDetailPage> {
     _detail = _readDetail();
   }
 
+  // 网络请求
   Future<MissionDetail?> _readDetail() {
     // widget 指向与此 State 配对的 MissionDetailPage，两个参数由今天页提供。
     return widget.missionService.findDetail(missionId: widget.missionId);
@@ -58,11 +60,12 @@ class _MissionDetailPageState extends State<MissionDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('任务详情')),
+      appBar: const AppTopBar(title: '任务详情'),
       // 详情是独立阅读页，有自己的返回按钮，不复制 AppShell 的底部导航。
       body: SafeArea(
         top: false,
         child: FutureBuilder<MissionDetail?>(
+          // 监听 _detail，读取完成后由框架重新调用这里。
           future: _detail,
           builder: (context, snapshot) {
             // FutureBuilder 监听 _detail，读取完成后由框架重新调用这里。
