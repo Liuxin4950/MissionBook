@@ -1,3 +1,5 @@
+import 'package:mission_book/domain/entities/execution_command.dart';
+import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mission_book/application/missions/mission_service.dart';
@@ -11,6 +13,16 @@ import 'package:mission_book/domain/entities/mission_detail.dart';
 // implements 表示这个类遵守 MissionRepository 的约定，
 // 因此必须提供接口要求的 create 方法。
 class RecordingMissionRepository implements MissionRepository {
+  @override
+  Future<ExecutionEvent> execute(ExecutionCommand command) =>
+      throw UnsupportedError('本替身不执行任务');
+  @override
+  Future<List<MissionDetail>> findActive() async => [];
+  @override
+  Future<List<MissionDetail>> findFinished() async => [];
+  @override
+  Future<List<MissionDetail>> findCancelled() async => [];
+
   @override
   Future<void> edit({
     required MissionDetail original,
@@ -55,6 +67,16 @@ class RecordingMissionRepository implements MissionRepository {
 // 模拟“仓储保存失败”的测试替身。
 // 它遵守同一个 MissionRepository 接口，所以 MissionService 不需要知道这是测试代码。
 class FailingMissionRepository implements MissionRepository {
+  @override
+  Future<ExecutionEvent> execute(ExecutionCommand command) =>
+      throw UnsupportedError('本替身不执行任务');
+  @override
+  Future<List<MissionDetail>> findActive() async => [];
+  @override
+  Future<List<MissionDetail>> findFinished() async => [];
+  @override
+  Future<List<MissionDetail>> findCancelled() async => [];
+
   @override
   Future<void> edit({
     required MissionDetail original,

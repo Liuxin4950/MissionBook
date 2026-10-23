@@ -1,18 +1,15 @@
 /// 一条执行记录所表达的动作。
 enum ExecutionEventType {
-  start,  // 开始，同时绑定当时采用的排期版本。
-  pause,  // 暂停，可以填写原因。
+  start, // 开始，同时绑定当时采用的排期版本。
+  pause, // 暂停，可以填写原因。
   resume, // 从暂停恢复执行。
   extend, // 增加投入额度，不改变执行或暂停状态。
-  end,    // 结束执行，同时记录用户报告。
+  end, // 结束执行，同时记录用户报告。
 }
 
 /// 用户在结束执行时报告的结果。
 /// 没有 END 时就没有报告，用 null 表达，不增加“待报告”枚举。
-enum UserReportedResult {
-  completed,
-  notCompleted,
-}
+enum UserReportedResult { completed, notCompleted }
 
 /// 【业务实体】一条已经发生的执行动作。
 /// 合法性由事件规则及写入事务校验；对象构造本身不代表已经入库。

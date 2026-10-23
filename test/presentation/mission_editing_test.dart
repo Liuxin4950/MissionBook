@@ -80,6 +80,15 @@ Future<void> enter(WidgetTester tester, String key, String text) async {
   await tester.enterText(field, text);
 }
 
+Future<void> chooseMissionAction(WidgetTester tester, String action) async {
+  if (find.byKey(Key('$action-mission')).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const Key('mission-more')));
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(find.byKey(Key('$action-mission')));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('固定排期按原时区带入，只改文字不丢失原时刻秒与毫秒', (tester) async {
     final repository = EditingRepository();
@@ -277,12 +286,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('原任务'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('edit-mission')),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.byKey(const Key('edit-mission')));
+    await chooseMissionAction(tester, 'edit');
     await tester.pumpAndSettle();
     await enter(tester, 'mission-title', '明天的新任务');
     await enter(tester, 'mission-objective', '明天的新目标');

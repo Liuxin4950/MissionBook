@@ -2,6 +2,9 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/scheduled_mission.dart';
+import '../../domain/entities/mission_phase.dart';
+import '../../domain/entities/execution_event.dart';
+import '../missions/mission_phase_display.dart';
 
 // 今天页专用的显示工具。不依赖 Flutter，不访问数据库。
 // 页面通过这里取得日期文字；一次查询成功后通过 groupMissionsForDisplay 整理整份结果。
@@ -52,6 +55,9 @@ TodayMissionItem _missionItem(ScheduledMission item) {
   final schedule = item.schedule;
   final isFixed = schedule.timePolicy == TimePolicy.fixed;
   final isCancelled = item.mission.cancelledAt != null;
+  final executionLabel = item.phase == MissionPhase.notStarted
+      ? ''
+      : '${phaseLabel(item.phase)} · ';
   var startTime = '';
   if (isFixed) {
     final startAt = schedule.fixedStartAt;
@@ -67,6 +73,8 @@ TodayMissionItem _missionItem(ScheduledMission item) {
         '${local.minute.toString().padLeft(2, '0')}';
   }
   return TodayMissionItem(
+    phase: item.phase,
+    events: item.events,
     id: item.mission.id,
     title: item.mission.title,
     isFixed: isFixed,
@@ -75,7 +83,7 @@ TodayMissionItem _missionItem(ScheduledMission item) {
     fixedStartAt: schedule.fixedStartAt,
     plannedDurationMinutes: schedule.plannedDurationMinutes,
     durationLabel:
-        '${isCancelled ? '已取消 · ' : ''}'
+        '${isCancelled ? '已取消 · ' : executionLabel}'
         '计划 ${schedule.plannedDurationMinutes} 分钟',
     timeZoneLabel: schedule.timeZone == todayScheduleTimeZone
         ? null
@@ -117,6 +125,8 @@ class TodayMissionItem {
     required this.plannedDurationMinutes,
     required this.durationLabel,
     required this.timeZoneLabel,
+    this.phase = MissionPhase.notStarted,
+    this.events = const [],
   });
 
   final String id;
@@ -128,6 +138,8 @@ class TodayMissionItem {
   final int plannedDurationMinutes;
   final String durationLabel;
   final String? timeZoneLabel;
+  final MissionPhase phase;
+  final List<ExecutionEvent> events;
 }
 
 /// 当前是否处于计划时间段：[开始，开始 + 计划分钟数)。仅用于视觉强调。

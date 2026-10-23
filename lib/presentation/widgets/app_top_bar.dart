@@ -12,6 +12,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     this.onBack,
     this.canGoBack = true,
+    this.actions,
   });
 
   /// 页面提供的标题，例如“新建任务”或“任务详情”。
@@ -22,6 +23,8 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
 
   /// 保存期间可设为 false，按钮保留位置但不能触发返回。
   final bool canGoBack;
+  // 详情页可提供“更多”菜单；未提供时保持原有顶栏。
+  final List<Widget>? actions;
 
   // Scaffold.appBar 要求 PreferredSizeWidget，以便在布局前取得顶栏高度。
   // 80 只包含工具栏，系统状态栏的安全区域仍由内部 AppBar 处理。
@@ -44,6 +47,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
       centerTitle: true,
       title: Text(title),
       titleTextStyle: theme.textTheme.titleMedium,
+      actions: actions,
       // 返回按钮与正文共用左右边距；标准24、窄屏16，加上48触控宽度。
       leadingWidth: AppLayout.horizontalPadding(context) + 48,
       leading: Padding(

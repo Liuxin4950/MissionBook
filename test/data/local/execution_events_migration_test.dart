@@ -17,10 +17,11 @@ const _time = 1792713600000;
 // 测试专用旧库：从已冻结的 v1 快照建表，不能拿当前 v2 定义冒充旧库。
 // 不生成第二套业务类；它只负责准备磁盘上的旧数据，然后关闭连接。
 class _SnapshotV1Database extends GeneratedDatabase {
-  _SnapshotV1Database(super.executor);
+  _SnapshotV1Database(super.executor, {this.oldVersion = 1});
+  final int oldVersion;
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => oldVersion;
 
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
@@ -33,7 +34,9 @@ class _SnapshotV1Database extends GeneratedDatabase {
     onCreate: (_) async {
       final snapshot =
           jsonDecode(
-                await File('drift_schemas/drift_schema_v1.json').readAsString(),
+                await File(
+                  'drift_schemas/drift_schema_v$oldVersion.json',
+                ).readAsString(),
               )
               as Map<String, dynamic>;
       for (final entity in snapshot['fixed_sql'] as List<dynamic>) {
@@ -56,7 +59,12 @@ Future<Map<String, List<Map<String, dynamic>>>> _readOldRows(
     final rows = await database
         .customSelect('SELECT * FROM $table ORDER BY id')
         .get();
-    result[table] = [for (final row in rows) row.data];
+    result[table] = [
+      for (final row in rows)
+        Map<String, dynamic>.from(row.data)
+          ..remove('source_mission_id')
+          ..remove('relation_type'),
+    ];
   }
   return result;
 }
@@ -168,7 +176,7 @@ class _InterruptedOpenDatabase extends AppDatabase {
 }
 
 void main() {
-  group('v1 → v2 文件迁移', () {
+  group('v1 → 当前版本文件迁移', () {
     late Directory directory;
     late File file;
 
@@ -180,6 +188,126 @@ void main() {
     tearDown(() async {
       // 只清理本测试创建的专属临时目录，所有连接已在 finally 中关闭。
       await directory.delete(recursive: true);
+    });
+
+    test('v3完整执行记录升级v4：事件、报告、失败原因保留，新增来源为空', () async {
+      final old = _SnapshotV1Database(NativeDatabase(file), oldVersion: 3);
+      late Map<String, List<Map<String, dynamic>>> before;
+      late List<Map<String, dynamic>> oldEvents;
+      late List<Map<String, dynamic>> oldFailures;
+      try {
+        await _seedV1(old);
+        await old.customStatement(
+          "INSERT INTO execution_events (id, mission_id, sequence, type, occurred_at, schedule_revision_id) VALUES ('start-v3', 'mission-a', 1, 'START', ?, 'schedule-a2')",
+          [_time],
+        );
+        await old.customStatement(
+          "INSERT INTO execution_events (id, mission_id, sequence, type, occurred_at, user_reported_result) VALUES ('end-v3', 'mission-a', 2, 'END', ?, 'NOT_COMPLETED')",
+          [_time + 1000],
+        );
+        await old.customStatement(
+          'INSERT INTO failure_records (id, mission_id, "trigger", occurred_at, user_reason_category, user_reason_text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [
+            'failure-v3',
+            'mission-a',
+            'USER_MARKED_NOT_COMPLETED',
+            _time + 1000,
+            'OTHER',
+            '保留用户原因',
+            _time + 1000,
+          ],
+        );
+        before = await _readOldRows(old);
+        oldEvents = [
+          for (final row
+              in await old
+                  .customSelect(
+                    'SELECT * FROM execution_events ORDER BY sequence',
+                  )
+                  .get())
+            row.data,
+        ];
+        oldFailures = [
+          for (final row
+              in await old.customSelect('SELECT * FROM failure_records').get())
+            row.data,
+        ];
+      } finally {
+        await old.close();
+      }
+      final upgraded = AppDatabase(executor: NativeDatabase(file));
+      try {
+        expect(await _version(upgraded), 4);
+        expect(await _readOldRows(upgraded), before);
+        expect([
+          for (final row
+              in await upgraded
+                  .customSelect(
+                    'SELECT * FROM execution_events ORDER BY sequence',
+                  )
+                  .get())
+            row.data,
+        ], oldEvents);
+        expect([
+          for (final row
+              in await upgraded
+                  .customSelect('SELECT * FROM failure_records')
+                  .get())
+            row.data,
+        ], oldFailures);
+        final missions = await upgraded.select(upgraded.missions).get();
+        expect(
+          missions.every(
+            (row) => row.sourceMissionId == null && row.relationType == null,
+          ),
+          isTrue,
+        );
+        await upgraded.validateDatabaseSchema();
+        expect(
+          await upgraded.customSelect('PRAGMA foreign_key_check').get(),
+          isEmpty,
+        );
+      } finally {
+        await upgraded.close();
+      }
+    });
+
+    test('v2已有事件升级当前版：旧任务和事件逐字段保留，失败表初始为空', () async {
+      final old = _SnapshotV1Database(NativeDatabase(file), oldVersion: 2);
+      late Map<String, List<Map<String, dynamic>>> before;
+      late List<Map<String, dynamic>> oldEvents;
+      try {
+        await _seedV1(old);
+        await old.customStatement(
+          "INSERT INTO execution_events (id, mission_id, sequence, type, occurred_at, schedule_revision_id) VALUES ('start-v2', 'mission-a', 1, 'START', ?, 'schedule-a2')",
+          [_time],
+        );
+        before = await _readOldRows(old);
+        oldEvents = [
+          for (final row
+              in await old.customSelect('SELECT * FROM execution_events').get())
+            row.data,
+        ];
+        expect(await _version(old), 2);
+      } finally {
+        await old.close();
+      }
+      final upgraded = AppDatabase(executor: NativeDatabase(file));
+      try {
+        expect(await _version(upgraded), 4);
+        expect(await _readOldRows(upgraded), before);
+        expect([
+          for (final row
+              in await upgraded
+                  .customSelect('SELECT * FROM execution_events')
+                  .get())
+            row.data,
+        ], oldEvents);
+        expect(await upgraded.select(upgraded.failureRecords).get(), isEmpty);
+        await upgraded.validateDatabaseSchema();
+      } finally {
+        await upgraded.close();
+      }
     });
 
     test('旧三表逐字段保留、新事件可写，关闭重开仍在且结构与新装一致', () async {
@@ -195,7 +323,7 @@ void main() {
 
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 2);
+        expect(await _version(upgraded), 4);
         expect(await _readOldRows(upgraded), before);
         expect(await upgraded.select(upgraded.executionEvents).get(), isEmpty);
         await upgraded.validateDatabaseSchema();
@@ -233,7 +361,7 @@ void main() {
 
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 2);
+        expect(await _version(reopened), 4);
         expect(await _readOldRows(reopened), before);
         final event = await reopened
             .select(reopened.executionEvents)
@@ -265,7 +393,7 @@ void main() {
       }
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 2);
+        expect(await _version(reopened), 4);
         expect(await _readOldRows(reopened), before);
         await reopened.validateDatabaseSchema();
       } finally {
@@ -308,7 +436,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 2);
+        expect(await _version(retry), 4);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -317,7 +445,7 @@ void main() {
     });
   });
 
-  group('v2 新装事件表约束', () {
+  group('当前版本新装事件表约束', () {
     late AppDatabase database;
 
     setUp(() async {
@@ -352,8 +480,8 @@ void main() {
     tearDown(() async => database.close());
 
     test('新装版本与四表/索引符合当前定义', () async {
-      expect(await _version(database), 2);
-      expect(database.allTables, hasLength(4));
+      expect(await _version(database), 4);
+      expect(database.allTables, hasLength(5));
       await database.validateDatabaseSchema();
       expect(
         (await database.customSelect('PRAGMA foreign_keys').getSingle())

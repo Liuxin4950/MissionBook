@@ -1,6 +1,7 @@
 import '../entities/execution_event.dart'; // 引入执行事件及动作、报告结果枚举。
 import '../entities/mission.dart'; // 引入任务的材料策略枚举。
 import '../entities/mission_phase.dart'; // 任务阶段是计算结果，不是数据库字段。
+import '../entities/failure_record.dart';
 
 /// 校验一条执行事件的字段组合；不修改对象，也不读写数据库。
 ///
@@ -108,6 +109,41 @@ MissionPhase derivePreEndMissionPhase(
   // replay 意为“按顺序重放、推演”。核心一次遍历同时校验并算出执行状态。
   // 这里不再先校验一次，然后另外循环计算同一套动作转换。
   final state = _replayExecutionHistory(mission, events);
+  return _phaseBeforeEnd(mission, state);
+}
+
+/// 当前已开放的自报任务闭环；材料策略的 END 不在此入口猜测关闭。
+/// 未完成必须有同一次 END 原子提交的失败事实，查询遇到缺失明确报错。
+MissionPhase deriveSelfReportMissionPhase(
+  Mission mission,
+  List<ExecutionEvent> events,
+  List<FailureRecord> failures,
+) {
+  final state = _replayExecutionHistory(mission, events);
+  if (state != _ExecutionState.ended) {
+    if (failures.isNotEmpty) throw const FormatException('尚未结束的任务不应有失败记录');
+    return _phaseBeforeEnd(mission, state);
+  }
+  if (mission.verificationPolicy != VerificationPolicy.selfReport) {
+    throw UnsupportedError('材料任务的结束阶段尚未接入');
+  }
+  final end = events.last;
+  final notCompleted =
+      end.userReportedResult == UserReportedResult.notCompleted;
+  if (notCompleted) {
+    if (failures.length != 1 ||
+        failures.single.missionId != mission.id ||
+        failures.single.trigger != 'USER_MARKED_NOT_COMPLETED' ||
+        failures.single.occurredAt != end.occurredAt) {
+      throw const FormatException('未完成报告缺少一致的失败记录');
+    }
+  } else if (failures.isNotEmpty) {
+    throw const FormatException('自报完成任务不应有失败记录');
+  }
+  return MissionPhase.closed;
+}
+
+MissionPhase _phaseBeforeEnd(Mission mission, _ExecutionState state) {
   if (mission.cancelledAt != null) {
     // 核心已经确认取消任务没有事件，因此不会用取消掩盖非法历史。
     return MissionPhase.cancelled;

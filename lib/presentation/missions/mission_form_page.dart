@@ -19,7 +19,8 @@ class MissionFormPage extends StatefulWidget {
     super.key,
     required this.missionService,
     this.initialScheduledDate,
-  }) : original = null;
+  }) : original = null,
+       retrySource = null;
 
   /// 详情页传入读到的完整快照，既用于带入原值，也用于保存时检查冲突。
   const MissionFormPage.edit({
@@ -27,9 +28,20 @@ class MissionFormPage extends StatefulWidget {
     required this.missionService,
     required MissionDetail detail,
   }) : original = detail,
+       retrySource = null,
+       initialScheduledDate = null;
+
+  /// 来源仅用于预填新草稿；保存前不建任务，不复制旧执行事实。
+  const MissionFormPage.retry({
+    super.key,
+    required this.missionService,
+    required MissionDetail source,
+  }) : retrySource = source,
+       original = null,
        initialScheduledDate = null;
 
   final MissionDetail? original;
+  final MissionDetail? retrySource;
 
   // 从 TodayPage 传来的同一个业务对象；后续保存时调用，不在本页重新创建。
   final MissionService missionService;
@@ -45,8 +57,12 @@ class MissionFormPage extends StatefulWidget {
 
 class _MissionFormPageState extends State<MissionFormPage> {
   // 当前约定的排期时区，默认日期和保存参数都使用它。
-  String get _timeZone => widget.original?.schedule.timeZone ?? 'Asia/Shanghai';
+  String get _timeZone =>
+      widget.original?.schedule.timeZone ??
+      widget.retrySource?.schedule.timeZone ??
+      'Asia/Shanghai';
   bool get _isEditing => widget.original != null;
+  bool get _isRetry => widget.retrySource != null;
 
   // 两个状态分别表示“正在等待保存”和“已经成功保存”。
   bool _isSaving = false;
@@ -104,13 +120,15 @@ class _MissionFormPageState extends State<MissionFormPage> {
       int.parse(parts[1]),
       int.parse(parts[2]),
     );
-    if (original != null) {
-      _titleController.text = original.mission.title;
-      _objectiveController.text = original.executionPlan.objective;
-      _durationController.text = original.schedule.plannedDurationMinutes
+    final seed = original ?? widget.retrySource;
+    if (seed != null) {
+      _titleController.text = seed.mission.title;
+      _objectiveController.text = seed.executionPlan.objective;
+      _durationController.text = seed.schedule.plannedDurationMinutes
           .toString();
-      _timePolicy = original.schedule.timePolicy;
-      final start = original.schedule.fixedStartAt;
+      // 重试重新安排日期，自选时间起步，不沿用已经过去的固定开始时刻。
+      _timePolicy = original?.schedule.timePolicy ?? TimePolicy.flexible;
+      final start = original?.schedule.fixedStartAt;
       if (start != null) {
         final local = tz.TZDateTime.from(start, tz.getLocation(_timeZone));
         _hourController.text = local.hour.toString().padLeft(2, '0');
@@ -224,6 +242,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
           plannedDurationMinutes: minutes,
           timePolicy: _timePolicy,
           fixedStartAt: fixedStartAt,
+          retrySource: widget.retrySource,
+          objective: _isRetry ? _objectiveController.text : null,
         );
       } else {
         await widget.missionService.edit(
@@ -240,7 +260,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
       setState(() {
         _isCreated = true;
       });
-      if (_isEditing) {
+      if (_isEditing || _isRetry) {
         // 编辑成功直接返回原详情，true 让详情重新读库，不额外堆一个结果页。
         Navigator.of(context).pop(true);
       }
@@ -709,7 +729,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
       },
       child: Scaffold(
         appBar: AppTopBar(
-          title: _isEditing ? '编辑任务' : '新建任务',
+          title: _isEditing ? '编辑任务' : (_isRetry ? '再次尝试' : '新建任务'),
           // 公共组件只负责点击分发，丢弃确认仍使用本页原来的方法。
           onBack: _requestClose,
           canGoBack: !_isSaving,
@@ -726,7 +746,14 @@ class _MissionFormPageState extends State<MissionFormPage> {
                 children: [
                   // 当前入口只创建临时任务，因此不展示节点路径；目标树关联须接通真实保存后再显示。
                   _titleField(), const SizedBox(height: AppLayout.sectionGap),
-                  if (_isEditing) ...[
+                  if (_isEditing || _isRetry) ...[
+                    if (_isRetry)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Text(
+                          '来自任务：${widget.retrySource!.mission.title}\n保存后创建新的尝试，原记录保持不变。',
+                        ),
+                      ),
                     _objectiveField(),
                     const SizedBox(height: AppLayout.sectionGap),
                   ],

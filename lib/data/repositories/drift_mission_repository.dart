@@ -8,6 +8,12 @@ import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../local/app_database.dart';
+import 'execution_event_mapping.dart';
+import '../../domain/entities/execution_command.dart';
+import '../../domain/entities/execution_event.dart';
+import '../../domain/entities/failure_record.dart';
+import '../../domain/entities/mission_phase.dart';
+import '../../domain/rules/execution_event_rules.dart';
 
 import '../../domain/repositories/mission_repository.dart';
 
@@ -39,6 +45,8 @@ MissionsCompanion missionToCompanion(Mission mission) {
 
     // 取消时刻可能为空：?. 在有时刻时取毫秒数，否则得到 null。
     cancelledAt: Value(mission.cancelledAt?.millisecondsSinceEpoch),
+    sourceMissionId: Value(mission.sourceMissionId),
+    relationType: Value(mission.relationType == null ? null : 'RETRY'),
   );
 }
 
@@ -46,6 +54,9 @@ MissionsCompanion missionToCompanion(Mission mission) {
 Mission missionFromRow(MissionRow row) {
   // 先取出可能为空的取消时间。
   final cancelledAt = row.cancelledAt;
+  if ((row.sourceMissionId == null) != (row.relationType == null)) {
+    throw const FormatException('再次尝试来源与关系类型必须同时存在');
+  }
 
   return Mission(
     // 这些字段在两种对象中的类型一致，直接复制。
@@ -53,6 +64,12 @@ Mission missionFromRow(MissionRow row) {
     title: row.title,
     description: row.description,
     why: row.why,
+    sourceMissionId: row.sourceMissionId,
+    relationType: switch (row.relationType) {
+      null => null,
+      'RETRY' => MissionRelationType.retry,
+      _ => throw FormatException('未知任务关系：${row.relationType}'),
+    },
 
     // 数据库存的是字符串，业务对象使用枚举。
     verificationPolicy: switch (row.verificationPolicy) {
@@ -181,10 +198,199 @@ ExecutionPlan executionPlanFromRow(ExecutionPlanRow row) {
 /// 使用同一数据库连接完成原子创建、列表查询与详情读取。
 class DriftMissionRepository implements MissionRepository {
   /// 接收应用持有的连接；本仓储不自行创建或关闭数据库。
-  DriftMissionRepository(this.database);
+  DriftMissionRepository(this.database, {this.clock = DateTime.now});
 
   /// 创建与查询共用的数据库连接。
   final AppDatabase database;
+  // 只用于捕获实际操作时刻；测试注入可控时钟，不允许命令指定 occurredAt。
+  final DateTime Function() clock;
+
+  Future<void> _acquireWrite(String missionId) async {
+    // 显式在读取事实前执行写语句，字段值不变；同库连接受 SQLite 写锁约束。
+    // 当前 Native/Wasm 驱动也使用 BEGIN IMMEDIATE，不能误认为 transaction 默认都为延迟事务。
+    await database.customStatement(
+      'UPDATE missions SET updated_at = updated_at WHERE id = ?',
+      [missionId],
+    );
+  }
+
+  @override
+  Future<ExecutionEvent> execute(ExecutionCommand command) async {
+    String? clean(String? text) {
+      final value = text?.trim();
+      return value == null || value.isEmpty ? null : value;
+    }
+
+    if (command.id.trim().isEmpty ||
+        command.missionId.trim().isEmpty ||
+        command.expectedSequence < 0) {
+      throw ArgumentError('操作编号、任务编号和预期序号无效');
+    }
+    final reason = clean(command.reason);
+    final category = command.userReasonCategory;
+    final reasonText = clean(command.userReasonText);
+    if (category != null && !failureReasonLabels.containsKey(category)) {
+      throw ArgumentError('未完成原因类别无效');
+    }
+    if ((category != null || reasonText != null) &&
+        (command.type != ExecutionEventType.end ||
+            command.userReportedResult != UserReportedResult.notCompleted)) {
+      throw ArgumentError('只有报告未完成时可以填写未完成原因');
+    }
+    return database.transaction(() async {
+      await _acquireWrite(command.missionId);
+      // 先查身份，再检查当前序号；成功后丢失响应的重试不会再次执行。
+      final existingQuery = database.select(database.executionEvents)
+        ..where((table) => table.id.equals(command.id));
+      final existing = await existingQuery.getSingleOrNull();
+      if (existing != null) {
+        final event = eventFromRow(existing);
+        final failures =
+            await (database.select(database.failureRecords)..where(
+                  (table) =>
+                      table.missionId.equals(event.missionId) &
+                      table.trigger.equals('USER_MARKED_NOT_COMPLETED'),
+                ))
+                .get();
+        final oldFailure = failures.isEmpty ? null : failures.single;
+        final needsFailure =
+            event.type == ExecutionEventType.end &&
+            event.userReportedResult == UserReportedResult.notCompleted;
+        if (event.missionId != command.missionId ||
+            event.type != command.type ||
+            event.sequence != command.expectedSequence + 1 ||
+            event.scheduleRevisionId != command.scheduleRevisionId ||
+            event.grantedDurationMinutes != command.grantedDurationMinutes ||
+            event.reason != reason ||
+            event.userReportedResult != command.userReportedResult ||
+            (needsFailure &&
+                (oldFailure == null ||
+                    oldFailure.userReasonCategory != category ||
+                    oldFailure.userReasonText != reasonText))) {
+          throw const ExecutionConflict('同一操作编号对应的输入不同，请刷新后重新操作');
+        }
+        return event;
+      }
+      final detail = await findDetail(command.missionId);
+      if (detail == null) throw const ExecutionConflict('任务已不存在，请刷新');
+      if (detail.mission.verificationPolicy != VerificationPolicy.selfReport) {
+        throw const ExecutionConflict('材料任务尚未开放执行，请先使用自报任务');
+      }
+      if (detail.lastSequence != command.expectedSequence) {
+        throw const ExecutionConflict('执行记录已变化，请刷新后重新操作');
+      }
+      if (command.type == ExecutionEventType.start &&
+          command.scheduleRevisionId != detail.schedule.id) {
+        throw const ExecutionConflict('排期已变化，请刷新并确认新计划后开始');
+      }
+      if (command.type == ExecutionEventType.start ||
+          command.type == ExecutionEventType.resume) {
+        final running = await findActive();
+        for (final other in running) {
+          if (other.mission.id != command.missionId &&
+              other.phase == MissionPhase.running) {
+            throw ExecutionConflict('“${other.mission.title}”正在执行，请先暂停或结束它');
+          }
+        }
+      }
+      // 已取得写锁、重读事实后才捕获时间，精度与持久化统一到毫秒。
+      final now = DateTime.fromMillisecondsSinceEpoch(
+        clock().toUtc().millisecondsSinceEpoch,
+        isUtc: true,
+      );
+      if (detail.events.isNotEmpty &&
+          now.isBefore(detail.events.last.occurredAt)) {
+        throw const ExecutionConflict('系统时间早于上一条记录，请校正系统时间后重试');
+      }
+      final event = ExecutionEvent(
+        id: command.id,
+        missionId: command.missionId,
+        sequence: command.expectedSequence + 1,
+        type: command.type,
+        occurredAt: now,
+        scheduleRevisionId: command.scheduleRevisionId,
+        grantedDurationMinutes: command.grantedDurationMinutes,
+        reason: reason,
+        userReportedResult: command.userReportedResult,
+      );
+      // 复用已有唯一推演核心；非法 START/END、取消后开始等均不能写入。
+      validateExecutionHistory(detail.mission, [...detail.events, event]);
+      await database
+          .into(database.executionEvents)
+          .insert(eventToCompanion(event));
+      if (event.type == ExecutionEventType.end &&
+          event.userReportedResult == UserReportedResult.notCompleted) {
+        await database
+            .into(database.failureRecords)
+            .insert(
+              FailureRecordsCompanion.insert(
+                id: '${event.id}:failure',
+                missionId: event.missionId,
+                trigger: 'USER_MARKED_NOT_COMPLETED',
+                occurredAt: now.millisecondsSinceEpoch,
+                createdAt: now.millisecondsSinceEpoch,
+                userReasonCategory: Value(category),
+                userReasonText: Value(reasonText),
+              ),
+            );
+      }
+      return event;
+    });
+  }
+
+  @override
+  Future<List<MissionDetail>> findActive() => _findByExecution(ended: false);
+
+  @override
+  Future<List<MissionDetail>> findFinished() => _findByExecution(ended: true);
+
+  @override
+  Future<List<MissionDetail>> findCancelled() => database.transaction(() async {
+    final rows =
+        await (database.select(database.missions)
+              ..where((row) => row.cancelledAt.isNotNull())
+              ..orderBy([
+                (row) => OrderingTerm.desc(row.cancelledAt),
+                (row) => OrderingTerm.asc(row.id),
+              ]))
+            .get();
+    final result = <MissionDetail>[];
+    for (final row in rows) {
+      final detail = await findDetail(row.id);
+      if (detail == null) throw const FormatException('取消记录所属任务缺失');
+      result.add(detail);
+    }
+    return result;
+  });
+
+  Future<List<MissionDetail>> _findByExecution({required bool ended}) {
+    return database.transaction(() async {
+      final rows = await database
+          .customSelect(
+            "SELECT DISTINCT mission_id FROM execution_events WHERE type = 'START' AND mission_id ${ended ? 'IN' : 'NOT IN'} (SELECT mission_id FROM execution_events WHERE type = 'END')",
+            readsFrom: {database.executionEvents},
+          )
+          .get();
+      final details = <MissionDetail>[];
+      for (final row in rows) {
+        final detail = await findDetail(row.read<String>('mission_id'));
+        if (detail == null) throw const FormatException('执行事件所属任务缺失');
+        details.add(detail);
+      }
+      details.sort((a, b) {
+        if (!ended && a.phase != b.phase) {
+          return a.phase == MissionPhase.running ? -1 : 1;
+        }
+        final timeOrder = b.events.last.occurredAt.compareTo(
+          a.events.last.occurredAt,
+        );
+        return timeOrder != 0
+            ? timeOrder
+            : a.mission.id.compareTo(b.mission.id);
+      });
+      return details;
+    });
+  }
 
   @override
   Future<void> edit({
@@ -201,6 +407,7 @@ class DriftMissionRepository implements MissionRepository {
       throw ArgumentError('任务编号、名称、具体目标或排期关联无效');
     }
     await database.transaction(() async {
+      await _acquireWrite(missionId);
       // 重读的是事务内最新快照，不能依靠编辑页打开时的状态放行。
       final current = await findDetail(missionId);
       if (current == null) {
@@ -212,7 +419,9 @@ class DriftMissionRepository implements MissionRepository {
       if (current.mission.verificationPolicy != VerificationPolicy.selfReport) {
         throw const MissionEditConflict('任务完成方式已变化，请返回详情刷新');
       }
-      // 当前还没有执行事件；U08/U09 接入 START 时须在此事务内补齐未开始校验。
+      if (current.events.isNotEmpty) {
+        throw const MissionEditConflict('任务已经开始，不能再修改任务与排期');
+      }
       final scheduleChanged = !_sameSchedule(current.schedule, schedule);
       final titleChanged = current.mission.title != title;
       final objectiveChanged = current.executionPlan.objective != objective;
@@ -281,6 +490,7 @@ class DriftMissionRepository implements MissionRepository {
 
     // 页面展示的是旧快照；在同一写事务内重读，再决定是否修改。
     await database.transaction(() async {
+      await _acquireWrite(missionId);
       final missions = database.missions;
       final query = database.select(missions);
       query.where((table) => table.id.equals(missionId));
@@ -291,8 +501,14 @@ class DriftMissionRepository implements MissionRepository {
       // 重复请求不覆盖第一次取消的时间，也不更新 updatedAt。
       if (row.cancelledAt != null) return;
 
-      // 当前只有任务、排期和方案三表，没有 START 事实。
-      // U08/U09 接入执行事件后，须在此事务内检查任务尚未开始。
+      final events =
+          await (database.select(database.executionEvents)
+                ..where((table) => table.missionId.equals(missionId))
+                ..limit(1))
+              .get();
+      if (events.isNotEmpty) {
+        throw const ExecutionConflict('任务已经开始，请通过结束报告选择未完成');
+      }
       final now = DateTime.now().toUtc().millisecondsSinceEpoch;
       final update = database.update(missions);
       update.where(
@@ -310,98 +526,127 @@ class DriftMissionRepository implements MissionRepository {
 
   @override
   Future<MissionDetail?> findDetail(String missionId) async {
-    final missions = database.missions;
-    final schedules = database.missionScheduleRevisions;
-    final plans = database.executionPlans;
+    return database.transaction(() async {
+      final missions = database.missions;
+      final schedules = database.missionScheduleRevisions;
+      final plans = database.executionPlans;
 
-    // MissionService.findDetail 传来任务编号。关联三表后按排期版本倒序，只取最新的一条。
-    // leftOuterJoin 会保留任务本身，即使它缺少排期/方案，也能与“任务不存在”区分。
-    final query = database.select(missions).join([
-      leftOuterJoin(schedules, schedules.missionId.equalsExp(missions.id)),
-      leftOuterJoin(plans, plans.missionId.equalsExp(missions.id)),
-    ]);
-    query.where(missions.id.equals(missionId));
-    query.orderBy([OrderingTerm.desc(schedules.revisionNumber)]);
-    query.limit(1);
+      // MissionService.findDetail 传来任务编号。关联三表后按排期版本倒序，只取最新的一条。
+      // leftOuterJoin 会保留任务本身，即使它缺少排期/方案，也能与“任务不存在”区分。
+      final query = database.select(missions).join([
+        leftOuterJoin(schedules, schedules.missionId.equalsExp(missions.id)),
+        leftOuterJoin(plans, plans.missionId.equalsExp(missions.id)),
+      ]);
+      query.where(missions.id.equals(missionId));
+      query.orderBy([OrderingTerm.desc(schedules.revisionNumber)]);
+      query.limit(1);
 
-    // 到这里才执行 SQL；同一条语句读取三表，避免分开读时混入不同次修改的结果。
-    final row = await query.getSingleOrNull();
-    if (row == null) return null;
+      // 到这里才执行 SQL；同一条语句读取三表，避免分开读时混入不同次修改的结果。
+      final row = await query.getSingleOrNull();
+      if (row == null) return null;
 
-    final scheduleRow = row.readTableOrNull(schedules);
-    final planRow = row.readTableOrNull(plans);
-    if (scheduleRow == null || planRow == null) {
-      throw const FormatException('任务缺少排期或执行方案');
-    }
+      final scheduleRow = row.readTableOrNull(schedules);
+      final planRow = row.readTableOrNull(plans);
+      if (scheduleRow == null || planRow == null) {
+        throw const FormatException('任务缺少排期或执行方案');
+      }
 
-    // 数据库行只在 data 层使用；页面最终收到的是三个已有业务对象的组合。
-    return MissionDetail(
-      mission: missionFromRow(row.readTable(missions)),
-      schedule: scheduleFromRow(scheduleRow),
-      executionPlan: executionPlanFromRow(planRow),
-    );
+      // 数据库行只在 data 层使用；页面最终收到的是三个已有业务对象的组合。
+      final events =
+          await (database.select(database.executionEvents)
+                ..where((table) => table.missionId.equals(missionId))
+                ..orderBy([(table) => OrderingTerm.asc(table.sequence)]))
+              .get();
+      final failures = await (database.select(
+        database.failureRecords,
+      )..where((table) => table.missionId.equals(missionId))).get();
+      final mission = missionFromRow(row.readTable(missions));
+      final history = List<ExecutionEvent>.unmodifiable(
+        events.map(eventFromRow),
+      );
+      final failureFacts = List<FailureRecord>.unmodifiable(
+        failures.map(failureFromRow),
+      );
+      // 查询中的坏历史在 Future 内报错，由页面显示读取失败，不等到排版时崩溃。
+      deriveSelfReportMissionPhase(mission, history, failureFacts);
+      return MissionDetail(
+        mission: mission,
+        schedule: scheduleFromRow(scheduleRow),
+        executionPlan: executionPlanFromRow(planRow),
+        events: history,
+        failures: failureFacts,
+      );
+    });
   }
 
   @override
   // 调用者：MissionService.findScheduledOn。
   // 输入：计划日期。过程：关联 → 筛选 → 排序 → 执行 → 转换。输出：业务列表。
   Future<List<ScheduledMission>> findScheduledOn(String scheduledDate) async {
-    // 1. 指定要读取的两张表，并说明它们通过任务编号关联。
-    // 这一步构造查询对象，尚未执行 SQL。
-    final missions = database.missions;
-    final schedules = database.missionScheduleRevisions;
-    final query = database.select(missions).join([
-      innerJoin(schedules, schedules.missionId.equalsExp(missions.id)),
-    ]);
+    return database.transaction(() async {
+      // 1. 指定要读取的两张表，并说明它们通过任务编号关联。
+      // 这一步构造查询对象，尚未执行 SQL。
+      final missions = database.missions;
+      final schedules = database.missionScheduleRevisions;
+      final query = database.select(missions).join([
+        innerJoin(schedules, schedules.missionId.equalsExp(missions.id)),
+      ]);
 
-    // 2. 筛选当前排期与所选日期。
-    // history 是排期表的别名；子查询针对当前任务找最大版本，不限制日期。
-    final history = database.alias(schedules, 'schedule_history');
-    final latestVersionForMission = database.selectOnly(history)
-      ..addColumns([history.revisionNumber.max()])
-      ..where(history.missionId.equalsExp(missions.id));
-    final isLatestSchedule = schedules.revisionNumber.equalsExp(
-      subqueryExpression<int>(latestVersionForMission),
-    );
-    final isSelectedDate = schedules.scheduledDate.equals(scheduledDate);
-    query.where(isLatestSchedule & isSelectedDate);
+      // 2. 筛选当前排期与所选日期。
+      // history 是排期表的别名；子查询针对当前任务找最大版本，不限制日期。
+      final history = database.alias(schedules, 'schedule_history');
+      final latestVersionForMission = database.selectOnly(history)
+        ..addColumns([history.revisionNumber.max()])
+        ..where(history.missionId.equalsExp(missions.id));
+      final isLatestSchedule = schedules.revisionNumber.equalsExp(
+        subqueryExpression<int>(latestVersionForMission),
+      );
+      final isSelectedDate = schedules.scheduledDate.equals(scheduledDate);
+      query.where(isLatestSchedule & isSelectedDate);
 
-    // 3. 固定任务先排，自选随后；两类分别使用各自的时间字段，再按 id 稳定排序。
-    // caseMatch 将这条条件表达成 SQL 的 CASE；此时仍在描述查询规则。
-    final fixedBeforeFlexible = schedules.timePolicy.caseMatch<int>(
-      when: {const Constant('FIXED'): const Constant(0)},
-      orElse: const Constant(1),
-    );
-    final timeWithinGroup = schedules.timePolicy.caseMatch<int>(
-      when: {const Constant('FIXED'): schedules.fixedStartAt},
-      orElse: missions.createdAt,
-    );
-    query.orderBy([
-      OrderingTerm.asc(fixedBeforeFlexible),
-      OrderingTerm.asc(timeWithinGroup),
-      OrderingTerm.asc(missions.id),
-    ]);
+      // 3. 固定任务先排，自选随后；两类分别使用各自的时间字段，再按 id 稳定排序。
+      // caseMatch 将这条条件表达成 SQL 的 CASE；此时仍在描述查询规则。
+      final fixedBeforeFlexible = schedules.timePolicy.caseMatch<int>(
+        when: {const Constant('FIXED'): const Constant(0)},
+        orElse: const Constant(1),
+      );
+      final timeWithinGroup = schedules.timePolicy.caseMatch<int>(
+        when: {const Constant('FIXED'): schedules.fixedStartAt},
+        orElse: missions.createdAt,
+      );
+      query.orderBy([
+        OrderingTerm.asc(fixedBeforeFlexible),
+        OrderingTerm.asc(timeWithinGroup),
+        OrderingTerm.asc(missions.id),
+      ]);
 
-    // 4. get() 才真正执行一次 SQL。await 完成后，rows 是 List<TypedResult>。
-    // 每个 TypedResult 同时带着关联到的任务行和排期行。
-    final rows = await query.get();
+      // 4. get() 才真正执行一次 SQL。await 完成后，rows 是 List<TypedResult>。
+      // 每个 TypedResult 同时带着关联到的任务行和排期行。
+      final rows = await query.get();
 
-    // 5. 逐条转换：关联结果 → 两张表的行对象 → 两个业务对象 → 一项列表数据。
-    final result = <ScheduledMission>[];
-    for (final row in rows) {
-      final missionRow = row.readTable(missions); // MissionRow
-      final scheduleRow = row.readTable(
-        schedules,
-      ); // MissionScheduleRevisionRow
+      // 5. 逐条转换：关联结果 → 两张表的行对象 → 两个业务对象 → 一项列表数据。
+      final result = <ScheduledMission>[];
+      for (final row in rows) {
+        final missionRow = row.readTable(missions); // MissionRow
+        final scheduleRow = row.readTable(
+          schedules,
+        ); // MissionScheduleRevisionRow
 
-      final mission = missionFromRow(missionRow); // 用户已有的反向转换函数
-      final schedule = scheduleFromRow(scheduleRow);
-      final item = ScheduledMission(mission: mission, schedule: schedule);
-      result.add(item);
-    }
+        final mission = missionFromRow(missionRow); // 用户已有的反向转换函数
+        final schedule = scheduleFromRow(scheduleRow);
+        final detail = await findDetail(mission.id);
+        final item = ScheduledMission(
+          mission: mission,
+          schedule: schedule,
+          phase: detail!.phase,
+          events: detail.events,
+        );
+        result.add(item);
+      }
 
-    // 6. 交回查询业务入口，再由它把同一份列表交给今天页。
-    return result;
+      // 6. 交回查询业务入口，再由它把同一份列表交给今天页。
+      return result;
+    });
   }
 
   @override
@@ -426,11 +671,23 @@ class DriftMissionRepository implements MissionRepository {
     if (mission.cancelledAt != null) {
       throw ArgumentError('新任务不能已经取消');
     }
+    if ((mission.sourceMissionId == null) != (mission.relationType == null) ||
+        mission.sourceMissionId == mission.id) {
+      throw ArgumentError('再次尝试必须关联另一个来源任务');
+    }
 
     // 把下面的函数交给 Drift，由它在事务中执行。
     // 外层 await 等待整个事务完成。
     // 三次写入全部成功才提交，任意一次失败就一起回滚。
     await database.transaction(() async {
+      if (mission.sourceMissionId != null) {
+        final source = await findDetail(mission.sourceMissionId!);
+        if (source == null ||
+            (source.phase != MissionPhase.closed &&
+                source.phase != MissionPhase.cancelled)) {
+          throw ArgumentError('只能从已结束或已取消任务创建再次尝试');
+        }
+      }
       // into 指定写入任务表。
       // 转换函数返回 Companion 对象，insert 接收它并执行写入。
       // await 等待任务保存完成，再继续保存引用它的排期。

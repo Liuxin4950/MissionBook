@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -5,6 +6,8 @@ import '../../application/missions/mission_service.dart';
 import '../../core/theme/app_layout.dart';
 import '../missions/mission_form_page.dart';
 import '../missions/mission_detail_page.dart';
+import '../missions/mission_live_status.dart';
+import '../missions/mission_phase_display.dart';
 import 'today_display.dart' as display;
 import 'schedule_section.dart';
 
@@ -44,7 +47,7 @@ class TodayPage extends StatefulWidget {
   State<TodayPage> createState() => _TodayPageState();
 }
 
-class _TodayPageState extends State<TodayPage> {
+class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   DateTime get _today => tz.TZDateTime.from(
     widget.clock(),
     tz.getLocation(display.todayScheduleTimeZone),
@@ -62,11 +65,13 @@ class _TodayPageState extends State<TodayPage> {
   bool _isOpeningDetail = false;
   bool _isPickingDate = false;
   bool _isOpeningSchedules = false;
+  StreamSubscription<void>? _changes;
 
   // 入口一：Flutter 创建 State 后调用一次，默认选择上海日历的今天并读取。
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _selectedDate = DateUtils.dateOnly(
       widget.initialDate ??
           tz.TZDateTime.from(
@@ -75,6 +80,35 @@ class _TodayPageState extends State<TodayPage> {
           ),
     );
     _loadMissions();
+    // 本页自己打开的创建/详情在返回时已有刷新；其他入口提交后再主动重读。
+    _changes = widget.missionService.changes.listen((_) {
+      if (!_isOpeningCreate && !_isOpeningDetail) unawaited(_loadMissions());
+    });
+  }
+
+  @override
+  void dispose() {
+    unawaited(_changes?.cancel());
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant TodayPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.missionService != widget.missionService) {
+      unawaited(_changes?.cancel());
+      _changes = widget.missionService.changes.listen((_) {
+        if (!_isOpeningCreate && !_isOpeningDetail) unawaited(_loadMissions());
+      });
+      unawaited(_loadMissions());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 从后台回来重读事实；时钟恢复与任务是否暂停是两件不同的事。
+    if (state == AppLifecycleState.resumed) unawaited(_loadMissions());
   }
 
   // 统一加载过程。调用者：initState、下拉刷新、切日期、错误重试、新建/详情页返回。
@@ -504,6 +538,7 @@ class _FlexibleMissionRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: _MissionDetailLink(
         label: _missionSemanticsLabel(item),
+        hint: missionOpenLabel(item.phase),
         onTap: onTap,
         // 留白放在点击容器内部，悬停、按下和键盘焦点的底色都会包住留白。
         // 外层 bottom: 8 只负责行间距，不能替代背景与图标/文字之间的距离。
@@ -549,11 +584,13 @@ class _FlexibleMissionRow extends StatelessWidget {
 class _MissionDetailLink extends StatelessWidget {
   const _MissionDetailLink({
     required this.label,
+    required this.hint,
     required this.onTap,
     required this.child,
   });
 
   final String label;
+  final String hint;
   final VoidCallback onTap;
   final Widget child;
 
@@ -563,7 +600,7 @@ class _MissionDetailLink extends StatelessWidget {
       container: true,
       excludeSemantics: true,
       label: label,
-      hint: '查看任务详情',
+      hint: hint,
       button: true,
       onTap: onTap,
       child: Material(
@@ -605,6 +642,12 @@ class _MissionDetails extends StatelessWidget {
         ),
         SizedBox(height: compact ? 2 : 4),
         Text(item.durationLabel, style: _todayMetadataStyle(context)),
+        if (item.events.isNotEmpty)
+          MissionLiveStatus(
+            phase: item.phase,
+            events: item.events,
+            includePhase: false,
+          ),
         if (item.timeZoneLabel != null)
           Text(item.timeZoneLabel!, style: theme.textTheme.bodySmall),
       ],

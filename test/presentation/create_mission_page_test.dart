@@ -1,3 +1,5 @@
+import 'package:mission_book/domain/entities/execution_command.dart';
+import 'package:mission_book/domain/entities/execution_event.dart';
 import 'dart:async';
 import 'dart:ui' show SemanticsAction;
 
@@ -16,6 +18,16 @@ import 'package:timezone/timezone.dart' as tz;
 
 // 用可控制完成时机的仓储替代磁盘，验证页面确实等待业务保存结果。
 class PendingRepository implements MissionRepository {
+  @override
+  Future<ExecutionEvent> execute(ExecutionCommand command) =>
+      throw UnsupportedError('本替身不执行任务');
+  @override
+  Future<List<MissionDetail>> findActive() async => [];
+  @override
+  Future<List<MissionDetail>> findFinished() async => [];
+  @override
+  Future<List<MissionDetail>> findCancelled() async => [];
+
   @override
   Future<void> edit({
     required MissionDetail original,

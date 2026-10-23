@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:uuid/uuid.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -8,8 +9,10 @@ import '../../domain/entities/execution_plan.dart';
 import '../../domain/repositories/mission_repository.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../../domain/entities/mission_detail.dart';
+import '../../domain/entities/execution_command.dart';
+import '../../domain/entities/execution_event.dart';
 
-/// 任务的应用业务入口：组织创建、查询、编辑和取消。
+/// 任务的应用业务入口：组织创建、查询、编辑、取消和执行。
 ///
 /// App 只创建一个 MissionService，页面通过方法名选择要做的事。
 /// 本类负责输入检查与业务对象组织；SQL、行转换和事务保存仍由仓储完成。
@@ -25,6 +28,58 @@ class MissionService {
 
   // 创建一个编号生成器，后面用 v4() 生成唯一编号。
   final Uuid uuid = const Uuid();
+  // 只广播“已提交，需要重读”，不广播可写状态或替代数据库事实。
+  final _changes = StreamController<void>.broadcast();
+  // 仅用于合并同一次提交引起的重复刷新，不是任务阶段、事件序号或数据库版本。
+  // 先增加再通知，页面便能识别“本次查询已经在这次提交之后发起”。
+  int _changeRevision = 0;
+  int get changeRevision => _changeRevision;
+  Stream<void> get changes => _changes.stream;
+  Future<void> dispose() => _changes.close();
+  void _notify() {
+    if (!_changes.isClosed) {
+      _changeRevision++;
+      _changes.add(null);
+    }
+  }
+
+  /// 用页面读到的详情固定本次动作身份与旧序号；这里只准备意图，不写数据库。
+  /// 同一次操作失败后复用返回的命令，不能重新生成编号后盲目再发一次。
+  ExecutionCommand prepareExecution({
+    required MissionDetail detail,
+    required ExecutionEventType type,
+    int? minutes,
+    String? reason,
+    UserReportedResult? report,
+    String? userReasonCategory,
+    String? userReasonText,
+  }) {
+    return ExecutionCommand(
+      id: uuid.v4(),
+      missionId: detail.mission.id,
+      expectedSequence: detail.lastSequence,
+      type: type,
+      scheduleRevisionId: type == ExecutionEventType.start
+          ? detail.schedule.id
+          : null,
+      grantedDurationMinutes: minutes,
+      reason: reason,
+      userReportedResult: report,
+      userReasonCategory: userReasonCategory,
+      userReasonText: userReasonText,
+    );
+  }
+
+  /// 等仓储事务提交后再通知页面重读；真正的事件时刻、序号由写事务确定。
+  Future<ExecutionEvent> execute(ExecutionCommand command) async {
+    final event = await repository.execute(command);
+    _notify();
+    return event;
+  }
+
+  Future<List<MissionDetail>> findActive() => repository.findActive();
+  Future<List<MissionDetail>> findFinished() => repository.findFinished();
+  Future<List<MissionDetail>> findCancelled() => repository.findCancelled();
 
   /// 编辑当前已接通的独立自报任务；原快照用于事务内的冲突检查。
   /// 页面只提供可编辑值，不能改任务身份、验证策略或已有执行事实。
@@ -73,6 +128,7 @@ class MissionService {
       objective: cleanObjective,
       schedule: proposedSchedule,
     );
+    _notify();
   }
 
   // 创建和编辑共用输入规则；时区与固定时刻在同一个入口校验。
@@ -116,6 +172,7 @@ class MissionService {
     }
     // 不使用页面之前读到的状态判断是否已取消；由仓储重读最新事实。
     await repository.cancel(missionId);
+    _notify();
   }
 
   /// 创建独立、自报任务；默认自选时间，也可指定固定开始时刻。
@@ -131,12 +188,21 @@ class MissionService {
     required int plannedDurationMinutes,
     TimePolicy timePolicy = TimePolicy.flexible,
     DateTime? fixedStartAt,
+    MissionDetail? retrySource,
+    String? objective,
   }) async {
     // trim 去掉标题首尾空白；全是空格也算没填写。
     final cleanTitle = title.trim();
+    final cleanObjective = (objective ?? cleanTitle).trim();
 
     if (cleanTitle.isEmpty) {
       throw ArgumentError('任务标题不能为空');
+    }
+    if (cleanObjective.isEmpty) throw ArgumentError('具体目标不能为空');
+    if (retrySource != null &&
+        retrySource.mission.verificationPolicy !=
+            VerificationPolicy.selfReport) {
+      throw ArgumentError('当前只支持再次尝试自报任务');
     }
 
     _validateSchedule(
@@ -155,6 +221,10 @@ class MissionService {
     final mission = Mission(
       id: missionId,
       title: cleanTitle,
+      description: retrySource?.mission.description,
+      why: retrySource?.mission.why,
+      sourceMissionId: retrySource?.mission.id,
+      relationType: retrySource == null ? null : MissionRelationType.retry,
       verificationPolicy: VerificationPolicy.selfReport,
       createdAt: now,
       updatedAt: now,
@@ -175,7 +245,10 @@ class MissionService {
     final plan = ExecutionPlan(
       id: uuid.v4(), // 方案也有自己的编号。
       missionId: missionId,
-      objective: cleanTitle, // 默认用任务标题作为具体目标。
+      objective: cleanObjective, // 普通创建默认标题；再次尝试允许调整具体目标。
+      steps: retrySource?.executionPlan.steps ?? const [],
+      verificationCriteria: retrySource?.executionPlan.verificationCriteria,
+      notes: retrySource?.executionPlan.notes,
       createdAt: now,
       updatedAt: now,
     );
@@ -187,6 +260,7 @@ class MissionService {
       initialSchedule: schedule,
       executionPlan: plan,
     );
+    _notify();
   }
 
   /// 检查 YYYY-MM-DD 日历日期，返回按仓储约定排序的查询结果。

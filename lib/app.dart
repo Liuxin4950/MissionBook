@@ -21,7 +21,7 @@ class _AppState extends State<App> {
   // late 表示这些属性稍后初始化。
   // final 表示初始化后不再换成另一个对象。
   late final AppDatabase _database; // 定义数据库连接器
-  late final MissionService _missionService;// 业务操作对象
+  late final MissionService _missionService; // 业务操作对象
 
   @override
   void initState() {
@@ -55,6 +55,7 @@ class _AppState extends State<App> {
     // Flutter 移除这个 State 时调用 dispose。
     // close 返回 Future，但 dispose 不能等待异步完成；
     // unawaited 明确表示在这里发起关闭，不等待它。
+    unawaited(_missionService.dispose());
     unawaited(_database.close());
     super.dispose();
   }

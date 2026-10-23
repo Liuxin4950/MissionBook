@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'presentation/today/today_page.dart';
 import 'application/missions/mission_service.dart';
 import 'core/theme/colors.dart';
+import 'presentation/missions/active_missions_bar.dart';
+import 'presentation/missions/mission_history_page.dart';
 
 /// 管理四个顶层导航入口，并保留各页状态、转交共享业务对象。
 class AppShell extends StatefulWidget {
@@ -33,7 +35,7 @@ class _AppShellState extends State<AppShell> {
     final pages = <Widget>[
       TodayPage(missionService: widget.missionService),
       Center(child: Text('目标页面')),
-      Center(child: Text('历史页面')),
+      MissionHistoryPage(service: widget.missionService),
       Center(child: Text('我的页面')),
     ];
     return Scaffold(
@@ -47,7 +49,13 @@ class _AppShellState extends State<AppShell> {
             ), // 只在选中时才启动动画
         ],
       ),
-      bottomNavigationBar: _buildNavigationBar(),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ActiveMissionsBar(service: widget.missionService),
+          _buildNavigationBar(),
+        ],
+      ),
     );
   }
 

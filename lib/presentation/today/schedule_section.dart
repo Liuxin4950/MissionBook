@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import 'today_display.dart' as display;
+import '../../domain/entities/mission_phase.dart';
+import '../missions/mission_phase_display.dart';
+import '../missions/mission_live_status.dart';
 
 /// 首页窗口和当日完整列表共用一份日程布局；时钟只影响展示，不写执行事实。
 class ScheduleSection extends StatefulWidget {
@@ -273,13 +276,17 @@ class ScheduleMissionRow extends StatelessWidget {
             Duration(minutes: item.plannedDurationMinutes),
           ),
         );
-    final status = item.isCancelled
+    final planStatus = item.isCancelled
         ? '已取消'
         : current
         ? '当前时段'
         : elapsed
         ? '时段已过'
         : '待到时';
+    // 计划时段只是排期；有执行事实后优先呈现真实执行阶段。
+    final status = item.phase == MissionPhase.notStarted
+        ? planStatus
+        : phaseLabel(item.phase);
     final label = [
       if (current) '当前计划时段',
       item.startTime,
@@ -292,7 +299,7 @@ class ScheduleMissionRow extends StatelessWidget {
       excludeSemantics: true,
       button: true,
       label: label,
-      hint: '$status，查看任务详情',
+      hint: '$status，${missionOpenLabel(item.phase)}',
       onTap: onTap,
       child: AnimatedContainer(
         duration: _motionDuration(context),
@@ -403,6 +410,15 @@ class ScheduleMissionRow extends StatelessWidget {
                                       style: theme.textTheme.bodySmall,
                                     ),
                                 ],
+                              ),
+                            ),
+                          if (item.events.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: MissionLiveStatus(
+                                phase: item.phase,
+                                events: item.events,
+                                includePhase: false,
                               ),
                             ),
                           if (current) ...[

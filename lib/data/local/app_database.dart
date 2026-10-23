@@ -6,15 +6,22 @@ import 'package:path_provider/path_provider.dart';
 
 import 'tables/execution_plans.dart';
 import 'tables/execution_events.dart';
+import 'tables/failure_records.dart';
 import 'tables/mission_schedule_revisions.dart';
 import 'tables/missions.dart';
 
 part 'app_database.g.dart';
 
 /// 按平台连接原生 SQLite 或浏览器存储，表结构与事务规则共用。
-// 注册已有三表与 U08 新增的执行事件表。
+// 注册任务、排期、方案、执行事件和失败事实五张表。
 @DriftDatabase(
-  tables: [Missions, MissionScheduleRevisions, ExecutionPlans, ExecutionEvents],
+  tables: [
+    Missions,
+    MissionScheduleRevisions,
+    ExecutionPlans,
+    ExecutionEvents,
+    FailureRecords,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   // 正常按平台选择存储；测试时可传入独立连接，不访问用户数据库。
@@ -46,25 +53,31 @@ class AppDatabase extends _$AppDatabase {
             ),
       );
 
-  // v1 已有任务、排期和方案；v2 追加事件表，不重建旧表。
+  // v2 追加执行事件、v3 追加失败事实、v4 增加真实重试来源，不重建旧表。
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    // 首次安装沿用默认 onCreate：Drift 创建全部四表与声明的索引。
+    // 首次安装沿用默认 onCreate：Drift 创建全部五表与声明的索引。
     // 已有库版本不同时，Drift 调用此回调，并传入旧版本 from 和目标版本 to。
     onUpgrade: (migrator, from, to) async {
-      if (from != 1 || to != 2) {
+      if (from < 1 || from > 3 || to != 4) {
         // 不认识的版本明确失败，保留原库；不能用删库掩盖升级问题。
         throw StateError('不支持数据库从 v$from 升级或降级到 v$to');
       }
-      // transaction 等待三步全部成功才提交，异常时一起回滚。
+      // transaction 等待全部结构变更和版本标记成功才提交，异常时一起回滚。
       // createTable 只建表，不会自动建立 @TableIndex 声明的独立索引。
       await transaction(() async {
-        await migrator.createTable(executionEvents);
-        await migrator.createIndex(executionEventsOneStart);
-        await migrator.createIndex(executionEventsOneEnd);
+        if (from < 2) {
+          await migrator.createTable(executionEvents);
+          await migrator.createIndex(executionEventsOneStart);
+          await migrator.createIndex(executionEventsOneEnd);
+        }
+        // v3 新增失败记录；v1 可以一次补齐到 v3，v2 只追加这张表。
+        if (from < 3) await migrator.createTable(failureRecords);
+        await migrator.addColumn(missions, missions.sourceMissionId);
+        await migrator.addColumn(missions, missions.relationType);
         // Drift 默认在全部开库回调完成后才记版本。把标记与结构一起提交，
         // 避免结构已建好、后续开库中断后，重开仍按 v1 重复创建索引。
         // to 是 Drift 传入且已在上面确认的目标版本，不来自用户输入。

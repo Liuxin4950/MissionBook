@@ -92,6 +92,33 @@ class $MissionsTable extends Missions
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sourceMissionIdMeta = const VerificationMeta(
+    'sourceMissionId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceMissionId = GeneratedColumn<String>(
+    'source_mission_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES missions (id)',
+    ),
+  );
+  static const VerificationMeta _relationTypeMeta = const VerificationMeta(
+    'relationType',
+  );
+  @override
+  late final GeneratedColumn<String> relationType = GeneratedColumn<String>(
+    'relation_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'NULL CHECK (relation_type IS NULL OR relation_type = \'RETRY\')',
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -102,6 +129,8 @@ class $MissionsTable extends Missions
     createdAt,
     updatedAt,
     cancelledAt,
+    sourceMissionId,
+    relationType,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -177,6 +206,24 @@ class $MissionsTable extends Missions
         ),
       );
     }
+    if (data.containsKey('source_mission_id')) {
+      context.handle(
+        _sourceMissionIdMeta,
+        sourceMissionId.isAcceptableOrUnknown(
+          data['source_mission_id']!,
+          _sourceMissionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('relation_type')) {
+      context.handle(
+        _relationTypeMeta,
+        relationType.isAcceptableOrUnknown(
+          data['relation_type']!,
+          _relationTypeMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -218,6 +265,14 @@ class $MissionsTable extends Missions
         DriftSqlType.int,
         data['${effectivePrefix}cancelled_at'],
       ),
+      sourceMissionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_mission_id'],
+      ),
+      relationType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}relation_type'],
+      ),
     );
   }
 
@@ -236,6 +291,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
   final int createdAt;
   final int updatedAt;
   final int? cancelledAt;
+  final String? sourceMissionId;
+  final String? relationType;
   const MissionRow({
     required this.id,
     required this.title,
@@ -245,6 +302,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     required this.createdAt,
     required this.updatedAt,
     this.cancelledAt,
+    this.sourceMissionId,
+    this.relationType,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -263,6 +322,12 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     if (!nullToAbsent || cancelledAt != null) {
       map['cancelled_at'] = Variable<int>(cancelledAt);
     }
+    if (!nullToAbsent || sourceMissionId != null) {
+      map['source_mission_id'] = Variable<String>(sourceMissionId);
+    }
+    if (!nullToAbsent || relationType != null) {
+      map['relation_type'] = Variable<String>(relationType);
+    }
     return map;
   }
 
@@ -280,6 +345,12 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       cancelledAt: cancelledAt == null && nullToAbsent
           ? const Value.absent()
           : Value(cancelledAt),
+      sourceMissionId: sourceMissionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceMissionId),
+      relationType: relationType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(relationType),
     );
   }
 
@@ -299,6 +370,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
       cancelledAt: serializer.fromJson<int?>(json['cancelledAt']),
+      sourceMissionId: serializer.fromJson<String?>(json['sourceMissionId']),
+      relationType: serializer.fromJson<String?>(json['relationType']),
     );
   }
   @override
@@ -313,6 +386,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
       'cancelledAt': serializer.toJson<int?>(cancelledAt),
+      'sourceMissionId': serializer.toJson<String?>(sourceMissionId),
+      'relationType': serializer.toJson<String?>(relationType),
     };
   }
 
@@ -325,6 +400,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     int? createdAt,
     int? updatedAt,
     Value<int?> cancelledAt = const Value.absent(),
+    Value<String?> sourceMissionId = const Value.absent(),
+    Value<String?> relationType = const Value.absent(),
   }) => MissionRow(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -334,6 +411,10 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     cancelledAt: cancelledAt.present ? cancelledAt.value : this.cancelledAt,
+    sourceMissionId: sourceMissionId.present
+        ? sourceMissionId.value
+        : this.sourceMissionId,
+    relationType: relationType.present ? relationType.value : this.relationType,
   );
   MissionRow copyWithCompanion(MissionsCompanion data) {
     return MissionRow(
@@ -351,6 +432,12 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       cancelledAt: data.cancelledAt.present
           ? data.cancelledAt.value
           : this.cancelledAt,
+      sourceMissionId: data.sourceMissionId.present
+          ? data.sourceMissionId.value
+          : this.sourceMissionId,
+      relationType: data.relationType.present
+          ? data.relationType.value
+          : this.relationType,
     );
   }
 
@@ -364,7 +451,9 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
           ..write('verificationPolicy: $verificationPolicy, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('cancelledAt: $cancelledAt')
+          ..write('cancelledAt: $cancelledAt, ')
+          ..write('sourceMissionId: $sourceMissionId, ')
+          ..write('relationType: $relationType')
           ..write(')'))
         .toString();
   }
@@ -379,6 +468,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     createdAt,
     updatedAt,
     cancelledAt,
+    sourceMissionId,
+    relationType,
   );
   @override
   bool operator ==(Object other) =>
@@ -391,7 +482,9 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
           other.verificationPolicy == this.verificationPolicy &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
-          other.cancelledAt == this.cancelledAt);
+          other.cancelledAt == this.cancelledAt &&
+          other.sourceMissionId == this.sourceMissionId &&
+          other.relationType == this.relationType);
 }
 
 class MissionsCompanion extends UpdateCompanion<MissionRow> {
@@ -403,6 +496,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
   final Value<int> createdAt;
   final Value<int> updatedAt;
   final Value<int?> cancelledAt;
+  final Value<String?> sourceMissionId;
+  final Value<String?> relationType;
   final Value<int> rowid;
   const MissionsCompanion({
     this.id = const Value.absent(),
@@ -413,6 +508,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.cancelledAt = const Value.absent(),
+    this.sourceMissionId = const Value.absent(),
+    this.relationType = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MissionsCompanion.insert({
@@ -424,6 +521,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     required int createdAt,
     required int updatedAt,
     this.cancelledAt = const Value.absent(),
+    this.sourceMissionId = const Value.absent(),
+    this.relationType = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -438,6 +537,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
     Expression<int>? cancelledAt,
+    Expression<String>? sourceMissionId,
+    Expression<String>? relationType,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -449,6 +550,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (cancelledAt != null) 'cancelled_at': cancelledAt,
+      if (sourceMissionId != null) 'source_mission_id': sourceMissionId,
+      if (relationType != null) 'relation_type': relationType,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -462,6 +565,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     Value<int>? createdAt,
     Value<int>? updatedAt,
     Value<int?>? cancelledAt,
+    Value<String?>? sourceMissionId,
+    Value<String?>? relationType,
     Value<int>? rowid,
   }) {
     return MissionsCompanion(
@@ -473,6 +578,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       cancelledAt: cancelledAt ?? this.cancelledAt,
+      sourceMissionId: sourceMissionId ?? this.sourceMissionId,
+      relationType: relationType ?? this.relationType,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -504,6 +611,12 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     if (cancelledAt.present) {
       map['cancelled_at'] = Variable<int>(cancelledAt.value);
     }
+    if (sourceMissionId.present) {
+      map['source_mission_id'] = Variable<String>(sourceMissionId.value);
+    }
+    if (relationType.present) {
+      map['relation_type'] = Variable<String>(relationType.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -521,6 +634,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('cancelledAt: $cancelledAt, ')
+          ..write('sourceMissionId: $sourceMissionId, ')
+          ..write('relationType: $relationType, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2434,6 +2549,499 @@ class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
   }
 }
 
+class $FailureRecordsTable extends FailureRecords
+    with TableInfo<$FailureRecordsTable, FailureRecordRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FailureRecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _missionIdMeta = const VerificationMeta(
+    'missionId',
+  );
+  @override
+  late final GeneratedColumn<String> missionId = GeneratedColumn<String>(
+    'mission_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES missions (id)',
+    ),
+  );
+  static const VerificationMeta _triggerMeta = const VerificationMeta(
+    'trigger',
+  );
+  @override
+  late final GeneratedColumn<String> trigger = GeneratedColumn<String>(
+    'trigger',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
+    'occurredAt',
+  );
+  @override
+  late final GeneratedColumn<int> occurredAt = GeneratedColumn<int>(
+    'occurred_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userReasonCategoryMeta =
+      const VerificationMeta('userReasonCategory');
+  @override
+  late final GeneratedColumn<String> userReasonCategory =
+      GeneratedColumn<String>(
+        'user_reason_category',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _userReasonTextMeta = const VerificationMeta(
+    'userReasonText',
+  );
+  @override
+  late final GeneratedColumn<String> userReasonText = GeneratedColumn<String>(
+    'user_reason_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    missionId,
+    trigger,
+    occurredAt,
+    userReasonCategory,
+    userReasonText,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'failure_records';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FailureRecordRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('mission_id')) {
+      context.handle(
+        _missionIdMeta,
+        missionId.isAcceptableOrUnknown(data['mission_id']!, _missionIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_missionIdMeta);
+    }
+    if (data.containsKey('trigger')) {
+      context.handle(
+        _triggerMeta,
+        trigger.isAcceptableOrUnknown(data['trigger']!, _triggerMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_triggerMeta);
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+        _occurredAtMeta,
+        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    if (data.containsKey('user_reason_category')) {
+      context.handle(
+        _userReasonCategoryMeta,
+        userReasonCategory.isAcceptableOrUnknown(
+          data['user_reason_category']!,
+          _userReasonCategoryMeta,
+        ),
+      );
+    }
+    if (data.containsKey('user_reason_text')) {
+      context.handle(
+        _userReasonTextMeta,
+        userReasonText.isAcceptableOrUnknown(
+          data['user_reason_text']!,
+          _userReasonTextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {missionId, trigger},
+  ];
+  @override
+  FailureRecordRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FailureRecordRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      missionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mission_id'],
+      )!,
+      trigger: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trigger'],
+      )!,
+      occurredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}occurred_at'],
+      )!,
+      userReasonCategory: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_reason_category'],
+      ),
+      userReasonText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_reason_text'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $FailureRecordsTable createAlias(String alias) {
+    return $FailureRecordsTable(attachedDatabase, alias);
+  }
+}
+
+class FailureRecordRow extends DataClass
+    implements Insertable<FailureRecordRow> {
+  final String id;
+  final String missionId;
+  final String trigger;
+  final int occurredAt;
+  final String? userReasonCategory;
+  final String? userReasonText;
+  final int createdAt;
+  const FailureRecordRow({
+    required this.id,
+    required this.missionId,
+    required this.trigger,
+    required this.occurredAt,
+    this.userReasonCategory,
+    this.userReasonText,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['mission_id'] = Variable<String>(missionId);
+    map['trigger'] = Variable<String>(trigger);
+    map['occurred_at'] = Variable<int>(occurredAt);
+    if (!nullToAbsent || userReasonCategory != null) {
+      map['user_reason_category'] = Variable<String>(userReasonCategory);
+    }
+    if (!nullToAbsent || userReasonText != null) {
+      map['user_reason_text'] = Variable<String>(userReasonText);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  FailureRecordsCompanion toCompanion(bool nullToAbsent) {
+    return FailureRecordsCompanion(
+      id: Value(id),
+      missionId: Value(missionId),
+      trigger: Value(trigger),
+      occurredAt: Value(occurredAt),
+      userReasonCategory: userReasonCategory == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userReasonCategory),
+      userReasonText: userReasonText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userReasonText),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory FailureRecordRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FailureRecordRow(
+      id: serializer.fromJson<String>(json['id']),
+      missionId: serializer.fromJson<String>(json['missionId']),
+      trigger: serializer.fromJson<String>(json['trigger']),
+      occurredAt: serializer.fromJson<int>(json['occurredAt']),
+      userReasonCategory: serializer.fromJson<String?>(
+        json['userReasonCategory'],
+      ),
+      userReasonText: serializer.fromJson<String?>(json['userReasonText']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'missionId': serializer.toJson<String>(missionId),
+      'trigger': serializer.toJson<String>(trigger),
+      'occurredAt': serializer.toJson<int>(occurredAt),
+      'userReasonCategory': serializer.toJson<String?>(userReasonCategory),
+      'userReasonText': serializer.toJson<String?>(userReasonText),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  FailureRecordRow copyWith({
+    String? id,
+    String? missionId,
+    String? trigger,
+    int? occurredAt,
+    Value<String?> userReasonCategory = const Value.absent(),
+    Value<String?> userReasonText = const Value.absent(),
+    int? createdAt,
+  }) => FailureRecordRow(
+    id: id ?? this.id,
+    missionId: missionId ?? this.missionId,
+    trigger: trigger ?? this.trigger,
+    occurredAt: occurredAt ?? this.occurredAt,
+    userReasonCategory: userReasonCategory.present
+        ? userReasonCategory.value
+        : this.userReasonCategory,
+    userReasonText: userReasonText.present
+        ? userReasonText.value
+        : this.userReasonText,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  FailureRecordRow copyWithCompanion(FailureRecordsCompanion data) {
+    return FailureRecordRow(
+      id: data.id.present ? data.id.value : this.id,
+      missionId: data.missionId.present ? data.missionId.value : this.missionId,
+      trigger: data.trigger.present ? data.trigger.value : this.trigger,
+      occurredAt: data.occurredAt.present
+          ? data.occurredAt.value
+          : this.occurredAt,
+      userReasonCategory: data.userReasonCategory.present
+          ? data.userReasonCategory.value
+          : this.userReasonCategory,
+      userReasonText: data.userReasonText.present
+          ? data.userReasonText.value
+          : this.userReasonText,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FailureRecordRow(')
+          ..write('id: $id, ')
+          ..write('missionId: $missionId, ')
+          ..write('trigger: $trigger, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('userReasonCategory: $userReasonCategory, ')
+          ..write('userReasonText: $userReasonText, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    missionId,
+    trigger,
+    occurredAt,
+    userReasonCategory,
+    userReasonText,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FailureRecordRow &&
+          other.id == this.id &&
+          other.missionId == this.missionId &&
+          other.trigger == this.trigger &&
+          other.occurredAt == this.occurredAt &&
+          other.userReasonCategory == this.userReasonCategory &&
+          other.userReasonText == this.userReasonText &&
+          other.createdAt == this.createdAt);
+}
+
+class FailureRecordsCompanion extends UpdateCompanion<FailureRecordRow> {
+  final Value<String> id;
+  final Value<String> missionId;
+  final Value<String> trigger;
+  final Value<int> occurredAt;
+  final Value<String?> userReasonCategory;
+  final Value<String?> userReasonText;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const FailureRecordsCompanion({
+    this.id = const Value.absent(),
+    this.missionId = const Value.absent(),
+    this.trigger = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.userReasonCategory = const Value.absent(),
+    this.userReasonText = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  FailureRecordsCompanion.insert({
+    required String id,
+    required String missionId,
+    required String trigger,
+    required int occurredAt,
+    this.userReasonCategory = const Value.absent(),
+    this.userReasonText = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       missionId = Value(missionId),
+       trigger = Value(trigger),
+       occurredAt = Value(occurredAt),
+       createdAt = Value(createdAt);
+  static Insertable<FailureRecordRow> custom({
+    Expression<String>? id,
+    Expression<String>? missionId,
+    Expression<String>? trigger,
+    Expression<int>? occurredAt,
+    Expression<String>? userReasonCategory,
+    Expression<String>? userReasonText,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (missionId != null) 'mission_id': missionId,
+      if (trigger != null) 'trigger': trigger,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (userReasonCategory != null)
+        'user_reason_category': userReasonCategory,
+      if (userReasonText != null) 'user_reason_text': userReasonText,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  FailureRecordsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? missionId,
+    Value<String>? trigger,
+    Value<int>? occurredAt,
+    Value<String?>? userReasonCategory,
+    Value<String?>? userReasonText,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return FailureRecordsCompanion(
+      id: id ?? this.id,
+      missionId: missionId ?? this.missionId,
+      trigger: trigger ?? this.trigger,
+      occurredAt: occurredAt ?? this.occurredAt,
+      userReasonCategory: userReasonCategory ?? this.userReasonCategory,
+      userReasonText: userReasonText ?? this.userReasonText,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (missionId.present) {
+      map['mission_id'] = Variable<String>(missionId.value);
+    }
+    if (trigger.present) {
+      map['trigger'] = Variable<String>(trigger.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<int>(occurredAt.value);
+    }
+    if (userReasonCategory.present) {
+      map['user_reason_category'] = Variable<String>(userReasonCategory.value);
+    }
+    if (userReasonText.present) {
+      map['user_reason_text'] = Variable<String>(userReasonText.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FailureRecordsCompanion(')
+          ..write('id: $id, ')
+          ..write('missionId: $missionId, ')
+          ..write('trigger: $trigger, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('userReasonCategory: $userReasonCategory, ')
+          ..write('userReasonText: $userReasonText, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2444,6 +3052,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ExecutionEventsTable executionEvents = $ExecutionEventsTable(
     this,
   );
+  late final $FailureRecordsTable failureRecords = $FailureRecordsTable(this);
   late final Index executionEventsOneStart = Index(
     'execution_events_one_start',
     'CREATE UNIQUE INDEX execution_events_one_start ON execution_events (mission_id) WHERE type = \'START\'',
@@ -2461,6 +3070,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     missionScheduleRevisions,
     executionPlans,
     executionEvents,
+    failureRecords,
     executionEventsOneStart,
     executionEventsOneEnd,
   ];
@@ -2476,6 +3086,8 @@ typedef $$MissionsTableCreateCompanionBuilder =
       required int createdAt,
       required int updatedAt,
       Value<int?> cancelledAt,
+      Value<String?> sourceMissionId,
+      Value<String?> relationType,
       Value<int> rowid,
     });
 typedef $$MissionsTableUpdateCompanionBuilder =
@@ -2488,12 +3100,31 @@ typedef $$MissionsTableUpdateCompanionBuilder =
       Value<int> createdAt,
       Value<int> updatedAt,
       Value<int?> cancelledAt,
+      Value<String?> sourceMissionId,
+      Value<String?> relationType,
       Value<int> rowid,
     });
 
 final class $$MissionsTableReferences
     extends BaseReferences<_$AppDatabase, $MissionsTable, MissionRow> {
   $$MissionsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $MissionsTable _sourceMissionIdTable(_$AppDatabase db) =>
+      db.missions.createAlias('missions__source_mission_id__missions__id');
+
+  $$MissionsTableProcessedTableManager? get sourceMissionId {
+    final $_column = $_itemColumn<String>('source_mission_id');
+    if ($_column == null) return null;
+    final manager = $$MissionsTableTableManager(
+      $_db,
+      $_db.missions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sourceMissionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
 
   static MultiTypedResultKey<
     $MissionScheduleRevisionsTable,
@@ -2557,6 +3188,24 @@ final class $$MissionsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$FailureRecordsTable, List<FailureRecordRow>>
+  _failureRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.failureRecords,
+    aliasName: 'missions__id__failure_records__mission_id',
+  );
+
+  $$FailureRecordsTableProcessedTableManager get failureRecordsRefs {
+    final manager = $$FailureRecordsTableTableManager(
+      $_db,
+      $_db.failureRecords,
+    ).filter((f) => f.missionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_failureRecordsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$MissionsTableFilterComposer
@@ -2607,6 +3256,34 @@ class $$MissionsTableFilterComposer
     column: $table.cancelledAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<String> get relationType => $composableBuilder(
+    column: $table.relationType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$MissionsTableFilterComposer get sourceMissionId {
+    final $$MissionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceMissionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableFilterComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   Expression<bool> missionScheduleRevisionsRefs(
     Expression<bool> Function($$MissionScheduleRevisionsTableFilterComposer f)
@@ -2684,6 +3361,31 @@ class $$MissionsTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> failureRecordsRefs(
+    Expression<bool> Function($$FailureRecordsTableFilterComposer f) f,
+  ) {
+    final $$FailureRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.failureRecords,
+      getReferencedColumn: (t) => t.missionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FailureRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.failureRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$MissionsTableOrderingComposer
@@ -2734,6 +3436,34 @@ class $$MissionsTableOrderingComposer
     column: $table.cancelledAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get relationType => $composableBuilder(
+    column: $table.relationType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$MissionsTableOrderingComposer get sourceMissionId {
+    final $$MissionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceMissionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$MissionsTableAnnotationComposer
@@ -2774,6 +3504,34 @@ class $$MissionsTableAnnotationComposer
     column: $table.cancelledAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get relationType => $composableBuilder(
+    column: $table.relationType,
+    builder: (column) => column,
+  );
+
+  $$MissionsTableAnnotationComposer get sourceMissionId {
+    final $$MissionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceMissionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   Expression<T> missionScheduleRevisionsRefs<T extends Object>(
     Expression<T> Function($$MissionScheduleRevisionsTableAnnotationComposer a)
@@ -2851,6 +3609,31 @@ class $$MissionsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> failureRecordsRefs<T extends Object>(
+    Expression<T> Function($$FailureRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$FailureRecordsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.failureRecords,
+      getReferencedColumn: (t) => t.missionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$FailureRecordsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.failureRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$MissionsTableTableManager
@@ -2867,9 +3650,11 @@ class $$MissionsTableTableManager
           (MissionRow, $$MissionsTableReferences),
           MissionRow,
           PrefetchHooks Function({
+            bool sourceMissionId,
             bool missionScheduleRevisionsRefs,
             bool executionPlansRefs,
             bool executionEventsRefs,
+            bool failureRecordsRefs,
           })
         > {
   $$MissionsTableTableManager(_$AppDatabase db, $MissionsTable table)
@@ -2893,6 +3678,8 @@ class $$MissionsTableTableManager
                 Value<int> createdAt = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
                 Value<int?> cancelledAt = const Value.absent(),
+                Value<String?> sourceMissionId = const Value.absent(),
+                Value<String?> relationType = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MissionsCompanion(
                 id: id,
@@ -2903,6 +3690,8 @@ class $$MissionsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 cancelledAt: cancelledAt,
+                sourceMissionId: sourceMissionId,
+                relationType: relationType,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2915,6 +3704,8 @@ class $$MissionsTableTableManager
                 required int createdAt,
                 required int updatedAt,
                 Value<int?> cancelledAt = const Value.absent(),
+                Value<String?> sourceMissionId = const Value.absent(),
+                Value<String?> relationType = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MissionsCompanion.insert(
                 id: id,
@@ -2925,6 +3716,8 @@ class $$MissionsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 cancelledAt: cancelledAt,
+                sourceMissionId: sourceMissionId,
+                relationType: relationType,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -2937,9 +3730,11 @@ class $$MissionsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
+                sourceMissionId = false,
                 missionScheduleRevisionsRefs = false,
                 executionPlansRefs = false,
                 executionEventsRefs = false,
+                failureRecordsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -2948,8 +3743,40 @@ class $$MissionsTableTableManager
                       db.missionScheduleRevisions,
                     if (executionPlansRefs) db.executionPlans,
                     if (executionEventsRefs) db.executionEvents,
+                    if (failureRecordsRefs) db.failureRecords,
                   ],
-                  addJoins: null,
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (sourceMissionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.sourceMissionId,
+                                    referencedTable: $$MissionsTableReferences
+                                        ._sourceMissionIdTable(db),
+                                    referencedColumn: $$MissionsTableReferences
+                                        ._sourceMissionIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
                   getPrefetchedDataCallback: (items) async {
                     return [
                       if (missionScheduleRevisionsRefs)
@@ -3015,6 +3842,27 @@ class $$MissionsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (failureRecordsRefs)
+                        await $_getPrefetchedData<
+                          MissionRow,
+                          $MissionsTable,
+                          FailureRecordRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$MissionsTableReferences
+                              ._failureRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$MissionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).failureRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.missionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -3036,9 +3884,11 @@ typedef $$MissionsTableProcessedTableManager =
       (MissionRow, $$MissionsTableReferences),
       MissionRow,
       PrefetchHooks Function({
+        bool sourceMissionId,
         bool missionScheduleRevisionsRefs,
         bool executionPlansRefs,
         bool executionEventsRefs,
+        bool failureRecordsRefs,
       })
     >;
 typedef $$MissionScheduleRevisionsTableCreateCompanionBuilder =
@@ -4520,6 +5370,375 @@ typedef $$ExecutionEventsTableProcessedTableManager =
       ExecutionEventRow,
       PrefetchHooks Function({bool missionId, bool scheduleRevisionId})
     >;
+typedef $$FailureRecordsTableCreateCompanionBuilder =
+    FailureRecordsCompanion Function({
+      required String id,
+      required String missionId,
+      required String trigger,
+      required int occurredAt,
+      Value<String?> userReasonCategory,
+      Value<String?> userReasonText,
+      required int createdAt,
+      Value<int> rowid,
+    });
+typedef $$FailureRecordsTableUpdateCompanionBuilder =
+    FailureRecordsCompanion Function({
+      Value<String> id,
+      Value<String> missionId,
+      Value<String> trigger,
+      Value<int> occurredAt,
+      Value<String?> userReasonCategory,
+      Value<String?> userReasonText,
+      Value<int> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$FailureRecordsTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $FailureRecordsTable, FailureRecordRow> {
+  $$FailureRecordsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $MissionsTable _missionIdTable(_$AppDatabase db) =>
+      db.missions.createAlias('failure_records__mission_id__missions__id');
+
+  $$MissionsTableProcessedTableManager get missionId {
+    final $_column = $_itemColumn<String>('mission_id')!;
+
+    final manager = $$MissionsTableTableManager(
+      $_db,
+      $_db.missions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_missionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$FailureRecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $FailureRecordsTable> {
+  $$FailureRecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get trigger => $composableBuilder(
+    column: $table.trigger,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userReasonCategory => $composableBuilder(
+    column: $table.userReasonCategory,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userReasonText => $composableBuilder(
+    column: $table.userReasonText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$MissionsTableFilterComposer get missionId {
+    final $$MissionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.missionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableFilterComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FailureRecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FailureRecordsTable> {
+  $$FailureRecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get trigger => $composableBuilder(
+    column: $table.trigger,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userReasonCategory => $composableBuilder(
+    column: $table.userReasonCategory,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userReasonText => $composableBuilder(
+    column: $table.userReasonText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$MissionsTableOrderingComposer get missionId {
+    final $$MissionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.missionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FailureRecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FailureRecordsTable> {
+  $$FailureRecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get trigger =>
+      $composableBuilder(column: $table.trigger, builder: (column) => column);
+
+  GeneratedColumn<int> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get userReasonCategory => $composableBuilder(
+    column: $table.userReasonCategory,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get userReasonText => $composableBuilder(
+    column: $table.userReasonText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$MissionsTableAnnotationComposer get missionId {
+    final $$MissionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.missionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$FailureRecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FailureRecordsTable,
+          FailureRecordRow,
+          $$FailureRecordsTableFilterComposer,
+          $$FailureRecordsTableOrderingComposer,
+          $$FailureRecordsTableAnnotationComposer,
+          $$FailureRecordsTableCreateCompanionBuilder,
+          $$FailureRecordsTableUpdateCompanionBuilder,
+          (FailureRecordRow, $$FailureRecordsTableReferences),
+          FailureRecordRow,
+          PrefetchHooks Function({bool missionId})
+        > {
+  $$FailureRecordsTableTableManager(
+    _$AppDatabase db,
+    $FailureRecordsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FailureRecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FailureRecordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FailureRecordsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> missionId = const Value.absent(),
+                Value<String> trigger = const Value.absent(),
+                Value<int> occurredAt = const Value.absent(),
+                Value<String?> userReasonCategory = const Value.absent(),
+                Value<String?> userReasonText = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => FailureRecordsCompanion(
+                id: id,
+                missionId: missionId,
+                trigger: trigger,
+                occurredAt: occurredAt,
+                userReasonCategory: userReasonCategory,
+                userReasonText: userReasonText,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String missionId,
+                required String trigger,
+                required int occurredAt,
+                Value<String?> userReasonCategory = const Value.absent(),
+                Value<String?> userReasonText = const Value.absent(),
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => FailureRecordsCompanion.insert(
+                id: id,
+                missionId: missionId,
+                trigger: trigger,
+                occurredAt: occurredAt,
+                userReasonCategory: userReasonCategory,
+                userReasonText: userReasonText,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$FailureRecordsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({missionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (missionId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.missionId,
+                                referencedTable: $$FailureRecordsTableReferences
+                                    ._missionIdTable(db),
+                                referencedColumn:
+                                    $$FailureRecordsTableReferences
+                                        ._missionIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$FailureRecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FailureRecordsTable,
+      FailureRecordRow,
+      $$FailureRecordsTableFilterComposer,
+      $$FailureRecordsTableOrderingComposer,
+      $$FailureRecordsTableAnnotationComposer,
+      $$FailureRecordsTableCreateCompanionBuilder,
+      $$FailureRecordsTableUpdateCompanionBuilder,
+      (FailureRecordRow, $$FailureRecordsTableReferences),
+      FailureRecordRow,
+      PrefetchHooks Function({bool missionId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4535,4 +5754,6 @@ class $AppDatabaseManager {
       $$ExecutionPlansTableTableManager(_db, _db.executionPlans);
   $$ExecutionEventsTableTableManager get executionEvents =>
       $$ExecutionEventsTableTableManager(_db, _db.executionEvents);
+  $$FailureRecordsTableTableManager get failureRecords =>
+      $$FailureRecordsTableTableManager(_db, _db.failureRecords);
 }

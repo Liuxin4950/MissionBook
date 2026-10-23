@@ -35,6 +35,13 @@ class Missions extends Table {
   // null 表示没有取消。
   IntColumn get cancelledAt => integer().nullable()();
 
+  // v4：再次尝试的来源。只复制计划，不复制来源的事件、报告或材料。
+  TextColumn get sourceMissionId =>
+      text().nullable().references(Missions, #id)();
+  TextColumn get relationType => text().nullable().customConstraint(
+    "NULL CHECK (relation_type IS NULL OR relation_type = 'RETRY')",
+  )();
+
   // 使用 id 作为主键，唯一标识每条任务记录。
   @override
   Set<Column> get primaryKey => {id};

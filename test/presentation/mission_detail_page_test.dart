@@ -1,3 +1,5 @@
+import 'package:mission_book/domain/entities/execution_command.dart';
+import 'package:mission_book/domain/entities/execution_event.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -16,6 +18,16 @@ import 'package:mission_book/presentation/widgets/app_confirm_dialog.dart';
 
 // 由测试决定读取何时完成，才能观察等待、失败、重试、离页和乱序返回。
 class DetailRepository implements MissionRepository {
+  @override
+  Future<ExecutionEvent> execute(ExecutionCommand command) =>
+      throw UnsupportedError('本替身不执行任务');
+  @override
+  Future<List<MissionDetail>> findActive() async => [];
+  @override
+  Future<List<MissionDetail>> findFinished() async => [];
+  @override
+  Future<List<MissionDetail>> findCancelled() async => [];
+
   @override
   Future<void> edit({
     required MissionDetail original,
@@ -127,11 +139,11 @@ Future<void> openLoadedDetail(
   );
   repository.requests.single.complete(exampleDetail());
   await tester.pumpAndSettle();
-  await tester.scrollUntilVisible(
-    find.byKey(const Key('cancel-mission')),
-    180,
-    scrollable: find.byType(Scrollable).first,
-  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> chooseMissionAction(WidgetTester tester, String action) async {
+  await tester.tap(find.byKey(Key('$action-mission')));
   await tester.pumpAndSettle();
 }
 
@@ -160,7 +172,13 @@ void main() {
       AppTheme.light.colorScheme.onPrimary,
     );
     expect(tester.getRect(find.text('任务详情')).center.dx, closeTo(195, 1));
-    expect(find.text('临时任务 · 待开始'), findsOneWidget);
+    expect(find.text('待开始'), findsOneWidget);
+    final badge = tester.getRect(find.byKey(const Key('mission-phase')));
+    expect(badge.left, greaterThan(tester.getRect(find.text('阅读二十分钟')).right));
+    final start = tester.getRect(find.byKey(const Key('execution-start')));
+    final list = tester.getRect(find.byKey(const Key('mission-detail-list')));
+    expect(start.top, greaterThanOrEqualTo(list.bottom));
+    expect(start.bottom, lessThanOrEqualTo(844));
     expect(find.text('自选时间'), findsOneWidget);
     expect(find.text('10月23日'), findsOneWidget);
     expect(find.text('计划'), findsOneWidget);
@@ -191,11 +209,12 @@ void main() {
       '验收方向',
       '补充说明',
       '材料截止',
-      '开始任务',
       '编辑',
     ]) {
       expect(find.text(absent), findsNothing);
     }
+    expect(find.byKey(const Key('edit-mission')), findsOneWidget);
+    expect(find.byKey(const Key('cancel-mission')), findsOneWidget);
     expect(find.text('取消任务'), findsOneWidget);
     await tester.pumpWidget(testApp(missionService));
     await tester.pump();
@@ -206,7 +225,7 @@ void main() {
     final repository = DetailRepository();
     await openLoadedDetail(tester, repository);
     final action = tester
-        .widget<OutlinedButton>(find.byKey(const Key('cancel-mission')))
+        .widget<TextButton>(find.byKey(const Key('cancel-mission')))
         .onPressed!;
     action();
     action();
@@ -215,7 +234,8 @@ void main() {
     await tester.tap(find.text('保留任务'));
     await tester.pumpAndSettle();
     for (final systemBack in [false, true]) {
-      await tester.tap(find.byKey(const Key('cancel-mission')));
+      await tester.pumpAndSettle();
+      await chooseMissionAction(tester, 'cancel');
       await tester.pumpAndSettle();
       if (systemBack) {
         await tester.binding.handlePopRoute();
@@ -224,7 +244,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(find.byType(AppConfirmDialog), findsNothing);
-      expect(find.text('临时任务 · 待开始'), findsOneWidget);
+      expect(find.text('待开始'), findsOneWidget);
     }
     expect(repository.cancelIds, isEmpty);
     expect(repository.requests, hasLength(1));
@@ -255,8 +275,8 @@ void main() {
     await tester.pump();
     repository.requests.single.complete(exampleDetail());
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('cancel-mission')));
-    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await chooseMissionAction(tester, 'cancel');
     await tester.pumpAndSettle();
     await tester.tap(find.text('确认取消'));
     await tester.pumpAndSettle();
@@ -264,7 +284,7 @@ void main() {
     expect(find.text('正在取消…'), findsOneWidget);
     expect(
       tester
-          .widget<OutlinedButton>(find.byKey(const Key('cancel-mission')))
+          .widget<TextButton>(find.byKey(const Key('cancel-mission')))
           .onPressed,
       isNull,
     );
@@ -283,7 +303,7 @@ void main() {
     expect(repository.requests, hasLength(2));
     repository.requests.last.complete(exampleDetail(cancelled: true));
     await tester.pumpAndSettle();
-    expect(find.text('临时任务 · 已取消'), findsOneWidget);
+    expect(find.text('已取消'), findsOneWidget);
     expect(find.text('取消时间'), findsOneWidget);
     expect(find.text('没有执行记录'), findsOneWidget);
     expect(find.byKey(const Key('cancel-mission')), findsNothing);
@@ -295,23 +315,24 @@ void main() {
   testWidgets('取消失败保留原详情，可再次确认重试且只提交当前任务', (tester) async {
     final repository = DetailRepository();
     await openLoadedDetail(tester, repository);
-    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await chooseMissionAction(tester, 'cancel');
     await tester.pumpAndSettle();
     await tester.tap(find.text('确认取消'));
     await tester.pumpAndSettle();
     repository.cancellations.single.completeError(StateError('模拟取消保存失败'));
     await tester.pumpAndSettle();
     expect(find.text('取消失败，请重试'), findsOneWidget);
-    expect(find.text('临时任务 · 待开始'), findsOneWidget);
+    expect(find.text('待开始'), findsOneWidget);
     expect(repository.requests, hasLength(1));
     expect(
       tester
-          .widget<OutlinedButton>(find.byKey(const Key('cancel-mission')))
+          .widget<TextButton>(find.byKey(const Key('cancel-mission')))
           .onPressed,
       isNotNull,
     );
-    await tester.ensureVisible(find.byKey(const Key('cancel-mission')));
-    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await chooseMissionAction(tester, 'cancel');
     await tester.pumpAndSettle();
     await tester.tap(find.text('确认取消'));
     await tester.pumpAndSettle();
@@ -320,14 +341,15 @@ void main() {
     await tester.pump();
     repository.requests.last.complete(exampleDetail(cancelled: true));
     await tester.pumpAndSettle();
-    expect(find.text('临时任务 · 已取消'), findsOneWidget);
+    expect(find.text('已取消'), findsOneWidget);
     expect(find.text('取消失败，请重试'), findsNothing);
   });
 
   testWidgets('保存已成功但重新读取失败时显示读取错误，重试只读取不再次取消', (tester) async {
     final repository = DetailRepository();
     await openLoadedDetail(tester, repository);
-    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await chooseMissionAction(tester, 'cancel');
     await tester.pumpAndSettle();
     await tester.tap(find.text('确认取消'));
     await tester.pumpAndSettle();
@@ -341,7 +363,7 @@ void main() {
     await tester.pump();
     repository.requests.last.complete(exampleDetail(cancelled: true));
     await tester.pumpAndSettle();
-    expect(find.text('临时任务 · 已取消'), findsOneWidget);
+    expect(find.text('已取消'), findsOneWidget);
     expect(repository.cancelIds, ['detail-a']);
   });
 
@@ -351,8 +373,8 @@ void main() {
     await tester.pumpWidget(testApp(service));
     repository.requests.single.complete(exampleDetail());
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('cancel-mission')));
-    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await chooseMissionAction(tester, 'cancel');
     await tester.pumpAndSettle();
     await tester.pumpWidget(testApp(service, id: 'detail-b'));
     repository.requests.last.complete(exampleDetail());
@@ -360,8 +382,8 @@ void main() {
     await tester.tap(find.text('确认取消'));
     await tester.pumpAndSettle();
     expect(repository.cancelIds, isEmpty);
-    await tester.ensureVisible(find.byKey(const Key('cancel-mission')));
-    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await chooseMissionAction(tester, 'cancel');
     await tester.pumpAndSettle();
     await tester.tap(find.text('确认取消'));
     await tester.pumpAndSettle();
@@ -380,7 +402,8 @@ void main() {
   testWidgets('取消期间组件被移除，迟到错误不触发失效更新', (tester) async {
     final repository = DetailRepository();
     await openLoadedDetail(tester, repository);
-    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await chooseMissionAction(tester, 'cancel');
     await tester.pumpAndSettle();
     await tester.tap(find.text('确认取消'));
     await tester.pumpAndSettle();
@@ -400,7 +423,8 @@ void main() {
       final repository = DetailRepository();
       await openLoadedDetail(tester, repository, textScale: 2);
       expect(find.bySemanticsLabel('取消任务'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('cancel-mission')));
+      await tester.pumpAndSettle();
+      await chooseMissionAction(tester, 'cancel');
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('保留任务'));
       await tester.pumpAndSettle();
@@ -441,7 +465,7 @@ void main() {
     final title = tester.widget<Text>(find.text(detail.mission.title));
     expect(title.maxLines, isNull);
     expect(title.overflow, isNull);
-    expect(find.text('临时任务 · 已取消'), findsOneWidget);
+    expect(find.text('已取消'), findsOneWidget);
     // UTC 10月23日01:00，在洛杉矶还是10月22日18:00，不能用本机时区代替。
     await tester.scrollUntilVisible(
       find.text('固定时间'),
@@ -454,16 +478,16 @@ void main() {
       greaterThan(tester.getBottomLeft(find.text('10月22日 18:00')).dy),
     );
     await tester.scrollUntilVisible(
-      find.text('为什么现在做'),
+      find.text('为什么做'),
       220,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('为什么现在做'));
+    await tester.tap(find.text('为什么做'));
     await tester.pumpAndSettle();
     expect(find.text('理解数据的调用过程'), findsOneWidget);
     for (final label in [
-      '1. 从任务编号开始',
-      '2. 读回当前排期与方案',
+      '从任务编号开始',
+      '读回当前排期与方案',
       '2026-10-23 18:00',
       '2026-10-22 18:00',
     ]) {

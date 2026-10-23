@@ -1,3 +1,5 @@
+import 'package:mission_book/domain/entities/execution_command.dart';
+import 'package:mission_book/domain/entities/execution_event.dart';
 import 'dart:async';
 import 'dart:ui' show SemanticsAction, Tristate;
 
@@ -23,6 +25,16 @@ import 'package:timezone/timezone.dart' as tz;
 
 // 每次读取都有独立 Future，用来控制等待、失败、重试和乱序返回。
 class ControlledQueryRepository implements MissionRepository {
+  @override
+  Future<ExecutionEvent> execute(ExecutionCommand command) =>
+      throw UnsupportedError('本替身不执行任务');
+  @override
+  Future<List<MissionDetail>> findActive() async => [];
+  @override
+  Future<List<MissionDetail>> findFinished() async => [];
+  @override
+  Future<List<MissionDetail>> findCancelled() async => [];
+
   @override
   Future<void> edit({
     required MissionDetail original,
@@ -64,12 +76,17 @@ class ControlledQueryRepository implements MissionRepository {
   }) => throw UnsupportedError('查询状态测试不保存任务');
 }
 
+// 重建组件时仍复用同一服务，与 App 的实际装配一致；换仓储才是换数据源。
+final _testServices = Expando<MissionService>();
+
 Widget testApp(
   MissionRepository repository, {
   bool shell = false,
   DateTime Function()? clock,
 }) {
-  final missionService = MissionService(repository);
+  final missionService = _testServices[repository] ??= MissionService(
+    repository,
+  );
   return MaterialApp(
     theme: AppTheme.light,
     locale: const Locale('zh', 'CN'),
@@ -115,6 +132,15 @@ ScheduledMission example(
       changedAt: now,
     ),
   );
+}
+
+Future<void> chooseMissionAction(WidgetTester tester, String action) async {
+  if (find.byKey(Key('$action-mission')).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const Key('mission-more')));
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(find.byKey(Key('$action-mission')));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -222,17 +248,13 @@ void main() {
     // 通过真实详情、业务入口及数据库取消；返回后复用原有日期刷新。
     await tester.tap(find.text('真实阅读任务'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('cancel-mission')),
-      180,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.byKey(const Key('cancel-mission')));
+    await tester.pumpAndSettle();
+    await chooseMissionAction(tester, 'cancel');
     await tester.pumpAndSettle();
     expect(find.text('取消这个任务？'), findsOneWidget);
     await tester.tap(find.text('确认取消'));
     await tester.pumpAndSettle();
-    expect(find.text('临时任务 · 已取消'), findsOneWidget);
+    expect(find.text('已取消'), findsOneWidget);
     expect(find.text('没有执行记录'), findsOneWidget);
     expect(find.byKey(const Key('cancel-mission')), findsNothing);
     await tester.tap(find.byTooltip('返回'));

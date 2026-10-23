@@ -5,6 +5,9 @@ enum VerificationPolicy {
   requiredEvidence, // 强制材料
 }
 
+/// 当前只开放“再次尝试”：新任务关联来源，原任务的执行历史保持不变。
+enum MissionRelationType { retry }
+
 /// 【业务实体】一个任务的基本信息，由 missions 表保存。
 ///
 /// 本类表达业务含义，不定义数据库列；例如策略用枚举，时间用 DateTime。
@@ -19,6 +22,8 @@ class Mission {
     this.description,
     this.why,
     this.cancelledAt,
+    this.sourceMissionId,
+    this.relationType,
     this.verificationPolicy = VerificationPolicy.selfReport,
   });
 
@@ -46,4 +51,8 @@ class Mission {
 
   /// null 表示没有取消；有值表示实际取消时刻。
   final DateTime? cancelledAt;
+
+  /// 来自哪次已结束或已取消的任务；普通新建为 null，创建后不可修改。
+  final String? sourceMissionId;
+  final MissionRelationType? relationType;
 }
