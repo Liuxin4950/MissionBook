@@ -26,8 +26,10 @@ class MissionService {
   // 创建一个编号生成器，后面用 v4() 生成唯一编号。
   final Uuid uuid = const Uuid();
 
-  /// 创建默认独立、自报、自选时间任务，校验输入后等待三表事务提交。
+  /// 创建独立、自报任务；默认自选时间，也可指定固定开始时刻。
   ///
+  /// fixedStartAt 表达绝对时刻，保存前统一转 UTC；固定策略必须提供，
+  /// 且在 timeZone 内属于 scheduledDate，自选策略则必须为空。
   /// 输入无效时以 ArgumentError 结束 Future，且不调用仓储。
   /// 仓储保存失败时继续向调用者传递异常；成功完成才表示三表事务已提交。
   Future<void> create({
@@ -35,6 +37,8 @@ class MissionService {
     required String scheduledDate, // 例如 '2026-10-20'
     required String timeZone, // 例如 'Asia/Shanghai'
     required int plannedDurationMinutes,
+    TimePolicy timePolicy = TimePolicy.flexible,
+    DateTime? fixedStartAt,
   }) async {
     // trim 去掉标题首尾空白；全是空格也算没填写。
     final cleanTitle = title.trim();
@@ -51,10 +55,28 @@ class MissionService {
     validateScheduledDate(scheduledDate);
 
     // 查询时区资料；名称不存在时，转成明确的输入错误。
+    final tz.Location location;
     try {
-      tz.getLocation(timeZone);
+      location = tz.getLocation(timeZone);
     } on tz.LocationNotFoundException {
       throw ArgumentError('时区名称无效');
+    }
+
+    if (timePolicy == TimePolicy.fixed) {
+      if (fixedStartAt == null) {
+        throw ArgumentError('固定时间任务必须填写开始时刻');
+      }
+      // 页面提供的是绝对时刻；转回排期时区，检查有没有落到另一天。
+      // 不要求晚于现在：规格允许过去日期仍保留为待开始。
+      final localStart = tz.TZDateTime.from(fixedStartAt, location);
+      final dateParts = scheduledDate.split('-');
+      if (localStart.year != int.parse(dateParts[0]) ||
+          localStart.month != int.parse(dateParts[1]) ||
+          localStart.day != int.parse(dateParts[2])) {
+        throw ArgumentError('固定开始时刻必须属于所选计划日期');
+      }
+    } else if (fixedStartAt != null) {
+      throw ArgumentError('自选时间任务不能包含固定开始时刻');
     }
 
     // 校验通过后再生成编号、取得当前时间。
@@ -76,7 +98,8 @@ class MissionService {
       revisionNumber: 1,
       scheduledDate: scheduledDate,
       timeZone: timeZone,
-      timePolicy: TimePolicy.flexible,
+      timePolicy: timePolicy,
+      fixedStartAt: fixedStartAt?.toUtc(),
       plannedDurationMinutes: plannedDurationMinutes,
       changedAt: now,
     );

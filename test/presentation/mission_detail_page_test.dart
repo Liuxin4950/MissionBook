@@ -112,6 +112,17 @@ void main() {
     repository.requests.single.complete(exampleDetail());
     await tester.pumpAndSettle();
     expect(find.text('阅读二十分钟'), findsOneWidget);
+    // 详情和新建共用同一顶栏；正常手机宽度下按钮位置、触控尺寸及标题中线一致。
+    final backRect = tester.getRect(
+      find.widgetWithIcon(IconButton, Icons.arrow_back),
+    );
+    expect(backRect.size, const Size(48, 48));
+    expect(backRect.left, 24);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.arrow_back)).color,
+      AppTheme.light.colorScheme.onPrimary,
+    );
+    expect(tester.getRect(find.text('任务详情')).center.dx, closeTo(195, 1));
     expect(find.text('临时任务 · 待开始'), findsOneWidget);
     expect(find.text('自选时间'), findsOneWidget);
     expect(find.text('10月23日'), findsOneWidget);

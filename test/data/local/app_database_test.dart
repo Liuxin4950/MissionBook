@@ -27,6 +27,14 @@ void main() {
           timeZone: 'Asia/Shanghai',
           plannedDurationMinutes: 20,
         );
+        await MissionService(repository).create(
+          title: '固定时间文件检查',
+          scheduledDate: '2026-10-23',
+          timeZone: 'Asia/Shanghai',
+          plannedDurationMinutes: 45,
+          timePolicy: TimePolicy.fixed,
+          fixedStartAt: DateTime.utc(2026, 10, 22, 16, 15),
+        );
       } finally {
         await firstConnection.close();
       }
@@ -45,9 +53,25 @@ void main() {
         final plans = await secondConnection
             .select(secondConnection.executionPlans)
             .get();
-        expect(plans, hasLength(1));
-        expect(plans.single.missionId, missions.single.mission.id);
-        expect(plans.single.objective, '文件持久化检查');
+        expect(plans, hasLength(2));
+        final originalPlan = plans.singleWhere(
+          (plan) => plan.missionId == missions.single.mission.id,
+        );
+        expect(originalPlan.objective, '文件持久化检查');
+        final fixed = await repository.findScheduledOn('2026-10-23');
+        expect(fixed, hasLength(1));
+        expect(fixed.single.schedule.timePolicy, TimePolicy.fixed);
+        expect(
+          fixed.single.schedule.fixedStartAt,
+          DateTime.utc(2026, 10, 22, 16, 15),
+        );
+        expect(fixed.single.schedule.fixedStartAt!.isUtc, isTrue);
+        final detail = await repository.findDetail(fixed.single.mission.id);
+        expect(
+          detail!.schedule.fixedStartAt,
+          fixed.single.schedule.fixedStartAt,
+        );
+        expect(detail.executionPlan.objective, '固定时间文件检查');
       } finally {
         await secondConnection.close();
       }

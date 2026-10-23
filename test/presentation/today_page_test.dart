@@ -170,7 +170,10 @@ void main() {
     await tester.tap(find.byTooltip('创建任务'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).at(0), '真实阅读任务');
-    await tester.enterText(find.byType(TextField).at(2), '20');
+    await tester.enterText(
+      find.byKey(const ValueKey('mission-duration')),
+      '20',
+    );
     await tester.ensureVisible(find.byType(FilledButton));
     await tester.tap(find.byType(FilledButton));
     await tester.pumpAndSettle();
@@ -1057,10 +1060,15 @@ void main() {
     );
     await tester.tap(find.byTooltip('创建任务'));
     await tester.pumpAndSettle();
+    final semantics = tester.ensureSemantics();
     expect(
-      tester.widget<TextField>(find.byType(TextField).at(1)).controller!.text,
+      tester
+          .getSemantics(find.bySemanticsLabel('计划日期'))
+          .getSemanticsData()
+          .value,
       repository.dates.last,
     );
+    semantics.dispose();
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }
