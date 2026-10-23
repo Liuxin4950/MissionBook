@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mission_book/application/get_scheduled_missions.dart';
+import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/execution_plan.dart';
@@ -159,7 +159,7 @@ void main() {
   });
 
   test('查询入口拒绝不存在的日期和错误格式', () async {
-    final getMissions = GetScheduledMissions(repository);
+    final missionService = MissionService(repository);
     for (final invalid in [
       '2026-02-30',
       '2026-2-1',
@@ -167,19 +167,21 @@ void main() {
       '2026-10-21T00:00:00',
       '2026-10-21\n',
     ]) {
-      // 先取得 Future，再检查异步错误；若 execute 同步抛错，本测试会直接失败。
-      final query = getMissions.execute(scheduledDate: invalid);
+      // 先取得 Future，再检查异步错误；若 findScheduledOn 同步抛错，本测试会直接失败。
+      final query = missionService.findScheduledOn(scheduledDate: invalid);
       await expectLater(query, throwsArgumentError);
     }
-    expect(await getMissions.execute(scheduledDate: date), isEmpty);
+    expect(await missionService.findScheduledOn(scheduledDate: date), isEmpty);
   });
 
   test('查询接受合法闰日和设备时区可能跳过的日历日期', () async {
-    final getMissions = GetScheduledMissions(repository);
+    final missionService = MissionService(repository);
     final validDates = ['2011-12-30', '2024-02-29', '0001-01-01', '9999-12-31'];
     for (final selectedDate in validDates) {
       await addTask('calendar-$selectedDate', day: selectedDate);
-      final result = await getMissions.execute(scheduledDate: selectedDate);
+      final result = await missionService.findScheduledOn(
+        scheduledDate: selectedDate,
+      );
       expect(result, hasLength(1));
       expect(result.single.schedule.scheduledDate, selectedDate);
     }

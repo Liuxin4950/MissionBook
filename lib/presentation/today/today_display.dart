@@ -105,7 +105,7 @@ class TodayMissionGroups {
 }
 
 /// 一项任务的显示投影，不替代业务事实，也不写回数据库。
-// id 保留给列表 Key 和将来的任务点击入口使用。
+// id 用于稳定的列表 Key，也在点击任务时传给详情查询入口。
 class TodayMissionItem {
   const TodayMissionItem({
     required this.id,

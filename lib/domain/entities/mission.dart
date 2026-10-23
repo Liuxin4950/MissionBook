@@ -5,7 +5,10 @@ enum VerificationPolicy {
   requiredEvidence, // 强制材料
 }
 
-/// 一个任务的基本业务信息。
+/// 【业务实体】一个任务的基本信息，由 missions 表保存。
+///
+/// 本类表达业务含义，不定义数据库列；例如策略用枚举，时间用 DateTime。
+/// 表结构在 data/local/tables/missions.dart，存储类型由仓储负责转换。
 class Mission {
   // 构造函数
   const Mission({

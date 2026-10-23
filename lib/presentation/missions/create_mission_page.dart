@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 // services.dart 提供输入格式器，本页用它限制分钟输入框只接受数字。
 import 'package:flutter/services.dart';
 import 'package:timezone/timezone.dart' as tz;
-import '../../application/create_mission.dart';
+import '../../application/missions/mission_service.dart';
 
 /// 收集默认独立任务的输入，等待保存，并保护尚未提交的表单内容。
 // Widget 描述页面配置；可变化的输入与资源交给下面的 State 管理。
@@ -12,12 +12,12 @@ class CreateMissionPage extends StatefulWidget {
   // super.key 将组件身份标识交给父类；本页目前无需手动指定 key。
   const CreateMissionPage({
     super.key,
-    required this.createMission,
+    required this.missionService,
     this.initialScheduledDate,
   });
 
   // 从 TodayPage 传来的同一个业务对象；后续保存时调用，不在本页重新创建。
-  final CreateMission createMission;
+  final MissionService missionService;
   // 今天页选择了其他日期时，将该日期作为表单默认值；仍允许手动修改。
   final String? initialScheduledDate;
 
@@ -96,8 +96,8 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
     });
     try {
       // widget 保存页面配置，其中的业务对象由今天页传入。
-      // execute 校验标题和日期并调用真实仓储；await 成功返回才代表事务已完成。
-      await widget.createMission.execute(
+      // create 校验输入并调用真实仓储；await 成功返回才代表事务已完成。
+      await widget.missionService.create(
         title: title,
         scheduledDate: date,
         timeZone: _timeZone,

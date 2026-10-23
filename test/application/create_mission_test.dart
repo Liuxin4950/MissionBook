@@ -1,15 +1,20 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:mission_book/application/create_mission.dart';
+import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
+import 'package:mission_book/domain/entities/mission_detail.dart';
 
 // implements 表示这个类遵守 MissionRepository 的约定，
 // 因此必须提供接口要求的 create 方法。
 class RecordingMissionRepository implements MissionRepository {
+  @override
+  Future<MissionDetail?> findDetail(String missionId) =>
+      throw UnsupportedError('创建业务测试不读取详情');
+
   @override
   Future<List<ScheduledMission>> findScheduledOn(String scheduledDate) =>
       throw UnsupportedError('创建业务测试不调用查询');
@@ -27,7 +32,7 @@ class RecordingMissionRepository implements MissionRepository {
     required MissionScheduleRevision initialSchedule,
     required ExecutionPlan executionPlan,
   }) async {
-    // 这些参数由 CreateMission.execute 在最后调用仓储时提供。
+    // 这些参数由 MissionService.create 在最后调用仓储时提供。
     createCallCount += 1;
     receivedMission = mission;
     receivedSchedule = initialSchedule;
@@ -36,8 +41,12 @@ class RecordingMissionRepository implements MissionRepository {
 }
 
 // 模拟“仓储保存失败”的测试替身。
-// 它遵守同一个 MissionRepository 接口，所以 CreateMission 不需要知道这是测试代码。
+// 它遵守同一个 MissionRepository 接口，所以 MissionService 不需要知道这是测试代码。
 class FailingMissionRepository implements MissionRepository {
+  @override
+  Future<MissionDetail?> findDetail(String missionId) =>
+      throw UnsupportedError('创建业务测试不读取详情');
+
   @override
   Future<List<ScheduledMission>> findScheduledOn(String scheduledDate) =>
       throw UnsupportedError('创建业务测试不调用查询');
@@ -61,12 +70,12 @@ void main() {
     final repository = RecordingMissionRepository();
 
     // 把测试仓储传给业务对象。
-    // execute 最后调用的 repository 就是这里这个实例。
-    final createMission = CreateMission(repository);
+    // create 最后调用的 repository 就是这里这个实例。
+    final missionService = MissionService(repository);
 
     // 测试扮演未来页面的角色，提供用户填写的四个值。
     // 故意给标题两边加空格，检查业务方法是否清理输入。
-    await createMission.execute(
+    await missionService.create(
       title: '  阅读 20 分钟  ',
       scheduledDate: '2026-10-20',
       timeZone: 'Asia/Shanghai',
@@ -120,9 +129,9 @@ void main() {
     final validDates = ['2011-12-30', '2024-02-29', '0001-01-01', '9999-12-31'];
     for (final date in validDates) {
       final repository = RecordingMissionRepository();
-      final createMission = CreateMission(repository);
+      final missionService = MissionService(repository);
 
-      await createMission.execute(
+      await missionService.create(
         title: '日历日期测试',
         scheduledDate: date,
         timeZone: 'Asia/Shanghai',
@@ -138,12 +147,12 @@ void main() {
   // 错误异常测试
   test('空白标题被拒绝，且不调用仓储', () async {
     final repository = RecordingMissionRepository();
-    final createMission = CreateMission(repository);
+    final missionService = MissionService(repository);
 
     // 只把 title 换成全空格，其余参数保持合法。
     // 这样测试失败时，可以确定问题在标题校验。
     await expectLater(
-      createMission.execute(
+      missionService.create(
         title: '   ', //异常空是否正常处理
         scheduledDate: '2026-10-20',
         timeZone: 'Asia/Shanghai',
@@ -158,11 +167,11 @@ void main() {
 
   test('计划时长不是正数时被拒绝，且不调用仓储', () async {
     final repository = RecordingMissionRepository();
-    final createMission = CreateMission(repository);
+    final missionService = MissionService(repository);
 
     // 0 是 <= 0 的边界；负数走同一个判断，不需要为每个数值重复测试。
     await expectLater(
-      createMission.execute(
+      missionService.create(
         title: '阅读 20 分钟',
         scheduledDate: '2026-10-20',
         timeZone: 'Asia/Shanghai',
@@ -176,13 +185,13 @@ void main() {
 
   test('日期格式不是 YYYY-MM-DD 时被拒绝', () async {
     final repository = RecordingMissionRepository();
-    final createMission = CreateMission(repository);
+    final missionService = MissionService(repository);
 
     // 业务入口要求精确日期键；页面可以先清理输入，其他调用者不能传入多余字符。
     final invalidDates = ['2026/10/20', '2026-10-20\n', ' 2026-10-20'];
     for (final date in invalidDates) {
       await expectLater(
-        createMission.execute(
+        missionService.create(
           title: '阅读 20 分钟',
           scheduledDate: date,
           timeZone: 'Asia/Shanghai',
@@ -197,7 +206,7 @@ void main() {
 
   test('不存在的日历日期被拒绝', () async {
     final repository = RecordingMissionRepository();
-    final createMission = CreateMission(repository);
+    final missionService = MissionService(repository);
 
     // 格式正确也不代表日期存在：分别覆盖闰年、月份和日期越界。
     final invalidDates = [
@@ -210,7 +219,7 @@ void main() {
     ];
     for (final date in invalidDates) {
       await expectLater(
-        createMission.execute(
+        missionService.create(
           title: '阅读 20 分钟',
           scheduledDate: date,
           timeZone: 'Asia/Shanghai',
@@ -225,12 +234,12 @@ void main() {
 
   test('无效时区名称被拒绝', () async {
     final repository = RecordingMissionRepository();
-    final createMission = CreateMission(repository);
+    final missionService = MissionService(repository);
 
     // tz.getLocation 找不到该名称时抛出 LocationNotFoundException，
     // 业务代码把它转换成统一的 ArgumentError。
     await expectLater(
-      createMission.execute(
+      missionService.create(
         title: '阅读 20 分钟',
         scheduledDate: '2026-10-20',
         timeZone: 'Mars/Olympus',
@@ -244,12 +253,12 @@ void main() {
 
   test('仓储保存失败时，异常向上传递给调用者', () async {
     final repository = FailingMissionRepository();
-    final createMission = CreateMission(repository);
+    final missionService = MissionService(repository);
 
     // 所有输入都合法，失败只可能来自仓储。
-    // execute 没有 try/catch，await 会把仓储的错误继续交给测试。
+    // create 没有 try/catch，await 会把仓储的错误继续交给测试。
     await expectLater(
-      createMission.execute(
+      missionService.create(
         title: '阅读 20 分钟',
         scheduledDate: '2026-10-20',
         timeZone: 'Asia/Shanghai',

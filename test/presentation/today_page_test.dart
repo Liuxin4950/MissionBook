@@ -8,8 +8,9 @@ import 'package:flutter/rendering.dart'
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/app_shell.dart';
-import 'package:mission_book/application/create_mission.dart';
-import 'package:mission_book/application/get_scheduled_missions.dart';
+import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/domain/entities/mission_detail.dart';
+import 'package:mission_book/presentation/missions/mission_detail_page.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
@@ -24,6 +25,16 @@ import 'package:timezone/timezone.dart' as tz;
 
 // 每次读取都有独立 Future，用来控制等待、失败、重试和乱序返回。
 class ControlledQueryRepository implements MissionRepository {
+  // 列表测试默认不会进入详情；导航测试可指定要返回的完整结果。
+  MissionDetail? detail;
+  final detailIds = <String>[];
+
+  @override
+  Future<MissionDetail?> findDetail(String missionId) async {
+    detailIds.add(missionId);
+    return detail;
+  }
+
   final dates = <String>[];
   final requests = <Completer<List<ScheduledMission>>>[];
 
@@ -48,19 +59,17 @@ Widget testApp(
   bool shell = false,
   DateTime Function()? clock,
 }) {
-  final create = CreateMission(repository);
-  final getMissions = GetScheduledMissions(repository);
+  final missionService = MissionService(repository);
   return MaterialApp(
     theme: AppTheme.light,
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
     home: shell
-        ? AppShell(createMission: create, getMissions: getMissions)
+        ? AppShell(missionService: missionService)
         : Scaffold(
             body: TodayPage(
-              createMission: create,
-              getMissions: getMissions,
+              missionService: missionService,
               clock: clock ?? DateTime.now,
             ),
           ),
@@ -171,6 +180,16 @@ void main() {
     expect(find.text('真实阅读任务'), findsOneWidget);
     expect(find.text('自选时间'), findsOneWidget);
     expect(find.text('计划 20 分钟'), findsOneWidget);
+    // 从真实列表进入真实详情查询：标题同时是默认具体目标，所以详情中出现两次。
+    await tester.tap(find.text('真实阅读任务'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MissionDetailPage), findsOneWidget);
+    expect(find.text('真实阅读任务'), findsNWidgets(2));
+    expect(find.text('20 分'), findsOneWidget);
+    expect(find.byTooltip('今天'), findsNothing); // 子页不复制底部导航。
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('真实阅读任务'), findsOneWidget);
     // SQLite 的真实异步工作在真实时钟区等待，避免被 Widget 测试的假时钟挂起。
     final stored = await tester.runAsync(
       () => database.select(database.missions).get(),
@@ -207,6 +226,84 @@ void main() {
     expect(find.text('这一天还没有固定任务'), findsOneWidget);
     expect(find.text('这一天还没有自选任务'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('固定、自选与取消行按自身编号打开详情，读屏可点击且重复点击不叠页', (tester) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      final repository = ControlledQueryRepository();
+      final items = [
+        example('固定入口', fixed: true),
+        example('自选入口'),
+        example('取消固定入口', fixed: true, cancelled: true),
+        example('取消自选入口', cancelled: true),
+      ];
+      await tester.pumpWidget(testApp(repository, shell: true));
+      repository.requests.single.complete(items);
+      await tester.pumpAndSettle();
+      // 先选另一天，验证关闭详情后仍刷新这一天，而不是重置成今天。
+      final now = tz.TZDateTime.now(tz.getLocation('Asia/Shanghai'));
+      final day = now.day == 1 ? 2 : 1;
+      await tester.tap(find.byKey(const Key('today-date-picker')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('$day').last);
+      await tester.tap(find.text('确定'));
+      // 新日期的受控查询尚未完成，加载指示器会持续动画，只推进路由关闭。
+      await tester.pump(const Duration(milliseconds: 400));
+      repository.requests.last.complete(items);
+      await tester.pumpAndSettle();
+      final selectedDate = repository.dates.last;
+
+      for (final item in items) {
+        if (item.mission.cancelledAt != null) {
+          final expansion = find.byKey(const Key('cancelled-missions'));
+          await tester.ensureVisible(expansion);
+          // 刷新沿用同一个 ExpansionTile State：只在第一次需要时展开。
+          if (find.text(item.mission.title).evaluate().isEmpty) {
+            await tester.tap(find.text('已取消（2）'));
+            await tester.pumpAndSettle();
+          }
+        }
+        final row = find.byKey(ValueKey('mission-${item.mission.id}'));
+        await tester.ensureVisible(row);
+        await tester.pumpAndSettle();
+        final timeLabel = item.schedule.timePolicy == TimePolicy.fixed
+            ? '09:00'
+            : '自选时间';
+        final cancelLabel = item.mission.cancelledAt == null ? '' : '已取消 · ';
+        // 从任务的完整语义标签定位按钮，避免取到时间轴内部的布局节点。
+        final node = tester.getSemantics(
+          find.bySemanticsLabel(
+            '$timeLabel，${item.mission.title}，$cancelLabel计划 20 分钟',
+          ),
+        );
+        expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+        expect(node.getSemanticsData().flagsCollection.isButton, isTrue);
+        if (item.mission.id == '固定入口') {
+          // 使用实际语义动作，而非只检查回调存在。
+          node.owner!.performAction(node.id, SemanticsAction.tap);
+          node.owner!.performAction(node.id, SemanticsAction.tap);
+        } else {
+          await tester.tap(row);
+        }
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(MissionDetailPage, skipOffstage: false),
+          findsOneWidget,
+        );
+        expect(repository.detailIds.last, item.mission.id);
+        expect(find.text('未找到这个任务，请返回列表刷新'), findsOneWidget);
+        await tester.tap(find.byTooltip('返回'));
+        await tester.pump();
+        expect(repository.dates.last, selectedDate);
+        repository.requests.last.complete(items);
+        await tester.pumpAndSettle();
+      }
+      expect(repository.detailIds, items.map((item) => item.mission.id));
+      await tester.pumpWidget(const SizedBox.shrink());
+    } finally {
+      semantics.dispose();
+    }
   });
 
   testWidgets('区域标题在空数据时仍显示，空固定列表不启动每秒时钟', (tester) async {
@@ -355,7 +452,7 @@ void main() {
     );
     expect(
       activeNode.getSemanticsData().hasAction(SemanticsAction.tap),
-      isFalse,
+      isTrue, // 任务行现在已接通详情入口，读屏也应提供同一个点击动作。
     );
     expect(activeNode.childrenCount, 0);
     expect(find.bySemanticsLabel('自选时间，自选1，计划 20 分钟'), findsOneWidget);

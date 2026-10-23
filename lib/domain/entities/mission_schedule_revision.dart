@@ -30,7 +30,10 @@ enum TimePolicy {
   fixed, // 固定时间：安排日期，同时指定开始时刻
 }
 
-/// 任务的一次完整排期记录；修改时新增版本，保留旧版本。
+/// 【业务实体】任务的一次完整排期，由 mission_schedule_revisions 表保存。
+///
+/// 修改时新增版本，保留旧版本。本类不是“任务＋排期”的查询组合；
+/// 它只表达一条排期的业务内容，数据库列定义仍位于 data/local/tables/。
 class MissionScheduleRevision {
   const MissionScheduleRevision({
     required this.id,

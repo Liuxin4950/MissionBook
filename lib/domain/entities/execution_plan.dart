@@ -1,5 +1,7 @@
-/// 一个任务的执行方案。
+/// 【业务实体】一个任务的执行方案，由 execution_plans 表保存。
+///
 /// 每个任务恰好有一个方案；任务开始后不再直接修改。
+/// 本类的 steps 是文字列表，存储时才由仓储转换为 JSON；表结构在 data/local/tables/。
 class ExecutionPlan {
   ExecutionPlan({
     required this.id,

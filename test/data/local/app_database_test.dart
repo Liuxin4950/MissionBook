@@ -3,8 +3,7 @@ import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mission_book/application/create_mission.dart';
-import 'package:mission_book/application/get_scheduled_missions.dart';
+import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/mission.dart';
@@ -22,7 +21,7 @@ void main() {
       final firstConnection = AppDatabase(executor: NativeDatabase(file));
       try {
         final repository = DriftMissionRepository(firstConnection);
-        await CreateMission(repository).execute(
+        await MissionService(repository).create(
           title: '  文件持久化检查  ',
           scheduledDate: '2026-10-22',
           timeZone: 'Asia/Shanghai',
@@ -36,9 +35,9 @@ void main() {
       final secondConnection = AppDatabase(executor: NativeDatabase(file));
       try {
         final repository = DriftMissionRepository(secondConnection);
-        final missions = await GetScheduledMissions(
+        final missions = await MissionService(
           repository,
-        ).execute(scheduledDate: '2026-10-22');
+        ).findScheduledOn(scheduledDate: '2026-10-22');
         expect(missions, hasLength(1));
         expect(missions.single.mission.title, '文件持久化检查');
         expect(missions.single.schedule.missionId, missions.single.mission.id);
