@@ -1762,6 +1762,678 @@ class ExecutionPlansCompanion extends UpdateCompanion<ExecutionPlanRow> {
   }
 }
 
+class $ExecutionEventsTable extends ExecutionEvents
+    with TableInfo<$ExecutionEventsTable, ExecutionEventRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ExecutionEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _missionIdMeta = const VerificationMeta(
+    'missionId',
+  );
+  @override
+  late final GeneratedColumn<String> missionId = GeneratedColumn<String>(
+    'mission_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES missions (id)',
+    ),
+  );
+  static const VerificationMeta _sequenceMeta = const VerificationMeta(
+    'sequence',
+  );
+  @override
+  late final GeneratedColumn<int> sequence = GeneratedColumn<int>(
+    'sequence',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
+    'occurredAt',
+  );
+  @override
+  late final GeneratedColumn<int> occurredAt = GeneratedColumn<int>(
+    'occurred_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scheduleRevisionIdMeta =
+      const VerificationMeta('scheduleRevisionId');
+  @override
+  late final GeneratedColumn<String> scheduleRevisionId =
+      GeneratedColumn<String>(
+        'schedule_revision_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES mission_schedule_revisions (id)',
+        ),
+      );
+  static const VerificationMeta _grantedDurationMinutesMeta =
+      const VerificationMeta('grantedDurationMinutes');
+  @override
+  late final GeneratedColumn<int> grantedDurationMinutes = GeneratedColumn<int>(
+    'granted_duration_minutes',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  @override
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _userReportedResultMeta =
+      const VerificationMeta('userReportedResult');
+  @override
+  late final GeneratedColumn<String> userReportedResult =
+      GeneratedColumn<String>(
+        'user_reported_result',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _submitOptionalEvidenceMeta =
+      const VerificationMeta('submitOptionalEvidence');
+  @override
+  late final GeneratedColumn<bool> submitOptionalEvidence =
+      GeneratedColumn<bool>(
+        'submit_optional_evidence',
+        aliasedName,
+        true,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("submit_optional_evidence" IN (0, 1))',
+        ),
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    missionId,
+    sequence,
+    type,
+    occurredAt,
+    scheduleRevisionId,
+    grantedDurationMinutes,
+    reason,
+    userReportedResult,
+    submitOptionalEvidence,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'execution_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ExecutionEventRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('mission_id')) {
+      context.handle(
+        _missionIdMeta,
+        missionId.isAcceptableOrUnknown(data['mission_id']!, _missionIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_missionIdMeta);
+    }
+    if (data.containsKey('sequence')) {
+      context.handle(
+        _sequenceMeta,
+        sequence.isAcceptableOrUnknown(data['sequence']!, _sequenceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sequenceMeta);
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+        _occurredAtMeta,
+        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    if (data.containsKey('schedule_revision_id')) {
+      context.handle(
+        _scheduleRevisionIdMeta,
+        scheduleRevisionId.isAcceptableOrUnknown(
+          data['schedule_revision_id']!,
+          _scheduleRevisionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('granted_duration_minutes')) {
+      context.handle(
+        _grantedDurationMinutesMeta,
+        grantedDurationMinutes.isAcceptableOrUnknown(
+          data['granted_duration_minutes']!,
+          _grantedDurationMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reason')) {
+      context.handle(
+        _reasonMeta,
+        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+      );
+    }
+    if (data.containsKey('user_reported_result')) {
+      context.handle(
+        _userReportedResultMeta,
+        userReportedResult.isAcceptableOrUnknown(
+          data['user_reported_result']!,
+          _userReportedResultMeta,
+        ),
+      );
+    }
+    if (data.containsKey('submit_optional_evidence')) {
+      context.handle(
+        _submitOptionalEvidenceMeta,
+        submitOptionalEvidence.isAcceptableOrUnknown(
+          data['submit_optional_evidence']!,
+          _submitOptionalEvidenceMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {missionId, sequence},
+  ];
+  @override
+  ExecutionEventRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ExecutionEventRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      missionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mission_id'],
+      )!,
+      sequence: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sequence'],
+      )!,
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      occurredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}occurred_at'],
+      )!,
+      scheduleRevisionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}schedule_revision_id'],
+      ),
+      grantedDurationMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}granted_duration_minutes'],
+      ),
+      reason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reason'],
+      ),
+      userReportedResult: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_reported_result'],
+      ),
+      submitOptionalEvidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}submit_optional_evidence'],
+      ),
+    );
+  }
+
+  @override
+  $ExecutionEventsTable createAlias(String alias) {
+    return $ExecutionEventsTable(attachedDatabase, alias);
+  }
+}
+
+class ExecutionEventRow extends DataClass
+    implements Insertable<ExecutionEventRow> {
+  final String id;
+  final String missionId;
+  final int sequence;
+  final String type;
+  final int occurredAt;
+  final String? scheduleRevisionId;
+  final int? grantedDurationMinutes;
+  final String? reason;
+  final String? userReportedResult;
+  final bool? submitOptionalEvidence;
+  const ExecutionEventRow({
+    required this.id,
+    required this.missionId,
+    required this.sequence,
+    required this.type,
+    required this.occurredAt,
+    this.scheduleRevisionId,
+    this.grantedDurationMinutes,
+    this.reason,
+    this.userReportedResult,
+    this.submitOptionalEvidence,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['mission_id'] = Variable<String>(missionId);
+    map['sequence'] = Variable<int>(sequence);
+    map['type'] = Variable<String>(type);
+    map['occurred_at'] = Variable<int>(occurredAt);
+    if (!nullToAbsent || scheduleRevisionId != null) {
+      map['schedule_revision_id'] = Variable<String>(scheduleRevisionId);
+    }
+    if (!nullToAbsent || grantedDurationMinutes != null) {
+      map['granted_duration_minutes'] = Variable<int>(grantedDurationMinutes);
+    }
+    if (!nullToAbsent || reason != null) {
+      map['reason'] = Variable<String>(reason);
+    }
+    if (!nullToAbsent || userReportedResult != null) {
+      map['user_reported_result'] = Variable<String>(userReportedResult);
+    }
+    if (!nullToAbsent || submitOptionalEvidence != null) {
+      map['submit_optional_evidence'] = Variable<bool>(submitOptionalEvidence);
+    }
+    return map;
+  }
+
+  ExecutionEventsCompanion toCompanion(bool nullToAbsent) {
+    return ExecutionEventsCompanion(
+      id: Value(id),
+      missionId: Value(missionId),
+      sequence: Value(sequence),
+      type: Value(type),
+      occurredAt: Value(occurredAt),
+      scheduleRevisionId: scheduleRevisionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scheduleRevisionId),
+      grantedDurationMinutes: grantedDurationMinutes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(grantedDurationMinutes),
+      reason: reason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reason),
+      userReportedResult: userReportedResult == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userReportedResult),
+      submitOptionalEvidence: submitOptionalEvidence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(submitOptionalEvidence),
+    );
+  }
+
+  factory ExecutionEventRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ExecutionEventRow(
+      id: serializer.fromJson<String>(json['id']),
+      missionId: serializer.fromJson<String>(json['missionId']),
+      sequence: serializer.fromJson<int>(json['sequence']),
+      type: serializer.fromJson<String>(json['type']),
+      occurredAt: serializer.fromJson<int>(json['occurredAt']),
+      scheduleRevisionId: serializer.fromJson<String?>(
+        json['scheduleRevisionId'],
+      ),
+      grantedDurationMinutes: serializer.fromJson<int?>(
+        json['grantedDurationMinutes'],
+      ),
+      reason: serializer.fromJson<String?>(json['reason']),
+      userReportedResult: serializer.fromJson<String?>(
+        json['userReportedResult'],
+      ),
+      submitOptionalEvidence: serializer.fromJson<bool?>(
+        json['submitOptionalEvidence'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'missionId': serializer.toJson<String>(missionId),
+      'sequence': serializer.toJson<int>(sequence),
+      'type': serializer.toJson<String>(type),
+      'occurredAt': serializer.toJson<int>(occurredAt),
+      'scheduleRevisionId': serializer.toJson<String?>(scheduleRevisionId),
+      'grantedDurationMinutes': serializer.toJson<int?>(grantedDurationMinutes),
+      'reason': serializer.toJson<String?>(reason),
+      'userReportedResult': serializer.toJson<String?>(userReportedResult),
+      'submitOptionalEvidence': serializer.toJson<bool?>(
+        submitOptionalEvidence,
+      ),
+    };
+  }
+
+  ExecutionEventRow copyWith({
+    String? id,
+    String? missionId,
+    int? sequence,
+    String? type,
+    int? occurredAt,
+    Value<String?> scheduleRevisionId = const Value.absent(),
+    Value<int?> grantedDurationMinutes = const Value.absent(),
+    Value<String?> reason = const Value.absent(),
+    Value<String?> userReportedResult = const Value.absent(),
+    Value<bool?> submitOptionalEvidence = const Value.absent(),
+  }) => ExecutionEventRow(
+    id: id ?? this.id,
+    missionId: missionId ?? this.missionId,
+    sequence: sequence ?? this.sequence,
+    type: type ?? this.type,
+    occurredAt: occurredAt ?? this.occurredAt,
+    scheduleRevisionId: scheduleRevisionId.present
+        ? scheduleRevisionId.value
+        : this.scheduleRevisionId,
+    grantedDurationMinutes: grantedDurationMinutes.present
+        ? grantedDurationMinutes.value
+        : this.grantedDurationMinutes,
+    reason: reason.present ? reason.value : this.reason,
+    userReportedResult: userReportedResult.present
+        ? userReportedResult.value
+        : this.userReportedResult,
+    submitOptionalEvidence: submitOptionalEvidence.present
+        ? submitOptionalEvidence.value
+        : this.submitOptionalEvidence,
+  );
+  ExecutionEventRow copyWithCompanion(ExecutionEventsCompanion data) {
+    return ExecutionEventRow(
+      id: data.id.present ? data.id.value : this.id,
+      missionId: data.missionId.present ? data.missionId.value : this.missionId,
+      sequence: data.sequence.present ? data.sequence.value : this.sequence,
+      type: data.type.present ? data.type.value : this.type,
+      occurredAt: data.occurredAt.present
+          ? data.occurredAt.value
+          : this.occurredAt,
+      scheduleRevisionId: data.scheduleRevisionId.present
+          ? data.scheduleRevisionId.value
+          : this.scheduleRevisionId,
+      grantedDurationMinutes: data.grantedDurationMinutes.present
+          ? data.grantedDurationMinutes.value
+          : this.grantedDurationMinutes,
+      reason: data.reason.present ? data.reason.value : this.reason,
+      userReportedResult: data.userReportedResult.present
+          ? data.userReportedResult.value
+          : this.userReportedResult,
+      submitOptionalEvidence: data.submitOptionalEvidence.present
+          ? data.submitOptionalEvidence.value
+          : this.submitOptionalEvidence,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExecutionEventRow(')
+          ..write('id: $id, ')
+          ..write('missionId: $missionId, ')
+          ..write('sequence: $sequence, ')
+          ..write('type: $type, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('scheduleRevisionId: $scheduleRevisionId, ')
+          ..write('grantedDurationMinutes: $grantedDurationMinutes, ')
+          ..write('reason: $reason, ')
+          ..write('userReportedResult: $userReportedResult, ')
+          ..write('submitOptionalEvidence: $submitOptionalEvidence')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    missionId,
+    sequence,
+    type,
+    occurredAt,
+    scheduleRevisionId,
+    grantedDurationMinutes,
+    reason,
+    userReportedResult,
+    submitOptionalEvidence,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ExecutionEventRow &&
+          other.id == this.id &&
+          other.missionId == this.missionId &&
+          other.sequence == this.sequence &&
+          other.type == this.type &&
+          other.occurredAt == this.occurredAt &&
+          other.scheduleRevisionId == this.scheduleRevisionId &&
+          other.grantedDurationMinutes == this.grantedDurationMinutes &&
+          other.reason == this.reason &&
+          other.userReportedResult == this.userReportedResult &&
+          other.submitOptionalEvidence == this.submitOptionalEvidence);
+}
+
+class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
+  final Value<String> id;
+  final Value<String> missionId;
+  final Value<int> sequence;
+  final Value<String> type;
+  final Value<int> occurredAt;
+  final Value<String?> scheduleRevisionId;
+  final Value<int?> grantedDurationMinutes;
+  final Value<String?> reason;
+  final Value<String?> userReportedResult;
+  final Value<bool?> submitOptionalEvidence;
+  final Value<int> rowid;
+  const ExecutionEventsCompanion({
+    this.id = const Value.absent(),
+    this.missionId = const Value.absent(),
+    this.sequence = const Value.absent(),
+    this.type = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.scheduleRevisionId = const Value.absent(),
+    this.grantedDurationMinutes = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.userReportedResult = const Value.absent(),
+    this.submitOptionalEvidence = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ExecutionEventsCompanion.insert({
+    required String id,
+    required String missionId,
+    required int sequence,
+    required String type,
+    required int occurredAt,
+    this.scheduleRevisionId = const Value.absent(),
+    this.grantedDurationMinutes = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.userReportedResult = const Value.absent(),
+    this.submitOptionalEvidence = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       missionId = Value(missionId),
+       sequence = Value(sequence),
+       type = Value(type),
+       occurredAt = Value(occurredAt);
+  static Insertable<ExecutionEventRow> custom({
+    Expression<String>? id,
+    Expression<String>? missionId,
+    Expression<int>? sequence,
+    Expression<String>? type,
+    Expression<int>? occurredAt,
+    Expression<String>? scheduleRevisionId,
+    Expression<int>? grantedDurationMinutes,
+    Expression<String>? reason,
+    Expression<String>? userReportedResult,
+    Expression<bool>? submitOptionalEvidence,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (missionId != null) 'mission_id': missionId,
+      if (sequence != null) 'sequence': sequence,
+      if (type != null) 'type': type,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (scheduleRevisionId != null)
+        'schedule_revision_id': scheduleRevisionId,
+      if (grantedDurationMinutes != null)
+        'granted_duration_minutes': grantedDurationMinutes,
+      if (reason != null) 'reason': reason,
+      if (userReportedResult != null)
+        'user_reported_result': userReportedResult,
+      if (submitOptionalEvidence != null)
+        'submit_optional_evidence': submitOptionalEvidence,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ExecutionEventsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? missionId,
+    Value<int>? sequence,
+    Value<String>? type,
+    Value<int>? occurredAt,
+    Value<String?>? scheduleRevisionId,
+    Value<int?>? grantedDurationMinutes,
+    Value<String?>? reason,
+    Value<String?>? userReportedResult,
+    Value<bool?>? submitOptionalEvidence,
+    Value<int>? rowid,
+  }) {
+    return ExecutionEventsCompanion(
+      id: id ?? this.id,
+      missionId: missionId ?? this.missionId,
+      sequence: sequence ?? this.sequence,
+      type: type ?? this.type,
+      occurredAt: occurredAt ?? this.occurredAt,
+      scheduleRevisionId: scheduleRevisionId ?? this.scheduleRevisionId,
+      grantedDurationMinutes:
+          grantedDurationMinutes ?? this.grantedDurationMinutes,
+      reason: reason ?? this.reason,
+      userReportedResult: userReportedResult ?? this.userReportedResult,
+      submitOptionalEvidence:
+          submitOptionalEvidence ?? this.submitOptionalEvidence,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (missionId.present) {
+      map['mission_id'] = Variable<String>(missionId.value);
+    }
+    if (sequence.present) {
+      map['sequence'] = Variable<int>(sequence.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<int>(occurredAt.value);
+    }
+    if (scheduleRevisionId.present) {
+      map['schedule_revision_id'] = Variable<String>(scheduleRevisionId.value);
+    }
+    if (grantedDurationMinutes.present) {
+      map['granted_duration_minutes'] = Variable<int>(
+        grantedDurationMinutes.value,
+      );
+    }
+    if (reason.present) {
+      map['reason'] = Variable<String>(reason.value);
+    }
+    if (userReportedResult.present) {
+      map['user_reported_result'] = Variable<String>(userReportedResult.value);
+    }
+    if (submitOptionalEvidence.present) {
+      map['submit_optional_evidence'] = Variable<bool>(
+        submitOptionalEvidence.value,
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExecutionEventsCompanion(')
+          ..write('id: $id, ')
+          ..write('missionId: $missionId, ')
+          ..write('sequence: $sequence, ')
+          ..write('type: $type, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('scheduleRevisionId: $scheduleRevisionId, ')
+          ..write('grantedDurationMinutes: $grantedDurationMinutes, ')
+          ..write('reason: $reason, ')
+          ..write('userReportedResult: $userReportedResult, ')
+          ..write('submitOptionalEvidence: $submitOptionalEvidence, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1769,6 +2441,17 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $MissionScheduleRevisionsTable missionScheduleRevisions =
       $MissionScheduleRevisionsTable(this);
   late final $ExecutionPlansTable executionPlans = $ExecutionPlansTable(this);
+  late final $ExecutionEventsTable executionEvents = $ExecutionEventsTable(
+    this,
+  );
+  late final Index executionEventsOneStart = Index(
+    'execution_events_one_start',
+    'CREATE UNIQUE INDEX execution_events_one_start ON execution_events (mission_id) WHERE type = \'START\'',
+  );
+  late final Index executionEventsOneEnd = Index(
+    'execution_events_one_end',
+    'CREATE UNIQUE INDEX execution_events_one_end ON execution_events (mission_id) WHERE type = \'END\'',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1777,6 +2460,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     missions,
     missionScheduleRevisions,
     executionPlans,
+    executionEvents,
+    executionEventsOneStart,
+    executionEventsOneEnd,
   ];
 }
 
@@ -1847,6 +2533,26 @@ final class $$MissionsTableReferences
     ).filter((f) => f.missionId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_executionPlansRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ExecutionEventsTable, List<ExecutionEventRow>>
+  _executionEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.executionEvents,
+    aliasName: 'missions__id__execution_events__mission_id',
+  );
+
+  $$ExecutionEventsTableProcessedTableManager get executionEventsRefs {
+    final manager = $$ExecutionEventsTableTableManager(
+      $_db,
+      $_db.executionEvents,
+    ).filter((f) => f.missionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _executionEventsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -1945,6 +2651,31 @@ class $$MissionsTableFilterComposer
           }) => $$ExecutionPlansTableFilterComposer(
             $db: $db,
             $table: $db.executionPlans,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> executionEventsRefs(
+    Expression<bool> Function($$ExecutionEventsTableFilterComposer f) f,
+  ) {
+    final $$ExecutionEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.executionEvents,
+      getReferencedColumn: (t) => t.missionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ExecutionEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.executionEvents,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2095,6 +2826,31 @@ class $$MissionsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> executionEventsRefs<T extends Object>(
+    Expression<T> Function($$ExecutionEventsTableAnnotationComposer a) f,
+  ) {
+    final $$ExecutionEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.executionEvents,
+      getReferencedColumn: (t) => t.missionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ExecutionEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.executionEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$MissionsTableTableManager
@@ -2113,6 +2869,7 @@ class $$MissionsTableTableManager
           PrefetchHooks Function({
             bool missionScheduleRevisionsRefs,
             bool executionPlansRefs,
+            bool executionEventsRefs,
           })
         > {
   $$MissionsTableTableManager(_$AppDatabase db, $MissionsTable table)
@@ -2182,6 +2939,7 @@ class $$MissionsTableTableManager
               ({
                 missionScheduleRevisionsRefs = false,
                 executionPlansRefs = false,
+                executionEventsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -2189,6 +2947,7 @@ class $$MissionsTableTableManager
                     if (missionScheduleRevisionsRefs)
                       db.missionScheduleRevisions,
                     if (executionPlansRefs) db.executionPlans,
+                    if (executionEventsRefs) db.executionEvents,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -2235,6 +2994,27 @@ class $$MissionsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (executionEventsRefs)
+                        await $_getPrefetchedData<
+                          MissionRow,
+                          $MissionsTable,
+                          ExecutionEventRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$MissionsTableReferences
+                              ._executionEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$MissionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).executionEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.missionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -2258,6 +3038,7 @@ typedef $$MissionsTableProcessedTableManager =
       PrefetchHooks Function({
         bool missionScheduleRevisionsRefs,
         bool executionPlansRefs,
+        bool executionEventsRefs,
       })
     >;
 typedef $$MissionScheduleRevisionsTableCreateCompanionBuilder =
@@ -2318,6 +3099,27 @@ final class $$MissionScheduleRevisionsTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$ExecutionEventsTable, List<ExecutionEventRow>>
+  _executionEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.executionEvents,
+    aliasName:
+        'mission_schedule_revisions__id__execution_events__schedule_revision_id',
+  );
+
+  $$ExecutionEventsTableProcessedTableManager get executionEventsRefs {
+    final manager =
+        $$ExecutionEventsTableTableManager($_db, $_db.executionEvents).filter(
+          (f) => f.scheduleRevisionId.id.sqlEquals($_itemColumn<String>('id')!),
+        );
+
+    final cache = $_typedResult.readTableOrNull(
+      _executionEventsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
     );
   }
 }
@@ -2402,6 +3204,31 @@ class $$MissionScheduleRevisionsTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> executionEventsRefs(
+    Expression<bool> Function($$ExecutionEventsTableFilterComposer f) f,
+  ) {
+    final $$ExecutionEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.executionEvents,
+      getReferencedColumn: (t) => t.scheduleRevisionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ExecutionEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.executionEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -2563,6 +3390,31 @@ class $$MissionScheduleRevisionsTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> executionEventsRefs<T extends Object>(
+    Expression<T> Function($$ExecutionEventsTableAnnotationComposer a) f,
+  ) {
+    final $$ExecutionEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.executionEvents,
+      getReferencedColumn: (t) => t.scheduleRevisionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ExecutionEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.executionEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$MissionScheduleRevisionsTableTableManager
@@ -2581,7 +3433,7 @@ class $$MissionScheduleRevisionsTableTableManager
             $$MissionScheduleRevisionsTableReferences,
           ),
           MissionScheduleRevisionRow,
-          PrefetchHooks Function({bool missionId})
+          PrefetchHooks Function({bool missionId, bool executionEventsRefs})
         > {
   $$MissionScheduleRevisionsTableTableManager(
     _$AppDatabase db,
@@ -2669,49 +3521,75 @@ class $$MissionScheduleRevisionsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({missionId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (missionId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.missionId,
-                                referencedTable:
-                                    $$MissionScheduleRevisionsTableReferences
-                                        ._missionIdTable(db),
-                                referencedColumn:
-                                    $$MissionScheduleRevisionsTableReferences
-                                        ._missionIdTable(db)
-                                        .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({missionId = false, executionEventsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (executionEventsRefs) db.executionEvents,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (missionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.missionId,
+                                    referencedTable:
+                                        $$MissionScheduleRevisionsTableReferences
+                                            ._missionIdTable(db),
+                                    referencedColumn:
+                                        $$MissionScheduleRevisionsTableReferences
+                                            ._missionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (executionEventsRefs)
+                        await $_getPrefetchedData<
+                          MissionScheduleRevisionRow,
+                          $MissionScheduleRevisionsTable,
+                          ExecutionEventRow
+                        >(
+                          currentTable: table,
+                          referencedTable:
+                              $$MissionScheduleRevisionsTableReferences
+                                  ._executionEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$MissionScheduleRevisionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).executionEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.scheduleRevisionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -2728,7 +3606,7 @@ typedef $$MissionScheduleRevisionsTableProcessedTableManager =
       $$MissionScheduleRevisionsTableUpdateCompanionBuilder,
       (MissionScheduleRevisionRow, $$MissionScheduleRevisionsTableReferences),
       MissionScheduleRevisionRow,
-      PrefetchHooks Function({bool missionId})
+      PrefetchHooks Function({bool missionId, bool executionEventsRefs})
     >;
 typedef $$ExecutionPlansTableCreateCompanionBuilder =
     ExecutionPlansCompanion Function({
@@ -3114,6 +3992,534 @@ typedef $$ExecutionPlansTableProcessedTableManager =
       ExecutionPlanRow,
       PrefetchHooks Function({bool missionId})
     >;
+typedef $$ExecutionEventsTableCreateCompanionBuilder =
+    ExecutionEventsCompanion Function({
+      required String id,
+      required String missionId,
+      required int sequence,
+      required String type,
+      required int occurredAt,
+      Value<String?> scheduleRevisionId,
+      Value<int?> grantedDurationMinutes,
+      Value<String?> reason,
+      Value<String?> userReportedResult,
+      Value<bool?> submitOptionalEvidence,
+      Value<int> rowid,
+    });
+typedef $$ExecutionEventsTableUpdateCompanionBuilder =
+    ExecutionEventsCompanion Function({
+      Value<String> id,
+      Value<String> missionId,
+      Value<int> sequence,
+      Value<String> type,
+      Value<int> occurredAt,
+      Value<String?> scheduleRevisionId,
+      Value<int?> grantedDurationMinutes,
+      Value<String?> reason,
+      Value<String?> userReportedResult,
+      Value<bool?> submitOptionalEvidence,
+      Value<int> rowid,
+    });
+
+final class $$ExecutionEventsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ExecutionEventsTable,
+          ExecutionEventRow
+        > {
+  $$ExecutionEventsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $MissionsTable _missionIdTable(_$AppDatabase db) =>
+      db.missions.createAlias('execution_events__mission_id__missions__id');
+
+  $$MissionsTableProcessedTableManager get missionId {
+    final $_column = $_itemColumn<String>('mission_id')!;
+
+    final manager = $$MissionsTableTableManager(
+      $_db,
+      $_db.missions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_missionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $MissionScheduleRevisionsTable _scheduleRevisionIdTable(
+    _$AppDatabase db,
+  ) => db.missionScheduleRevisions.createAlias(
+    'execution_events__schedule_revision_id__mission_schedule_revisions__id',
+  );
+
+  $$MissionScheduleRevisionsTableProcessedTableManager? get scheduleRevisionId {
+    final $_column = $_itemColumn<String>('schedule_revision_id');
+    if ($_column == null) return null;
+    final manager = $$MissionScheduleRevisionsTableTableManager(
+      $_db,
+      $_db.missionScheduleRevisions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_scheduleRevisionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ExecutionEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $ExecutionEventsTable> {
+  $$ExecutionEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get grantedDurationMinutes => $composableBuilder(
+    column: $table.grantedDurationMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userReportedResult => $composableBuilder(
+    column: $table.userReportedResult,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get submitOptionalEvidence => $composableBuilder(
+    column: $table.submitOptionalEvidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$MissionsTableFilterComposer get missionId {
+    final $$MissionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.missionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableFilterComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$MissionScheduleRevisionsTableFilterComposer get scheduleRevisionId {
+    final $$MissionScheduleRevisionsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.scheduleRevisionId,
+          referencedTable: $db.missionScheduleRevisions,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$MissionScheduleRevisionsTableFilterComposer(
+                $db: $db,
+                $table: $db.missionScheduleRevisions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$ExecutionEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ExecutionEventsTable> {
+  $$ExecutionEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get grantedDurationMinutes => $composableBuilder(
+    column: $table.grantedDurationMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userReportedResult => $composableBuilder(
+    column: $table.userReportedResult,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get submitOptionalEvidence => $composableBuilder(
+    column: $table.submitOptionalEvidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$MissionsTableOrderingComposer get missionId {
+    final $$MissionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.missionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$MissionScheduleRevisionsTableOrderingComposer get scheduleRevisionId {
+    final $$MissionScheduleRevisionsTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.scheduleRevisionId,
+          referencedTable: $db.missionScheduleRevisions,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$MissionScheduleRevisionsTableOrderingComposer(
+                $db: $db,
+                $table: $db.missionScheduleRevisions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$ExecutionEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ExecutionEventsTable> {
+  $$ExecutionEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get sequence =>
+      $composableBuilder(column: $table.sequence, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<int> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get grantedDurationMinutes => $composableBuilder(
+    column: $table.grantedDurationMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumn<String> get userReportedResult => $composableBuilder(
+    column: $table.userReportedResult,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get submitOptionalEvidence => $composableBuilder(
+    column: $table.submitOptionalEvidence,
+    builder: (column) => column,
+  );
+
+  $$MissionsTableAnnotationComposer get missionId {
+    final $$MissionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.missionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$MissionScheduleRevisionsTableAnnotationComposer get scheduleRevisionId {
+    final $$MissionScheduleRevisionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.scheduleRevisionId,
+          referencedTable: $db.missionScheduleRevisions,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$MissionScheduleRevisionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.missionScheduleRevisions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$ExecutionEventsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ExecutionEventsTable,
+          ExecutionEventRow,
+          $$ExecutionEventsTableFilterComposer,
+          $$ExecutionEventsTableOrderingComposer,
+          $$ExecutionEventsTableAnnotationComposer,
+          $$ExecutionEventsTableCreateCompanionBuilder,
+          $$ExecutionEventsTableUpdateCompanionBuilder,
+          (ExecutionEventRow, $$ExecutionEventsTableReferences),
+          ExecutionEventRow,
+          PrefetchHooks Function({bool missionId, bool scheduleRevisionId})
+        > {
+  $$ExecutionEventsTableTableManager(
+    _$AppDatabase db,
+    $ExecutionEventsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ExecutionEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ExecutionEventsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ExecutionEventsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> missionId = const Value.absent(),
+                Value<int> sequence = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<int> occurredAt = const Value.absent(),
+                Value<String?> scheduleRevisionId = const Value.absent(),
+                Value<int?> grantedDurationMinutes = const Value.absent(),
+                Value<String?> reason = const Value.absent(),
+                Value<String?> userReportedResult = const Value.absent(),
+                Value<bool?> submitOptionalEvidence = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ExecutionEventsCompanion(
+                id: id,
+                missionId: missionId,
+                sequence: sequence,
+                type: type,
+                occurredAt: occurredAt,
+                scheduleRevisionId: scheduleRevisionId,
+                grantedDurationMinutes: grantedDurationMinutes,
+                reason: reason,
+                userReportedResult: userReportedResult,
+                submitOptionalEvidence: submitOptionalEvidence,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String missionId,
+                required int sequence,
+                required String type,
+                required int occurredAt,
+                Value<String?> scheduleRevisionId = const Value.absent(),
+                Value<int?> grantedDurationMinutes = const Value.absent(),
+                Value<String?> reason = const Value.absent(),
+                Value<String?> userReportedResult = const Value.absent(),
+                Value<bool?> submitOptionalEvidence = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ExecutionEventsCompanion.insert(
+                id: id,
+                missionId: missionId,
+                sequence: sequence,
+                type: type,
+                occurredAt: occurredAt,
+                scheduleRevisionId: scheduleRevisionId,
+                grantedDurationMinutes: grantedDurationMinutes,
+                reason: reason,
+                userReportedResult: userReportedResult,
+                submitOptionalEvidence: submitOptionalEvidence,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ExecutionEventsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({missionId = false, scheduleRevisionId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (missionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.missionId,
+                                    referencedTable:
+                                        $$ExecutionEventsTableReferences
+                                            ._missionIdTable(db),
+                                    referencedColumn:
+                                        $$ExecutionEventsTableReferences
+                                            ._missionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (scheduleRevisionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.scheduleRevisionId,
+                                    referencedTable:
+                                        $$ExecutionEventsTableReferences
+                                            ._scheduleRevisionIdTable(db),
+                                    referencedColumn:
+                                        $$ExecutionEventsTableReferences
+                                            ._scheduleRevisionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$ExecutionEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ExecutionEventsTable,
+      ExecutionEventRow,
+      $$ExecutionEventsTableFilterComposer,
+      $$ExecutionEventsTableOrderingComposer,
+      $$ExecutionEventsTableAnnotationComposer,
+      $$ExecutionEventsTableCreateCompanionBuilder,
+      $$ExecutionEventsTableUpdateCompanionBuilder,
+      (ExecutionEventRow, $$ExecutionEventsTableReferences),
+      ExecutionEventRow,
+      PrefetchHooks Function({bool missionId, bool scheduleRevisionId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3127,4 +4533,6 @@ class $AppDatabaseManager {
       );
   $$ExecutionPlansTableTableManager get executionPlans =>
       $$ExecutionPlansTableTableManager(_db, _db.executionPlans);
+  $$ExecutionEventsTableTableManager get executionEvents =>
+      $$ExecutionEventsTableTableManager(_db, _db.executionEvents);
 }

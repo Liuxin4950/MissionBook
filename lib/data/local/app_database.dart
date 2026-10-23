@@ -5,14 +5,17 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'tables/execution_plans.dart';
+import 'tables/execution_events.dart';
 import 'tables/mission_schedule_revisions.dart';
 import 'tables/missions.dart';
 
 part 'app_database.g.dart';
 
-/// 按平台连接原生 SQLite 或浏览器存储，三张表与事务规则共用。
-// 注册这个数据库包含的三张表。
-@DriftDatabase(tables: [Missions, MissionScheduleRevisions, ExecutionPlans])
+/// 按平台连接原生 SQLite 或浏览器存储，表结构与事务规则共用。
+// 注册已有三表与 U08 新增的执行事件表。
+@DriftDatabase(
+  tables: [Missions, MissionScheduleRevisions, ExecutionPlans, ExecutionEvents],
+)
 class AppDatabase extends _$AppDatabase {
   // 正常按平台选择存储；测试时可传入独立连接，不访问用户数据库。
   AppDatabase({QueryExecutor? executor})
@@ -43,13 +46,32 @@ class AppDatabase extends _$AppDatabase {
             ),
       );
 
-  // 首个持久化版本；后续修改结构时需要升级版本并迁移旧数据。
+  // v1 已有任务、排期和方案；v2 追加事件表，不重建旧表。
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    // 默认创建逻辑会建立注册的三张表，这里补充开启外键检查。
+    // 首次安装沿用默认 onCreate：Drift 创建全部四表与声明的索引。
+    // 已有库版本不同时，Drift 调用此回调，并传入旧版本 from 和目标版本 to。
+    onUpgrade: (migrator, from, to) async {
+      if (from != 1 || to != 2) {
+        // 不认识的版本明确失败，保留原库；不能用删库掩盖升级问题。
+        throw StateError('不支持数据库从 v$from 升级或降级到 v$to');
+      }
+      // transaction 等待三步全部成功才提交，异常时一起回滚。
+      // createTable 只建表，不会自动建立 @TableIndex 声明的独立索引。
+      await transaction(() async {
+        await migrator.createTable(executionEvents);
+        await migrator.createIndex(executionEventsOneStart);
+        await migrator.createIndex(executionEventsOneEnd);
+        // Drift 默认在全部开库回调完成后才记版本。把标记与结构一起提交，
+        // 避免结构已建好、后续开库中断后，重开仍按 v1 重复创建索引。
+        // to 是 Drift 传入且已在上面确认的目标版本，不来自用户输入。
+        await customStatement('PRAGMA user_version = $to');
+      });
+    },
+    // 新建/升级之后、普通查询之前，开启此连接的外键检查。
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },

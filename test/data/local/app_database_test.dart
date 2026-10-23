@@ -141,7 +141,7 @@ void main() {
     code,
   );
 
-  test('首次打开建立三张表、启用外键并采用数据库默认值', () async {
+  test('首次打开建立四张表、启用外键并采用数据库默认值', () async {
     await insertMission('mission-a');
     await insertSchedule('schedule-a', 'mission-a', 1);
     await insertPlan('plan-a', 'mission-a');
