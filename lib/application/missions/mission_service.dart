@@ -9,7 +9,7 @@ import '../../domain/repositories/mission_repository.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../../domain/entities/mission_detail.dart';
 
-/// 任务的应用业务入口：组织创建、查询和取消。
+/// 任务的应用业务入口：组织创建、查询、编辑和取消。
 ///
 /// App 只创建一个 MissionService，页面通过方法名选择要做的事。
 /// 本类负责输入检查与业务对象组织；SQL、行转换和事务保存仍由仓储完成。
@@ -25,6 +25,89 @@ class MissionService {
 
   // 创建一个编号生成器，后面用 v4() 生成唯一编号。
   final Uuid uuid = const Uuid();
+
+  /// 编辑当前已接通的独立自报任务；原快照用于事务内的冲突检查。
+  /// 页面只提供可编辑值，不能改任务身份、验证策略或已有执行事实。
+  Future<void> edit({
+    required MissionDetail original,
+    required String title,
+    required String objective,
+    required String scheduledDate,
+    required int plannedDurationMinutes,
+    required TimePolicy timePolicy,
+    DateTime? fixedStartAt,
+  }) async {
+    final cleanTitle = title.trim();
+    final cleanObjective = objective.trim();
+    if (original.mission.id.trim().isEmpty || cleanTitle.isEmpty) {
+      throw ArgumentError('任务编号和任务名称不能为空');
+    }
+    if (cleanObjective.isEmpty) {
+      throw ArgumentError('具体目标不能为空');
+    }
+    if (original.mission.verificationPolicy != VerificationPolicy.selfReport) {
+      throw ArgumentError('当前仅支持编辑自报任务');
+    }
+    _validateSchedule(
+      scheduledDate: scheduledDate,
+      timeZone: original.schedule.timeZone,
+      plannedDurationMinutes: plannedDurationMinutes,
+      timePolicy: timePolicy,
+      fixedStartAt: fixedStartAt,
+    );
+    // 这里构造提案，不代表已经增加版本；仓储比较最新事实后才决定是否追加。
+    final proposedSchedule = MissionScheduleRevision(
+      id: uuid.v4(),
+      missionId: original.mission.id,
+      revisionNumber: original.schedule.revisionNumber + 1,
+      scheduledDate: scheduledDate,
+      timeZone: original.schedule.timeZone,
+      plannedDurationMinutes: plannedDurationMinutes,
+      timePolicy: timePolicy,
+      fixedStartAt: fixedStartAt?.toUtc(),
+      changedAt: DateTime.now().toUtc(),
+    );
+    await repository.edit(
+      original: original,
+      title: cleanTitle,
+      objective: cleanObjective,
+      schedule: proposedSchedule,
+    );
+  }
+
+  // 创建和编辑共用输入规则；时区与固定时刻在同一个入口校验。
+  void _validateSchedule({
+    required String scheduledDate,
+    required String timeZone,
+    required int plannedDurationMinutes,
+    required TimePolicy timePolicy,
+    required DateTime? fixedStartAt,
+  }) {
+    if (plannedDurationMinutes <= 0) {
+      throw ArgumentError('计划时长必须大于 0 分钟');
+    }
+    validateScheduledDate(scheduledDate);
+    final tz.Location location;
+    try {
+      location = tz.getLocation(timeZone);
+    } on tz.LocationNotFoundException {
+      throw ArgumentError('时区名称无效');
+    }
+    if (timePolicy == TimePolicy.fixed) {
+      if (fixedStartAt == null) {
+        throw ArgumentError('固定时间任务必须填写开始时刻');
+      }
+      final localStart = tz.TZDateTime.from(fixedStartAt, location);
+      final parts = scheduledDate.split('-');
+      if (localStart.year != int.parse(parts[0]) ||
+          localStart.month != int.parse(parts[1]) ||
+          localStart.day != int.parse(parts[2])) {
+        throw ArgumentError('固定开始时刻必须属于所选计划日期');
+      }
+    } else if (fixedStartAt != null) {
+      throw ArgumentError('自选时间任务不能包含固定开始时刻');
+    }
+  }
 
   /// 详情页传入当前任务编号；等待仓储事务完成，页面才能显示取消结果。
   Future<void> cancel({required String missionId}) async {
@@ -56,37 +139,13 @@ class MissionService {
       throw ArgumentError('任务标题不能为空');
     }
 
-    if (plannedDurationMinutes <= 0) {
-      throw ArgumentError('计划时长必须大于 0 分钟');
-    }
-
-    // 与查询入口共用日历校验，不把日期解释成设备本地的午夜时刻。
-    validateScheduledDate(scheduledDate);
-
-    // 查询时区资料；名称不存在时，转成明确的输入错误。
-    final tz.Location location;
-    try {
-      location = tz.getLocation(timeZone);
-    } on tz.LocationNotFoundException {
-      throw ArgumentError('时区名称无效');
-    }
-
-    if (timePolicy == TimePolicy.fixed) {
-      if (fixedStartAt == null) {
-        throw ArgumentError('固定时间任务必须填写开始时刻');
-      }
-      // 页面提供的是绝对时刻；转回排期时区，检查有没有落到另一天。
-      // 不要求晚于现在：规格允许过去日期仍保留为待开始。
-      final localStart = tz.TZDateTime.from(fixedStartAt, location);
-      final dateParts = scheduledDate.split('-');
-      if (localStart.year != int.parse(dateParts[0]) ||
-          localStart.month != int.parse(dateParts[1]) ||
-          localStart.day != int.parse(dateParts[2])) {
-        throw ArgumentError('固定开始时刻必须属于所选计划日期');
-      }
-    } else if (fixedStartAt != null) {
-      throw ArgumentError('自选时间任务不能包含固定开始时刻');
-    }
+    _validateSchedule(
+      scheduledDate: scheduledDate,
+      timeZone: timeZone,
+      plannedDurationMinutes: plannedDurationMinutes,
+      timePolicy: timePolicy,
+      fixedStartAt: fixedStartAt,
+    );
 
     // 校验通过后再生成编号、取得当前时间。
     // 同一次创建只取一次 now，让三个对象的创建时间一致。

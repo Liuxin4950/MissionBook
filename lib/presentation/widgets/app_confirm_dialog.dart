@@ -40,11 +40,7 @@ class AppConfirmDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final buttonStyle = TextStyle(
-      fontSize: 16,
-      height: 24 / 16,
-      fontWeight: FontWeight.w600,
-    );
+    final buttonStyle = theme.textTheme.labelLarge;
     final buttonShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(16),
     );
@@ -65,15 +61,7 @@ class AppConfirmDialog extends StatelessWidget {
           children: [
             Semantics(
               namesRoute: true,
-              child: Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontSize: 20,
-                  height: 28 / 20,
-                  fontWeight: FontWeight.w600,
-                  color: colors.onSurface,
-                ),
-              ),
+              child: Text(title, style: theme.textTheme.titleLarge),
             ),
             const SizedBox(height: 12),
             Text(

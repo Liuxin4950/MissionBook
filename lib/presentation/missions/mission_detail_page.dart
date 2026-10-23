@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../core/theme/app_layout.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../application/missions/mission_service.dart';
@@ -7,9 +9,10 @@ import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../widgets/app_confirm_dialog.dart';
 import '../widgets/app_top_bar.dart';
+import 'mission_form_page.dart';
 
-/// 阅读任务详情并取消待开始任务；由今天页传入编号和共享业务入口。
-/// 开始、编辑、改期由后续单元接入。
+/// 阅读、编辑或取消待开始任务；由今天页传入编号和共享业务入口。
+/// 开始与执行事实由后续单元接入。
 class MissionDetailPage extends StatefulWidget {
   const MissionDetailPage({
     super.key,
@@ -29,11 +32,12 @@ class _MissionDetailPageState extends State<MissionDetailPage> {
   late Future<MissionDetail?> _detail;
   bool _isConfirmingCancel = false;
   bool _isCancelling = false;
+  bool _isEditing = false;
   String? _cancelError;
   // 页面换任务后，旧操作的返回结果不能修改新任务的界面。
   int _cancelRequest = 0;
 
-  bool get _isCancelBusy => _isConfirmingCancel || _isCancelling;
+  bool get _isCancelBusy => _isConfirmingCancel || _isCancelling || _isEditing;
 
   @override
   void initState() {
@@ -63,6 +67,7 @@ class _MissionDetailPageState extends State<MissionDetailPage> {
       _cancelRequest++;
       _isConfirmingCancel = false;
       _isCancelling = false;
+      _isEditing = false;
       _cancelError = null;
       _detail = _readDetail();
     }
@@ -123,6 +128,40 @@ class _MissionDetailPageState extends State<MissionDetailPage> {
     }
   }
 
+  Future<void> _requestEdit(MissionDetail detail) async {
+    if (_isCancelBusy) return;
+    final request = ++_cancelRequest;
+    final service = widget.missionService;
+    setState(() {
+      _isEditing = true;
+      _cancelError = null;
+    });
+    try {
+      final saved = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (context) =>
+              MissionFormPage.edit(missionService: service, detail: detail),
+        ),
+      );
+      if (!mounted || request != _cancelRequest) return;
+      // 包括放弃草稿后的返回：编辑期间任务也可能被其他操作取消或改动。
+      setState(() {
+        _detail = _readDetail();
+      });
+      if (saved == true) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('任务已更新')));
+      }
+    } finally {
+      if (mounted && request == _cancelRequest) {
+        setState(() {
+          _isEditing = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope<void>(
@@ -154,6 +193,7 @@ class _MissionDetailPageState extends State<MissionDetailPage> {
               return _MissionDetailContent(
                 detail: detail,
                 onCancel: _requestCancel,
+                onEdit: () => _requestEdit(detail),
                 isCancelBusy: _isCancelBusy,
                 isCancelling: _isCancelling,
                 cancelError: _cancelError,
@@ -196,6 +236,7 @@ class _MissionDetailContent extends StatelessWidget {
   const _MissionDetailContent({
     required this.detail,
     required this.onCancel,
+    required this.onEdit,
     required this.isCancelBusy,
     required this.isCancelling,
     this.cancelError,
@@ -203,6 +244,7 @@ class _MissionDetailContent extends StatelessWidget {
 
   final MissionDetail detail;
   final VoidCallback onCancel;
+  final VoidCallback onEdit;
   final bool isCancelBusy;
   final bool isCancelling;
   final String? cancelError;
@@ -227,13 +269,11 @@ class _MissionDetailContent extends StatelessWidget {
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 792),
+        constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
         child: SelectionArea(
           child: ListView(
             key: const Key('mission-detail-list'),
-            padding: EdgeInsets.all(
-              MediaQuery.sizeOf(context).width < 360 ? 16 : 24,
-            ),
+            padding: AppLayout.pagePadding(context),
             children: [
               Semantics(
                 header: true,
@@ -251,9 +291,9 @@ class _MissionDetailContent extends StatelessWidget {
                   style: theme.textTheme.bodyMedium,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppLayout.sectionGap),
               _ScheduleCard(schedule: schedule),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppLayout.sectionGap),
               if (_hasText(mission.description))
                 _DetailSection(
                   title: '任务说明',
@@ -261,15 +301,18 @@ class _MissionDetailContent extends StatelessWidget {
                 ),
               if (_hasText(mission.why))
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
+                  padding: const EdgeInsets.only(bottom: AppLayout.sectionGap),
                   child: ExpansionTile(
                     tilePadding: EdgeInsets.zero,
                     expandedCrossAxisAlignment: CrossAxisAlignment.start,
-                    title: Text('为什么现在做', style: theme.textTheme.titleLarge),
+                    title: Text('为什么现在做', style: theme.textTheme.titleMedium),
                     children: [
                       Align(
                         alignment: Alignment.centerLeft,
-                        child: Text(mission.why!),
+                        child: Text(
+                          mission.why!,
+                          style: theme.textTheme.bodyMedium,
+                        ),
                       ),
                     ],
                   ),
@@ -313,6 +356,22 @@ class _MissionDetailContent extends StatelessWidget {
               if (cancelledAt != null)
                 Text('没有执行记录', style: theme.textTheme.bodyMedium),
               if (cancelledAt == null) ...[
+                if (mission.verificationPolicy ==
+                    VerificationPolicy.selfReport) ...[
+                  OutlinedButton.icon(
+                    key: const Key('edit-mission'),
+                    onPressed: isCancelBusy ? null : onEdit,
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    label: const Text('编辑任务与排期'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 if (cancelError != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -339,7 +398,7 @@ class _MissionDetailContent extends StatelessWidget {
                       horizontal: 16,
                       vertical: 12,
                     ),
-                    textStyle: theme.textTheme.titleLarge,
+                    textStyle: theme.textTheme.titleMedium,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -459,7 +518,7 @@ class _ScheduleFact extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 value,
-                style: theme.textTheme.titleMedium?.copyWith(color: foreground),
+                style: theme.textTheme.bodyLarge?.copyWith(color: foreground),
               ),
             ],
           ),
@@ -478,16 +537,19 @@ class _DetailSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.only(bottom: AppLayout.sectionGap),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Semantics(
             header: true,
-            child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+            child: Text(title, style: Theme.of(context).textTheme.titleMedium),
           ),
           const SizedBox(height: 8),
-          child,
+          DefaultTextStyle.merge(
+            style: Theme.of(context).textTheme.bodyMedium,
+            child: child,
+          ),
         ],
       ),
     );

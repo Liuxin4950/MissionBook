@@ -16,6 +16,14 @@ import 'package:mission_book/presentation/widgets/app_confirm_dialog.dart';
 
 // 由测试决定读取何时完成，才能观察等待、失败、重试、离页和乱序返回。
 class DetailRepository implements MissionRepository {
+  @override
+  Future<void> edit({
+    required MissionDetail original,
+    required String title,
+    required String objective,
+    required MissionScheduleRevision schedule,
+  }) => throw UnsupportedError('本测试不编辑任务');
+
   final ids = <String>[];
   final requests = <Completer<MissionDetail?>>[];
   final cancelIds = <String>[];

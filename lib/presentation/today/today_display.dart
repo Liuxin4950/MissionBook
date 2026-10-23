@@ -17,9 +17,7 @@ DateTime todayInScheduleTimeZone() =>
 String scheduleDateKey(DateTime date) =>
     '${date.year.toString().padLeft(4, '0')}-'
     '${date.month.toString().padLeft(2, '0')}-'
-    '${date.day.
-
-    toString().padLeft(2, '0')}';
+    '${date.day.toString().padLeft(2, '0')}';
 
 /// 将所选日历日期转换为页头的月日和星期文字。
 String scheduleDateLabel(DateTime date) =>
@@ -165,4 +163,22 @@ double timelineSegmentProgress(DateTime start, DateTime end, DateTime now) {
   final interval = end.difference(start).inMicroseconds;
   if (interval <= 0) return 1;
   return now.difference(start).inMicroseconds / interval;
+}
+
+/// 首页展示当前时段（否则下一项）附近的连续窗口，保留一项前情。
+/// 列表已按开始时间排序；全部结束时展示末尾，空列表直接返回。
+List<TodayMissionItem> schedulePreview(
+  List<TodayMissionItem> items,
+  DateTime now, {
+  int limit = 4,
+}) {
+  assert(limit > 0);
+  if (items.length <= limit) return items;
+  var focus = items.indexWhere((item) => isInPlannedTimeSlot(item, now));
+  if (focus < 0) {
+    focus = items.indexWhere((item) => item.fixedStartAt!.isAfter(now));
+  }
+  if (focus < 0) focus = items.length - 1;
+  final start = (focus - 1).clamp(0, items.length - limit);
+  return items.sublist(start, start + limit);
 }

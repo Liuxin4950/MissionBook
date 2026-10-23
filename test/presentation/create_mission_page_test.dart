@@ -11,11 +11,19 @@ import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
-import 'package:mission_book/presentation/missions/create_mission_page.dart';
+import 'package:mission_book/presentation/missions/mission_form_page.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 // 用可控制完成时机的仓储替代磁盘，验证页面确实等待业务保存结果。
 class PendingRepository implements MissionRepository {
+  @override
+  Future<void> edit({
+    required MissionDetail original,
+    required String title,
+    required String objective,
+    required MissionScheduleRevision schedule,
+  }) => throw UnsupportedError('本测试不编辑任务');
+
   @override
   Future<void> cancel(String missionId) =>
       throw UnsupportedError('创建表单测试不取消任务');
@@ -48,7 +56,7 @@ Future<void> openForm(WidgetTester tester, PendingRepository repository) async {
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.light,
-      home: CreateMissionPage(missionService: MissionService(repository)),
+      home: MissionFormPage(missionService: MissionService(repository)),
     ),
   );
   await tester.enterText(
@@ -66,7 +74,7 @@ void main() {
     try {
       await tester.pumpWidget(
         MaterialApp(
-          home: CreateMissionPage(
+          home: MissionFormPage(
             missionService: MissionService(PendingRepository()),
           ),
         ),
@@ -174,7 +182,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
-        home: CreateMissionPage(
+        home: MissionFormPage(
           missionService: MissionService(repository),
           initialScheduledDate: '2026-10-24',
         ),
@@ -264,7 +272,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
-        home: CreateMissionPage(
+        home: MissionFormPage(
           missionService: MissionService(repository),
           initialScheduledDate: '2026-10-24',
         ),
@@ -300,7 +308,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
-        home: CreateMissionPage(
+        home: MissionFormPage(
           missionService: MissionService(repository),
           initialScheduledDate: '2026-10-24',
         ),
@@ -352,9 +360,8 @@ void main() {
           builder: (context) => TextButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => CreateMissionPage(
-                  missionService: MissionService(repository),
-                ),
+                builder: (_) =>
+                    MissionFormPage(missionService: MissionService(repository)),
               ),
             ),
             child: const Text('打开表单'),
@@ -367,7 +374,7 @@ void main() {
     // 空表单可以直接退出，不应打开确认框。
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
-    expect(find.byType(CreateMissionPage), findsNothing);
+    expect(find.byType(MissionFormPage), findsNothing);
     await tester.tap(find.text('打开表单'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('固定'));
@@ -382,7 +389,7 @@ void main() {
     await tester.pumpAndSettle();
     tester.view.resetViewInsets();
     await tester.pumpAndSettle();
-    tester.element(find.byType(CreateMissionPage)).markNeedsBuild();
+    tester.element(find.byType(MissionFormPage)).markNeedsBuild();
     await tester.pump();
     await tester.tap(find.text('继续填写'));
     await tester.pumpAndSettle();
@@ -411,7 +418,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(find.text('放弃本次填写？'), findsNothing);
-      expect(find.byType(CreateMissionPage), findsOneWidget);
+      expect(find.byType(MissionFormPage), findsOneWidget);
       expect(
         tester
             .widget<TextField>(find.byKey(const ValueKey('mission-hour')))
@@ -426,7 +433,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('放弃填写'));
     await tester.pumpAndSettle();
-    expect(find.byType(CreateMissionPage), findsNothing);
+    expect(find.byType(MissionFormPage), findsNothing);
     expect(find.text('打开表单'), findsOneWidget);
   });
 
@@ -446,7 +453,7 @@ void main() {
             ).copyWith(textScaler: TextScaler.linear(2)),
             child: child!,
           ),
-          home: CreateMissionPage(
+          home: MissionFormPage(
             missionService: MissionService(PendingRepository()),
             initialScheduledDate: '2026-10-24',
           ),
@@ -491,7 +498,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
-        home: CreateMissionPage(
+        home: MissionFormPage(
           missionService: MissionService(PendingRepository()),
           initialScheduledDate: '2026-10-24',
         ),

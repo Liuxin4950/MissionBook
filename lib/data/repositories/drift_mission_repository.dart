@@ -187,6 +187,93 @@ class DriftMissionRepository implements MissionRepository {
   final AppDatabase database;
 
   @override
+  Future<void> edit({
+    required MissionDetail original,
+    required String title,
+    required String objective,
+    required MissionScheduleRevision schedule,
+  }) async {
+    final missionId = original.mission.id;
+    if (missionId.trim().isEmpty ||
+        title.trim().isEmpty ||
+        objective.trim().isEmpty ||
+        schedule.missionId != missionId) {
+      throw ArgumentError('任务编号、名称、具体目标或排期关联无效');
+    }
+    await database.transaction(() async {
+      // 重读的是事务内最新快照，不能依靠编辑页打开时的状态放行。
+      final current = await findDetail(missionId);
+      if (current == null) {
+        throw const MissionEditConflict('任务已不存在，请返回列表刷新');
+      }
+      if (current.mission.cancelledAt != null) {
+        throw const MissionEditConflict('任务已取消，不能再编辑，请返回详情刷新');
+      }
+      if (current.mission.verificationPolicy != VerificationPolicy.selfReport) {
+        throw const MissionEditConflict('任务完成方式已变化，请返回详情刷新');
+      }
+      // 当前还没有执行事件；U08/U09 接入 START 时须在此事务内补齐未开始校验。
+      final scheduleChanged = !_sameSchedule(current.schedule, schedule);
+      final titleChanged = current.mission.title != title;
+      final objectiveChanged = current.executionPlan.objective != objective;
+      // 无改动、双击或重试同一份已成功的内容都不制造新版本或修改时间。
+      if (!scheduleChanged && !titleChanged && !objectiveChanged) return;
+
+      final oldMission = original.mission;
+      final oldPlan = original.executionPlan;
+      if (current.schedule.id != original.schedule.id ||
+          current.mission.updatedAt != oldMission.updatedAt ||
+          current.mission.title != oldMission.title ||
+          current.executionPlan.id != oldPlan.id ||
+          current.executionPlan.updatedAt != oldPlan.updatedAt ||
+          current.executionPlan.objective != oldPlan.objective) {
+        throw const MissionEditConflict('任务已被修改，输入已保留；请返回详情刷新后重新编辑');
+      }
+      if (scheduleChanged &&
+          (schedule.revisionNumber != current.schedule.revisionNumber + 1 ||
+              schedule.timeZone != current.schedule.timeZone ||
+              schedule.evidenceDeadlineAt != null ||
+              schedule.plannedDurationMinutes <= 0 ||
+              (schedule.timePolicy == TimePolicy.fixed) !=
+                  (schedule.fixedStartAt != null))) {
+        throw ArgumentError('排期提案与当前任务不一致');
+      }
+      final now = schedule.changedAt.millisecondsSinceEpoch;
+      // 只写本次开放的字段；说明、Why、策略及身份信息不会被表单旧值覆盖。
+      final missionUpdate = database.update(database.missions);
+      missionUpdate.where((table) => table.id.equals(missionId));
+      await missionUpdate.write(
+        MissionsCompanion(title: Value(title), updatedAt: Value(now)),
+      );
+      if (objectiveChanged) {
+        final planUpdate = database.update(database.executionPlans);
+        planUpdate.where((table) => table.id.equals(current.executionPlan.id));
+        await planUpdate.write(
+          ExecutionPlansCompanion(
+            objective: Value(objective),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+      if (scheduleChanged) {
+        // insert 追加完整快照，绝不 update 旧排期；任一步失败会回滚上面的修改。
+        await database
+            .into(database.missionScheduleRevisions)
+            .insert(scheduleToCompanion(schedule));
+      }
+    });
+  }
+
+  // 比较日期、时区、策略、时刻、时长与截止；身份和生成信息不代表内容变化。
+  bool _sameSchedule(MissionScheduleRevision a, MissionScheduleRevision b) =>
+      a.scheduledDate == b.scheduledDate &&
+      a.timeZone == b.timeZone &&
+      a.timePolicy == b.timePolicy &&
+      a.fixedStartAt == b.fixedStartAt &&
+      a.plannedDurationMinutes == b.plannedDurationMinutes &&
+      a.evidenceDeadlineAt == b.evidenceDeadlineAt;
+
+  @override
   Future<void> cancel(String missionId) async {
     if (missionId.trim().isEmpty) {
       throw ArgumentError('任务编号不能为空');

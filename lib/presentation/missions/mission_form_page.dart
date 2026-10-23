@@ -4,20 +4,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../../application/missions/mission_service.dart';
+import '../../core/theme/app_layout.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
+import '../../domain/entities/mission_detail.dart';
 import '../widgets/app_confirm_dialog.dart';
 import '../widgets/app_top_bar.dart';
 
-/// 收集默认独立任务的输入，等待保存，并保护尚未提交的表单内容。
+/// 创建或编辑独立自报任务，共用输入布局、校验反馈和未保存保护。
 // Widget 描述页面配置；可变化的输入与资源交给下面的 State 管理。
-class CreateMissionPage extends StatefulWidget {
+class MissionFormPage extends StatefulWidget {
   // required 要求打开本页的调用者提供业务对象；this 将参数存到同名属性。
   // super.key 将组件身份标识交给父类；本页目前无需手动指定 key。
-  const CreateMissionPage({
+  const MissionFormPage({
     super.key,
     required this.missionService,
     this.initialScheduledDate,
-  });
+  }) : original = null;
+
+  /// 详情页传入读到的完整快照，既用于带入原值，也用于保存时检查冲突。
+  const MissionFormPage.edit({
+    super.key,
+    required this.missionService,
+    required MissionDetail detail,
+  }) : original = detail,
+       initialScheduledDate = null;
+
+  final MissionDetail? original;
 
   // 从 TodayPage 传来的同一个业务对象；后续保存时调用，不在本页重新创建。
   final MissionService missionService;
@@ -25,17 +37,18 @@ class CreateMissionPage extends StatefulWidget {
   final String? initialScheduledDate;
 
   @override
-  State<CreateMissionPage> createState() {
+  State<MissionFormPage> createState() {
     // Flutter 将此 State 与当前页面配置关联，再调用它的 build。
-    return _CreateMissionPageState();
+    return _MissionFormPageState();
   }
 }
 
-class _CreateMissionPageState extends State<CreateMissionPage> {
+class _MissionFormPageState extends State<MissionFormPage> {
   // 当前约定的排期时区，默认日期和保存参数都使用它。
-  static const String _timeZone = 'Asia/Shanghai';
+  String get _timeZone => widget.original?.schedule.timeZone ?? 'Asia/Shanghai';
+  bool get _isEditing => widget.original != null;
 
-  // 两个状态分别表示“正在等待保存”和“已经成功创建”。
+  // 两个状态分别表示“正在等待保存”和“已经成功保存”。
   bool _isSaving = false;
   bool _isCreated = false;
   // 防止快速返回时重复打开丢弃确认框。
@@ -47,6 +60,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
   // 在 State 创建时初始化，避免 build 重复执行时丢失输入。
   // final 固定控制器引用，不妨碍控制器内部的文字变化；下划线表示库内私有。
   final _titleController = TextEditingController();
+  final _objectiveController = TextEditingController();
   final _durationController = TextEditingController();
   // 只保存用户填写的钟面时间；切回自选可保留草稿，但保存时不会传出。
   final _hourController = TextEditingController();
@@ -72,13 +86,17 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
   @override
   void initState() {
     super.initState();
-    // 业务对象已初始化时区资料；按上海日历取得今天，不随设备时区改变。
+    // 业务对象已初始化时区资料；按排期时区取得今天，不随设备时区改变。
     final today = tz.TZDateTime.now(tz.getLocation(_timeZone));
     // padLeft 向左补零，例如 3 → '03'，使日期符合 YYYY-MM-DD 格式。
     final year = today.year.toString().padLeft(4, '0');
     final month = today.month.toString().padLeft(2, '0');
     final day = today.day.toString().padLeft(2, '0');
-    _initialDateText = widget.initialScheduledDate ?? '$year-$month-$day';
+    final original = widget.original;
+    _initialDateText =
+        original?.schedule.scheduledDate ??
+        widget.initialScheduledDate ??
+        '$year-$month-$day';
     validateScheduledDate(_initialDateText);
     final parts = _initialDateText.split('-');
     _scheduledDate = DateTime.utc(
@@ -86,13 +104,46 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
       int.parse(parts[1]),
       int.parse(parts[2]),
     );
+    if (original != null) {
+      _titleController.text = original.mission.title;
+      _objectiveController.text = original.executionPlan.objective;
+      _durationController.text = original.schedule.plannedDurationMinutes
+          .toString();
+      _timePolicy = original.schedule.timePolicy;
+      final start = original.schedule.fixedStartAt;
+      if (start != null) {
+        final local = tz.TZDateTime.from(start, tz.getLocation(_timeZone));
+        _hourController.text = local.hour.toString().padLeft(2, '0');
+        _minuteController.text = local.minute.toString().padLeft(2, '0');
+      }
+    }
+    _initialTitle = _titleController.text;
+    _initialObjective = _objectiveController.text;
+    _initialDuration = _durationController.text;
+    _initialPolicy = _timePolicy;
+    _initialHour = _hourController.text;
+    _initialMinute = _minuteController.text;
   }
+
+  late final String _initialTitle, _initialObjective, _initialDuration;
+  late final String _initialHour, _initialMinute;
+  late final TimePolicy _initialPolicy;
+
+  bool get _hasChanges =>
+      _titleController.text != _initialTitle ||
+      _objectiveController.text != _initialObjective ||
+      _durationController.text != _initialDuration ||
+      _dateText != _initialDateText ||
+      _timePolicy != _initialPolicy ||
+      _hourController.text != _initialHour ||
+      _minuteController.text != _initialMinute;
 
   @override
   void dispose() {
     // Flutter 永久移除此 State 时调用；释放控制器的监听等资源。
     // 关闭确认框不会销毁创建页，也不会执行这里。
     _titleController.dispose();
+    _objectiveController.dispose();
     _durationController.dispose();
     _hourController.dispose();
     _minuteController.dispose();
@@ -149,20 +200,54 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
           throw ArgumentError('所选开始时间在排期时区不存在，请重新填写');
         }
         fixedStartAt = localStart.toUtc();
+        // 表单只开放时、分。钟面值与日期未变时，保留原绝对时刻的秒/毫秒，
+        // 避免单纯改名称也意外制造一个排期版本。
+        final oldStart = widget.original?.schedule.fixedStartAt;
+        if (oldStart != null && _dateText == _initialDateText) {
+          final oldLocal = tz.TZDateTime.from(
+            oldStart,
+            tz.getLocation(_timeZone),
+          );
+          if (oldLocal.hour == hour && oldLocal.minute == minute) {
+            fixedStartAt = oldStart;
+          }
+        }
       }
       // widget 保存页面配置，其中的业务对象由今天页传入。
-      // create 校验输入并调用真实仓储；await 成功返回才代表事务已完成。
-      await widget.missionService.create(
-        title: title,
-        scheduledDate: date,
-        timeZone: _timeZone,
-        plannedDurationMinutes: minutes,
-        timePolicy: _timePolicy,
-        fixedStartAt: fixedStartAt,
-      );
+      // 按本页模式选择创建或编辑；await 成功返回才代表事务已完成。
+      final original = widget.original;
+      if (original == null) {
+        await widget.missionService.create(
+          title: title,
+          scheduledDate: date,
+          timeZone: _timeZone,
+          plannedDurationMinutes: minutes,
+          timePolicy: _timePolicy,
+          fixedStartAt: fixedStartAt,
+        );
+      } else {
+        await widget.missionService.edit(
+          original: original,
+          title: title,
+          objective: _objectiveController.text,
+          scheduledDate: date,
+          plannedDurationMinutes: minutes,
+          timePolicy: _timePolicy,
+          fixedStartAt: fixedStartAt,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _isCreated = true;
+      });
+      if (_isEditing) {
+        // 编辑成功直接返回原详情，true 让详情重新读库，不额外堆一个结果页。
+        Navigator.of(context).pop(true);
+      }
+    } on MissionEditConflict catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorText = error.message;
       });
     } on ArgumentError catch (error) {
       // 业务校验失败：显示原因，不清空控制器中的任何输入。
@@ -172,7 +257,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
       });
     } catch (error, stackTrace) {
       // 技术细节留在开发日志中，用户只看到可恢复的失败提示。
-      debugPrint('创建任务失败：$error\n$stackTrace');
+      debugPrint('保存任务失败：$error\n$stackTrace');
       if (!mounted) return;
       setState(() {
         _errorText = '保存失败，输入已保留，请重试';
@@ -199,13 +284,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
     FocusScope.of(context).unfocus();
     // 只读取文字判断是否有输入，不保存任务。|| 表示任一条件成立即可。
     // 日期默认就有内容，因此与初始值比较；只修改或清空日期也需要确认丢弃。
-    final hasInput =
-        _titleController.text.isNotEmpty ||
-        _durationController.text.isNotEmpty ||
-        _dateText != _initialDateText ||
-        _timePolicy != TimePolicy.flexible ||
-        _hourController.text.isNotEmpty ||
-        _minuteController.text.isNotEmpty;
+    final hasInput = _hasChanges;
 
     if (hasInput) {
       // 公共框只返回选择；是否关闭表单仍由本页判断。
@@ -215,10 +294,10 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
       try {
         discard = await AppConfirmDialog.show(
           context: context,
-          title: '放弃本次填写？',
-          message: '返回后，已填写的内容不会保存。',
+          title: _isEditing ? '放弃本次修改？' : '放弃本次填写？',
+          message: _isEditing ? '返回后，本次修改不会保存，原任务保持不变。' : '返回后，已填写的内容不会保存。',
           cancelText: '继续填写',
-          confirmText: '放弃填写',
+          confirmText: _isEditing ? '放弃修改' : '放弃填写',
         );
       } finally {
         // 无论用户怎样关闭确认框，都允许后续再次处理返回。
@@ -244,7 +323,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
   double get _fieldHeight =>
       44 * (MediaQuery.textScalerOf(context).scale(18) / 18) + 24;
 
-  // 局部统一输入边界；不修改全局主题，也不为本页新增样式目录。
+  // 输入边界由本页组织，文字使用全站主题中的输入角色。
   InputDecoration _inputDecoration({String? hint, String? suffix}) {
     final colors = Theme.of(context).colorScheme;
     final border = OutlineInputBorder(
@@ -253,10 +332,9 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
     );
     return InputDecoration(
       hintText: hint,
-      hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-        fontSize: 16,
-        fontWeight: FontWeight.w400,
-      ),
+      hintStyle: Theme.of(
+        context,
+      ).textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
       // suffixText 在空输入且未聚焦时会隐藏；单位需要一直可见，因此用 suffixIcon 槽位。
       suffixIcon: suffix == null
           ? null
@@ -298,12 +376,25 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
           inputFormatters: [FilteringTextInputFormatter.singleLineFormatter],
           controller: _titleController,
           enabled: _canEdit,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w500),
+          style: Theme.of(context).textTheme.bodyLarge,
           textInputAction: TextInputAction.next,
           decoration: _inputDecoration(hint: '例如：阅读 Flutter'),
         ),
+      ),
+    );
+  }
+
+  Widget _objectiveField() {
+    return _FormField(
+      label: '具体目标',
+      child: TextField(
+        key: const ValueKey('mission-objective'),
+        controller: _objectiveController,
+        enabled: _canEdit,
+        minLines: 2,
+        maxLines: 4,
+        style: Theme.of(context).textTheme.bodyLarge,
+        decoration: _inputDecoration(hint: '这次希望完成什么'),
       ),
     );
   }
@@ -373,8 +464,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
                                 ),
                                 Text(
                                   '${_scheduledDate.month}月${_scheduledDate.day}日',
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w500),
+                                  style: Theme.of(context).textTheme.bodyLarge,
                                 ),
                               ],
                             ),
@@ -411,9 +501,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
           textAlignVertical: TextAlignVertical.center,
           controller: _durationController,
           enabled: _canEdit,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w500),
+          style: Theme.of(context).textTheme.bodyLarge,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           decoration: _inputDecoration(hint: '30', suffix: '分钟'),
@@ -471,7 +559,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
           builder: (context, constraints) {
             final label = Text(
               '时间安排',
-              style: Theme.of(context).textTheme.titleLarge,
+              style: Theme.of(context).textTheme.titleMedium,
             );
             final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
             if (constraints.maxWidth < 300 * scale) {
@@ -489,7 +577,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
         const SizedBox(height: 16),
         // 条件字段原位出现，不打开新路由；自选时明确说明没有固定开始时刻。
         if (_timePolicy == TimePolicy.fixed) ...[
-          const Text('开始时间 · 24小时制'),
+          Text('开始时间 · 24小时制', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -520,14 +608,19 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            '按所选日期的上海时间安排，创建后仍需手动开始。',
+            '按所选日期的排期时区安排，保存后仍需手动开始。',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ] else
-          const Text('当天自行安排，无固定开始时刻。'),
+          Text(
+            '当天自行安排，无固定开始时刻。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         const SizedBox(height: 8),
         Text(
-          '排期时区：上海（Asia/Shanghai）',
+          _timeZone == 'Asia/Shanghai'
+              ? '排期时区：上海（Asia/Shanghai）'
+              : '排期时区：$_timeZone',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -559,11 +652,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
           minimumSize: const Size(72, 48),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           shape: const StadiumBorder(),
-          textStyle: const TextStyle(
-            fontSize: 14,
-            height: 20 / 14,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: Theme.of(context).textTheme.labelMedium,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
         child: Text(label),
@@ -590,9 +679,7 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
           textAlignVertical: TextAlignVertical.center,
           controller: controller,
           enabled: _canEdit,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w500),
+          style: Theme.of(context).textTheme.bodyLarge,
           keyboardType: TextInputType.number,
           textInputAction: TextInputAction.next,
           inputFormatters: [
@@ -607,14 +694,14 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
 
   @override
   Widget build(BuildContext context) {
-    String createButtonLabel = '创建任务';
+    String createButtonLabel = _isEditing ? '保存修改' : '创建任务';
     if (_isCreated) {
-      createButtonLabel = '已创建';
+      createButtonLabel = _isEditing ? '已保存' : '已创建';
     } else if (_isSaving) {
-      createButtonLabel = '正在创建…';
+      createButtonLabel = _isEditing ? '正在保存…' : '正在创建…';
     }
     final colors = Theme.of(context).colorScheme;
-    return PopScope<void>(
+    return PopScope<bool>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
@@ -622,129 +709,155 @@ class _CreateMissionPageState extends State<CreateMissionPage> {
       },
       child: Scaffold(
         appBar: AppTopBar(
-          title: '新建任务',
+          title: _isEditing ? '编辑任务' : '新建任务',
           // 公共组件只负责点击分发，丢弃确认仍使用本页原来的方法。
           onBack: _requestClose,
           canGoBack: !_isSaving,
         ),
         body: SafeArea(
           bottom: false,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            children: [
-              // 当前入口只创建临时任务，因此不展示节点路径；目标树关联须接通真实保存后再显示。
-              _titleField(), const SizedBox(height: 24),
-              _scheduleFields(),
-              if (_calendarExpanded) ...[
-                const SizedBox(height: 12),
-                // 日历留在当前表单，选择后只更新日期；不会写库或额外增加页面往返。
-                IgnorePointer(
-                  ignoring: !_canEdit,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      // 部分手机的逻辑宽度带小数；跨1至9999年的月份页累计宽度
-                      // 会触发 Flutter 滚动精度断言。取整并居中，最多收窄不到1，
-                      // 不缩小可选日期范围，也不修改 Flutter SDK。
-                      return Align(
-                        alignment: Alignment.topCenter,
-                        child: SizedBox(
-                          width: constraints.maxWidth.floorToDouble(),
-                          child: CalendarDatePicker(
-                            initialDate: _scheduledDate,
-                            firstDate: DateTime.utc(1),
-                            lastDate: DateTime.utc(9999, 12, 31),
-                            onDateChanged: (date) {
-                              if (!_canEdit) return;
-                              setState(() {
-                                _scheduledDate = DateTime.utc(
-                                  date.year,
-                                  date.month,
-                                  date.day,
-                                );
-                                _calendarExpanded = false;
-                                _errorText = null;
-                              });
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Divider(height: 1),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppLayout.maxPageWidth,
               ),
-              _timeFields(),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Divider(height: 1),
-              ),
-              // 当前只接通自报；这里是静态信息，不画尚未实现的材料策略下拉按钮。
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: ListView(
+                padding: AppLayout.pagePadding(context),
                 children: [
-                  Expanded(
-                    child: Text(
-                      '完成方式',
-                      style: Theme.of(context).textTheme.titleLarge,
+                  // 当前入口只创建临时任务，因此不展示节点路径；目标树关联须接通真实保存后再显示。
+                  _titleField(), const SizedBox(height: AppLayout.sectionGap),
+                  if (_isEditing) ...[
+                    _objectiveField(),
+                    const SizedBox(height: AppLayout.sectionGap),
+                  ],
+                  _scheduleFields(),
+                  if (_calendarExpanded) ...[
+                    const SizedBox(height: 12),
+                    // 日历留在当前表单，选择后只更新日期；不会写库或额外增加页面往返。
+                    IgnorePointer(
+                      ignoring: !_canEdit,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          // 部分手机的逻辑宽度带小数；跨1至9999年的月份页累计宽度
+                          // 会触发 Flutter 滚动精度断言。取整并居中，最多收窄不到1，
+                          // 不缩小可选日期范围，也不修改 Flutter SDK。
+                          return Align(
+                            alignment: Alignment.topCenter,
+                            child: SizedBox(
+                              width: constraints.maxWidth.floorToDouble(),
+                              child: CalendarDatePicker(
+                                initialDate: _scheduledDate,
+                                firstDate: DateTime.utc(1),
+                                lastDate: DateTime.utc(9999, 12, 31),
+                                onDateChanged: (date) {
+                                  if (!_canEdit) return;
+                                  setState(() {
+                                    _scheduledDate = DateTime.utc(
+                                      date.year,
+                                      date.month,
+                                      date.day,
+                                    );
+                                    _calendarExpanded = false;
+                                    _errorText = null;
+                                  });
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
+                  ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Divider(height: 1),
                   ),
-                  const Expanded(child: Text('自报完成', textAlign: TextAlign.end)),
+                  _timeFields(),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Divider(height: 1),
+                  ),
+                  // 当前只接通自报；这里是静态信息，不画尚未实现的材料策略下拉按钮。
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '完成方式',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          '自报完成',
+                          textAlign: TextAlign.end,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
         // 主操作独立于滚动内容；键盘出现时跟随 Scaffold 上移，内容仍可滚动。
         bottomNavigationBar: SafeArea(
           top: false,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              24,
-              12,
-              24,
-              16 + MediaQuery.viewInsetsOf(context).bottom,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_errorText != null) ...[
-                  Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      _errorText!,
-                      style: TextStyle(color: colors.error),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                if (_isCreated) ...[
-                  Semantics(
-                    liveRegion: true,
-                    child: const Text('任务已创建，可返回今天页'),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(56),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 16,
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      height: 24 / 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  onPressed: _canEdit ? _save : null,
-                  child: Text(createButtonLabel),
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppLayout.maxPageWidth,
+              ),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppLayout.horizontalPadding(context),
+                  12,
+                  AppLayout.horizontalPadding(context),
+                  16 + MediaQuery.viewInsetsOf(context).bottom,
                 ),
-              ],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_errorText != null) ...[
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          _errorText!,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(color: colors.error),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    if (_isCreated) ...[
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          '任务已创建，可返回今天页',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(56),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 16,
+                        ),
+                        textStyle: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      onPressed: _canEdit ? _save : null,
+                      child: Text(createButtonLabel),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -775,10 +888,7 @@ class _FormField extends StatelessWidget {
         ExcludeSemantics(
           child: Text(
             '$label *',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontWeight: FontWeight.w600,
-            ),
+            style: Theme.of(context).textTheme.titleSmall,
           ),
         ),
         const SizedBox(height: 8),

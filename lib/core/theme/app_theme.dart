@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart'; // 引入 Flutter 主题组件
 
+import 'app_typography.dart';
 import 'colors.dart'; // 引入全局颜色令牌
 
 abstract final class AppTheme {
@@ -8,36 +9,22 @@ abstract final class AppTheme {
     // 浅色主题
     useMaterial3: true, // 使用 Material 3 设计规范
     scaffoldBackgroundColor: AppColors.background, // 页面背景
-    textTheme: const TextTheme(
-      headlineSmall: TextStyle(
-        fontSize: 28,
-        height: 36 / 28,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+    textTheme: AppTypography.textTheme,
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        textStyle: AppTypography.textTheme.labelLarge,
       ),
-      titleLarge: TextStyle(
-        fontSize: 16,
-        height: 24 / 16,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        textStyle: AppTypography.textTheme.labelLarge,
       ),
-      titleMedium: TextStyle(
-        fontSize: 18,
-        height: 24 / 18,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        textStyle: AppTypography.textTheme.labelLarge,
       ),
-      bodyMedium: TextStyle(
-        fontSize: 14,
-        height: 20 / 14,
-        color: AppColors.textSecondary,
-      ),
-      bodySmall: TextStyle(
-        fontSize: 12,
-        height: 16 / 12,
-        color: AppColors.textSecondary,
-      ),
-    ), // 字体角色与当前设计令牌一致
+    ),
     appBarTheme: const AppBarThemeData(
       // 顶部导航栏主题
       backgroundColor: AppColors.background, // 顶栏背景

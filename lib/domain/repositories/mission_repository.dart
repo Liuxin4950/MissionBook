@@ -6,6 +6,17 @@ import '../entities/mission_detail.dart';
 
 /// 任务仓储接口：约定任务相关的数据访问能力。
 abstract interface class MissionRepository {
+  /// original 是打开编辑页时读到的快照，schedule 是本次完整排期提案。
+  /// 同一事务重读并检查可编辑性、旧快照，再更新名称/具体目标。
+  /// 排期有变化才追加下一版本；相同请求不重复写入，旧版本与其余字段保留。
+  /// 旧快照冲突或任务已取消时抛 MissionEditConflict，不覆盖新事实。
+  Future<void> edit({
+    required MissionDetail original,
+    required String title,
+    required String objective,
+    required MissionScheduleRevision schedule,
+  });
+
   /// 在写事务中重读任务并取消，只修改 cancelledAt 和 updatedAt。
   /// 不存在时抛 StateError；已取消时直接成功，保留首次取消时间。
   /// 当前三表尚无执行事件；接入 START 时必须在同一事务内校验未开始。

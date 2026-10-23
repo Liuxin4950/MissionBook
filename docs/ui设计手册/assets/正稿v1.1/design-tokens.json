@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-22",
+  "updated": "2026-10-23",
   "status": "provisional-reference",
   "reference": "今天页.png",
   "scope": "当前统一UI定义；原型设计参数，尚未全部接入应用。",
@@ -70,7 +70,7 @@
       "weight": 600
     },
     "taskTitle": {
-      "size": 18,
+      "size": 16,
       "lineHeight": 24,
       "weight": 600
     },
@@ -90,14 +90,14 @@
       "weight": 400
     },
     "taskShortcutTitle": {
-      "size": 14,
-      "lineHeight": 20,
-      "weight": 400
+      "size": 16,
+      "lineHeight": 24,
+      "weight": 600
     },
     "inputValue": {
       "size": 18,
       "lineHeight": 24,
-      "weight": 400
+      "weight": 500
     },
     "fieldLabel": {
       "size": 14,
@@ -117,18 +117,23 @@
     },
     "todayTaskTitle": {
       "size": 16,
-      "lineHeight": 22,
+      "lineHeight": 24,
       "weight": 600,
-      "scope": "今天页列表；固定项向上下两端逐级缩小至75%"
+      "scope": "今天页所有任务标题；位置与焦点不改变字号"
     },
     "todayMetadata": {
-      "size": 12,
-      "lineHeight": 18,
+      "size": 14,
+      "lineHeight": 20,
       "weight": 400
     },
     "todayFlexibleTitle": {
-      "size": 14,
-      "lineHeight": 20,
+      "size": 16,
+      "lineHeight": 24,
+      "weight": 600
+    },
+    "dialogTitle": {
+      "size": 20,
+      "lineHeight": 28,
       "weight": 600
     }
   },
@@ -139,7 +144,10 @@
     "compactTaskHeightMin": 48,
     "futureTaskHeight": 56,
     "flexibleTaskHeight": 48,
-    "touchTargetMin": 48
+    "touchTargetMin": 48,
+    "maxPageWidth": 792,
+    "sectionGap": 24,
+    "fieldLabelGap": 8
   },
   "motion": {
     "expandDurationMs": 360,
@@ -289,29 +297,42 @@
   "timelineSemantics": "按固定开始时间排序的节点列表；节点间距和卡片高度不编码时长",
   "designVersion": "current",
   "todaySchedule": {
-    "timeline": "straight",
-    "progressWidth": 2.5,
-    "minTitleScale": 0.75,
-    "maxTitleScale": 1.0,
-    "maxTiltRadians": 0.045,
-    "focusTransitionMs": 280,
-    "reducedMotion": "关闭透视倾斜和焦点过渡",
+    "status": "implemented-awaiting-user-validation",
+    "timeline": "compact-connected-nodes",
+    "sectionRadius": 20,
+    "rowRadius": 14,
+    "sectionPadding": 12,
+    "previewTargetHeightRatio": 0.4,
+    "previewMinCount": 2,
+    "previewMaxCount": 4,
+    "previewSelection": "当前时段优先，否则下一项；保留一项前情，全部结束显示末尾",
+    "fullList": "所选日期全部固定日程，共用查询、刷新和详情路径",
+    "motionMs": 240,
+    "motionCurve": "easeOutCubic",
+    "reducedMotion": "过渡时长为零，不循环动画",
     "highlightInterval": "[fixedStartAt, fixedStartAt + plannedDurationMinutes)",
-    "segmentHeight": "与本项卡片共享动画中的实际布局高度",
-    "segmentGap": 8,
-    "progressRange": "本任务固定开始至计划时长结束",
-    "baselineWidth": 1.5,
-    "nodeOuterGap": 0,
-    "reachedConnector": "绿色2.5像素，与已到达轨道同轴连续",
-    "inactiveDetails": "标题与时长并排一行；窄屏/大字体空间不足时两行",
-    "activeDetails": "两行展开，时长先下移再左移，收拢反向",
-    "lensProfile": "焦点最大，上下分别递减至两端最小；重叠激活项均最大",
-    "inactiveVerticalPadding": [
-      2,
-      6
+    "progressMeaning": "计划时段经过比例，不是实际Focus或完成比例",
+    "baselineWidth": 1,
+    "nodeSize": 9,
+    "rowVerticalPadding": 16,
+    "previewTitleMaxLines": 1,
+    "fullListTitleMaxLines": null,
+    "fullListStatusPlacement": "标题下方，与计划时长同行，空间不足自然换行",
+    "supportsTextScaling": true,
+    "clockUpdate": "每秒检查，分钟或时段边界变化时重建；空列表、隐藏和后台停止计时",
+    "emptyAction": "新建任务",
+    "currentAction": "查看",
+    "currentDataStates": [
+      "待到时",
+      "当前时段",
+      "时段已过",
+      "已取消"
     ],
-    "activeVerticalPadding": 12,
-    "firstSegmentStart": "首个圆点中心，上方不画线；布局段保持与卡片等高"
+    "overviewMetrics": [
+      "固定日程",
+      "自选任务",
+      "计划分钟"
+    ]
   },
   "todayFlexible": {
     "titleMetadataGap": 2,
@@ -319,7 +340,7 @@
     "iconContainerSize": 32,
     "iconSize": 20,
     "iconColumnWidth": 48,
-    "toggleFontSize": 12,
+    "toggleFontSize": 14,
     "toggleIconSize": 18,
     "toggleTouchHeightMin": 48,
     "supportsTextScaling": true

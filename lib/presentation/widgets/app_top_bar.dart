@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_layout.dart';
+
 /// 二级页面共用的顶栏：森林绿圆形返回、白色箭头和居中标题。
 ///
 /// 这里只统一外观。表单丢弃确认等业务由页面提供的 onBack 处理；
@@ -41,11 +43,11 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
       toolbarHeight: preferredSize.height,
       centerTitle: true,
       title: Text(title),
-      titleTextStyle: theme.textTheme.titleLarge,
-      // 24 左边距 + 48 按钮 = 72；避免在剩余空间居中后多出几像素。
-      leadingWidth: 72,
+      titleTextStyle: theme.textTheme.titleMedium,
+      // 返回按钮与正文共用左右边距；标准24、窄屏16，加上48触控宽度。
+      leadingWidth: AppLayout.horizontalPadding(context) + 48,
       leading: Padding(
-        padding: const EdgeInsets.only(left: 24),
+        padding: EdgeInsets.only(left: AppLayout.horizontalPadding(context)),
         child: Center(
           child: IconButton.filled(
             onPressed: canGoBack ? handleBack : null,
