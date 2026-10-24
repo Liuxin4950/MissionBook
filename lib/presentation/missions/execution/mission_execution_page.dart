@@ -343,16 +343,51 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
         children: [
           MissionHeading(detail: detail),
           const SizedBox(height: 16),
-          Text(
-            '本次专注 ${focusDuration(times.focus)} · 执行已结束',
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            detail.events.last.userReportedResult ==
-                    UserReportedResult.completed
-                ? '用户报告：已完成'
-                : '用户报告：未完成',
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.timelapse_rounded,
+                      color: AppColors.accent,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '本次专注',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: AppColors.onPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  focusDuration(times.focus),
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    color: AppColors.onPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  detail.events.last.userReportedResult ==
+                          UserReportedResult.completed
+                      ? '执行已结束 · 用户报告已完成'
+                      : '执行已结束 · 用户报告未完成',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.onPrimary,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           MissionEvidenceSection(

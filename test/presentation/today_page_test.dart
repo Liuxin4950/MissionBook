@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/app_shell.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
+import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
@@ -126,9 +127,11 @@ ScheduledMission example(
   DateTime? start,
   int plannedDurationMinutes = 20,
   String timeZone = 'Asia/Shanghai',
+  MissionPhase phase = MissionPhase.notStarted,
 }) {
   final now = DateTime.utc(2026, 10, 21);
   return ScheduledMission(
+    phase: phase,
     mission: Mission(
       id: id,
       title: id,
@@ -632,6 +635,35 @@ void main() {
     expect(repository.requests, hasLength(1));
     await tester.pumpWidget(const SizedBox.shrink());
     visible.dispose();
+  });
+
+  testWidgets('自选折叠先显示未开始，执行结束后的刷新会让待做任务前移', (tester) async {
+    final repository = ControlledQueryRepository();
+    await tester.pumpWidget(testApp(repository));
+    repository.requests.single.complete([
+      for (var index = 1; index <= 3; index++)
+        example('旧任务 $index', phase: MissionPhase.closed),
+      example('待做任务'),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('待做任务'), findsOneWidget);
+    expect(find.text('旧任务 3'), findsNothing);
+    expect(find.text('展开全部（4）'), findsOneWidget);
+    await tester.drag(
+      find.byKey(const Key('today-list')),
+      const Offset(0, 500),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    repository.requests.last.complete([
+      example('待做任务', phase: MissionPhase.closed),
+      example('新增待做'),
+      for (var index = 1; index <= 3; index++)
+        example('旧任务 $index', phase: MissionPhase.closed),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('新增待做'), findsOneWidget);
+    expect(find.text('旧任务 3'), findsNothing);
   });
 
   testWidgets('自选默认前三项，可展开收起且不查库；三项时不显示展开按钮', (tester) async {

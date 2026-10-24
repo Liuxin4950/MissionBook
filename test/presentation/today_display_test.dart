@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/domain/entities/mission.dart';
+import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/presentation/today/today_display.dart';
@@ -12,9 +13,11 @@ ScheduledMission mission(
   String date = '2026-10-21',
   bool cancelled = false,
   int plannedDurationMinutes = 25,
+  MissionPhase phase = MissionPhase.notStarted,
 }) {
   final now = DateTime.utc(2026, 10, 21);
   return ScheduledMission(
+    phase: phase,
     mission: Mission(
       id: id,
       title: '任务 $id',
@@ -38,6 +41,26 @@ ScheduledMission mission(
 
 void main() {
   setUpAll(tzdata.initializeTimeZones);
+
+  test('自选未开始优先，执行中和待补随后，已结束靠后且同阶段稳定', () {
+    final source = [
+      mission('closed', phase: MissionPhase.closed),
+      mission('pending', phase: MissionPhase.evidencePending),
+      mission('paused', phase: MissionPhase.paused),
+      mission('todo-a'),
+      mission('running', phase: MissionPhase.running),
+      mission('todo-b'),
+    ];
+    expect(groupMissionsForDisplay(source).flexible.map((item) => item.id), [
+      'todo-a',
+      'todo-b',
+      'paused',
+      'running',
+      'pending',
+      'closed',
+    ]);
+    expect(source.first.mission.id, 'closed');
+  });
 
   test('取消优先于固定/自选分区，保留查询顺序且不更改原始结果', () {
     final source = [

@@ -11,6 +11,7 @@ import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../shared/mission_execution_display.dart';
+import 'evidence_image_preview.dart';
 
 /// 同一任务上下文内的材料区域：编辑草稿、一次提交、查看正式材料。
 /// 页面刷新必须保留本组件的 key；草稿只在提交成功或明确丢弃后清除。
@@ -22,6 +23,7 @@ class MissionEvidenceSection extends StatefulWidget {
     this.onChanged,
     this.initiallyExpanded = false,
     this.protectNavigation = true,
+    this.compact = false,
   });
 
   final MissionDetail detail;
@@ -29,6 +31,7 @@ class MissionEvidenceSection extends StatefulWidget {
   final VoidCallback? onChanged;
   final bool initiallyExpanded;
   final bool protectNavigation;
+  final bool compact; // 历史行只读摘要用小图；待补材料仍保留完整编辑区。
 
   @override
   State<MissionEvidenceSection> createState() => MissionEvidenceSectionState();
@@ -41,7 +44,6 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
   final _drafts = <EvidenceDraft>[];
   final _controllers = <String, TextEditingController>{};
   final _images = <String, Future<Uint8List>>{};
-  final _largeImages = <String>{};
   EvidenceSubmission? _pending;
   bool _busy = false;
   bool _confirming = false;
@@ -320,7 +322,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
     });
   }
 
-  Widget _image(String key, String name) {
+  Widget _image(String key, String name, {double height = 148}) {
     // Future 按键缓存，输入说明或重绘时不重新读取图片文件。
     final image = _images.putIfAbsent(
       key,
@@ -338,50 +340,172 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
             child: LinearProgressIndicator(),
           );
         }
-        final expanded = _largeImages.contains(key);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: SizedBox(
-                height: expanded ? 420 : 200,
-                child: InteractiveViewer(
-                  minScale: 1,
-                  maxScale: 8,
-                  child: Image(
-                    // 两边各不超过1600，保留宽高比；预览不按原图解码几十兆像素。
-                    image: ResizeImage(
-                      MemoryImage(snapshot.data!),
-                      width: 1600,
-                      height: 1600,
-                      policy: ResizeImagePolicy.fit,
-                    ),
-                    fit: BoxFit.contain,
-                    semanticLabel: name,
-                  ),
-                ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => setState(() {
-                  if (expanded) {
-                    _largeImages.remove(key);
-                  } else {
-                    _largeImages.add(key);
-                  }
-                }),
-                icon: Icon(
-                  expanded ? Icons.zoom_out_rounded : Icons.zoom_in_rounded,
-                ),
-                label: Text(expanded ? '收起图片' : '展开图片，可缩放查看'),
-              ),
-            ),
-          ],
+        return EvidenceImagePreview(
+          bytes: snapshot.data!,
+          name: name,
+          height: height,
         );
       },
+    );
+  }
+
+  /// 正式材料以内容为主；要求和原始时间可展开读取，不重复占据首屏。
+  Widget _formalMaterials(BuildContext context) {
+    final theme = Theme.of(context);
+    final images = _detail.evidence.where(
+      (item) => item.type == EvidenceType.image,
+    );
+    final texts = _detail.evidence.where(
+      (item) => item.type == EvidenceType.text,
+    );
+    return Material(
+      key: Key('evidence-section-${_detail.mission.id}'),
+      color: widget.compact ? AppColors.background : AppColors.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: AppColors.hairline),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(widget.compact ? 12 : 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.perm_media_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('任务材料', style: theme.textTheme.titleMedium),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_detail.evidence.length}',
+                    style: theme.textTheme.labelLarge,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (images.isNotEmpty)
+              LayoutBuilder(
+                builder: (context, box) {
+                  // 历史使用约112宽的小图；独立记录两列，窄屏和大字号下仍自然换行。
+                  final width = widget.compact
+                      ? 112.0.clamp(0.0, box.maxWidth)
+                      : ((box.maxWidth - 12) / 2).clamp(0.0, 240.0);
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final item in images)
+                        SizedBox(
+                          width: width,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _image(
+                                item.attachmentStorageKey!,
+                                item.attachmentFileName ?? '图片材料',
+                                height: widget.compact ? 104 : 148,
+                              ),
+                              if (item.content?.trim().isNotEmpty == true) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  item.content!,
+                                  maxLines: widget.compact ? 2 : null,
+                                  overflow: widget.compact
+                                      ? TextOverflow.ellipsis
+                                      : null,
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            for (final item in texts) ...[
+              if (images.isNotEmpty || item != texts.first)
+                const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.notes_rounded, size: 18),
+                        const SizedBox(width: 6),
+                        Text('文字记录', style: theme.textTheme.labelLarge),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SelectableText(item.content ?? ''),
+                  ],
+                ),
+              ),
+            ],
+            if (!widget.compact) ...[
+              const SizedBox(height: 8),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                title: Text(
+                  '已提交 ${_detail.evidence.length} 份材料',
+                  style: theme.textTheme.bodySmall,
+                ),
+                children: [
+                  for (final item in _detail.evidence)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: Text(item.attachmentFileName ?? '文字记录'),
+                      subtitle: Text(
+                        '提交于 ${missionLocalTime(item.submittedAt, _detail.schedule.timeZone)}',
+                      ),
+                    ),
+                  if (_detail.executionPlan.verificationCriteria
+                          ?.trim()
+                          .isNotEmpty ==
+                      true)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('材料要求'),
+                      subtitle: Text(
+                        _detail.executionPlan.verificationCriteria!,
+                      ),
+                    ),
+                  if (_detail.schedule.evidenceDeadlineAt != null)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('提交截止'),
+                      subtitle: Text(
+                        missionLocalTime(
+                          _detail.schedule.evidenceDeadlineAt!,
+                          _detail.schedule.timeZone,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -406,6 +530,9 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       (item) => item.trigger == 'EVIDENCE_DEADLINE_MISSED',
     );
     final hasFormal = _detail.evidence.isNotEmpty;
+    if (!_canSubmit && hasFormal && !hasDraft && _pending == null) {
+      return _formalMaterials(context);
+    }
     if (!_canSubmit &&
         !hasFormal &&
         !hasDraft &&

@@ -180,12 +180,13 @@ class _MissionRecordPageState extends State<MissionRecordPage> {
                 Text(failure.userReasonText!),
             ],
           const SizedBox(height: AppLayout.sectionGap),
-          MissionEventTimeline(detail: detail),
           MissionEvidenceSection(
             key: ValueKey('record-evidence-${detail.mission.id}'),
             detail: detail,
             service: service,
           ),
+          const SizedBox(height: AppLayout.sectionGap),
+          MissionEventTimeline(detail: detail),
         ],
       ),
     );

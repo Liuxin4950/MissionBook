@@ -26,12 +26,15 @@ String scheduleDateKey(DateTime date) =>
 String scheduleDateLabel(DateTime date) =>
     '${date.month}月${date.day}日 · ${_weekdays[date.weekday - 1]}';
 
-/// 为业务查询结果准备显示文字，按固定、自选、已取消分区并保留原顺序。
+/// 为业务查询结果准备显示文字；自选任务先放未开始，再放执行中、待补和已结束。
 ///
 /// 由 TodayPage._loadMissions 在查询成功后调用一次；不查询或写入数据库。
 TodayMissionGroups groupMissionsForDisplay(List<ScheduledMission> missions) {
   final fixed = <TodayMissionItem>[];
   final flexible = <TodayMissionItem>[];
+  final activeFlexible = <TodayMissionItem>[];
+  final pendingFlexible = <TodayMissionItem>[];
+  final closedFlexible = <TodayMissionItem>[];
   final cancelled = <TodayMissionItem>[];
   for (final mission in missions) {
     final item = _missionItem(mission);
@@ -40,12 +43,29 @@ TodayMissionGroups groupMissionsForDisplay(List<ScheduledMission> missions) {
     } else if (item.isFixed) {
       fixed.add(item);
     } else {
-      flexible.add(item);
+      // 只调整显示顺序，同阶段仍沿用仓储的创建顺序；不把排序写成业务状态。
+      switch (item.phase) {
+        case MissionPhase.notStarted:
+          flexible.add(item);
+        case MissionPhase.running:
+        case MissionPhase.paused:
+          activeFlexible.add(item);
+        case MissionPhase.evidencePending:
+          pendingFlexible.add(item);
+        case MissionPhase.closed:
+        case MissionPhase.cancelled:
+          closedFlexible.add(item);
+      }
     }
   }
   return TodayMissionGroups(
     fixed: List.unmodifiable(fixed),
-    flexible: List.unmodifiable(flexible),
+    flexible: List.unmodifiable([
+      ...flexible,
+      ...activeFlexible,
+      ...pendingFlexible,
+      ...closedFlexible,
+    ]),
     cancelled: List.unmodifiable(cancelled),
   );
 }

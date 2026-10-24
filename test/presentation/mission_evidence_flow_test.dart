@@ -18,6 +18,8 @@ import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
 import 'package:mission_book/presentation/missions/evidence/mission_evidence_section.dart';
+import 'package:mission_book/presentation/missions/evidence/evidence_image_preview.dart';
+import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
 import 'package:mission_book/presentation/missions/history/mission_history_page.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
 
@@ -73,7 +75,7 @@ class _PreparedImages extends EvidenceImageService {
   @override
   Future<PreparedEvidenceImage?> pickAndPrepare(String missionId) async {
     if (images.cancel) return null;
-    final key = 'attachments/$missionId/ui-test.png';
+    final key = 'attachments/$missionId/ui-test-${images.files.length}.png';
     await images.writeNew(key, _png);
     return PreparedEvidenceImage(
       storageKey: key,
@@ -276,6 +278,73 @@ void main() {
     expect(images.files, hasLength(1));
     expect(tester.takeException(), isNull);
   });
+
+  for (final inHistory in [true, false]) {
+    testWidgets('${inHistory ? '历史小图' : '记录双列'}直接点击放大，关闭后材料和执行事实保留', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 850);
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(top: 24, bottom: 20);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPadding);
+      final detail = await create(pending: true);
+      final first = (await service.pickEvidenceImage(detail.mission.id))!;
+      final second = (await service.pickEvidenceImage(detail.mission.id))!;
+      await service.submitEvidence(
+        service.prepareEvidenceSubmission(
+          detail: detail,
+          items: [first.copyWithContent('数据库测试结果'), second],
+        ),
+      );
+      final saved = (await service.findDetail(missionId: detail.mission.id))!;
+      await tester.pumpWidget(
+        app(
+          inHistory
+              ? MissionHistoryPage(service: service)
+              : MissionExecutionPage(detail: saved, service: service),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final previews = find.byType(EvidenceImagePreview);
+      expect(previews, findsNWidgets(2));
+      expect(tester.getSize(previews.first).height, inHistory ? 104 : 148);
+      if (inHistory) {
+        expect(tester.getSize(previews.first).width, lessThanOrEqualTo(112));
+      }
+      expect(
+        tester.getTopLeft(previews.first).dy,
+        tester.getTopLeft(previews.last).dy,
+      );
+      expect(find.text('展开图片，可缩放查看'), findsNothing);
+      await tester.ensureVisible(previews.first);
+      await tester.tap(previews.first);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('evidence-image-viewer')), findsOneWidget);
+      // 背景覆盖系统安全区；内容仍由查看层内的 SafeArea 避让。
+      expect(
+        tester.getSize(find.byKey(const Key('evidence-image-viewer'))),
+        const Size(400, 850),
+      );
+      expect(
+        tester.getTopLeft(find.byKey(const Key('evidence-image-viewer'))),
+        Offset.zero,
+      );
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+      await tester.tap(find.byTooltip('关闭图片'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('evidence-image-viewer')), findsNothing);
+      expect(images.files, hasLength(2));
+      final reread = (await service.findDetail(missionId: detail.mission.id))!;
+      expect(
+        reread.events.map((item) => item.id),
+        saved.events.map((item) => item.id),
+      );
+      expect(reread.evidence, hasLength(2));
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('保存响应丢失后原批次重试或重读确认，不重复材料', (tester) async {
     final detail = await create(pending: true);

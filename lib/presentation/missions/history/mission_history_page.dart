@@ -233,6 +233,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                                         ),
                                         detail: detail,
                                         service: widget.service,
+                                        compact: true,
                                         protectNavigation: false,
                                         onChanged: _refresh,
                                       ),
