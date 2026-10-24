@@ -33,6 +33,32 @@ class MissionService {
   final EvidenceImageService? _images;
   Future<void>? _imageInitialization;
   final _preparedImageKeys = <String>{}; // 当前会话准备的副本，删除草稿不能删正式引用。
+  Future<void>? _attachmentCommitQueue;
+
+  /// 文件系统不能加入 SQLite 事务；同一业务服务把“检查文件→提交引用”和
+  /// “重读引用→删除草稿副本”串行执行，避免检查后图片被另一个入口删掉。
+  Future<T> _withAttachmentCommit<T>(Future<T> Function() operation) {
+    final previous = _attachmentCommitQueue;
+    // 空闲时在本次调用的异步上下文直接开始，不在服务构造时创建待完成 Future。
+    final result = previous == null
+        ? Future<T>.sync(operation)
+        : previous.then<T>((_) => operation());
+    late final Future<void> tail;
+    void release() {
+      if (identical(_attachmentCommitQueue, tail)) {
+        _attachmentCommitQueue = null;
+      }
+    }
+
+    // 本次错误仍传给调用者；队列本身恢复为成功，后面的重试/清理不会永久阻塞。
+    tail = result.then<void>(
+      (_) => release(),
+      onError: (Object _, StackTrace _) => release(),
+    );
+    _attachmentCommitQueue = tail;
+    return result;
+  }
+
   EvidenceImageService get _imageService =>
       _images ?? (throw StateError('当前环境未配置图片存储，请重新打开应用'));
 
@@ -159,18 +185,19 @@ class MissionService {
   Future<Uint8List> readEvidenceImage(String storageKey) =>
       _imageService.read(storageKey);
 
-  Future<void> discardEvidenceDrafts(List<EvidenceDraft> items) async {
-    final referenced = await repository.referencedAttachmentKeys();
-    for (final item in items) {
-      final key = item.attachmentStorageKey;
-      if (key != null &&
-          _preparedImageKeys.contains(key) &&
-          !referenced.contains(key)) {
-        await _imageService.delete(key);
-        _preparedImageKeys.remove(key);
-      }
-    }
-  }
+  Future<void> discardEvidenceDrafts(List<EvidenceDraft> items) =>
+      _withAttachmentCommit(() async {
+        final referenced = await repository.referencedAttachmentKeys();
+        for (final item in items) {
+          final key = item.attachmentStorageKey;
+          if (key != null &&
+              _preparedImageKeys.contains(key) &&
+              !referenced.contains(key)) {
+            await _imageService.delete(key);
+            _preparedImageKeys.remove(key);
+          }
+        }
+      });
 
   EvidenceSubmission prepareEvidenceSubmission({
     required MissionDetail detail,
@@ -189,7 +216,7 @@ class MissionService {
 
   Future<EvidenceSubmissionResult> submitEvidence(
     EvidenceSubmission submission,
-  ) async {
+  ) => _withAttachmentCommit(() async {
     // 文件校验在事务前完成，SQLite 不等待系统选择器或复制文件。
     // 已保存批次重试交给仓储认原身份，缺失附件由材料阅读明确提示。
     final current = await repository.findDetail(submission.missionId);
@@ -212,7 +239,7 @@ class MissionService {
     }
     _notify();
     return result;
-  }
+  });
 
   Future<void> skipOptionalEvidence(String missionId) async {
     await repository.skipOptionalEvidence(missionId);
