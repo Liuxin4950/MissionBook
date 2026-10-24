@@ -5,8 +5,8 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'today_display.dart' as display;
 import '../../domain/entities/mission_phase.dart';
-import '../missions/mission_phase_display.dart';
-import '../missions/mission_live_status.dart';
+import '../missions/shared/mission_phase_display.dart';
+import '../missions/shared/mission_live_status.dart';
 
 /// 首页窗口和当日完整列表共用一份日程布局；时钟只影响展示，不写执行事实。
 class ScheduleSection extends StatefulWidget {

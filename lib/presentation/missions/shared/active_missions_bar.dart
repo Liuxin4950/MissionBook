@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../application/missions/mission_service.dart';
-import '../../domain/entities/mission_detail.dart';
-import '../../domain/entities/mission_phase.dart';
-import 'mission_detail_page.dart';
+import '../../../application/missions/mission_service.dart';
+import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/entities/mission_phase.dart';
+import '../detail/mission_detail_page.dart';
 import 'mission_live_status.dart';
 
 /// 不按今天日期过滤，跨午夜或切换顶层页也能找回运行/暂停任务。

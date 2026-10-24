@@ -119,6 +119,8 @@ MissionPhase deriveSelfReportMissionPhase(
   List<ExecutionEvent> events,
   List<FailureRecord> failures,
 ) {
+  // 阶段只需要任务和已保存的执行/失败事实；排期、行动步骤不参与这里的判断。
+  // 核心从未开始出发，按序号读取事件：START变运行、PAUSE变暂停、RESUME变运行。
   final state = _replayExecutionHistory(mission, events);
   if (state != _ExecutionState.ended) {
     if (failures.isNotEmpty) throw const FormatException('尚未结束的任务不应有失败记录');

@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../../application/missions/mission_service.dart';
-import '../../core/theme/app_layout.dart';
-import '../../core/theme/colors.dart';
-import '../../domain/entities/execution_event.dart';
-import '../../domain/entities/failure_record.dart';
-import '../../domain/entities/mission_detail.dart';
-import '../../domain/rules/execution_time_rules.dart';
-import '../widgets/app_top_bar.dart';
-import 'mission_execution_display.dart';
-import 'mission_retry_button.dart';
-import 'mission_detail_page.dart';
+import '../../../application/missions/mission_service.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/colors.dart';
+import '../../../domain/entities/execution_event.dart';
+import '../../../domain/entities/failure_record.dart';
+import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/rules/execution_time_rules.dart';
+import '../../widgets/app_top_bar.dart';
+import '../shared/mission_execution_display.dart';
+import '../shared/mission_retry_button.dart';
+import '../detail/mission_detail_page.dart';
 
 /// 已结束的只读记录。使用 END 冻结的时长，绝不显示运行圆环或执行控制。
 class MissionRecordPage extends StatefulWidget {

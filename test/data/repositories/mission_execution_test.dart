@@ -61,6 +61,77 @@ void main() {
     );
   }
 
+  test('收到开始通知后能重读START；详情与日期列表使用相同事实显示运行', () async {
+    final start = await command(ExecutionEventType.start);
+    // 先登记监听，再开始；通知不带任务数据，监听者自己按任务编号重读。
+    final notifiedDetail = service.changes
+        .asyncMap((_) => service.findDetail(missionId: 'a'))
+        .first;
+
+    final saved = await service.execute(start);
+    final detail = (await notifiedDetail)!;
+    final scheduled = (await service.findScheduledOn(
+      scheduledDate: detail.schedule.scheduledDate,
+    )).singleWhere((item) => item.mission.id == 'a');
+
+    expect(service.changeRevision, 1);
+    expect(detail.phase, MissionPhase.running);
+    expect(detail.events.single.id, saved.id);
+    expect(detail.lastSequence, 1);
+    expect(detail.events.single.scheduleRevisionId, detail.schedule.id);
+    expect(scheduled.phase, detail.phase);
+    expect(scheduled.events.single.id, saved.id);
+  });
+
+  test('START插入失败整体回滚，不发刷新通知，不增加刷新计数；原命令可重试', () async {
+    final start = await command(ExecutionEventType.start);
+    var notificationCount = 0;
+    final subscription = service.changes.listen((_) => notificationCount++);
+    addTearDown(subscription.cancel);
+    await database.customStatement(
+      "CREATE TRIGGER fail_start BEFORE INSERT ON execution_events WHEN NEW.type = 'START' BEGIN SELECT RAISE(ABORT, '模拟开始写入失败'); END",
+    );
+
+    await expectLater(service.execute(start), throwsA(isA<SqliteException>()));
+    final detail = (await service.findDetail(missionId: 'a'))!;
+    // broadcast 的回调异步投递，给本轮通知一次处理机会再断言“没有收到”。
+    await Future<void>.delayed(Duration.zero);
+    expect(notificationCount, 0);
+    expect(service.changeRevision, 0);
+    expect(detail.events, isEmpty);
+    expect(detail.phase, MissionPhase.notStarted);
+    expect(await service.findActive(), isEmpty);
+
+    await database.customStatement('DROP TRIGGER fail_start');
+    final notified = service.changes.first;
+    final saved = await service.execute(start);
+    await notified;
+    expect(saved.id, start.id);
+    expect(saved.sequence, 1);
+    expect(notificationCount, 1);
+    expect(service.changeRevision, 1);
+    expect((await service.findDetail(missionId: 'a'))!.events, hasLength(1));
+  });
+
+  test('另一个任务运行时拒绝开始，不为冲突发通知或增加刷新计数', () async {
+    await act(ExecutionEventType.start);
+    final revisionBefore = service.changeRevision;
+    var notificationCount = 0;
+    final subscription = service.changes.listen((_) => notificationCount++);
+    addTearDown(subscription.cancel);
+    final startOther = await command(ExecutionEventType.start, mission: 'b');
+
+    await expectLater(
+      service.execute(startOther),
+      throwsA(isA<ExecutionConflict>()),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(notificationCount, 0);
+    expect(service.changeRevision, revisionBefore);
+    expect((await service.findDetail(missionId: 'b'))!.events, isEmpty);
+    expect((await service.findActive()).single.mission.id, 'a');
+  });
+
   test('再次尝试只复制计划并保存来源，原事件报告及失败原因不被复制或修改', () async {
     await act(ExecutionEventType.start);
     await act(ExecutionEventType.end, report: UserReportedResult.notCompleted);

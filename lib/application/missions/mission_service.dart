@@ -28,18 +28,23 @@ class MissionService {
 
   // 创建一个编号生成器，后面用 v4() 生成唯一编号。
   final Uuid uuid = const Uuid();
-  // 只广播“已提交，需要重读”，不广播可写状态或替代数据库事实。
+  // 服务持有发送端；broadcast 允许今天页、详情页等同时登记监听。
+  // void 表示通知没有业务数据：只说“请重读”，不把 RUNNING 等阶段放进通知。
   final _changes = StreamController<void>.broadcast();
   // 仅用于合并同一次提交引起的重复刷新，不是任务阶段、事件序号或数据库版本。
   // 先增加再通知，页面便能识别“本次查询已经在这次提交之后发起”。
   int _changeRevision = 0;
   int get changeRevision => _changeRevision;
+  // 页面拿到接收端后调用 changes.listen(回调)，登记收到通知时要做的事。
   Stream<void> get changes => _changes.stream;
   Future<void> dispose() => _changes.close();
+
+  // notify 意为“通知”；这是我们自己定义的方法，_ 表示仅本 Dart 库内部使用。
+  // 调用者必须先等仓储成功返回。add 会让已监听页面的回调随后收到一次信号。
   void _notify() {
     if (!_changes.isClosed) {
       _changeRevision++;
-      _changes.add(null);
+      _changes.add(null); // void 通知用 null 触发，不代表任务数据为空。
     }
   }
 
@@ -59,6 +64,8 @@ class MissionService {
       missionId: detail.mission.id,
       expectedSequence: detail.lastSequence,
       type: type,
+      // 开始时带上页面读到的排期编号，让事务确认用户看到的计划没有被改过。
+      // 之后的动作沿用已保存 START 绑定的计划，不重新选择排期。
       scheduleRevisionId: type == ExecutionEventType.start
           ? detail.schedule.id
           : null,
@@ -72,7 +79,9 @@ class MissionService {
 
   /// 等仓储事务提交后再通知页面重读；真正的事件时刻、序号由写事务确定。
   Future<ExecutionEvent> execute(ExecutionCommand command) async {
+    // await 等待仓储的整个事务；抛异常时会直接离开，不执行下面的通知。
     final event = await repository.execute(command);
+    // 同 id 的成功重试也通知：第一次可能已保存但返回结果丢失，页面仍需要重读。
     _notify();
     return event;
   }

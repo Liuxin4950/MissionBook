@@ -13,7 +13,7 @@ import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
-import 'package:mission_book/presentation/missions/mission_detail_page.dart';
+import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
 import 'package:mission_book/presentation/widgets/app_confirm_dialog.dart';
 
 // 由测试决定读取何时完成，才能观察等待、失败、重试、离页和乱序返回。

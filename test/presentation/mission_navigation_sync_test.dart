@@ -12,10 +12,10 @@ import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
-import 'package:mission_book/presentation/missions/mission_detail_page.dart';
-import 'package:mission_book/presentation/missions/mission_execution_page.dart';
-import 'package:mission_book/presentation/missions/mission_live_status.dart';
-import 'package:mission_book/presentation/missions/mission_record_page.dart';
+import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
+import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
+import 'package:mission_book/presentation/missions/shared/mission_live_status.dart';
+import 'package:mission_book/presentation/missions/record/mission_record_page.dart';
 
 void main() {
   late AppDatabase database;

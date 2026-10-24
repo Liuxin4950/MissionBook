@@ -16,11 +16,11 @@ class ExecutionCommand {
     this.userReasonText,
   });
 
-  final String id;
-  final String missionId;
-  final int expectedSequence;
-  final ExecutionEventType type;
-  final String? scheduleRevisionId;
+  final String id; // 这次操作的编号，结果未确认时重试复用。
+  final String missionId; // 操作哪一个任务，来自 detail.mission.id。
+  final int expectedSequence; // 页面读到的最新事件序号；尚未开始时为0。
+  final ExecutionEventType type; // 本次动作，例如 start（开始）。
+  final String? scheduleRevisionId; // 仅开始携带 detail.schedule.id，防止使用旧计划。
   final int? grantedDurationMinutes;
   final String? reason;
   final UserReportedResult? userReportedResult;

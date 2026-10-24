@@ -4,7 +4,7 @@ import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../../domain/entities/mission_phase.dart';
 import '../../domain/entities/execution_event.dart';
-import '../missions/mission_phase_display.dart';
+import '../missions/shared/mission_phase_display.dart';
 
 // 今天页专用的显示工具。不依赖 Flutter，不访问数据库。
 // 页面通过这里取得日期文字；一次查询成功后通过 groupMissionsForDisplay 整理整份结果。

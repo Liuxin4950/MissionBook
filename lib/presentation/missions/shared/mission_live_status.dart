@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../domain/entities/execution_event.dart';
-import '../../domain/entities/mission_phase.dart';
-import '../../domain/rules/execution_time_rules.dart';
+import '../../../domain/entities/execution_event.dart';
+import '../../../domain/entities/mission_phase.dart';
+import '../../../domain/rules/execution_time_rules.dart';
 import 'mission_execution_display.dart';
 import 'mission_phase_display.dart';
 

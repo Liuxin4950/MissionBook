@@ -1,4 +1,4 @@
-import '../../domain/entities/mission_phase.dart';
+import '../../../domain/entities/mission_phase.dart';
 
 /// 页面、列表和读屏使用同一套阶段文案；这些文字不作为数据库事实保存。
 String phaseLabel(MissionPhase phase) => switch (phase) {

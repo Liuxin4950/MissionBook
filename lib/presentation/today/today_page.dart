@@ -4,24 +4,12 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../../application/missions/mission_service.dart';
 import '../../core/theme/app_layout.dart';
-import '../missions/mission_form_page.dart';
-import '../missions/mission_detail_page.dart';
-import '../missions/mission_live_status.dart';
-import '../missions/mission_phase_display.dart';
+import '../missions/form/mission_form_page.dart';
+import '../missions/detail/mission_detail_page.dart';
 import 'today_display.dart' as display;
 import 'schedule_section.dart';
-
-// 任务卡片语义标签
-String _missionSemanticsLabel(
-  display.TodayMissionItem item, {
-  bool isCurrent = false,
-}) => [
-  if (isCurrent) '当前计划时段',
-  item.isFixed ? item.startTime : '自选时间',
-  item.title,
-  item.durationLabel,
-  if (item.timeZoneLabel != null) item.timeZoneLabel!,
-].join('，');
+import '../missions/shared/mission_live_status.dart';
+import '../missions/shared/mission_phase_display.dart';
 
 // 本页负责加载和导航；日程布局由 ScheduleSection 复用，日期和窗口选择由 display 处理。
 // App 创建一个 MissionService，AppShell 将同一份引用传到这里。
@@ -80,6 +68,9 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
           ),
     );
     _loadMissions();
+    // listen 在这里“登记回调”，不是立即查询；服务以后 add 一次才调用一次回调。
+    // (_) 中的 _ 表示忽略无内容的通知；_changes 保存订阅，以便 dispose 时取消。
+    // 与服务共用同一个对象引用，才能收到它发出的通知。
     // 本页自己打开的创建/详情在返回时已有刷新；其他入口提交后再主动重读。
     _changes = widget.missionService.changes.listen((_) {
       if (!_isOpeningCreate && !_isOpeningDetail) unawaited(_loadMissions());
@@ -122,6 +113,8 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     });
 
     try {
+      // 先按最新排期的日期找属于这一天的任务，再为每个任务读取执行事实与阶段。
+      // 所以排期解决“这一天显示谁”，事件解决“这个任务现在是什么阶段”。
       // date 来自本页选择；await 等待 MissionService.findScheduledOn → 仓储 → SQLite。
       final result = await widget.missionService.findScheduledOn(
         scheduledDate: date,
@@ -428,11 +421,103 @@ class _TodayHeader extends StatelessWidget {
   }
 }
 
+/// 七天快捷选择与日历选择共用同一个查询入口，日期来自真正的日历运算。
+class _WeekStrip extends StatelessWidget {
+  const _WeekStrip({required this.selectedDate, required this.onSelect});
+  final DateTime selectedDate;
+  final ValueChanged<DateTime> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final monday = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day - selectedDate.weekday + 1,
+    );
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    return Row(
+      children: [
+        for (var index = 0; index < 7; index++)
+          Expanded(
+            child: Builder(
+              builder: (context) {
+                final date = DateTime(
+                  monday.year,
+                  monday.month,
+                  monday.day + index,
+                );
+                final selected = DateUtils.isSameDay(date, selectedDate);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Semantics(
+                    selected: selected,
+                    label: display.scheduleDateLabel(date),
+                    button: true,
+                    onTap: () => onSelect(date),
+                    excludeSemantics: true,
+                    child: Material(
+                      color: selected
+                          ? theme.colorScheme.primary
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        onTap: () => onSelect(date),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Column(
+                            children: [
+                              Text(
+                                weekdays[index],
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: selected
+                                      ? theme.colorScheme.onPrimary
+                                      : theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${date.day}',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: selected
+                                      ? theme.colorScheme.onPrimary
+                                      : theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// 任务卡片语义标签
+String _missionSemanticsLabel(
+  display.TodayMissionItem item, {
+  bool isCurrent = false,
+}) => [
+  if (isCurrent) '当前计划时段',
+  item.isFixed ? item.startTime : '自选时间',
+  item.title,
+  item.durationLabel,
+  if (item.timeZoneLabel != null) item.timeZoneLabel!,
+].join('，');
+
+/// 自选任务列表；展开状态留在本区域，查询和打开页面交给回调。
 class _FlexibleMissionSection extends StatefulWidget {
   const _FlexibleMissionSection({
-    required this.items,
-    required this.onOpenMission,
-    required this.onCreate,
+    required this.items, // 今天页已加载并转换的完整自选任务列表。
+    required this.onOpenMission, // 用户点击后交回页面打开详情。
+    required this.onCreate, // 用户点击添加后交回页面打开创建表单。
   });
 
   final List<display.TodayMissionItem> items;
@@ -681,85 +766,6 @@ TextStyle _todayTitleStyle(BuildContext context) =>
 
 TextStyle _todayMetadataStyle(BuildContext context) =>
     Theme.of(context).textTheme.bodyMedium!;
-
-/// 七天快捷选择与日历选择共用同一个查询入口，日期来自真正的日历运算。
-class _WeekStrip extends StatelessWidget {
-  const _WeekStrip({required this.selectedDate, required this.onSelect});
-  final DateTime selectedDate;
-  final ValueChanged<DateTime> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final monday = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day - selectedDate.weekday + 1,
-    );
-    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-    return Row(
-      children: [
-        for (var index = 0; index < 7; index++)
-          Expanded(
-            child: Builder(
-              builder: (context) {
-                final date = DateTime(
-                  monday.year,
-                  monday.month,
-                  monday.day + index,
-                );
-                final selected = DateUtils.isSameDay(date, selectedDate);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Semantics(
-                    selected: selected,
-                    label: display.scheduleDateLabel(date),
-                    button: true,
-                    onTap: () => onSelect(date),
-                    excludeSemantics: true,
-                    child: Material(
-                      color: selected
-                          ? theme.colorScheme.primary
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        onTap: () => onSelect(date),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: Column(
-                            children: [
-                              Text(
-                                weekdays[index],
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: selected
-                                      ? theme.colorScheme.onPrimary
-                                      : theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${date.day}',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: selected
-                                      ? theme.colorScheme.onPrimary
-                                      : theme.colorScheme.onSurface,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
-    );
-  }
-}
 
 /// 当前查询只有排期事实，概览统计真实安排，不推断完成或执行次数。
 class _ScheduleOverview extends StatelessWidget {

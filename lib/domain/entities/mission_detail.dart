@@ -12,17 +12,15 @@ class MissionEditConflict implements Exception {
   final String message;
 }
 
-/// 【查询组合】任务、最新排期、方案及完整执行/失败事实，供三个任务页面共用。
-///
-/// 由仓储在同一读事务读取五张表后组成，没有对应的独立数据库表；
-/// 不复制各对象的字段，也不保存另一份可写任务状态。
+/// 【查询组合】一次任务详情查询的结果，供详情、执行和记录页共用。
+/// 仓储在同一读事务中组装，没有对应的独立数据库表。
 class MissionDetail {
   const MissionDetail({
-    required this.mission,
-    required this.schedule,
-    required this.executionPlan,
-    this.events = const [],
-    this.failures = const [],
+    required this.mission, // 任务本身：编号、标题、取消时刻和验证策略。
+    required this.schedule, // 最新排期：安排哪天、几点、计划多久。
+    required this.executionPlan, // 行动方案：具体目标和步骤。
+    this.events = const [], // 完整执行记录：开始、暂停等；无记录时为空列表。
+    this.failures = const [], // 失败事实；没有失败记录时为空列表。
   });
 
   final Mission mission;
@@ -31,7 +29,10 @@ class MissionDetail {
   // 仓储从同一次读事务取得完整时间线，不是某天或某页的片段。
   final List<ExecutionEvent> events;
   final List<FailureRecord> failures;
+  // 没有事件时为0；开始命令用它检查页面是否过期，仓储再分配新序号1。
   int get lastSequence => events.isEmpty ? 0 : events.last.sequence;
+  // get 是按需计算的属性：读取 detail.phase 时，根据事实重新计算，结果不写回库。
+  // 此处没有传 schedule/执行方案；它们负责计划和展示，不决定 START 是否发生。
   MissionPhase get phase =>
       deriveSelfReportMissionPhase(mission, events, failures);
 }

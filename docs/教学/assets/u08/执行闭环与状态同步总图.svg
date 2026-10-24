@@ -1,0 +1,307 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2800" height="2280" viewBox="0 0 2800 2280">
+<defs>
+<marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker>
+<marker id="arrow-3C6FB0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#3C6FB0"/></marker>
+<marker id="arrow-3F8A5B" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#3F8A5B"/></marker>
+<marker id="arrow-7C63B0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7C63B0"/></marker>
+<marker id="arrow-D98B2B" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#D98B2B"/></marker>
+<marker id="arrow-4E9A6A" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#4E9A6A"/></marker>
+<marker id="arrow-2F5FA8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2F5FA8"/></marker>
+</defs>
+<rect x="0" y="0" width="2800" height="2280" fill="#ffffff"/>
+<text x="60" y="62" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="34" font-weight="bold" fill="#0f172a" text-anchor="start" opacity="1">MissionBook｜自报任务闭环：业务流程 · 状态同步 · 数据流动</text>
+<text x="60" y="96" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="16" font-weight="normal" fill="#5b6472" text-anchor="start" opacity="1">依据提交 ceaafd7（schema v4，2026-10-24）｜实线 = 调用 / 写入　虚线 = 通知 / 派生　本图只描述当前已接通路径</text>
+<text x="1740" y="58" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15" font-weight="bold" fill="#5b6472" text-anchor="start" opacity="1">图例</text>
+<rect x="1740" y="70" width="24" height="16" rx="4" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="1772" y="84" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">页面 / 路由</text>
+<rect x="1990" y="70" width="24" height="16" rx="4" fill="#F1ECFB" stroke="#7C63B0" stroke-width="2"/>
+<text x="2022" y="84" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">控制器 / 业务入口</text>
+<rect x="2240" y="70" width="24" height="16" rx="4" fill="#E8F5EC" stroke="#3F8A5B" stroke-width="2"/>
+<text x="2272" y="84" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">域规则 / 派生</text>
+<rect x="2490" y="70" width="24" height="16" rx="4" fill="#E8F0FB" stroke="#3C6FB0" stroke-width="2"/>
+<text x="2522" y="84" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">数据层 / 事实表</text>
+<rect x="60" y="130" width="10" height="28" rx="5" fill="#111827"/>
+<text x="80" y="158" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="26" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">① 业务流程与页面路由：入口意图 ≠ 任务阶段；替换路由让操作链可返回</text>
+<rect x="60" y="190" width="280" height="118" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="76" y="220" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="19" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">入口（读）</text>
+<text x="76" y="248" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">今天页任务行</text>
+<text x="76" y="270" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">全局当前任务栏（跨日期）</text>
+<text x="76" y="292" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">历史页：执行 / 已取消</text>
+<rect x="400" y="190" width="280" height="118" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="416" y="220" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="19" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">任务详情</text>
+<text x="416" y="248" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">findDetail 重读完整事实</text>
+<text x="416" y="270" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">待开始：修改 / 取消 / 开始</text>
+<text x="416" y="292" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">running·paused：自动替换</text>
+<rect x="740" y="190" width="280" height="118" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="756" y="220" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="19" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">执行任务</text>
+<text x="756" y="248" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">只承接已 START 的任务</text>
+<text x="756" y="270" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">Focus 环 · 延长 · 暂停 / 结束</text>
+<text x="756" y="292" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">退出页面不写 PAUSE</text>
+<rect x="1080" y="190" width="280" height="118" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="1096" y="220" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="19" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">结束报告（同页）</text>
+<text x="1096" y="248" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">运行中点结束先写 PAUSE</text>
+<text x="1096" y="270" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">草稿不代选、不入库</text>
+<text x="1096" y="292" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">确认才写 END</text>
+<rect x="1420" y="190" width="280" height="118" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="1436" y="220" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="19" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">执行记录（只读）</text>
+<text x="1436" y="248" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">以 END 时刻为计算上界</text>
+<text x="1436" y="270" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">报告 · 摘要 · 时间线 · 原因</text>
+<text x="1436" y="292" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">提供“再次尝试”</text>
+<rect x="1760" y="190" width="280" height="118" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="1776" y="220" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="19" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">再次尝试表单</text>
+<text x="1776" y="248" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">预填来源任务计划</text>
+<text x="1776" y="270" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">明确保存才创建</text>
+<text x="1776" y="292" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">source_mission_id</text>
+<rect x="2100" y="190" width="280" height="118" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="2116" y="220" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="19" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">新任务</text>
+<text x="2116" y="248" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">全新 id，阶段=待开始</text>
+<text x="2116" y="270" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">relation_type=RETRY</text>
+<text x="2116" y="292" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">事件序号从 1 重新开始</text>
+<path d="M 340 249 L 400 249" fill="none" stroke="#D98B2B" stroke-width="2" marker-end="url(#arrow-D98B2B)"/>
+<rect x="351.0" y="321" width="38.0" height="21" fill="#ffffff" opacity="0.96"/>
+<text x="370.0" y="332" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="bold" fill="#D98B2B" text-anchor="middle" opacity="1">打开</text>
+<path d="M 680 249 L 740 249" fill="none" stroke="#D98B2B" stroke-width="2" marker-end="url(#arrow-D98B2B)"/>
+<rect x="642.38" y="321" width="135.24" height="21" fill="#ffffff" opacity="0.96"/>
+<text x="710.0" y="332" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="bold" fill="#D98B2B" text-anchor="middle" opacity="1">START 成功 · 替换</text>
+<path d="M 1020 249 L 1080 249" fill="none" stroke="#D98B2B" stroke-width="2" marker-end="url(#arrow-D98B2B)"/>
+<rect x="988.88" y="321" width="122.24000000000001" height="21" fill="#ffffff" opacity="0.96"/>
+<text x="1050.0" y="332" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="bold" fill="#D98B2B" text-anchor="middle" opacity="1">结束 · 先 PAUSE</text>
+<path d="M 1360 249 L 1420 249" fill="none" stroke="#D98B2B" stroke-width="2" marker-end="url(#arrow-D98B2B)"/>
+<rect x="1329.66" y="321" width="120.68" height="21" fill="#ffffff" opacity="0.96"/>
+<text x="1390.0" y="332" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="bold" fill="#D98B2B" text-anchor="middle" opacity="1">END 成功 · 替换</text>
+<path d="M 1700 249 L 1760 249" fill="none" stroke="#D98B2B" stroke-width="2" marker-end="url(#arrow-D98B2B)"/>
+<rect x="1711.0" y="321" width="38.0" height="21" fill="#ffffff" opacity="0.96"/>
+<text x="1730.0" y="332" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="bold" fill="#D98B2B" text-anchor="middle" opacity="1">点击</text>
+<path d="M 2040 249 L 2100 249" fill="none" stroke="#D98B2B" stroke-width="2" marker-end="url(#arrow-D98B2B)"/>
+<rect x="2038.0" y="321" width="64.0" height="21" fill="#ffffff" opacity="0.96"/>
+<text x="2070.0" y="332" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="bold" fill="#D98B2B" text-anchor="middle" opacity="1">保存成功</text>
+<rect x="60" y="360" width="2680" height="140" rx="14" fill="#FFFCF7" stroke="#E4C79A" stroke-width="1.5"/>
+<text x="82" y="390" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="18" font-weight="bold" fill="#8a5a12" text-anchor="start" opacity="1">返回关系与入口差异</text>
+<text x="82" y="420" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14.5" font-weight="normal" fill="#4b3a1d" text-anchor="start" opacity="1">• START 成功用执行页替换详情；END 成功用记录页替换执行页 → 该操作链返回直接回来源列表，不会再出现“结束 → 旧执行页 → 旧详情”。</text>
+<text x="82" y="442" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14.5" font-weight="normal" fill="#4b3a1d" text-anchor="start" opacity="1">• 已结束任务：从今天进入先看完整详情，“查看执行记录”普通压栈；从历史进入直达记录；已取消任务从历史进入看取消详情。</text>
+<text x="82" y="464" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14.5" font-weight="normal" fill="#4b3a1d" text-anchor="start" opacity="1">• 执行页 / 记录页 ↔ 临时详情：push 后 pop，复用原页面实例；返回不重写 START / END；报告取消只回执行页，不写 RESUME。</text>
+<text x="82" y="486" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14.5" font-weight="normal" fill="#4b3a1d" text-anchor="start" opacity="1">• 全局当前任务栏不按日期过滤；最多一个 running 由写入事务校验，不靠页面按钮或本地布尔值。</text>
+<rect x="60" y="542" width="10" height="28" rx="5" fill="#111827"/>
+<text x="80" y="570" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="26" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">② 写入链路：页面意图 → 固定身份命令 → 同一事务校验并追加不可变事实</text>
+<rect x="60" y="650" width="230" height="130" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="76" y="680" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="18" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">页面动作</text>
+<text x="76" y="709" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">开始 / 暂停 / 继续</text>
+<text x="76" y="732" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">延长 / 结束</text>
+<text x="76" y="755" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">只提出意图</text>
+<rect x="330" y="630" width="270" height="175" rx="16" fill="#F1ECFB" stroke="#7C63B0" stroke-width="2"/>
+<text x="346" y="660" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="18" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">MissionActionController</text>
+<text x="346" y="690" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">prepare：用当前 detail 生成命令</text>
+<text x="346" y="714" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">execute：busy / pending / stale</text>
+<text x="346" y="738" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">成功：重读 detail，返回 true</text>
+<text x="346" y="762" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">失败：保留原命令与输入</text>
+<rect x="640" y="630" width="250" height="175" rx="16" fill="#F1ECFB" stroke="#7C63B0" stroke-width="2"/>
+<text x="656" y="660" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="18" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">MissionService</text>
+<text x="656" y="690" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">prepareExecution：</text>
+<text x="656" y="714" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">  固定 id 与旧序号</text>
+<text x="656" y="738" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">execute：等事务提交</text>
+<text x="656" y="762" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">_notify：提交后才广播</text>
+<rect x="930" y="600" width="330" height="245" rx="16" fill="#F1ECFB" stroke="#7C63B0" stroke-width="2"/>
+<text x="946" y="630" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="17.5" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">ExecutionCommand（意图，不入库）</text>
+<text x="946" y="658" font-family="'Consolas','Cascadia Mono',monospace" font-size="12" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">id = uuid，重试复用</text>
+<text x="946" y="680" font-family="'Consolas','Cascadia Mono',monospace" font-size="12" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">missionId = detail.mission.id</text>
+<text x="946" y="702" font-family="'Consolas','Cascadia Mono',monospace" font-size="12" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">expectedSequence = detail.lastSequence</text>
+<text x="946" y="724" font-family="'Consolas','Cascadia Mono',monospace" font-size="12" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">type = START/PAUSE/RESUME/EXTEND/END</text>
+<text x="946" y="746" font-family="'Consolas','Cascadia Mono',monospace" font-size="12" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">scheduleRevisionId = START 当前排期</text>
+<text x="946" y="768" font-family="'Consolas','Cascadia Mono',monospace" font-size="12" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">minutes / reason / report / 原因</text>
+<text x="946" y="790" font-family="'Consolas','Cascadia Mono',monospace" font-size="12" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">END：expectedSequence 用打开报告时</text>
+<text x="946" y="812" font-family="'Consolas','Cascadia Mono',monospace" font-size="12" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">     冻结的 _reportSequence</text>
+<text x="946" y="834" font-family="'Consolas','Cascadia Mono',monospace" font-size="12" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">occurredAt/新 sequence 不由页面给</text>
+<rect x="1300" y="610" width="820" height="470" rx="16" fill="#E8F0FB" stroke="#3C6FB0" stroke-width="2.5"/>
+<text x="1316" y="640" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="19" font-weight="bold" fill="#123b70" text-anchor="start" opacity="1">DriftMissionRepository.execute — 同一个 SQLite 事务</text>
+<text x="1316" y="668" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">1  _acquireWrite：先执行写语句取得写锁</text>
+<text x="1316" y="697" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">2  按 command.id 查重：同 id + 同输入返回原事件；</text>
+<text x="1316" y="726" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">   同 id 不同输入 → ExecutionConflict</text>
+<text x="1316" y="755" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">3  findDetail 重读：任务 + 最新排期 + 方案 +</text>
+<text x="1316" y="784" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">   全部事件 + 失败事实（与提交同一快照）</text>
+<text x="1316" y="813" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">4  校验 expectedSequence、START 排期版本、</text>
+<text x="1316" y="842" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">   START / RESUME 无其他 running、自报策略</text>
+<text x="1316" y="871" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">5  now = clock()；不得早于上一条事件</text>
+<text x="1316" y="900" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">6  构造事件：sequence = expectedSequence + 1</text>
+<text x="1316" y="929" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">7  validateExecutionHistory（完整时间线）</text>
+<text x="1316" y="958" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">8  insert execution_events；END + 未完成时</text>
+<text x="1316" y="987" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">   同事务 insert failure_records</text>
+<text x="1316" y="1016" font-family="'Consolas','Cascadia Mono',monospace" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">9  commit：全部成功才提交，任一步失败整体回滚</text>
+<rect x="2160" y="610" width="280" height="195" rx="16" fill="#E3EEFF" stroke="#2F5FA8" stroke-width="2"/>
+<text x="2176" y="640" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="18" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">已保存事实</text>
+<text x="2176" y="668" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">execution_events 一行/动作</text>
+<text x="2176" y="690" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">  (mission_id, sequence) 唯一</text>
+<text x="2176" y="712" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">  START / END 各最多一条</text>
+<text x="2176" y="734" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">failure_records：END+未完成</text>
+<text x="2176" y="756" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">  与 END 同事务写入</text>
+<text x="2176" y="778" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">事实只追加，不改写</text>
+<rect x="2160" y="830" width="280" height="110" rx="16" fill="#E8F0FB" stroke="#3C6FB0" stroke-width="2"/>
+<text x="2176" y="860" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="18" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">提交与返回</text>
+<text x="2176" y="889" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">commit → 返回 ExecutionEvent</text>
+<text x="2176" y="912" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">失败 → 异常，整体回滚</text>
+<text x="2176" y="935" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">service._notify()</text>
+<path d="M 290 715 L 330 715" fill="none" stroke="#D98B2B" stroke-width="2" marker-end="url(#arrow-D98B2B)"/>
+<path d="M 600 715 L 640 715" fill="none" stroke="#7C63B0" stroke-width="2" marker-end="url(#arrow-7C63B0)"/>
+<path d="M 890 715 L 930 715" fill="none" stroke="#7C63B0" stroke-width="2" marker-end="url(#arrow-7C63B0)"/>
+<path d="M 1260 715 L 1300 715" fill="none" stroke="#3C6FB0" stroke-width="2" marker-end="url(#arrow-3C6FB0)"/>
+<path d="M 2120 700 L 2160 700" fill="none" stroke="#3C6FB0" stroke-width="2" marker-end="url(#arrow-3C6FB0)"/>
+<path d="M 2300 805 L 2300 830" fill="none" stroke="#2F5FA8" stroke-width="2" marker-end="url(#arrow-2F5FA8)"/>
+<rect x="60" y="850" width="1180" height="230" rx="16" fill="#E8F5EC" stroke="#3F8A5B" stroke-width="2"/>
+<text x="76" y="880" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="19" font-weight="bold" fill="#24543a" text-anchor="start" opacity="1">纯规则：时间线推演与时长（无数据库读写）</text>
+<rect x="90" y="902" width="150" height="44" rx="22" fill="#ffffff" stroke="#3F8A5B" stroke-width="2"/>
+<text x="165" y="930" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="16" font-weight="bold" fill="#24543a" text-anchor="middle" opacity="1">未开始</text>
+<rect x="350" y="902" width="150" height="44" rx="22" fill="#ffffff" stroke="#3F8A5B" stroke-width="2"/>
+<text x="425" y="930" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="16" font-weight="bold" fill="#24543a" text-anchor="middle" opacity="1">执行中</text>
+<rect x="620" y="902" width="150" height="44" rx="22" fill="#ffffff" stroke="#3F8A5B" stroke-width="2"/>
+<text x="695" y="930" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="16" font-weight="bold" fill="#24543a" text-anchor="middle" opacity="1">已暂停</text>
+<rect x="900" y="902" width="150" height="44" rx="22" fill="#ffffff" stroke="#3F8A5B" stroke-width="2"/>
+<text x="975" y="930" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="16" font-weight="bold" fill="#24543a" text-anchor="middle" opacity="1">已结束</text>
+<path d="M 240 924 L 350 924" fill="none" stroke="#3F8A5B" stroke-width="2" marker-end="url(#arrow-3F8A5B)"/>
+<rect x="270.8" y="907" width="48.400000000000006" height="21" fill="#ffffff" opacity="0.96"/>
+<text x="295.0" y="918" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="bold" fill="#3F8A5B" text-anchor="middle" opacity="1">START</text>
+<path d="M 500 924 L 620 924" fill="none" stroke="#3F8A5B" stroke-width="2" marker-end="url(#arrow-3F8A5B)"/>
+<rect x="535.8" y="907" width="48.400000000000006" height="21" fill="#ffffff" opacity="0.96"/>
+<text x="560.0" y="918" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="bold" fill="#3F8A5B" text-anchor="middle" opacity="1">PAUSE</text>
+<path d="M 770 924 L 900 924" fill="none" stroke="#3F8A5B" stroke-width="2" marker-end="url(#arrow-3F8A5B)"/>
+<rect x="818.08" y="907" width="33.84" height="21" fill="#ffffff" opacity="0.96"/>
+<text x="835.0" y="918" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="bold" fill="#3F8A5B" text-anchor="middle" opacity="1">END</text>
+<path d="M 695 946 Q 695 980 560 980 Q 500 980 500 946" fill="none" stroke="#3F8A5B" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrow-3F8A5B)"/>
+<rect x="526.66" y="985" width="146.68" height="21" fill="#ffffff" opacity="0.96"/>
+<text x="600" y="996" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#3F8A5B" text-anchor="middle" opacity="1">RESUME（回到执行中）</text>
+<text x="76" y="1030" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#2f4f3b" text-anchor="start" opacity="1">EXTEND：执行中 / 已暂停都可，状态不变　｜　取消：cancelledAt 非空且时间线必须为空　｜　每次写入校验归属、编号连续、时间不倒退、动作前置状态</text>
+<text x="76" y="1055" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#2f4f3b" text-anchor="start" opacity="1">calculateExecutionTimes：上界 = END 时刻，否则 now（时钟落后时用最后事件）；focus = 经过时间 − 暂停区间；END 后冻结，只算不存</text>
+<rect x="60" y="1110" width="2040" height="130" rx="14" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5"/>
+<text x="82" y="1140" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="18" font-weight="bold" fill="#334155" text-anchor="start" opacity="1">设计取舍：为什么页面不会各自编一套状态</text>
+<text x="82" y="1172" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15.5" font-weight="bold" fill="#0f172a" text-anchor="start" opacity="1">点击 ≠ 事实</text>
+<text x="82" y="1197" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#475569" text-anchor="start" opacity="1">只有事务提交成功，页面才重读</text>
+<text x="82" y="1218" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#475569" text-anchor="start" opacity="1">按钮禁用只防重复，不保证业务正确</text>
+<text x="582" y="1172" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15.5" font-weight="bold" fill="#0f172a" text-anchor="start" opacity="1">一套规则</text>
+<text x="582" y="1197" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#475569" text-anchor="start" opacity="1">写入校验与读取推导共用</text>
+<text x="582" y="1218" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#475569" text-anchor="start" opacity="1">_replayExecutionHistory，不写两套 if/else</text>
+<text x="1082" y="1172" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15.5" font-weight="bold" fill="#0f172a" text-anchor="start" opacity="1">旧输入 ≠ 新事实</text>
+<text x="1082" y="1197" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#475569" text-anchor="start" opacity="1">expectedSequence 冻结</text>
+<text x="1082" y="1218" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#475569" text-anchor="start" opacity="1">冲突保留草稿，不自动改序号重发</text>
+<text x="1582" y="1172" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15.5" font-weight="bold" fill="#0f172a" text-anchor="start" opacity="1">页面不互相同步</text>
+<text x="1582" y="1197" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#475569" text-anchor="start" opacity="1">广播只说明事实变了</text>
+<text x="1582" y="1218" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#475569" text-anchor="start" opacity="1">各页从同一事实源重读；阶段不落库</text>
+<path d="M 2300 950 L 2320 1372" fill="none" stroke="#7C63B0" stroke-width="2.2" marker-end="url(#arrow-7C63B0)" stroke-dasharray="7 5"/>
+<text x="2336" y="1150" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="bold" fill="#7C63B0" text-anchor="start" opacity="1">提交成功后调用 _notify()</text>
+<text x="2336" y="1174" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#6b5a8a" text-anchor="start" opacity="1">revision + 1，再发 void 事件</text>
+<rect x="60" y="1322" width="10" height="28" rx="5" fill="#111827"/>
+<text x="80" y="1350" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="26" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">③ 状态同步：提交后广播“失效”，各页面按职责重读自己的事实</text>
+<rect x="1900" y="1375" width="840" height="115" rx="16" fill="#F1ECFB" stroke="#7C63B0" stroke-width="2.5"/>
+<text x="1920" y="1408" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="19" font-weight="bold" fill="#3f2d66" text-anchor="start" opacity="1">MissionService.changes：Stream&lt;void&gt; + changeRevision</text>
+<text x="1920" y="1436" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#4b3a63" text-anchor="start" opacity="1">提交后 revision+1 再发事件；只表示“事实有变，请重读”</text>
+<text x="1920" y="1458" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#4b3a63" text-anchor="start" opacity="1">不携带 phase、事件或序号，避免另一份可写状态</text>
+<path d="M 2320 1490 L 2320 1522" fill="none" stroke="#7C63B0" stroke-width="2" stroke-dasharray="7 5"/>
+<path d="M 185 1522 L 2320 1522" fill="none" stroke="#7C63B0" stroke-width="2" stroke-dasharray="7 5"/>
+<path d="M 185 1522 L 185 1570" fill="none" stroke="#7C63B0" stroke-width="2" marker-end="url(#arrow-7C63B0)" stroke-dasharray="7 5"/>
+<rect x="60" y="1570" width="250" height="122" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="76" y="1600" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="17" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">今天页</text>
+<text x="76" y="1628" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">_loadMissions()</text>
+<text x="76" y="1650" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">request token 丢弃旧响应</text>
+<text x="76" y="1672" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">打开创建/详情时跳过</text>
+<path d="M 470 1522 L 470 1570" fill="none" stroke="#7C63B0" stroke-width="2" marker-end="url(#arrow-7C63B0)" stroke-dasharray="7 5"/>
+<rect x="345" y="1570" width="250" height="122" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="361" y="1600" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="17" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">当前任务栏</text>
+<text x="361" y="1628" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">findActive()</text>
+<text x="361" y="1650" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">跨日期显示运行 / 暂停</text>
+<text x="361" y="1672" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">resumed 时也重读</text>
+<path d="M 755 1522 L 755 1570" fill="none" stroke="#7C63B0" stroke-width="2" marker-end="url(#arrow-7C63B0)" stroke-dasharray="7 5"/>
+<rect x="630" y="1570" width="250" height="122" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="646" y="1600" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="17" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">历史页</text>
+<text x="646" y="1628" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">findFinished()</text>
+<text x="646" y="1650" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">findCancelled()</text>
+<text x="646" y="1672" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">resumed 时也重读</text>
+<path d="M 1040 1522 L 1040 1570" fill="none" stroke="#7C63B0" stroke-width="2" marker-end="url(#arrow-7C63B0)" stroke-dasharray="7 5"/>
+<rect x="915" y="1570" width="250" height="122" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="931" y="1600" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="17" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">任务详情</text>
+<text x="931" y="1628" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">_readDetail()</text>
+<text x="931" y="1650" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">仅当前路由 + 新 revision</text>
+<text x="931" y="1672" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">busy / pending 时跳过</text>
+<path d="M 1325 1522 L 1325 1570" fill="none" stroke="#7C63B0" stroke-width="2" marker-end="url(#arrow-7C63B0)" stroke-dasharray="7 5"/>
+<rect x="1200" y="1570" width="250" height="122" rx="16" fill="#FFF4E5" stroke="#D98B2B" stroke-width="2"/>
+<text x="1216" y="1600" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="17" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">执行页</text>
+<text x="1216" y="1628" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">_refresh(false)</text>
+<text x="1216" y="1650" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">自己提交时跳过</text>
+<text x="1216" y="1672" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">报告草稿保留原序号</text>
+<rect x="1530" y="1570" width="1210" height="196" rx="14" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.5"/>
+<text x="1550" y="1600" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="17" font-weight="bold" fill="#334155" text-anchor="start" opacity="1">重读时必须遵守的边界</text>
+<text x="1550" y="1628" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#3f4b5b" text-anchor="start" opacity="1">• 记录页不订阅：它拿到的是 END 后冻结的 detail 快照，不再启动计时器。</text>
+<text x="1550" y="1650" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#3f4b5b" text-anchor="start" opacity="1">• 详情页读取时记下 changeRevision；自己触发的变化不重复查询。</text>
+<text x="1550" y="1672" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#3f4b5b" text-anchor="start" opacity="1">• 报告打开后只在明确刷新且仍暂停时接受新序号；外部继续/结束 → stale，保留输入。</text>
+<text x="1550" y="1694" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#3f4b5b" text-anchor="start" opacity="1">• 1 秒 Timer 只重绘：运行中重算 Focus；暂停 / END 冻结；隐藏或后台停止。</text>
+<text x="1550" y="1716" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#3f4b5b" text-anchor="start" opacity="1">• changeRevision 只合并重复刷新，不是任务阶段、事件序号或数据库版本。</text>
+<text x="1550" y="1738" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13.5" font-weight="normal" fill="#3f4b5b" text-anchor="start" opacity="1">• 入口意图 _MissionPageEntry 只决定直达记录还是先看详情，不参与阶段判断。</text>
+<rect x="60" y="1772" width="10" height="28" rx="5" fill="#111827"/>
+<text x="80" y="1800" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="26" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">④ 读取与派生：仓储装配事实 → 纯规则计算 → 页面展示；阶段没有数据库列</text>
+<rect x="60" y="1825" width="420" height="82" rx="16" fill="#E8F0FB" stroke="#3C6FB0" stroke-width="2"/>
+<text x="76" y="1855" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="16" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">findDetail(missionId)</text>
+<text x="76" y="1881" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">五表一致快照</text>
+<text x="76" y="1901" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">校验完整时间线</text>
+<path d="M 270 1907 L 270 1935" fill="none" stroke="#3C6FB0" stroke-width="2" marker-end="url(#arrow-3C6FB0)"/>
+<rect x="510" y="1825" width="420" height="82" rx="16" fill="#E8F0FB" stroke="#3C6FB0" stroke-width="2"/>
+<text x="526" y="1855" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="16" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">findScheduledOn(date)</text>
+<text x="526" y="1881" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">最新排期 + 逐项 detail</text>
+<text x="526" y="1901" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">固定 / 自选分区</text>
+<path d="M 720 1907 L 720 1935" fill="none" stroke="#3C6FB0" stroke-width="2" marker-end="url(#arrow-3C6FB0)"/>
+<rect x="960" y="1825" width="420" height="82" rx="16" fill="#E8F0FB" stroke="#3C6FB0" stroke-width="2"/>
+<text x="976" y="1855" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14.5" font-weight="bold" fill="#111827" text-anchor="start" opacity="1">findActive / findFinished / findCancelled</text>
+<text x="976" y="1881" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">START 无 END / START 有 END</text>
+<text x="976" y="1901" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="13" font-weight="normal" fill="#374151" text-anchor="start" opacity="1">cancelled_at 非空</text>
+<path d="M 1170 1907 L 1170 1935" fill="none" stroke="#3C6FB0" stroke-width="2" marker-end="url(#arrow-3C6FB0)"/>
+<rect x="60" y="1935" width="1320" height="80" rx="14" fill="#E8F0FB" stroke="#3C6FB0" stroke-width="2"/>
+<text x="80" y="1962" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15.5" font-weight="bold" fill="#123b70" text-anchor="start" opacity="1">同一读事务的事实快照 → MissionDetail（mission + 最新 schedule + plan + events + failures）</text>
+<text x="80" y="1992" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">ScheduledMission（mission + schedule + phase + events）；phase 与 events 来自同一次读取</text>
+<path d="M 720 2015 L 720 2040" fill="none" stroke="#3F8A5B" stroke-width="2" marker-end="url(#arrow-3F8A5B)"/>
+<rect x="60" y="2040" width="1320" height="190" rx="14" fill="#EFF8F1" stroke="#4E9A6A" stroke-width="2"/>
+<text x="80" y="2072" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="17" font-weight="bold" fill="#24543a" text-anchor="start" opacity="1">派生：不写回数据库</text>
+<text x="80" y="2102" font-family="'Consolas','Cascadia Mono',monospace" font-size="14.5" font-weight="bold" fill="#24543a" text-anchor="start" opacity="1">MissionDetail.phase = deriveSelfReportMissionPhase(mission, events, failures)</text>
+<text x="80" y="2130" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#2f4f3b" text-anchor="start" opacity="1">→ 待开始 / 执行中 / 已暂停 / 已结束（closed）/ 已取消；待补材料字段未接入自报闭环</text>
+<text x="80" y="2160" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#2f4f3b" text-anchor="start" opacity="1">calculateExecutionTimes(events, now) → focus / paused / elapsed / extension / pauseCount</text>
+<text x="80" y="2190" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#2f4f3b" text-anchor="start" opacity="1">phase → 徽标与列表状态；times → 实时 Focus 与记录摘要；events → 时间线</text>
+<rect x="1890" y="1825" width="850" height="92" rx="12" fill="#E3EEFF" stroke="#2F5FA8" stroke-width="1.8"/>
+<text x="1904" y="1849" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15.5" font-weight="bold" fill="#123b70" text-anchor="start" opacity="1">mission_schedule_revisions　1:N</text>
+<text x="1904" y="1871" font-family="'Consolas','Cascadia Mono',monospace" font-size="12.8" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">mission_id · revision_number（同任务唯一）· scheduled_date · time_zone</text>
+<text x="1904" y="1889" font-family="'Consolas','Cascadia Mono',monospace" font-size="12.8" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">time_policy · fixed_start_at · planned_minutes · evidence_deadline_at</text>
+<text x="1904" y="1909" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="12" font-weight="normal" fill="#5b6b82" text-anchor="start" opacity="1">只追加新版本，旧版本保留；详情取 revision_number 最大的一条</text>
+<rect x="1890" y="1927" width="850" height="92" rx="12" fill="#E3EEFF" stroke="#2F5FA8" stroke-width="1.8"/>
+<text x="1904" y="1951" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15.5" font-weight="bold" fill="#123b70" text-anchor="start" opacity="1">execution_plans　1:1</text>
+<text x="1904" y="1973" font-family="'Consolas','Cascadia Mono',monospace" font-size="12.8" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">mission_id 唯一 · objective · steps(JSON 文本) · verification_criteria · notes</text>
+<text x="1904" y="2011" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="12" font-weight="normal" fill="#5b6b82" text-anchor="start" opacity="1">创建任务时与任务、首版排期同一事务写入</text>
+<rect x="1890" y="2029" width="850" height="108" rx="12" fill="#E3EEFF" stroke="#2F5FA8" stroke-width="1.8"/>
+<text x="1904" y="2053" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15.5" font-weight="bold" fill="#123b70" text-anchor="start" opacity="1">execution_events　1:N</text>
+<text x="1904" y="2075" font-family="'Consolas','Cascadia Mono',monospace" font-size="12.8" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">id PK · mission_id · sequence（同任务唯一，从 1 连续）</text>
+<text x="1904" y="2093" font-family="'Consolas','Cascadia Mono',monospace" font-size="12.8" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">type · occurred_at(UTC ms) · schedule_revision_id · minutes · reason</text>
+<text x="1904" y="2111" font-family="'Consolas','Cascadia Mono',monospace" font-size="12.8" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">user_reported_result · submit_optional_evidence</text>
+<text x="1904" y="2129" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="12" font-weight="normal" fill="#5b6b82" text-anchor="start" opacity="1">部分唯一索引：每任务最多 1 个 START / 1 个 END</text>
+<rect x="1890" y="2147" width="850" height="98" rx="12" fill="#E3EEFF" stroke="#2F5FA8" stroke-width="1.8"/>
+<text x="1904" y="2171" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="15.5" font-weight="bold" fill="#123b70" text-anchor="start" opacity="1">failure_records　1:N（当前每任务最多 1 条）</text>
+<text x="1904" y="2193" font-family="'Consolas','Cascadia Mono',monospace" font-size="12.8" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">mission_id · trigger · occurred_at · user_reason_category / text</text>
+<text x="1904" y="2211" font-family="'Consolas','Cascadia Mono',monospace" font-size="12.8" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">唯一键 (mission_id, trigger)</text>
+<text x="1904" y="2237" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="12" font-weight="normal" fill="#5b6b82" text-anchor="start" opacity="1">END+未完成时与 END 同一事务写入</text>
+<rect x="1470" y="1927" width="380" height="210" rx="12" fill="#E3EEFF" stroke="#2F5FA8" stroke-width="1.8"/>
+<text x="1484" y="1953" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="16" font-weight="bold" fill="#123b70" text-anchor="start" opacity="1">missions　（聚合根）</text>
+<text x="1484" y="1978" font-family="'Consolas','Cascadia Mono',monospace" font-size="13" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">id PK · title · verification_policy</text>
+<text x="1484" y="2002" font-family="'Consolas','Cascadia Mono',monospace" font-size="13" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">created_at · updated_at · cancelled_at</text>
+<text x="1484" y="2026" font-family="'Consolas','Cascadia Mono',monospace" font-size="13" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">source_mission_id → missions.id</text>
+<text x="1484" y="2050" font-family="'Consolas','Cascadia Mono',monospace" font-size="13" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">relation_type = 'RETRY'</text>
+<text x="1484" y="2074" font-family="'Consolas','Cascadia Mono',monospace" font-size="13" font-weight="normal" fill="#22334d" text-anchor="start" opacity="1">当前无 phase 列</text>
+<text x="1484" y="2124" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="12" font-weight="normal" fill="#5b6b82" text-anchor="start" opacity="1">取消：cancelled_at 非空且无事件</text>
+<text x="1484" y="2100" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="12" font-weight="normal" fill="#5b6b82" text-anchor="start" opacity="1">阶段不落库：由 events + failures 推导</text>
+<path d="M 1850 2032 L 1868 2032" fill="none" stroke="#2F5FA8" stroke-width="2"/>
+<path d="M 1868 1871 L 1868 2196" fill="none" stroke="#2F5FA8" stroke-width="2"/>
+<path d="M 1868 1871 L 1890 1871" fill="none" stroke="#2F5FA8" stroke-width="2" marker-end="url(#arrow-2F5FA8)"/>
+<rect x="1863.76" y="1856" width="30.48" height="19" fill="#ffffff" opacity="0.96"/>
+<text x="1879" y="1865" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="11" font-weight="normal" fill="#2F5FA8" text-anchor="middle" opacity="1">1:N</text>
+<path d="M 1868 1973 L 1890 1973" fill="none" stroke="#2F5FA8" stroke-width="2" marker-end="url(#arrow-2F5FA8)"/>
+<rect x="1863.76" y="1958" width="30.48" height="19" fill="#ffffff" opacity="0.96"/>
+<text x="1879" y="1967" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="11" font-weight="normal" fill="#2F5FA8" text-anchor="middle" opacity="1">1:1</text>
+<path d="M 1868 2083 L 1890 2083" fill="none" stroke="#2F5FA8" stroke-width="2" marker-end="url(#arrow-2F5FA8)"/>
+<rect x="1863.76" y="2068" width="30.48" height="19" fill="#ffffff" opacity="0.96"/>
+<text x="1879" y="2077" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="11" font-weight="normal" fill="#2F5FA8" text-anchor="middle" opacity="1">1:N</text>
+<path d="M 1868 2196 L 1890 2196" fill="none" stroke="#2F5FA8" stroke-width="2" marker-end="url(#arrow-2F5FA8)"/>
+<rect x="1863.76" y="2181" width="30.48" height="19" fill="#ffffff" opacity="0.96"/>
+<text x="1879" y="2190" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="11" font-weight="normal" fill="#2F5FA8" text-anchor="middle" opacity="1">1:N</text>
+<path d="M 1470 2060 Q 1438 2060 1438 2025 Q 1438 1990 1470 1990" fill="none" stroke="#2F5FA8" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-2F5FA8)"/>
+<text x="60" y="2262" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="14" font-weight="normal" fill="#64748b" text-anchor="start" opacity="1">说明：图为 ceaafd7 当前实现；材料、AI 评价、目标树仍未开发。自动测试与静态检查不等于浏览器或原生设备验收。</text>
+</svg>

@@ -271,6 +271,8 @@ class DriftMissionRepository implements MissionRepository {
         }
         return event;
       }
+      // 这里读取的是一整份任务详情：既要检查旧序号/阶段，也要核对开始绑定的排期。
+      // 排期描述“打算什么时候做、做多久”；事件描述“实际开始/暂停过什么”。
       final detail = await findDetail(command.missionId);
       if (detail == null) throw const ExecutionConflict('任务已不存在，请刷新');
       if (detail.mission.verificationPolicy != VerificationPolicy.selfReport) {
@@ -281,6 +283,7 @@ class DriftMissionRepository implements MissionRepository {
       }
       if (command.type == ExecutionEventType.start &&
           command.scheduleRevisionId != detail.schedule.id) {
+        // 页面若看的是旧排期，不能悄悄换成新排期替用户开始，必须刷新后再确认。
         throw const ExecutionConflict('排期已变化，请刷新并确认新计划后开始');
       }
       if (command.type == ExecutionEventType.start ||
@@ -527,11 +530,14 @@ class DriftMissionRepository implements MissionRepository {
   @override
   Future<MissionDetail?> findDetail(String missionId) async {
     return database.transaction(() async {
+      // 以下变量是表的引用，用于组织查询；此时还没有读出某个任务的数据。
       final missions = database.missions;
       final schedules = database.missionScheduleRevisions;
       final plans = database.executionPlans;
 
-      // MissionService.findDetail 传来任务编号。关联三表后按排期版本倒序，只取最新的一条。
+      // ① 按同一个 missionId 关联“任务本身＋排期＋行动方案”。
+      // 查排期是为了详情展示和 START 的计划绑定，不是用计划日期判断执行中。
+      // 一个任务可以有多个排期版本，所以按版本倒序，只取最新的一条。
       // leftOuterJoin 会保留任务本身，即使它缺少排期/方案，也能与“任务不存在”区分。
       final query = database.select(missions).join([
         leftOuterJoin(schedules, schedules.missionId.equalsExp(missions.id)),
@@ -542,39 +548,45 @@ class DriftMissionRepository implements MissionRepository {
       query.limit(1);
 
       // 到这里才执行 SQL；同一条语句读取三表，避免分开读时混入不同次修改的结果。
-      final row = await query.getSingleOrNull();
-      if (row == null) return null;
+      final joinedRow = await query.getSingleOrNull();
+      if (joinedRow == null) return null;
 
-      final scheduleRow = row.readTableOrNull(schedules);
-      final planRow = row.readTableOrNull(plans);
+      final scheduleRow = joinedRow.readTableOrNull(schedules);
+      final planRow = joinedRow.readTableOrNull(plans);
       if (scheduleRow == null || planRow == null) {
         throw const FormatException('任务缺少排期或执行方案');
       }
 
-      // 数据库行只在 data 层使用；页面最终收到的是三个已有业务对象的组合。
-      final events =
+      // ② 查这个任务的全部执行事件，按 sequence 从1向后读，不按计划日期截断。
+      // eventRows 是数据库行；下面转换得到的 events 才是业务对象列表。
+      final eventRows =
           await (database.select(database.executionEvents)
                 ..where((table) => table.missionId.equals(missionId))
                 ..orderBy([(table) => OrderingTerm.asc(table.sequence)]))
               .get();
-      final failures = await (database.select(
+      // ③ 失败事实供已结束任务校验报告；刚创建或刚开始时通常为空。
+      final failureRows = await (database.select(
         database.failureRecords,
       )..where((table) => table.missionId.equals(missionId))).get();
-      final mission = missionFromRow(row.readTable(missions));
-      final history = List<ExecutionEvent>.unmodifiable(
-        events.map(eventFromRow),
+      // ④ 行对象 → 业务对象。下面五个变量正好对应 MissionDetail 的五个成员。
+      final mission = missionFromRow(joinedRow.readTable(missions));
+      final schedule = scheduleFromRow(scheduleRow);
+      final executionPlan = executionPlanFromRow(planRow);
+      final events = List<ExecutionEvent>.unmodifiable(
+        eventRows.map(eventFromRow),
       );
-      final failureFacts = List<FailureRecord>.unmodifiable(
-        failures.map(failureFromRow),
+      final failures = List<FailureRecord>.unmodifiable(
+        failureRows.map(failureFromRow),
       );
       // 查询中的坏历史在 Future 内报错，由页面显示读取失败，不等到排版时崩溃。
-      deriveSelfReportMissionPhase(mission, history, failureFacts);
+      deriveSelfReportMissionPhase(mission, events, failures);
+      // ⑤ 打包成一次查询结果，不新增一张详情表，也不向数据库写入阶段。
       return MissionDetail(
         mission: mission,
-        schedule: scheduleFromRow(scheduleRow),
-        executionPlan: executionPlanFromRow(planRow),
-        events: history,
-        failures: failureFacts,
+        schedule: schedule,
+        executionPlan: executionPlan,
+        events: events,
+        failures: failures,
       );
     });
   }
@@ -592,7 +604,8 @@ class DriftMissionRepository implements MissionRepository {
         innerJoin(schedules, schedules.missionId.equalsExp(missions.id)),
       ]);
 
-      // 2. 筛选当前排期与所选日期。
+      // 2. 筛选当前排期与所选日期。比如A/1排在周一、A/2改到周二：
+      // 先确定最新是A/2，再比较周二，不能因A/1曾排在周一就仍显示在周一。
       // history 是排期表的别名；子查询针对当前任务找最大版本，不限制日期。
       final history = database.alias(schedules, 'schedule_history');
       final latestVersionForMission = database.selectOnly(history)
@@ -634,6 +647,7 @@ class DriftMissionRepository implements MissionRepository {
 
         final mission = missionFromRow(missionRow); // 用户已有的反向转换函数
         final schedule = scheduleFromRow(scheduleRow);
+        // 日期已经选好任务；再读取它的执行事实，用同一套规则计算列表阶段。
         final detail = await findDetail(mission.id);
         final item = ScheduledMission(
           mission: mission,

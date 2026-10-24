@@ -10,8 +10,8 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
-import 'package:mission_book/presentation/missions/mission_detail_page.dart';
-import 'package:mission_book/presentation/missions/mission_form_page.dart';
+import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
+import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
 
 import 'create_mission_page_test.dart' show PendingRepository;

@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/app_shell.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
-import 'package:mission_book/presentation/missions/mission_detail_page.dart';
+import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
@@ -20,7 +20,7 @@ import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
-import 'package:mission_book/presentation/missions/mission_form_page.dart';
+import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 // 每次读取都有独立 Future，用来控制等待、失败、重试和乱序返回。
