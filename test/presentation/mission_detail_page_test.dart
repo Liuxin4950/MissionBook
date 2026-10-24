@@ -1,5 +1,6 @@
 import 'package:mission_book/domain/entities/execution_command.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
+import 'package:mission_book/domain/entities/evidence.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -27,6 +28,19 @@ class DetailRepository implements MissionRepository {
   Future<List<MissionDetail>> findFinished() async => [];
   @override
   Future<List<MissionDetail>> findCancelled() async => [];
+  @override
+  Future<List<MissionDetail>> findPendingEvidence() async => [];
+  @override
+  Future<int> reconcileEvidenceDeadlines() async => 0;
+  @override
+  Future<Set<String>> referencedAttachmentKeys() async => {};
+  @override
+  Future<EvidenceSubmissionResult> submitEvidence(
+    EvidenceSubmission submission,
+  ) => throw UnsupportedError('本替身不提交材料');
+  @override
+  Future<void> skipOptionalEvidence(String missionId) =>
+      throw UnsupportedError('本替身不跳过材料');
 
   @override
   Future<void> edit({
@@ -34,6 +48,8 @@ class DetailRepository implements MissionRepository {
     required String title,
     required String objective,
     required MissionScheduleRevision schedule,
+    VerificationPolicy? verificationPolicy,
+    String? verificationCriteria,
   }) => throw UnsupportedError('本测试不编辑任务');
 
   final ids = <String>[];

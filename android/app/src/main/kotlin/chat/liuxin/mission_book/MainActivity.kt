@@ -10,6 +10,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.Executors
 
 /**
  * Android 只实现 Mission Book 当前需要的 openFile。
@@ -20,10 +21,12 @@ import java.util.UUID
  */
 class MainActivity : FlutterActivity() {
     private var pendingFileResult: MethodChannel.Result? = null
+    // ContentProvider 读取和副本写入都可能很慢，交给后台线程，避免阻塞 Flutter 界面。
+    private val fileCopyExecutor = Executors.newSingleThreadExecutor()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        fileSelectorCacheRoot().deleteRecursively()
+        fileCopyExecutor.execute { fileSelectorCacheRoot().deleteRecursively() }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             FILE_SELECTOR_CHANNEL,
@@ -64,20 +67,30 @@ class MainActivity : FlutterActivity() {
         }
 
         val result = pendingFileResult ?: return
-        pendingFileResult = null
         if (resultCode != Activity.RESULT_OK) {
+            pendingFileResult = null
             result.success(null)
             return
         }
         val uri = data?.data
         if (uri == null) {
+            pendingFileResult = null
             result.error("empty_selection", "系统没有返回可读取的文件。", null)
             return
         }
-        try {
-            result.success(listOf(copySelectionToCache(uri).absolutePath))
-        } catch (error: Exception) {
-            result.error("copy_selection_failed", error.message, null)
+        fileCopyExecutor.execute {
+            try {
+                val selectedPath = copySelectionToCache(uri).absolutePath
+                runOnUiThread {
+                    pendingFileResult = null
+                    result.success(listOf(selectedPath))
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    pendingFileResult = null
+                    result.error("copy_selection_failed", error.message, null)
+                }
+            }
         }
     }
 
@@ -97,9 +110,24 @@ class MainActivity : FlutterActivity() {
             "无法创建文件选择缓存目录。"
         }
         val target = File(targetDirectory, safeName)
-        contentResolver.openInputStream(uri).use { input ->
-            checkNotNull(input) { "无法读取所选文件。" }
-            target.outputStream().use { output -> input.copyTo(output) }
+        try {
+            contentResolver.openInputStream(uri).use { input ->
+                checkNotNull(input) { "无法读取所选文件。" }
+                target.outputStream().use { output ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var totalBytes = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        totalBytes += count
+                        check(totalBytes <= MAX_IMAGE_BYTES) { "每张图片不能超过 20 MiB。" }
+                        output.write(buffer, 0, count)
+                    }
+                }
+            }
+        } catch (error: Exception) {
+            target.delete()
+            throw error
         }
         return target
     }
@@ -130,7 +158,13 @@ class MainActivity : FlutterActivity() {
     private fun fileSelectorCacheRoot(): File =
         File(cacheDir, "mission_book_file_selector")
 
+    override fun onDestroy() {
+        fileCopyExecutor.shutdown()
+        super.onDestroy()
+    }
+
     private companion object {
+        const val MAX_IMAGE_BYTES = 20L * 1024L * 1024L
         const val FILE_SELECTOR_CHANNEL = "plugins.flutter.io/file_selector"
         const val OPEN_FILE_REQUEST_CODE = 43021
     }

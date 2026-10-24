@@ -14,10 +14,13 @@
 | 新建、修改、重试新建 | [missions/form/mission_form_page.dart](missions/form/mission_form_page.dart) | 接收输入草稿、保存、处理错误和离开前确认 |
 | 名称和目标输入框 | [missions/form/mission_form_page.dart](missions/form/mission_form_page.dart) | 同文件的 _MissionFormFields，使用页面持有的输入草稿 |
 | 日期、时长、自选或固定时间 | [missions/form/mission_schedule_fields.dart](missions/form/mission_schedule_fields.dart) | 排期输入与日历展开，选值交回页面；文件末尾保留本表单共用的输入样式和标签 |
+| 可选/强制材料、要求与截止 | [missions/form/mission_evidence_fields.dart](missions/form/mission_evidence_fields.dart) | 在原表单展开条件输入，可选说明不强制 |
+| 文本/图片草稿、提交、放弃与材料阅读 | [missions/evidence/mission_evidence_section.dart](missions/evidence/mission_evidence_section.dart) | 多页共用的复杂材料区域，稳定身份保留草稿；正式状态由服务重读 |
 | 任务详情、开始、修改、取消 | [missions/detail/mission_detail_page.dart](missions/detail/mission_detail_page.dart) | 查询、操作提交、通知监听与入口分派 |
 | 详情正文、行动步骤、材料要求展示 | [missions/detail/mission_detail_content.dart](missions/detail/mission_detail_content.dart) | 只读取传入的详情，组合正文与底部操作 |
 | 详情里的日期和计划时长卡片 | [missions/detail/mission_detail_content.dart](missions/detail/mission_detail_content.dart) | 同文件的 _ScheduleCard，只展示最新排期 |
 | 暂停、继续、延长、结束报告 | [missions/execution/mission_execution_page.dart](missions/execution/mission_execution_page.dart) | 执行动作、报告草稿、计时重绘和导航 |
+| 今天任务行原位开始、报告与材料 | [missions/execution/mission_inline_workspace.dart](missions/execution/mission_inline_workspace.dart) | 展开上下文并复用同一执行组件，保护收起/切日草稿，无额外办理路由 |
 | 执行页圆环、底部双按钮布局 | [missions/execution/execution_widgets.dart](missions/execution/execution_widgets.dart) | 展示页面传入的时长和按钮，不保存执行事实 |
 | 查看一次任务的执行结果和时间线 | [missions/record/mission_record_page.dart](missions/record/mission_record_page.dart) | 展示结束后的只读记录 |
 | 浏览已结束与已取消任务 | [missions/history/mission_history_page.dart](missions/history/mission_history_page.dart) | 查询历史列表，打开对应记录或详情 |
@@ -42,7 +45,7 @@
 
 ## 状态应该去哪里找
 
-- **任务阶段与真实时长**：由 domain 规则读取已保存事件计算；本次没有更改规则和数据库。
+- **任务阶段与真实时长**：由 domain 规则读取已保存事件及材料/失败/放弃事实计算；schema v5 保存正式材料，草稿不参与阶段。
 - **整页查询、保存与返回保护**：在对应的 `*_page.dart` 中。广播只触发重查，保存仍经过同一个 MissionService。
 - **提交等待、冲突、原操作重试**：在 `MissionActionController` 中。
 - **区域内部交互**：日历是否展开在 `MissionScheduleFields`；自选列表是否展开在今天页文件内的 `_FlexibleMissionSection`。

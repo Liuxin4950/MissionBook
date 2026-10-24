@@ -35,6 +35,9 @@ class Missions extends Table {
   // null 表示没有取消。
   IntColumn get cancelledAt => integer().nullable()();
 
+  // v5：用户放弃可选材料的 UTC 时刻；阶段仍从事实推导。
+  IntColumn get evidenceWaivedAt => integer().nullable()();
+
   // v4：再次尝试的来源。只复制计划，不复制来源的事件、报告或材料。
   TextColumn get sourceMissionId =>
       text().nullable().references(Missions, #id)();

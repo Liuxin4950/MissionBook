@@ -92,6 +92,17 @@ class $MissionsTable extends Missions
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _evidenceWaivedAtMeta = const VerificationMeta(
+    'evidenceWaivedAt',
+  );
+  @override
+  late final GeneratedColumn<int> evidenceWaivedAt = GeneratedColumn<int>(
+    'evidence_waived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _sourceMissionIdMeta = const VerificationMeta(
     'sourceMissionId',
   );
@@ -129,6 +140,7 @@ class $MissionsTable extends Missions
     createdAt,
     updatedAt,
     cancelledAt,
+    evidenceWaivedAt,
     sourceMissionId,
     relationType,
   ];
@@ -206,6 +218,15 @@ class $MissionsTable extends Missions
         ),
       );
     }
+    if (data.containsKey('evidence_waived_at')) {
+      context.handle(
+        _evidenceWaivedAtMeta,
+        evidenceWaivedAt.isAcceptableOrUnknown(
+          data['evidence_waived_at']!,
+          _evidenceWaivedAtMeta,
+        ),
+      );
+    }
     if (data.containsKey('source_mission_id')) {
       context.handle(
         _sourceMissionIdMeta,
@@ -265,6 +286,10 @@ class $MissionsTable extends Missions
         DriftSqlType.int,
         data['${effectivePrefix}cancelled_at'],
       ),
+      evidenceWaivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}evidence_waived_at'],
+      ),
       sourceMissionId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}source_mission_id'],
@@ -291,6 +316,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
   final int createdAt;
   final int updatedAt;
   final int? cancelledAt;
+  final int? evidenceWaivedAt;
   final String? sourceMissionId;
   final String? relationType;
   const MissionRow({
@@ -302,6 +328,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     required this.createdAt,
     required this.updatedAt,
     this.cancelledAt,
+    this.evidenceWaivedAt,
     this.sourceMissionId,
     this.relationType,
   });
@@ -321,6 +348,9 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     map['updated_at'] = Variable<int>(updatedAt);
     if (!nullToAbsent || cancelledAt != null) {
       map['cancelled_at'] = Variable<int>(cancelledAt);
+    }
+    if (!nullToAbsent || evidenceWaivedAt != null) {
+      map['evidence_waived_at'] = Variable<int>(evidenceWaivedAt);
     }
     if (!nullToAbsent || sourceMissionId != null) {
       map['source_mission_id'] = Variable<String>(sourceMissionId);
@@ -345,6 +375,9 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       cancelledAt: cancelledAt == null && nullToAbsent
           ? const Value.absent()
           : Value(cancelledAt),
+      evidenceWaivedAt: evidenceWaivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(evidenceWaivedAt),
       sourceMissionId: sourceMissionId == null && nullToAbsent
           ? const Value.absent()
           : Value(sourceMissionId),
@@ -370,6 +403,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
       cancelledAt: serializer.fromJson<int?>(json['cancelledAt']),
+      evidenceWaivedAt: serializer.fromJson<int?>(json['evidenceWaivedAt']),
       sourceMissionId: serializer.fromJson<String?>(json['sourceMissionId']),
       relationType: serializer.fromJson<String?>(json['relationType']),
     );
@@ -386,6 +420,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
       'cancelledAt': serializer.toJson<int?>(cancelledAt),
+      'evidenceWaivedAt': serializer.toJson<int?>(evidenceWaivedAt),
       'sourceMissionId': serializer.toJson<String?>(sourceMissionId),
       'relationType': serializer.toJson<String?>(relationType),
     };
@@ -400,6 +435,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     int? createdAt,
     int? updatedAt,
     Value<int?> cancelledAt = const Value.absent(),
+    Value<int?> evidenceWaivedAt = const Value.absent(),
     Value<String?> sourceMissionId = const Value.absent(),
     Value<String?> relationType = const Value.absent(),
   }) => MissionRow(
@@ -411,6 +447,9 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     cancelledAt: cancelledAt.present ? cancelledAt.value : this.cancelledAt,
+    evidenceWaivedAt: evidenceWaivedAt.present
+        ? evidenceWaivedAt.value
+        : this.evidenceWaivedAt,
     sourceMissionId: sourceMissionId.present
         ? sourceMissionId.value
         : this.sourceMissionId,
@@ -432,6 +471,9 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       cancelledAt: data.cancelledAt.present
           ? data.cancelledAt.value
           : this.cancelledAt,
+      evidenceWaivedAt: data.evidenceWaivedAt.present
+          ? data.evidenceWaivedAt.value
+          : this.evidenceWaivedAt,
       sourceMissionId: data.sourceMissionId.present
           ? data.sourceMissionId.value
           : this.sourceMissionId,
@@ -452,6 +494,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('cancelledAt: $cancelledAt, ')
+          ..write('evidenceWaivedAt: $evidenceWaivedAt, ')
           ..write('sourceMissionId: $sourceMissionId, ')
           ..write('relationType: $relationType')
           ..write(')'))
@@ -468,6 +511,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     createdAt,
     updatedAt,
     cancelledAt,
+    evidenceWaivedAt,
     sourceMissionId,
     relationType,
   );
@@ -483,6 +527,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.cancelledAt == this.cancelledAt &&
+          other.evidenceWaivedAt == this.evidenceWaivedAt &&
           other.sourceMissionId == this.sourceMissionId &&
           other.relationType == this.relationType);
 }
@@ -496,6 +541,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
   final Value<int> createdAt;
   final Value<int> updatedAt;
   final Value<int?> cancelledAt;
+  final Value<int?> evidenceWaivedAt;
   final Value<String?> sourceMissionId;
   final Value<String?> relationType;
   final Value<int> rowid;
@@ -508,6 +554,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.cancelledAt = const Value.absent(),
+    this.evidenceWaivedAt = const Value.absent(),
     this.sourceMissionId = const Value.absent(),
     this.relationType = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -521,6 +568,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     required int createdAt,
     required int updatedAt,
     this.cancelledAt = const Value.absent(),
+    this.evidenceWaivedAt = const Value.absent(),
     this.sourceMissionId = const Value.absent(),
     this.relationType = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -537,6 +585,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
     Expression<int>? cancelledAt,
+    Expression<int>? evidenceWaivedAt,
     Expression<String>? sourceMissionId,
     Expression<String>? relationType,
     Expression<int>? rowid,
@@ -550,6 +599,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (cancelledAt != null) 'cancelled_at': cancelledAt,
+      if (evidenceWaivedAt != null) 'evidence_waived_at': evidenceWaivedAt,
       if (sourceMissionId != null) 'source_mission_id': sourceMissionId,
       if (relationType != null) 'relation_type': relationType,
       if (rowid != null) 'rowid': rowid,
@@ -565,6 +615,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     Value<int>? createdAt,
     Value<int>? updatedAt,
     Value<int?>? cancelledAt,
+    Value<int?>? evidenceWaivedAt,
     Value<String?>? sourceMissionId,
     Value<String?>? relationType,
     Value<int>? rowid,
@@ -578,6 +629,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       cancelledAt: cancelledAt ?? this.cancelledAt,
+      evidenceWaivedAt: evidenceWaivedAt ?? this.evidenceWaivedAt,
       sourceMissionId: sourceMissionId ?? this.sourceMissionId,
       relationType: relationType ?? this.relationType,
       rowid: rowid ?? this.rowid,
@@ -611,6 +663,9 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     if (cancelledAt.present) {
       map['cancelled_at'] = Variable<int>(cancelledAt.value);
     }
+    if (evidenceWaivedAt.present) {
+      map['evidence_waived_at'] = Variable<int>(evidenceWaivedAt.value);
+    }
     if (sourceMissionId.present) {
       map['source_mission_id'] = Variable<String>(sourceMissionId.value);
     }
@@ -634,6 +689,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('cancelledAt: $cancelledAt, ')
+          ..write('evidenceWaivedAt: $evidenceWaivedAt, ')
           ..write('sourceMissionId: $sourceMissionId, ')
           ..write('relationType: $relationType, ')
           ..write('rowid: $rowid')
@@ -3042,6 +3098,711 @@ class FailureRecordsCompanion extends UpdateCompanion<FailureRecordRow> {
   }
 }
 
+class $EvidenceRecordsTable extends EvidenceRecords
+    with TableInfo<$EvidenceRecordsTable, EvidenceRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EvidenceRecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _missionIdMeta = const VerificationMeta(
+    'missionId',
+  );
+  @override
+  late final GeneratedColumn<String> missionId = GeneratedColumn<String>(
+    'mission_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES missions (id)',
+    ),
+  );
+  static const VerificationMeta _submissionIdMeta = const VerificationMeta(
+    'submissionId',
+  );
+  @override
+  late final GeneratedColumn<String> submissionId = GeneratedColumn<String>(
+    'submission_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attachmentStorageKeyMeta =
+      const VerificationMeta('attachmentStorageKey');
+  @override
+  late final GeneratedColumn<String> attachmentStorageKey =
+      GeneratedColumn<String>(
+        'attachment_storage_key',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+      );
+  static const VerificationMeta _attachmentFileNameMeta =
+      const VerificationMeta('attachmentFileName');
+  @override
+  late final GeneratedColumn<String> attachmentFileName =
+      GeneratedColumn<String>(
+        'attachment_file_name',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _attachmentMimeTypeMeta =
+      const VerificationMeta('attachmentMimeType');
+  @override
+  late final GeneratedColumn<String> attachmentMimeType =
+      GeneratedColumn<String>(
+        'attachment_mime_type',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _capturedAtMeta = const VerificationMeta(
+    'capturedAt',
+  );
+  @override
+  late final GeneratedColumn<int> capturedAt = GeneratedColumn<int>(
+    'captured_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _submittedAtMeta = const VerificationMeta(
+    'submittedAt',
+  );
+  @override
+  late final GeneratedColumn<int> submittedAt = GeneratedColumn<int>(
+    'submitted_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    missionId,
+    submissionId,
+    type,
+    source,
+    content,
+    attachmentStorageKey,
+    attachmentFileName,
+    attachmentMimeType,
+    capturedAt,
+    submittedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'evidence_records';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EvidenceRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('mission_id')) {
+      context.handle(
+        _missionIdMeta,
+        missionId.isAcceptableOrUnknown(data['mission_id']!, _missionIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_missionIdMeta);
+    }
+    if (data.containsKey('submission_id')) {
+      context.handle(
+        _submissionIdMeta,
+        submissionId.isAcceptableOrUnknown(
+          data['submission_id']!,
+          _submissionIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_submissionIdMeta);
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
+    if (data.containsKey('attachment_storage_key')) {
+      context.handle(
+        _attachmentStorageKeyMeta,
+        attachmentStorageKey.isAcceptableOrUnknown(
+          data['attachment_storage_key']!,
+          _attachmentStorageKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attachment_file_name')) {
+      context.handle(
+        _attachmentFileNameMeta,
+        attachmentFileName.isAcceptableOrUnknown(
+          data['attachment_file_name']!,
+          _attachmentFileNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attachment_mime_type')) {
+      context.handle(
+        _attachmentMimeTypeMeta,
+        attachmentMimeType.isAcceptableOrUnknown(
+          data['attachment_mime_type']!,
+          _attachmentMimeTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('captured_at')) {
+      context.handle(
+        _capturedAtMeta,
+        capturedAt.isAcceptableOrUnknown(data['captured_at']!, _capturedAtMeta),
+      );
+    }
+    if (data.containsKey('submitted_at')) {
+      context.handle(
+        _submittedAtMeta,
+        submittedAt.isAcceptableOrUnknown(
+          data['submitted_at']!,
+          _submittedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_submittedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EvidenceRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EvidenceRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      missionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mission_id'],
+      )!,
+      submissionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}submission_id'],
+      )!,
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      ),
+      attachmentStorageKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_storage_key'],
+      ),
+      attachmentFileName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_file_name'],
+      ),
+      attachmentMimeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_mime_type'],
+      ),
+      capturedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}captured_at'],
+      ),
+      submittedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}submitted_at'],
+      )!,
+    );
+  }
+
+  @override
+  $EvidenceRecordsTable createAlias(String alias) {
+    return $EvidenceRecordsTable(attachedDatabase, alias);
+  }
+}
+
+class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
+  final String id;
+  final String missionId;
+  final String submissionId;
+  final String type;
+  final String source;
+  final String? content;
+  final String? attachmentStorageKey;
+  final String? attachmentFileName;
+  final String? attachmentMimeType;
+  final int? capturedAt;
+  final int submittedAt;
+  const EvidenceRow({
+    required this.id,
+    required this.missionId,
+    required this.submissionId,
+    required this.type,
+    required this.source,
+    this.content,
+    this.attachmentStorageKey,
+    this.attachmentFileName,
+    this.attachmentMimeType,
+    this.capturedAt,
+    required this.submittedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['mission_id'] = Variable<String>(missionId);
+    map['submission_id'] = Variable<String>(submissionId);
+    map['type'] = Variable<String>(type);
+    map['source'] = Variable<String>(source);
+    if (!nullToAbsent || content != null) {
+      map['content'] = Variable<String>(content);
+    }
+    if (!nullToAbsent || attachmentStorageKey != null) {
+      map['attachment_storage_key'] = Variable<String>(attachmentStorageKey);
+    }
+    if (!nullToAbsent || attachmentFileName != null) {
+      map['attachment_file_name'] = Variable<String>(attachmentFileName);
+    }
+    if (!nullToAbsent || attachmentMimeType != null) {
+      map['attachment_mime_type'] = Variable<String>(attachmentMimeType);
+    }
+    if (!nullToAbsent || capturedAt != null) {
+      map['captured_at'] = Variable<int>(capturedAt);
+    }
+    map['submitted_at'] = Variable<int>(submittedAt);
+    return map;
+  }
+
+  EvidenceRecordsCompanion toCompanion(bool nullToAbsent) {
+    return EvidenceRecordsCompanion(
+      id: Value(id),
+      missionId: Value(missionId),
+      submissionId: Value(submissionId),
+      type: Value(type),
+      source: Value(source),
+      content: content == null && nullToAbsent
+          ? const Value.absent()
+          : Value(content),
+      attachmentStorageKey: attachmentStorageKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentStorageKey),
+      attachmentFileName: attachmentFileName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentFileName),
+      attachmentMimeType: attachmentMimeType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentMimeType),
+      capturedAt: capturedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(capturedAt),
+      submittedAt: Value(submittedAt),
+    );
+  }
+
+  factory EvidenceRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EvidenceRow(
+      id: serializer.fromJson<String>(json['id']),
+      missionId: serializer.fromJson<String>(json['missionId']),
+      submissionId: serializer.fromJson<String>(json['submissionId']),
+      type: serializer.fromJson<String>(json['type']),
+      source: serializer.fromJson<String>(json['source']),
+      content: serializer.fromJson<String?>(json['content']),
+      attachmentStorageKey: serializer.fromJson<String?>(
+        json['attachmentStorageKey'],
+      ),
+      attachmentFileName: serializer.fromJson<String?>(
+        json['attachmentFileName'],
+      ),
+      attachmentMimeType: serializer.fromJson<String?>(
+        json['attachmentMimeType'],
+      ),
+      capturedAt: serializer.fromJson<int?>(json['capturedAt']),
+      submittedAt: serializer.fromJson<int>(json['submittedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'missionId': serializer.toJson<String>(missionId),
+      'submissionId': serializer.toJson<String>(submissionId),
+      'type': serializer.toJson<String>(type),
+      'source': serializer.toJson<String>(source),
+      'content': serializer.toJson<String?>(content),
+      'attachmentStorageKey': serializer.toJson<String?>(attachmentStorageKey),
+      'attachmentFileName': serializer.toJson<String?>(attachmentFileName),
+      'attachmentMimeType': serializer.toJson<String?>(attachmentMimeType),
+      'capturedAt': serializer.toJson<int?>(capturedAt),
+      'submittedAt': serializer.toJson<int>(submittedAt),
+    };
+  }
+
+  EvidenceRow copyWith({
+    String? id,
+    String? missionId,
+    String? submissionId,
+    String? type,
+    String? source,
+    Value<String?> content = const Value.absent(),
+    Value<String?> attachmentStorageKey = const Value.absent(),
+    Value<String?> attachmentFileName = const Value.absent(),
+    Value<String?> attachmentMimeType = const Value.absent(),
+    Value<int?> capturedAt = const Value.absent(),
+    int? submittedAt,
+  }) => EvidenceRow(
+    id: id ?? this.id,
+    missionId: missionId ?? this.missionId,
+    submissionId: submissionId ?? this.submissionId,
+    type: type ?? this.type,
+    source: source ?? this.source,
+    content: content.present ? content.value : this.content,
+    attachmentStorageKey: attachmentStorageKey.present
+        ? attachmentStorageKey.value
+        : this.attachmentStorageKey,
+    attachmentFileName: attachmentFileName.present
+        ? attachmentFileName.value
+        : this.attachmentFileName,
+    attachmentMimeType: attachmentMimeType.present
+        ? attachmentMimeType.value
+        : this.attachmentMimeType,
+    capturedAt: capturedAt.present ? capturedAt.value : this.capturedAt,
+    submittedAt: submittedAt ?? this.submittedAt,
+  );
+  EvidenceRow copyWithCompanion(EvidenceRecordsCompanion data) {
+    return EvidenceRow(
+      id: data.id.present ? data.id.value : this.id,
+      missionId: data.missionId.present ? data.missionId.value : this.missionId,
+      submissionId: data.submissionId.present
+          ? data.submissionId.value
+          : this.submissionId,
+      type: data.type.present ? data.type.value : this.type,
+      source: data.source.present ? data.source.value : this.source,
+      content: data.content.present ? data.content.value : this.content,
+      attachmentStorageKey: data.attachmentStorageKey.present
+          ? data.attachmentStorageKey.value
+          : this.attachmentStorageKey,
+      attachmentFileName: data.attachmentFileName.present
+          ? data.attachmentFileName.value
+          : this.attachmentFileName,
+      attachmentMimeType: data.attachmentMimeType.present
+          ? data.attachmentMimeType.value
+          : this.attachmentMimeType,
+      capturedAt: data.capturedAt.present
+          ? data.capturedAt.value
+          : this.capturedAt,
+      submittedAt: data.submittedAt.present
+          ? data.submittedAt.value
+          : this.submittedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EvidenceRow(')
+          ..write('id: $id, ')
+          ..write('missionId: $missionId, ')
+          ..write('submissionId: $submissionId, ')
+          ..write('type: $type, ')
+          ..write('source: $source, ')
+          ..write('content: $content, ')
+          ..write('attachmentStorageKey: $attachmentStorageKey, ')
+          ..write('attachmentFileName: $attachmentFileName, ')
+          ..write('attachmentMimeType: $attachmentMimeType, ')
+          ..write('capturedAt: $capturedAt, ')
+          ..write('submittedAt: $submittedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    missionId,
+    submissionId,
+    type,
+    source,
+    content,
+    attachmentStorageKey,
+    attachmentFileName,
+    attachmentMimeType,
+    capturedAt,
+    submittedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EvidenceRow &&
+          other.id == this.id &&
+          other.missionId == this.missionId &&
+          other.submissionId == this.submissionId &&
+          other.type == this.type &&
+          other.source == this.source &&
+          other.content == this.content &&
+          other.attachmentStorageKey == this.attachmentStorageKey &&
+          other.attachmentFileName == this.attachmentFileName &&
+          other.attachmentMimeType == this.attachmentMimeType &&
+          other.capturedAt == this.capturedAt &&
+          other.submittedAt == this.submittedAt);
+}
+
+class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
+  final Value<String> id;
+  final Value<String> missionId;
+  final Value<String> submissionId;
+  final Value<String> type;
+  final Value<String> source;
+  final Value<String?> content;
+  final Value<String?> attachmentStorageKey;
+  final Value<String?> attachmentFileName;
+  final Value<String?> attachmentMimeType;
+  final Value<int?> capturedAt;
+  final Value<int> submittedAt;
+  final Value<int> rowid;
+  const EvidenceRecordsCompanion({
+    this.id = const Value.absent(),
+    this.missionId = const Value.absent(),
+    this.submissionId = const Value.absent(),
+    this.type = const Value.absent(),
+    this.source = const Value.absent(),
+    this.content = const Value.absent(),
+    this.attachmentStorageKey = const Value.absent(),
+    this.attachmentFileName = const Value.absent(),
+    this.attachmentMimeType = const Value.absent(),
+    this.capturedAt = const Value.absent(),
+    this.submittedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EvidenceRecordsCompanion.insert({
+    required String id,
+    required String missionId,
+    required String submissionId,
+    required String type,
+    required String source,
+    this.content = const Value.absent(),
+    this.attachmentStorageKey = const Value.absent(),
+    this.attachmentFileName = const Value.absent(),
+    this.attachmentMimeType = const Value.absent(),
+    this.capturedAt = const Value.absent(),
+    required int submittedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       missionId = Value(missionId),
+       submissionId = Value(submissionId),
+       type = Value(type),
+       source = Value(source),
+       submittedAt = Value(submittedAt);
+  static Insertable<EvidenceRow> custom({
+    Expression<String>? id,
+    Expression<String>? missionId,
+    Expression<String>? submissionId,
+    Expression<String>? type,
+    Expression<String>? source,
+    Expression<String>? content,
+    Expression<String>? attachmentStorageKey,
+    Expression<String>? attachmentFileName,
+    Expression<String>? attachmentMimeType,
+    Expression<int>? capturedAt,
+    Expression<int>? submittedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (missionId != null) 'mission_id': missionId,
+      if (submissionId != null) 'submission_id': submissionId,
+      if (type != null) 'type': type,
+      if (source != null) 'source': source,
+      if (content != null) 'content': content,
+      if (attachmentStorageKey != null)
+        'attachment_storage_key': attachmentStorageKey,
+      if (attachmentFileName != null)
+        'attachment_file_name': attachmentFileName,
+      if (attachmentMimeType != null)
+        'attachment_mime_type': attachmentMimeType,
+      if (capturedAt != null) 'captured_at': capturedAt,
+      if (submittedAt != null) 'submitted_at': submittedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EvidenceRecordsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? missionId,
+    Value<String>? submissionId,
+    Value<String>? type,
+    Value<String>? source,
+    Value<String?>? content,
+    Value<String?>? attachmentStorageKey,
+    Value<String?>? attachmentFileName,
+    Value<String?>? attachmentMimeType,
+    Value<int?>? capturedAt,
+    Value<int>? submittedAt,
+    Value<int>? rowid,
+  }) {
+    return EvidenceRecordsCompanion(
+      id: id ?? this.id,
+      missionId: missionId ?? this.missionId,
+      submissionId: submissionId ?? this.submissionId,
+      type: type ?? this.type,
+      source: source ?? this.source,
+      content: content ?? this.content,
+      attachmentStorageKey: attachmentStorageKey ?? this.attachmentStorageKey,
+      attachmentFileName: attachmentFileName ?? this.attachmentFileName,
+      attachmentMimeType: attachmentMimeType ?? this.attachmentMimeType,
+      capturedAt: capturedAt ?? this.capturedAt,
+      submittedAt: submittedAt ?? this.submittedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (missionId.present) {
+      map['mission_id'] = Variable<String>(missionId.value);
+    }
+    if (submissionId.present) {
+      map['submission_id'] = Variable<String>(submissionId.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (attachmentStorageKey.present) {
+      map['attachment_storage_key'] = Variable<String>(
+        attachmentStorageKey.value,
+      );
+    }
+    if (attachmentFileName.present) {
+      map['attachment_file_name'] = Variable<String>(attachmentFileName.value);
+    }
+    if (attachmentMimeType.present) {
+      map['attachment_mime_type'] = Variable<String>(attachmentMimeType.value);
+    }
+    if (capturedAt.present) {
+      map['captured_at'] = Variable<int>(capturedAt.value);
+    }
+    if (submittedAt.present) {
+      map['submitted_at'] = Variable<int>(submittedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EvidenceRecordsCompanion(')
+          ..write('id: $id, ')
+          ..write('missionId: $missionId, ')
+          ..write('submissionId: $submissionId, ')
+          ..write('type: $type, ')
+          ..write('source: $source, ')
+          ..write('content: $content, ')
+          ..write('attachmentStorageKey: $attachmentStorageKey, ')
+          ..write('attachmentFileName: $attachmentFileName, ')
+          ..write('attachmentMimeType: $attachmentMimeType, ')
+          ..write('capturedAt: $capturedAt, ')
+          ..write('submittedAt: $submittedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3053,6 +3814,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $FailureRecordsTable failureRecords = $FailureRecordsTable(this);
+  late final $EvidenceRecordsTable evidenceRecords = $EvidenceRecordsTable(
+    this,
+  );
   late final Index executionEventsOneStart = Index(
     'execution_events_one_start',
     'CREATE UNIQUE INDEX execution_events_one_start ON execution_events (mission_id) WHERE type = \'START\'',
@@ -3071,6 +3835,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     executionPlans,
     executionEvents,
     failureRecords,
+    evidenceRecords,
     executionEventsOneStart,
     executionEventsOneEnd,
   ];
@@ -3086,6 +3851,7 @@ typedef $$MissionsTableCreateCompanionBuilder =
       required int createdAt,
       required int updatedAt,
       Value<int?> cancelledAt,
+      Value<int?> evidenceWaivedAt,
       Value<String?> sourceMissionId,
       Value<String?> relationType,
       Value<int> rowid,
@@ -3100,6 +3866,7 @@ typedef $$MissionsTableUpdateCompanionBuilder =
       Value<int> createdAt,
       Value<int> updatedAt,
       Value<int?> cancelledAt,
+      Value<int?> evidenceWaivedAt,
       Value<String?> sourceMissionId,
       Value<String?> relationType,
       Value<int> rowid,
@@ -3206,6 +3973,26 @@ final class $$MissionsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$EvidenceRecordsTable, List<EvidenceRow>>
+  _evidenceRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.evidenceRecords,
+    aliasName: 'missions__id__evidence_records__mission_id',
+  );
+
+  $$EvidenceRecordsTableProcessedTableManager get evidenceRecordsRefs {
+    final manager = $$EvidenceRecordsTableTableManager(
+      $_db,
+      $_db.evidenceRecords,
+    ).filter((f) => f.missionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _evidenceRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$MissionsTableFilterComposer
@@ -3254,6 +4041,11 @@ class $$MissionsTableFilterComposer
 
   ColumnFilters<int> get cancelledAt => $composableBuilder(
     column: $table.cancelledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get evidenceWaivedAt => $composableBuilder(
+    column: $table.evidenceWaivedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3386,6 +4178,31 @@ class $$MissionsTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> evidenceRecordsRefs(
+    Expression<bool> Function($$EvidenceRecordsTableFilterComposer f) f,
+  ) {
+    final $$EvidenceRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.evidenceRecords,
+      getReferencedColumn: (t) => t.missionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EvidenceRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.evidenceRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$MissionsTableOrderingComposer
@@ -3434,6 +4251,11 @@ class $$MissionsTableOrderingComposer
 
   ColumnOrderings<int> get cancelledAt => $composableBuilder(
     column: $table.cancelledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get evidenceWaivedAt => $composableBuilder(
+    column: $table.evidenceWaivedAt,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -3502,6 +4324,11 @@ class $$MissionsTableAnnotationComposer
 
   GeneratedColumn<int> get cancelledAt => $composableBuilder(
     column: $table.cancelledAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get evidenceWaivedAt => $composableBuilder(
+    column: $table.evidenceWaivedAt,
     builder: (column) => column,
   );
 
@@ -3634,6 +4461,31 @@ class $$MissionsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> evidenceRecordsRefs<T extends Object>(
+    Expression<T> Function($$EvidenceRecordsTableAnnotationComposer a) f,
+  ) {
+    final $$EvidenceRecordsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.evidenceRecords,
+      getReferencedColumn: (t) => t.missionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EvidenceRecordsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.evidenceRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$MissionsTableTableManager
@@ -3655,6 +4507,7 @@ class $$MissionsTableTableManager
             bool executionPlansRefs,
             bool executionEventsRefs,
             bool failureRecordsRefs,
+            bool evidenceRecordsRefs,
           })
         > {
   $$MissionsTableTableManager(_$AppDatabase db, $MissionsTable table)
@@ -3678,6 +4531,7 @@ class $$MissionsTableTableManager
                 Value<int> createdAt = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
                 Value<int?> cancelledAt = const Value.absent(),
+                Value<int?> evidenceWaivedAt = const Value.absent(),
                 Value<String?> sourceMissionId = const Value.absent(),
                 Value<String?> relationType = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -3690,6 +4544,7 @@ class $$MissionsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 cancelledAt: cancelledAt,
+                evidenceWaivedAt: evidenceWaivedAt,
                 sourceMissionId: sourceMissionId,
                 relationType: relationType,
                 rowid: rowid,
@@ -3704,6 +4559,7 @@ class $$MissionsTableTableManager
                 required int createdAt,
                 required int updatedAt,
                 Value<int?> cancelledAt = const Value.absent(),
+                Value<int?> evidenceWaivedAt = const Value.absent(),
                 Value<String?> sourceMissionId = const Value.absent(),
                 Value<String?> relationType = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -3716,6 +4572,7 @@ class $$MissionsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 cancelledAt: cancelledAt,
+                evidenceWaivedAt: evidenceWaivedAt,
                 sourceMissionId: sourceMissionId,
                 relationType: relationType,
                 rowid: rowid,
@@ -3735,6 +4592,7 @@ class $$MissionsTableTableManager
                 executionPlansRefs = false,
                 executionEventsRefs = false,
                 failureRecordsRefs = false,
+                evidenceRecordsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -3744,6 +4602,7 @@ class $$MissionsTableTableManager
                     if (executionPlansRefs) db.executionPlans,
                     if (executionEventsRefs) db.executionEvents,
                     if (failureRecordsRefs) db.failureRecords,
+                    if (evidenceRecordsRefs) db.evidenceRecords,
                   ],
                   addJoins:
                       <
@@ -3863,6 +4722,27 @@ class $$MissionsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (evidenceRecordsRefs)
+                        await $_getPrefetchedData<
+                          MissionRow,
+                          $MissionsTable,
+                          EvidenceRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$MissionsTableReferences
+                              ._evidenceRecordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$MissionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).evidenceRecordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.missionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -3889,6 +4769,7 @@ typedef $$MissionsTableProcessedTableManager =
         bool executionPlansRefs,
         bool executionEventsRefs,
         bool failureRecordsRefs,
+        bool evidenceRecordsRefs,
       })
     >;
 typedef $$MissionScheduleRevisionsTableCreateCompanionBuilder =
@@ -5739,6 +6620,457 @@ typedef $$FailureRecordsTableProcessedTableManager =
       FailureRecordRow,
       PrefetchHooks Function({bool missionId})
     >;
+typedef $$EvidenceRecordsTableCreateCompanionBuilder =
+    EvidenceRecordsCompanion Function({
+      required String id,
+      required String missionId,
+      required String submissionId,
+      required String type,
+      required String source,
+      Value<String?> content,
+      Value<String?> attachmentStorageKey,
+      Value<String?> attachmentFileName,
+      Value<String?> attachmentMimeType,
+      Value<int?> capturedAt,
+      required int submittedAt,
+      Value<int> rowid,
+    });
+typedef $$EvidenceRecordsTableUpdateCompanionBuilder =
+    EvidenceRecordsCompanion Function({
+      Value<String> id,
+      Value<String> missionId,
+      Value<String> submissionId,
+      Value<String> type,
+      Value<String> source,
+      Value<String?> content,
+      Value<String?> attachmentStorageKey,
+      Value<String?> attachmentFileName,
+      Value<String?> attachmentMimeType,
+      Value<int?> capturedAt,
+      Value<int> submittedAt,
+      Value<int> rowid,
+    });
+
+final class $$EvidenceRecordsTableReferences
+    extends BaseReferences<_$AppDatabase, $EvidenceRecordsTable, EvidenceRow> {
+  $$EvidenceRecordsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $MissionsTable _missionIdTable(_$AppDatabase db) =>
+      db.missions.createAlias('evidence_records__mission_id__missions__id');
+
+  $$MissionsTableProcessedTableManager get missionId {
+    final $_column = $_itemColumn<String>('mission_id')!;
+
+    final manager = $$MissionsTableTableManager(
+      $_db,
+      $_db.missions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_missionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$EvidenceRecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $EvidenceRecordsTable> {
+  $$EvidenceRecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get submissionId => $composableBuilder(
+    column: $table.submissionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentStorageKey => $composableBuilder(
+    column: $table.attachmentStorageKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentFileName => $composableBuilder(
+    column: $table.attachmentFileName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentMimeType => $composableBuilder(
+    column: $table.attachmentMimeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get capturedAt => $composableBuilder(
+    column: $table.capturedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get submittedAt => $composableBuilder(
+    column: $table.submittedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$MissionsTableFilterComposer get missionId {
+    final $$MissionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.missionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableFilterComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EvidenceRecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $EvidenceRecordsTable> {
+  $$EvidenceRecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get submissionId => $composableBuilder(
+    column: $table.submissionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentStorageKey => $composableBuilder(
+    column: $table.attachmentStorageKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentFileName => $composableBuilder(
+    column: $table.attachmentFileName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentMimeType => $composableBuilder(
+    column: $table.attachmentMimeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get capturedAt => $composableBuilder(
+    column: $table.capturedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get submittedAt => $composableBuilder(
+    column: $table.submittedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$MissionsTableOrderingComposer get missionId {
+    final $$MissionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.missionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EvidenceRecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EvidenceRecordsTable> {
+  $$EvidenceRecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get submissionId => $composableBuilder(
+    column: $table.submissionId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get attachmentStorageKey => $composableBuilder(
+    column: $table.attachmentStorageKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get attachmentFileName => $composableBuilder(
+    column: $table.attachmentFileName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get attachmentMimeType => $composableBuilder(
+    column: $table.attachmentMimeType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get capturedAt => $composableBuilder(
+    column: $table.capturedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get submittedAt => $composableBuilder(
+    column: $table.submittedAt,
+    builder: (column) => column,
+  );
+
+  $$MissionsTableAnnotationComposer get missionId {
+    final $$MissionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.missionId,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EvidenceRecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $EvidenceRecordsTable,
+          EvidenceRow,
+          $$EvidenceRecordsTableFilterComposer,
+          $$EvidenceRecordsTableOrderingComposer,
+          $$EvidenceRecordsTableAnnotationComposer,
+          $$EvidenceRecordsTableCreateCompanionBuilder,
+          $$EvidenceRecordsTableUpdateCompanionBuilder,
+          (EvidenceRow, $$EvidenceRecordsTableReferences),
+          EvidenceRow,
+          PrefetchHooks Function({bool missionId})
+        > {
+  $$EvidenceRecordsTableTableManager(
+    _$AppDatabase db,
+    $EvidenceRecordsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EvidenceRecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EvidenceRecordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EvidenceRecordsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> missionId = const Value.absent(),
+                Value<String> submissionId = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String?> content = const Value.absent(),
+                Value<String?> attachmentStorageKey = const Value.absent(),
+                Value<String?> attachmentFileName = const Value.absent(),
+                Value<String?> attachmentMimeType = const Value.absent(),
+                Value<int?> capturedAt = const Value.absent(),
+                Value<int> submittedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => EvidenceRecordsCompanion(
+                id: id,
+                missionId: missionId,
+                submissionId: submissionId,
+                type: type,
+                source: source,
+                content: content,
+                attachmentStorageKey: attachmentStorageKey,
+                attachmentFileName: attachmentFileName,
+                attachmentMimeType: attachmentMimeType,
+                capturedAt: capturedAt,
+                submittedAt: submittedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String missionId,
+                required String submissionId,
+                required String type,
+                required String source,
+                Value<String?> content = const Value.absent(),
+                Value<String?> attachmentStorageKey = const Value.absent(),
+                Value<String?> attachmentFileName = const Value.absent(),
+                Value<String?> attachmentMimeType = const Value.absent(),
+                Value<int?> capturedAt = const Value.absent(),
+                required int submittedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => EvidenceRecordsCompanion.insert(
+                id: id,
+                missionId: missionId,
+                submissionId: submissionId,
+                type: type,
+                source: source,
+                content: content,
+                attachmentStorageKey: attachmentStorageKey,
+                attachmentFileName: attachmentFileName,
+                attachmentMimeType: attachmentMimeType,
+                capturedAt: capturedAt,
+                submittedAt: submittedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$EvidenceRecordsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({missionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (missionId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.missionId,
+                                referencedTable:
+                                    $$EvidenceRecordsTableReferences
+                                        ._missionIdTable(db),
+                                referencedColumn:
+                                    $$EvidenceRecordsTableReferences
+                                        ._missionIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$EvidenceRecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $EvidenceRecordsTable,
+      EvidenceRow,
+      $$EvidenceRecordsTableFilterComposer,
+      $$EvidenceRecordsTableOrderingComposer,
+      $$EvidenceRecordsTableAnnotationComposer,
+      $$EvidenceRecordsTableCreateCompanionBuilder,
+      $$EvidenceRecordsTableUpdateCompanionBuilder,
+      (EvidenceRow, $$EvidenceRecordsTableReferences),
+      EvidenceRow,
+      PrefetchHooks Function({bool missionId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5756,4 +7088,6 @@ class $AppDatabaseManager {
       $$ExecutionEventsTableTableManager(_db, _db.executionEvents);
   $$FailureRecordsTableTableManager get failureRecords =>
       $$FailureRecordsTableTableManager(_db, _db.failureRecords);
+  $$EvidenceRecordsTableTableManager get evidenceRecords =>
+      $$EvidenceRecordsTableTableManager(_db, _db.evidenceRecords);
 }

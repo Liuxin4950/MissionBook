@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
 import '../../domain/entities/execution_plan.dart';
 import '../../domain/entities/mission.dart';
@@ -13,6 +15,9 @@ import '../../domain/entities/execution_command.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/failure_record.dart';
 import '../../domain/entities/mission_phase.dart';
+import '../../domain/entities/evidence.dart';
+import '../../domain/rules/evidence_rules.dart';
+import 'evidence_mapping.dart';
 import '../../domain/rules/execution_event_rules.dart';
 
 import '../../domain/repositories/mission_repository.dart';
@@ -45,6 +50,7 @@ MissionsCompanion missionToCompanion(Mission mission) {
 
     // 取消时刻可能为空：?. 在有时刻时取毫秒数，否则得到 null。
     cancelledAt: Value(mission.cancelledAt?.millisecondsSinceEpoch),
+    evidenceWaivedAt: Value(mission.evidenceWaivedAt?.millisecondsSinceEpoch),
     sourceMissionId: Value(mission.sourceMissionId),
     relationType: Value(mission.relationType == null ? null : 'RETRY'),
   );
@@ -91,6 +97,12 @@ Mission missionFromRow(MissionRow row) {
     cancelledAt: cancelledAt == null
         ? null
         : DateTime.fromMillisecondsSinceEpoch(cancelledAt, isUtc: true),
+    evidenceWaivedAt: row.evidenceWaivedAt == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(
+            row.evidenceWaivedAt!,
+            isUtc: true,
+          ),
   );
 }
 
@@ -198,7 +210,9 @@ ExecutionPlan executionPlanFromRow(ExecutionPlanRow row) {
 /// 使用同一数据库连接完成原子创建、列表查询与详情读取。
 class DriftMissionRepository implements MissionRepository {
   /// 接收应用持有的连接；本仓储不自行创建或关闭数据库。
-  DriftMissionRepository(this.database, {this.clock = DateTime.now});
+  DriftMissionRepository(this.database, {this.clock = DateTime.now}) {
+    tzdata.initializeTimeZones();
+  }
 
   /// 创建与查询共用的数据库连接。
   final AppDatabase database;
@@ -212,6 +226,204 @@ class DriftMissionRepository implements MissionRepository {
       'UPDATE missions SET updated_at = updated_at WHERE id = ?',
       [missionId],
     );
+  }
+
+  DateTime _now() => DateTime.fromMillisecondsSinceEpoch(
+    clock().toUtc().millisecondsSinceEpoch,
+    isUtc: true,
+  );
+
+  void _validateEvidencePlan(
+    VerificationPolicy policy,
+    String? criteria,
+    MissionScheduleRevision schedule,
+  ) {
+    validateEvidenceRequirement(
+      policy: policy,
+      criteria: criteria,
+      schedule: schedule,
+    );
+    if (policy == VerificationPolicy.requiredEvidence &&
+        schedule.timePolicy == TimePolicy.flexible) {
+      final parts = schedule.scheduledDate.split('-');
+      final start = tz.TZDateTime(
+        tz.getLocation(schedule.timeZone),
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+        int.parse(parts[2]),
+      );
+      if (!schedule.evidenceDeadlineAt!.isAfter(start)) {
+        throw ArgumentError('材料截止必须晚于所选计划日期的起点');
+      }
+    }
+  }
+
+  /// 超时发生时刻和实际落库时刻分开；晚 END 不能制造早于 END 的关闭时间。
+  Future<void> _insertEvidenceDeadline(
+    MissionDetail detail,
+    ExecutionEvent end,
+    DateTime now,
+  ) async {
+    final deadline = detail.schedule.evidenceDeadlineAt!;
+    final occurredAt = deadline.isAfter(end.occurredAt)
+        ? deadline
+        : end.occurredAt;
+    await database
+        .into(database.failureRecords)
+        .insert(
+          FailureRecordsCompanion.insert(
+            id: '${end.id}:evidence-deadline',
+            missionId: detail.mission.id,
+            trigger: 'EVIDENCE_DEADLINE_MISSED',
+            occurredAt: occurredAt.millisecondsSinceEpoch,
+            createdAt: now.millisecondsSinceEpoch,
+          ),
+        );
+  }
+
+  @override
+  Future<EvidenceSubmissionResult> submitEvidence(
+    EvidenceSubmission submission,
+  ) async {
+    if (submission.id.trim().isEmpty ||
+        submission.missionId.trim().isEmpty ||
+        submission.items.isEmpty) {
+      throw ArgumentError('请至少添加一份有效材料');
+    }
+    final ids = <String>{};
+    for (final item in submission.items) {
+      validateEvidenceDraft(item, submission.missionId);
+      if (!ids.add(item.id)) throw ArgumentError('同批材料编号不能重复');
+    }
+    return database.transaction(() async {
+      await _acquireWrite(submission.missionId);
+      final rows = await (database.select(
+        database.evidenceRecords,
+      )..where((table) => table.submissionId.equals(submission.id))).get();
+      // 先认出已经成功的原批次，之后才检查 CLOSED/截止；成功重试不得被新状态误拒绝。
+      if (rows.isNotEmpty) {
+        final saved = rows.map(evidenceFromRow).toList();
+        final byId = {for (final item in saved) item.id: item};
+        if (saved.length != submission.items.length ||
+            saved.any((item) => item.missionId != submission.missionId) ||
+            submission.items.any(
+              (item) =>
+                  byId[item.id] == null ||
+                  !sameEvidenceInput(byId[item.id]!, item),
+            )) {
+          throw const EvidenceConflict('同一提交编号的材料内容不同，请重新读取记录');
+        }
+        // 也核对原批次关联事实，损坏历史不能被重试伪装为正常成功。
+        await findDetail(submission.missionId);
+        return EvidenceSubmissionResult.submitted;
+      }
+      final detail = await findDetail(submission.missionId);
+      if (detail == null) throw const EvidenceConflict('任务不存在，请刷新');
+      if (detail.failures.any(
+        (item) => item.trigger == 'EVIDENCE_DEADLINE_MISSED',
+      )) {
+        return EvidenceSubmissionResult.deadlineMissed;
+      }
+      if (detail.phase != MissionPhase.evidencePending) {
+        throw const EvidenceConflict('任务已不再待补材料，请重新读取记录');
+      }
+      final now = _now();
+      final end = detail.events.last;
+      if (now.isBefore(end.occurredAt)) {
+        throw const EvidenceConflict('系统时间早于结束记录，请校正后重试');
+      }
+      if (detail.mission.verificationPolicy ==
+              VerificationPolicy.requiredEvidence &&
+          !now.isBefore(detail.schedule.evidenceDeadlineAt!)) {
+        await _insertEvidenceDeadline(detail, end, now);
+        // 正常返回让 transaction 提交超时事实，不把它与拒绝提交一起回滚。
+        return EvidenceSubmissionResult.deadlineMissed;
+      }
+      for (final draft in submission.items) {
+        final item = Evidence(
+          id: draft.id,
+          missionId: submission.missionId,
+          submissionId: submission.id,
+          submittedAt: now,
+          type: draft.type,
+          source: draft.source,
+          content: draft.content,
+          attachmentStorageKey: draft.attachmentStorageKey,
+          attachmentFileName: draft.attachmentFileName,
+          attachmentMimeType: draft.attachmentMimeType,
+          capturedAt: draft.capturedAt,
+        );
+        await database
+            .into(database.evidenceRecords)
+            .insert(evidenceToCompanion(item));
+      }
+      return EvidenceSubmissionResult.submitted;
+    });
+  }
+
+  @override
+  Future<void> skipOptionalEvidence(String missionId) => database.transaction(
+    () async {
+      await _acquireWrite(missionId);
+      final detail = await findDetail(missionId);
+      if (detail == null) throw const EvidenceConflict('任务不存在，请刷新');
+      if (detail.mission.evidenceWaivedAt != null) return; // 成功后响应丢失，保留第一次放弃时刻。
+      if (detail.mission.verificationPolicy !=
+              VerificationPolicy.optionalEvidence ||
+          detail.phase != MissionPhase.evidencePending) {
+        throw const EvidenceConflict('只有待补的可选材料可以放弃提交');
+      }
+      final now = _now();
+      if (now.isBefore(detail.events.last.occurredAt)) {
+        throw const EvidenceConflict('系统时间早于结束记录，请校正后重试');
+      }
+      await (database.update(
+        database.missions,
+      )..where((table) => table.id.equals(missionId))).write(
+        MissionsCompanion(
+          evidenceWaivedAt: Value(now.millisecondsSinceEpoch),
+          updatedAt: Value(now.millisecondsSinceEpoch),
+        ),
+      );
+    },
+  );
+
+  @override
+  Future<int> reconcileEvidenceDeadlines() => database.transaction(() async {
+    // 整次补算先取得写权限，提交材料和超时不会同时依据旧快照成功。
+    await _acquireWrite('');
+    final rows =
+        await (database.select(database.missions)..where(
+              (table) =>
+                  table.verificationPolicy.equals('REQUIRED_EVIDENCE') &
+                  table.cancelledAt.isNull(),
+            ))
+            .get();
+    final now = _now();
+    var count = 0;
+    for (final row in rows) {
+      final detail = (await findDetail(row.id))!;
+      if (detail.phase == MissionPhase.evidencePending &&
+          !now.isBefore(detail.schedule.evidenceDeadlineAt!)) {
+        await _insertEvidenceDeadline(detail, detail.events.last, now);
+        count++;
+      }
+    }
+    return count;
+  });
+
+  @override
+  Future<List<MissionDetail>> findPendingEvidence() async =>
+      (await findFinished())
+          .where((detail) => detail.phase == MissionPhase.evidencePending)
+          .toList();
+
+  @override
+  Future<Set<String>> referencedAttachmentKeys() async {
+    final rows = await (database.select(
+      database.evidenceRecords,
+    )..where((table) => table.attachmentStorageKey.isNotNull())).get();
+    return {for (final row in rows) row.attachmentStorageKey!};
   }
 
   @override
@@ -263,6 +475,7 @@ class DriftMissionRepository implements MissionRepository {
             event.grantedDurationMinutes != command.grantedDurationMinutes ||
             event.reason != reason ||
             event.userReportedResult != command.userReportedResult ||
+            event.submitOptionalEvidence != command.submitOptionalEvidence ||
             (needsFailure &&
                 (oldFailure == null ||
                     oldFailure.userReasonCategory != category ||
@@ -275,9 +488,6 @@ class DriftMissionRepository implements MissionRepository {
       // 排期描述“打算什么时候做、做多久”；事件描述“实际开始/暂停过什么”。
       final detail = await findDetail(command.missionId);
       if (detail == null) throw const ExecutionConflict('任务已不存在，请刷新');
-      if (detail.mission.verificationPolicy != VerificationPolicy.selfReport) {
-        throw const ExecutionConflict('材料任务尚未开放执行，请先使用自报任务');
-      }
       if (detail.lastSequence != command.expectedSequence) {
         throw const ExecutionConflict('执行记录已变化，请刷新后重新操作');
       }
@@ -315,6 +525,7 @@ class DriftMissionRepository implements MissionRepository {
         grantedDurationMinutes: command.grantedDurationMinutes,
         reason: reason,
         userReportedResult: command.userReportedResult,
+        submitOptionalEvidence: command.submitOptionalEvidence,
       );
       // 复用已有唯一推演核心；非法 START/END、取消后开始等均不能写入。
       validateExecutionHistory(detail.mission, [...detail.events, event]);
@@ -336,6 +547,14 @@ class DriftMissionRepository implements MissionRepository {
                 userReasonText: Value(reasonText),
               ),
             );
+      }
+      // 晚于截止才报告完成：END 和超时一起提交，保留用户的完成报告。
+      if (event.type == ExecutionEventType.end &&
+          event.userReportedResult == UserReportedResult.completed &&
+          detail.mission.verificationPolicy ==
+              VerificationPolicy.requiredEvidence &&
+          !now.isBefore(detail.schedule.evidenceDeadlineAt!)) {
+        await _insertEvidenceDeadline(detail, event, now);
       }
       return event;
     });
@@ -401,6 +620,8 @@ class DriftMissionRepository implements MissionRepository {
     required String title,
     required String objective,
     required MissionScheduleRevision schedule,
+    VerificationPolicy? verificationPolicy,
+    String? verificationCriteria,
   }) async {
     final missionId = original.mission.id;
     if (missionId.trim().isEmpty ||
@@ -419,17 +640,29 @@ class DriftMissionRepository implements MissionRepository {
       if (current.mission.cancelledAt != null) {
         throw const MissionEditConflict('任务已取消，不能再编辑，请返回详情刷新');
       }
-      if (current.mission.verificationPolicy != VerificationPolicy.selfReport) {
-        throw const MissionEditConflict('任务完成方式已变化，请返回详情刷新');
-      }
       if (current.events.isNotEmpty) {
         throw const MissionEditConflict('任务已经开始，不能再修改任务与排期');
       }
       final scheduleChanged = !_sameSchedule(current.schedule, schedule);
       final titleChanged = current.mission.title != title;
       final objectiveChanged = current.executionPlan.objective != objective;
+      final newPolicy =
+          verificationPolicy ?? original.mission.verificationPolicy;
+      final newCriteria = verificationPolicy == null
+          ? original.executionPlan.verificationCriteria
+          : verificationCriteria;
+      _validateEvidencePlan(newPolicy, newCriteria, schedule);
+      final policyChanged = newPolicy != current.mission.verificationPolicy;
+      final criteriaChanged =
+          newCriteria != current.executionPlan.verificationCriteria;
       // 无改动、双击或重试同一份已成功的内容都不制造新版本或修改时间。
-      if (!scheduleChanged && !titleChanged && !objectiveChanged) return;
+      if (!scheduleChanged &&
+          !titleChanged &&
+          !objectiveChanged &&
+          !policyChanged &&
+          !criteriaChanged) {
+        return;
+      }
 
       final oldMission = original.mission;
       final oldPlan = original.executionPlan;
@@ -438,31 +671,47 @@ class DriftMissionRepository implements MissionRepository {
           current.mission.title != oldMission.title ||
           current.executionPlan.id != oldPlan.id ||
           current.executionPlan.updatedAt != oldPlan.updatedAt ||
-          current.executionPlan.objective != oldPlan.objective) {
+          current.executionPlan.objective != oldPlan.objective ||
+          current.mission.verificationPolicy != oldMission.verificationPolicy ||
+          current.executionPlan.verificationCriteria !=
+              oldPlan.verificationCriteria) {
         throw const MissionEditConflict('任务已被修改，输入已保留；请返回详情刷新后重新编辑');
       }
       if (scheduleChanged &&
           (schedule.revisionNumber != current.schedule.revisionNumber + 1 ||
               schedule.timeZone != current.schedule.timeZone ||
-              schedule.evidenceDeadlineAt != null ||
               schedule.plannedDurationMinutes <= 0 ||
               (schedule.timePolicy == TimePolicy.fixed) !=
                   (schedule.fixedStartAt != null))) {
         throw ArgumentError('排期提案与当前任务不一致');
       }
       final now = schedule.changedAt.millisecondsSinceEpoch;
-      // 只写本次开放的字段；说明、Why、策略及身份信息不会被表单旧值覆盖。
+      if (scheduleChanged &&
+          newPolicy == VerificationPolicy.requiredEvidence &&
+          !schedule.evidenceDeadlineAt!.isAfter(_now())) {
+        throw ArgumentError('新的材料截止时间必须晚于当前时刻');
+      }
+      // 只写本次开放的名称与材料策略；说明、Why 和身份不被表单旧值覆盖。
       final missionUpdate = database.update(database.missions);
       missionUpdate.where((table) => table.id.equals(missionId));
       await missionUpdate.write(
-        MissionsCompanion(title: Value(title), updatedAt: Value(now)),
+        MissionsCompanion(
+          title: Value(title),
+          updatedAt: Value(now),
+          verificationPolicy: Value(switch (newPolicy) {
+            VerificationPolicy.selfReport => 'SELF_REPORT',
+            VerificationPolicy.optionalEvidence => 'OPTIONAL_EVIDENCE',
+            VerificationPolicy.requiredEvidence => 'REQUIRED_EVIDENCE',
+          }),
+        ),
       );
-      if (objectiveChanged) {
+      if (objectiveChanged || criteriaChanged) {
         final planUpdate = database.update(database.executionPlans);
         planUpdate.where((table) => table.id.equals(current.executionPlan.id));
         await planUpdate.write(
           ExecutionPlansCompanion(
             objective: Value(objective),
+            verificationCriteria: Value(newCriteria),
             updatedAt: Value(now),
           ),
         );
@@ -568,6 +817,11 @@ class DriftMissionRepository implements MissionRepository {
       final failureRows = await (database.select(
         database.failureRecords,
       )..where((table) => table.missionId.equals(missionId))).get();
+      final evidenceRows =
+          await (database.select(database.evidenceRecords)
+                ..where((table) => table.missionId.equals(missionId))
+                ..orderBy([(table) => OrderingTerm.asc(table.id)]))
+              .get();
       // ④ 行对象 → 业务对象。下面五个变量正好对应 MissionDetail 的五个成员。
       final mission = missionFromRow(joinedRow.readTable(missions));
       final schedule = scheduleFromRow(scheduleRow);
@@ -579,7 +833,15 @@ class DriftMissionRepository implements MissionRepository {
         failureRows.map(failureFromRow),
       );
       // 查询中的坏历史在 Future 内报错，由页面显示读取失败，不等到排版时崩溃。
-      deriveSelfReportMissionPhase(mission, events, failures);
+      final evidence = List<Evidence>.unmodifiable(
+        evidenceRows.map(evidenceFromRow),
+      );
+      _validateEvidencePlan(
+        mission.verificationPolicy,
+        executionPlan.verificationCriteria,
+        schedule,
+      );
+      deriveMissionPhase(mission, events, failures, evidence, schedule);
       // ⑤ 打包成一次查询结果，不新增一张详情表，也不向数据库写入阶段。
       return MissionDetail(
         mission: mission,
@@ -587,6 +849,7 @@ class DriftMissionRepository implements MissionRepository {
         executionPlan: executionPlan,
         events: events,
         failures: failures,
+        evidence: evidence,
       );
     });
   }
@@ -682,9 +945,14 @@ class DriftMissionRepository implements MissionRepository {
     }
 
     // 新任务不能带着已取消的时间。
-    if (mission.cancelledAt != null) {
+    if (mission.cancelledAt != null || mission.evidenceWaivedAt != null) {
       throw ArgumentError('新任务不能已经取消');
     }
+    _validateEvidencePlan(
+      mission.verificationPolicy,
+      executionPlan.verificationCriteria,
+      initialSchedule,
+    );
     if ((mission.sourceMissionId == null) != (mission.relationType == null) ||
         mission.sourceMissionId == mission.id) {
       throw ArgumentError('再次尝试必须关联另一个来源任务');
@@ -694,6 +962,11 @@ class DriftMissionRepository implements MissionRepository {
     // 外层 await 等待整个事务完成。
     // 三次写入全部成功才提交，任意一次失败就一起回滚。
     await database.transaction(() async {
+      // 创建强制任务也在事务中重查实际时刻，避免编辑期间截止已经过去。
+      if (mission.verificationPolicy == VerificationPolicy.requiredEvidence &&
+          !initialSchedule.evidenceDeadlineAt!.isAfter(_now())) {
+        throw ArgumentError('材料截止时间必须晚于当前时刻');
+      }
       if (mission.sourceMissionId != null) {
         final source = await findDetail(mission.sourceMissionId!);
         if (source == null ||

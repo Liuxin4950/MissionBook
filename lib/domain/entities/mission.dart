@@ -22,6 +22,7 @@ class Mission {
     this.description,
     this.why,
     this.cancelledAt,
+    this.evidenceWaivedAt,
     this.sourceMissionId,
     this.relationType,
     this.verificationPolicy = VerificationPolicy.selfReport,
@@ -51,6 +52,9 @@ class Mission {
 
   /// null 表示没有取消；有值表示实际取消时刻。
   final DateTime? cancelledAt;
+
+  /// 先选择补交、后来主动放弃可选材料的真实时刻；未放弃为 null。
+  final DateTime? evidenceWaivedAt;
 
   /// 来自哪次已结束或已取消的任务；普通新建为 null，创建后不可修改。
   final String? sourceMissionId;

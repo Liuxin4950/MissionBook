@@ -9,6 +9,7 @@ import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
+import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
 import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
@@ -28,6 +29,8 @@ class EditingRepository extends PendingRepository {
     required String title,
     required String objective,
     required MissionScheduleRevision schedule,
+    VerificationPolicy? verificationPolicy,
+    String? verificationCriteria,
   }) {
     edits.add(schedule);
     titles.add(title);

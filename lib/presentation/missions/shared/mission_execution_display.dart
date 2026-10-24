@@ -98,50 +98,65 @@ class MissionPageBody extends StatelessWidget {
     required this.children,
     this.footer,
     this.listKey,
+    this.embedded = false,
   });
   final List<Widget> children;
   final Widget? footer;
   final Key? listKey;
+  final bool embedded;
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    top: false,
-    child: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
-        child: LayoutBuilder(
-          builder: (context, available) => Column(
-            children: [
-              Expanded(
-                child: ListView(
-                  key: listKey,
-                  padding: AppLayout.pagePadding(context),
-                  children: children,
-                ),
-              ),
-              if (footer != null)
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: available.maxHeight * .5,
+  Widget build(BuildContext context) {
+    // Today 的任务行已经在可滚动列表内，内嵌办理只展开内容，不再套独立滚动页。
+    if (embedded) {
+      return Column(
+        key: listKey,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ...children,
+          if (footer != null) ...[const SizedBox(height: 20), footer!],
+        ],
+      );
+    }
+    return SafeArea(
+      top: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
+          child: LayoutBuilder(
+            builder: (context, available) => Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    key: listKey,
+                    padding: AppLayout.pagePadding(context),
+                    children: children,
                   ),
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        AppLayout.horizontalPadding(context),
-                        8,
-                        AppLayout.horizontalPadding(context),
-                        16,
+                ),
+                if (footer != null)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: available.maxHeight * .5,
+                    ),
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          AppLayout.horizontalPadding(context),
+                          8,
+                          AppLayout.horizontalPadding(context),
+                          16,
+                        ),
+                        child: SizedBox(width: double.infinity, child: footer),
                       ),
-                      child: SizedBox(width: double.infinity, child: footer),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class MissionActionFeedback extends StatelessWidget {

@@ -238,7 +238,8 @@ void main() {
       int revisionNumber = 1,
       DateTime? cancelledAt,
     }) {
-      return DriftMissionRepository(database).create(
+      // 测试固定在任务创建当天，截止校验不依赖运行测试的真实日期。
+      return DriftMissionRepository(database, clock: () => createdAt).create(
         mission: Mission(
           id: missionId,
           title: '读书',

@@ -10,6 +10,10 @@ import 'today_display.dart' as display;
 import 'schedule_section.dart';
 import '../missions/shared/mission_live_status.dart';
 import '../missions/shared/mission_phase_display.dart';
+import '../../domain/entities/mission_detail.dart';
+import '../../domain/entities/mission_phase.dart';
+import '../missions/evidence/mission_evidence_section.dart';
+import '../missions/execution/mission_inline_workspace.dart';
 
 // 本页负责加载和导航；日程布局由 ScheduleSection 复用，日期和窗口选择由 display 处理。
 // App 创建一个 MissionService，AppShell 将同一份引用传到这里。
@@ -54,6 +58,30 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   bool _isPickingDate = false;
   bool _isOpeningSchedules = false;
   StreamSubscription<void>? _changes;
+  // 跨日待补与所选排期日期分开；不让昨天结束的任务在今天失去材料入口。
+  List<MissionDetail> _pendingEvidence = const [];
+  final _evidenceKeys = <String, GlobalKey<MissionEvidenceSectionState>>{};
+  final _workspaceKeys = <String, GlobalKey<MissionInlineWorkspaceState>>{};
+  final _expandedWorkspaceIds = <String>{};
+
+  Widget _inlineWorkspace(display.TodayMissionItem item) =>
+      MissionInlineWorkspace(
+        key: _workspaceKeys.putIfAbsent(
+          item.id,
+          () => GlobalKey<MissionInlineWorkspaceState>(),
+        ),
+        missionId: item.id,
+        phase: item.phase,
+        service: widget.missionService,
+        clock: widget.clock,
+        onExpansionChanged: (expanded) => setState(() {
+          if (expanded) {
+            _expandedWorkspaceIds.add(item.id);
+          } else {
+            _expandedWorkspaceIds.remove(item.id);
+          }
+        }),
+      );
 
   // 入口一：Flutter 创建 State 后调用一次，默认选择上海日历的今天并读取。
   @override
@@ -119,11 +147,23 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       final result = await widget.missionService.findScheduledOn(
         scheduledDate: date,
       );
+      final pending = await widget.missionService.findPendingEvidence();
+      // 当前会话刚处理的任务保留原位回执，避免通知刷新立即移走编辑区域。
+      final pendingIds = pending.map((item) => item.mission.id).toSet();
+      final retained = <MissionDetail>[];
+      for (final previous in _pendingEvidence) {
+        if (pendingIds.contains(previous.mission.id)) continue;
+        final latest = await widget.missionService.findDetail(
+          missionId: previous.mission.id,
+        );
+        if (latest != null) retained.add(latest);
+      }
       if (!mounted || request != _loadRequest) return;
       // 一次查询只整理一次：分组、换算时区、准备显示文字，再交给三个区域。
       final missions = display.groupMissionsForDisplay(result);
       setState(() {
         _missions = missions;
+        _pendingEvidence = [...pending, ...retained];
         _isLoading = false;
       });
     } catch (error, stackTrace) {
@@ -162,6 +202,13 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   // 日期选择器和“回到今天”共用：先换日期、清掉旧列表，再走同一次加载过程。
   Future<void> _changeDate(DateTime date) async {
     if (DateUtils.isSameDay(date, _selectedDate)) return;
+    for (final key in _workspaceKeys.values) {
+      if (!await (key.currentState?.prepareToCollapse() ??
+          Future.value(true))) {
+        return;
+      }
+    }
+    if (!mounted) return;
     _selectedDate = DateUtils.dateOnly(date);
     _missions = const display.TodayMissionGroups.empty();
     await _loadMissions();
@@ -272,6 +319,72 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                 ],
                 // 构建元素
                 _buildContent(),
+                if (!widget.fullSchedule &&
+                    _pendingEvidence.any(
+                      (item) =>
+                          !_expandedWorkspaceIds.contains(item.mission.id),
+                    )) ...[
+                  const SizedBox(height: 24),
+                  Text(
+                    _pendingEvidence.any(
+                          (item) => item.phase == MissionPhase.evidencePending,
+                        )
+                        ? '待补材料'
+                        : '刚处理的材料',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _pendingEvidence.any(
+                          (item) => item.phase == MissionPhase.evidencePending,
+                        )
+                        ? '这里包含其他日期结束后仍待提交的任务。'
+                        : '提交结果保留在原位，确认后可以收起。',
+                  ),
+                  for (final detail in _pendingEvidence.where(
+                    (item) => !_expandedWorkspaceIds.contains(item.mission.id),
+                  ))
+                    Padding(
+                      key: ValueKey('today-pending-${detail.mission.id}'),
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            detail.mission.title,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          MissionEvidenceSection(
+                            key: _evidenceKeys.putIfAbsent(
+                              detail.mission.id,
+                              () => GlobalKey<MissionEvidenceSectionState>(),
+                            ),
+                            detail: detail,
+                            service: widget.missionService,
+                            protectNavigation: false,
+                            onChanged: () => unawaited(_loadMissions()),
+                          ),
+                          if (detail.phase != MissionPhase.evidencePending)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: () => setState(
+                                  () => _pendingEvidence = _pendingEvidence
+                                      .where(
+                                        (item) =>
+                                            item.mission.id !=
+                                            detail.mission.id,
+                                      )
+                                      .toList(),
+                                ),
+                                child: const Text('收起已处理记录'),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
               ],
             ),
           ),
@@ -329,6 +442,8 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
           onOpenAll: _openAllSchedules,
           onCreate: _openCreate,
           fullList: widget.fullSchedule,
+          workspaceBuilder: _inlineWorkspace,
+          keepVisibleMissionIds: _expandedWorkspaceIds,
         ),
         if (!widget.fullSchedule) ...[
           const SizedBox(height: 16),
@@ -336,6 +451,8 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
             items: _missions.flexible,
             onOpenMission: _openDetail,
             onCreate: _openCreate,
+            workspaceBuilder: _inlineWorkspace,
+            forceExpanded: _expandedWorkspaceIds.isNotEmpty,
           ),
           const SizedBox(height: 16),
           _ScheduleOverview(missions: _missions),
@@ -518,11 +635,15 @@ class _FlexibleMissionSection extends StatefulWidget {
     required this.items, // 今天页已加载并转换的完整自选任务列表。
     required this.onOpenMission, // 用户点击后交回页面打开详情。
     required this.onCreate, // 用户点击添加后交回页面打开创建表单。
+    this.workspaceBuilder,
+    this.forceExpanded = false,
   });
 
   final List<display.TodayMissionItem> items;
   final ValueChanged<String> onOpenMission;
   final VoidCallback onCreate;
+  final Widget Function(display.TodayMissionItem item)? workspaceBuilder;
+  final bool forceExpanded;
 
   @override
   State<_FlexibleMissionSection> createState() =>
@@ -538,7 +659,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
     final theme = Theme.of(context);
     // 折叠只影响排版，完整数据仍由 widget.items 提供，不再查询或转换。
     final hasMore = widget.items.length > _previewCount;
-    final visibleItems = _expanded
+    final visibleItems = _expanded || widget.forceExpanded
         ? widget.items
         : widget.items.take(_previewCount);
     return Material(
@@ -572,9 +693,17 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
               const _SectionEmptyHint('这一天还没有自选任务')
             else ...[
               for (final item in visibleItems)
-                _FlexibleMissionRow(
-                  item: item,
-                  onTap: () => widget.onOpenMission(item.id),
+                Column(
+                  key: ValueKey('flexible-workspace-${item.id}'),
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _FlexibleMissionRow(
+                      item: item,
+                      onTap: () => widget.onOpenMission(item.id),
+                    ),
+                    if (widget.workspaceBuilder != null)
+                      widget.workspaceBuilder!(item),
+                  ],
                 ),
               if (hasMore)
                 Align(

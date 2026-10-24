@@ -11,6 +11,7 @@ import '../../widgets/app_top_bar.dart';
 import '../shared/mission_execution_display.dart';
 import '../shared/mission_retry_button.dart';
 import '../detail/mission_detail_page.dart';
+import '../evidence/mission_evidence_section.dart';
 
 /// 已结束的只读记录。使用 END 冻结的时长，绝不显示运行圆环或执行控制。
 class MissionRecordPage extends StatefulWidget {
@@ -180,7 +181,11 @@ class _MissionRecordPageState extends State<MissionRecordPage> {
             ],
           const SizedBox(height: AppLayout.sectionGap),
           MissionEventTimeline(detail: detail),
-          // 当前没有正式材料与评价事实，不生成“已提交”、评分、示例附件或空材料卡。
+          MissionEvidenceSection(
+            key: ValueKey('record-evidence-${detail.mission.id}'),
+            detail: detail,
+            service: service,
+          ),
         ],
       ),
     );

@@ -19,6 +19,8 @@ class ScheduleSection extends StatefulWidget {
     this.onOpenAll,
     this.onCreate,
     this.fullList = false,
+    this.workspaceBuilder,
+    this.keepVisibleMissionIds = const {},
   });
 
   final List<display.TodayMissionItem> items;
@@ -28,6 +30,8 @@ class ScheduleSection extends StatefulWidget {
   final VoidCallback? onOpenAll;
   final VoidCallback? onCreate;
   final bool fullList;
+  final Widget Function(display.TodayMissionItem item)? workspaceBuilder;
+  final Set<String> keepVisibleMissionIds;
 
   @override
   State<ScheduleSection> createState() => _ScheduleSectionState();
@@ -108,9 +112,15 @@ class _ScheduleSectionState extends State<ScheduleSection>
     final limit = ((MediaQuery.sizeOf(context).height * .4 - 96) / (56 * scale))
         .floor()
         .clamp(2, 4);
-    final items = widget.fullList
+    final preview = widget.fullList
         ? widget.items
         : display.schedulePreview(widget.items, _now, limit: limit);
+    final shownIds = preview.map((item) => item.id).toSet()
+      ..addAll(widget.keepVisibleMissionIds);
+    // 正在办理的原行固定在列表内，计划窗口变化不能销毁报告/材料草稿。
+    final items = widget.items
+        .where((item) => shownIds.contains(item.id))
+        .toList();
     final hidden = widget.items.length - items.length;
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
@@ -201,14 +211,22 @@ class _ScheduleSectionState extends State<ScheduleSection>
                 child: Column(
                   children: [
                     for (var index = 0; index < items.length; index++)
-                      ScheduleMissionRow(
-                        key: ValueKey('mission-${items[index].id}'),
-                        item: items[index],
-                        now: _now,
-                        isFirst: index == 0,
-                        isLast: index == items.length - 1,
-                        showFullTitle: widget.fullList,
-                        onTap: () => widget.onOpenMission(items[index].id),
+                      Column(
+                        key: ValueKey('schedule-workspace-${items[index].id}'),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ScheduleMissionRow(
+                            key: ValueKey('mission-${items[index].id}'),
+                            item: items[index],
+                            now: _now,
+                            isFirst: index == 0,
+                            isLast: index == items.length - 1,
+                            showFullTitle: widget.fullList,
+                            onTap: () => widget.onOpenMission(items[index].id),
+                          ),
+                          if (widget.workspaceBuilder != null)
+                            widget.workspaceBuilder!(items[index]),
+                        ],
                       ),
                   ],
                 ),

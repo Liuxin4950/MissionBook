@@ -9,10 +9,25 @@ import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
+import 'package:mission_book/domain/entities/evidence.dart';
+
+// 创建测试不调用材料写入；只补齐同一仓储接口，不能把它误当材料实现。
+mixin _UnusedEvidenceMethods {
+  Future<EvidenceSubmissionResult> submitEvidence(
+    EvidenceSubmission submission,
+  ) => throw UnsupportedError('创建测试不提交材料');
+  Future<void> skipOptionalEvidence(String missionId) =>
+      throw UnsupportedError('创建测试不跳过材料');
+  Future<int> reconcileEvidenceDeadlines() async => 0;
+  Future<List<MissionDetail>> findPendingEvidence() async => [];
+  Future<Set<String>> referencedAttachmentKeys() async => {};
+}
 
 // implements 表示这个类遵守 MissionRepository 的约定，
 // 因此必须提供接口要求的 create 方法。
-class RecordingMissionRepository implements MissionRepository {
+class RecordingMissionRepository
+    with _UnusedEvidenceMethods
+    implements MissionRepository {
   @override
   Future<ExecutionEvent> execute(ExecutionCommand command) =>
       throw UnsupportedError('本替身不执行任务');
@@ -29,6 +44,8 @@ class RecordingMissionRepository implements MissionRepository {
     required String title,
     required String objective,
     required MissionScheduleRevision schedule,
+    VerificationPolicy? verificationPolicy,
+    String? verificationCriteria,
   }) => throw UnsupportedError('本测试不编辑任务');
 
   @override
@@ -66,7 +83,9 @@ class RecordingMissionRepository implements MissionRepository {
 
 // 模拟“仓储保存失败”的测试替身。
 // 它遵守同一个 MissionRepository 接口，所以 MissionService 不需要知道这是测试代码。
-class FailingMissionRepository implements MissionRepository {
+class FailingMissionRepository
+    with _UnusedEvidenceMethods
+    implements MissionRepository {
   @override
   Future<ExecutionEvent> execute(ExecutionCommand command) =>
       throw UnsupportedError('本替身不执行任务');
@@ -83,6 +102,8 @@ class FailingMissionRepository implements MissionRepository {
     required String title,
     required String objective,
     required MissionScheduleRevision schedule,
+    VerificationPolicy? verificationPolicy,
+    String? verificationCriteria,
   }) => throw UnsupportedError('本测试不编辑任务');
 
   @override

@@ -2,6 +2,9 @@ import '../entities/execution_event.dart'; // 引入执行事件及动作、报�
 import '../entities/mission.dart'; // 引入任务的材料策略枚举。
 import '../entities/mission_phase.dart'; // 任务阶段是计算结果，不是数据库字段。
 import '../entities/failure_record.dart';
+import '../entities/evidence.dart';
+import '../entities/mission_schedule_revision.dart';
+import 'evidence_rules.dart';
 
 /// 校验一条执行事件的字段组合；不修改对象，也不读写数据库。
 ///
@@ -163,6 +166,106 @@ MissionPhase _phaseBeforeEnd(Mission mission, _ExecutionState state) {
       // 执行已结束，不足以确定材料是否仍待提交，所以不能直接返回 closed。
       throw UnsupportedError('此函数只推导结束前阶段；END后的阶段需要报告及材料相关事实');
   }
+}
+
+/// 完整阶段查询：重用唯一执行时间线，再结合材料/放弃/失败事实推导。
+/// 调用者必须加载全部关联记录；本函数不补记超时，不根据当前时间猜状态。
+MissionPhase deriveMissionPhase(
+  Mission mission,
+  List<ExecutionEvent> events,
+  List<FailureRecord> failures,
+  List<Evidence> evidence,
+  MissionScheduleRevision schedule,
+) {
+  final state = _replayExecutionHistory(mission, events);
+  if (state != _ExecutionState.ended) {
+    if (failures.isNotEmpty ||
+        evidence.isNotEmpty ||
+        mission.evidenceWaivedAt != null) {
+      throw const FormatException('未结束或已取消任务不能有材料、放弃或失败事实');
+    }
+    return _phaseBeforeEnd(mission, state);
+  }
+  final end = events.last;
+  if (schedule.missionId != mission.id ||
+      events.first.scheduleRevisionId != schedule.id) {
+    throw const FormatException('执行开始绑定的排期与当前任务不一致');
+  }
+  final notCompleted =
+      end.userReportedResult == UserReportedResult.notCompleted;
+  if (notCompleted) {
+    if (failures.length != 1 ||
+        failures.single.trigger != 'USER_MARKED_NOT_COMPLETED' ||
+        failures.single.missionId != mission.id ||
+        failures.single.occurredAt != end.occurredAt ||
+        evidence.isNotEmpty ||
+        mission.evidenceWaivedAt != null) {
+      throw const FormatException('未完成报告的失败事实或材料关系不一致');
+    }
+    return MissionPhase.closed;
+  }
+  final needsEvidence =
+      mission.verificationPolicy == VerificationPolicy.requiredEvidence ||
+      (mission.verificationPolicy == VerificationPolicy.optionalEvidence &&
+          end.submitOptionalEvidence == true);
+  if (!needsEvidence) {
+    if (evidence.isNotEmpty ||
+        failures.isNotEmpty ||
+        mission.evidenceWaivedAt != null) {
+      throw const FormatException('直接结束任务不应有后续材料、放弃或失败事实');
+    }
+    return MissionPhase.closed;
+  }
+  final waivedAt = mission.evidenceWaivedAt;
+  if (waivedAt != null) {
+    if (mission.verificationPolicy != VerificationPolicy.optionalEvidence ||
+        !waivedAt.isUtc ||
+        waivedAt.isBefore(end.occurredAt) ||
+        evidence.isNotEmpty ||
+        failures.isNotEmpty) {
+      throw const FormatException('放弃材料事实与任务不一致');
+    }
+    return MissionPhase.closed;
+  }
+  final deadline = schedule.evidenceDeadlineAt;
+  if (mission.verificationPolicy == VerificationPolicy.requiredEvidence &&
+      deadline == null) {
+    throw const FormatException('强制材料任务缺少截止时间');
+  }
+  if (evidence.isNotEmpty) {
+    if (failures.isNotEmpty) throw const FormatException('已提交材料不能同时超时');
+    final first = evidence.first;
+    final ids = <String>{};
+    for (final item in evidence) {
+      validateEvidenceDraft(item, mission.id);
+      if (item.missionId != mission.id ||
+          !ids.add(item.id) ||
+          item.submissionId.trim().isEmpty ||
+          item.submissionId != first.submissionId ||
+          item.submittedAt != first.submittedAt ||
+          !item.submittedAt.isUtc ||
+          item.submittedAt.isBefore(end.occurredAt) ||
+          (deadline != null && !item.submittedAt.isBefore(deadline))) {
+        throw const FormatException('正式材料批次、所属任务或提交时间不一致');
+      }
+    }
+    return MissionPhase.closed;
+  }
+  if (failures.isNotEmpty) {
+    final expectedTime = deadline != null && deadline.isAfter(end.occurredAt)
+        ? deadline
+        : end.occurredAt;
+    if (mission.verificationPolicy != VerificationPolicy.requiredEvidence ||
+        failures.length != 1 ||
+        failures.single.trigger != 'EVIDENCE_DEADLINE_MISSED' ||
+        failures.single.missionId != mission.id ||
+        failures.single.occurredAt != expectedTime ||
+        failures.single.createdAt.isBefore(expectedTime)) {
+      throw const FormatException('材料超时事实与任务不一致');
+    }
+    return MissionPhase.closed;
+  }
+  return MissionPhase.evidencePending;
 }
 
 // 唯一的时间线推演核心；名称前的 _ 表示仅本规则库内部使用。

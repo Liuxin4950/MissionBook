@@ -63,35 +63,40 @@ Future<Map<String, List<Map<String, dynamic>>>> _readOldRows(
       for (final row in rows)
         Map<String, dynamic>.from(row.data)
           ..remove('source_mission_id')
-          ..remove('relation_type'),
+          ..remove('relation_type')
+          ..remove('evidence_waived_at'),
     ];
   }
   return result;
 }
 
 Future<void> _seedV1(_SnapshotV1Database old) async {
-  await old
-      .customStatement('INSERT INTO missions VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
-        'mission-a',
-        '阅读“第一章”',
-        '保留描述\n和换行',
-        '准备讨论',
-        'SELF_REPORT',
-        _time,
-        _time + 1,
-        null,
-      ]);
-  await old
-      .customStatement('INSERT INTO missions VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
-        'mission-b',
-        '已取消任务',
-        null,
-        null,
-        'REQUIRED_EVIDENCE',
-        _time,
-        _time + 2,
-        _time + 2,
-      ]);
+  await old.customStatement(
+    'INSERT INTO missions (id, title, description, why, verification_policy, created_at, updated_at, cancelled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [
+      'mission-a',
+      '阅读“第一章”',
+      '保留描述\n和换行',
+      '准备讨论',
+      'SELF_REPORT',
+      _time,
+      _time + 1,
+      null,
+    ],
+  );
+  await old.customStatement(
+    'INSERT INTO missions (id, title, description, why, verification_policy, created_at, updated_at, cancelled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [
+      'mission-b',
+      '已取消任务',
+      null,
+      null,
+      'REQUIRED_EVIDENCE',
+      _time,
+      _time + 2,
+      _time + 2,
+    ],
+  );
   for (final row in [
     [
       'schedule-a1',
@@ -190,7 +195,82 @@ void main() {
       await directory.delete(recursive: true);
     });
 
-    test('v3完整执行记录升级v4：事件、报告、失败原因保留，新增来源为空', () async {
+    test('v4真实来源与完整执行历史逐字段保留，v5只追加空放弃字段及材料表', () async {
+      const preservedTables = [
+        ..._oldTables,
+        'execution_events',
+        'failure_records',
+      ];
+      Future<Map<String, List<Map<String, dynamic>>>> snapshot(
+        GeneratedDatabase connection,
+      ) async {
+        final result = <String, List<Map<String, dynamic>>>{};
+        for (final table in preservedTables) {
+          result[table] = [
+            for (final row
+                in await connection
+                    .customSelect('SELECT * FROM $table ORDER BY id')
+                    .get())
+              Map<String, dynamic>.from(row.data)..remove('evidence_waived_at'),
+          ];
+        }
+        return result;
+      }
+
+      final old = _SnapshotV1Database(NativeDatabase(file), oldVersion: 4);
+      late Map<String, List<Map<String, dynamic>>> before;
+      try {
+        await _seedV1(old);
+        await old.customStatement(
+          "UPDATE missions SET source_mission_id = 'mission-b', relation_type = 'RETRY' WHERE id = 'mission-a'",
+        );
+        await old.customStatement(
+          "INSERT INTO execution_events (id, mission_id, sequence, type, occurred_at, schedule_revision_id) VALUES ('start-v4', 'mission-a', 1, 'START', ?, 'schedule-a2')",
+          [_time],
+        );
+        await old.customStatement(
+          "INSERT INTO execution_events (id, mission_id, sequence, type, occurred_at, user_reported_result) VALUES ('end-v4', 'mission-a', 2, 'END', ?, 'NOT_COMPLETED')",
+          [_time + 1000],
+        );
+        await old.customStatement(
+          'INSERT INTO failure_records (id, mission_id, "trigger", occurred_at, user_reason_category, user_reason_text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [
+            'failure-v4',
+            'mission-a',
+            'USER_MARKED_NOT_COMPLETED',
+            _time + 1000,
+            'OTHER',
+            'v4用户原因',
+            _time + 1000,
+          ],
+        );
+        before = await snapshot(old);
+        expect(await _version(old), 4);
+      } finally {
+        await old.close();
+      }
+      final upgraded = AppDatabase(executor: NativeDatabase(file));
+      try {
+        expect(await _version(upgraded), 5);
+        expect(await snapshot(upgraded), before);
+        expect(
+          (await upgraded.select(upgraded.missions).get()).every(
+            (mission) => mission.evidenceWaivedAt == null,
+          ),
+          isTrue,
+        );
+        expect(await upgraded.select(upgraded.evidenceRecords).get(), isEmpty);
+        await upgraded.validateDatabaseSchema();
+        expect(
+          await upgraded.customSelect('PRAGMA foreign_key_check').get(),
+          isEmpty,
+        );
+      } finally {
+        await upgraded.close();
+      }
+    });
+
+    test('v3完整执行记录升级v5：事件、报告、失败原因保留，新增材料事实为空', () async {
       final old = _SnapshotV1Database(NativeDatabase(file), oldVersion: 3);
       late Map<String, List<Map<String, dynamic>>> before;
       late List<Map<String, dynamic>> oldEvents;
@@ -237,7 +317,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 4);
+        expect(await _version(upgraded), 5);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -258,10 +338,14 @@ void main() {
         final missions = await upgraded.select(upgraded.missions).get();
         expect(
           missions.every(
-            (row) => row.sourceMissionId == null && row.relationType == null,
+            (row) =>
+                row.sourceMissionId == null &&
+                row.relationType == null &&
+                row.evidenceWaivedAt == null,
           ),
           isTrue,
         );
+        expect(await upgraded.select(upgraded.evidenceRecords).get(), isEmpty);
         await upgraded.validateDatabaseSchema();
         expect(
           await upgraded.customSelect('PRAGMA foreign_key_check').get(),
@@ -294,7 +378,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 4);
+        expect(await _version(upgraded), 5);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -323,7 +407,7 @@ void main() {
 
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 4);
+        expect(await _version(upgraded), 5);
         expect(await _readOldRows(upgraded), before);
         expect(await upgraded.select(upgraded.executionEvents).get(), isEmpty);
         await upgraded.validateDatabaseSchema();
@@ -361,7 +445,7 @@ void main() {
 
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 4);
+        expect(await _version(reopened), 5);
         expect(await _readOldRows(reopened), before);
         final event = await reopened
             .select(reopened.executionEvents)
@@ -393,7 +477,7 @@ void main() {
       }
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 4);
+        expect(await _version(reopened), 5);
         expect(await _readOldRows(reopened), before);
         await reopened.validateDatabaseSchema();
       } finally {
@@ -436,7 +520,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 4);
+        expect(await _version(retry), 5);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -479,9 +563,9 @@ void main() {
 
     tearDown(() async => database.close());
 
-    test('新装版本与四表/索引符合当前定义', () async {
-      expect(await _version(database), 4);
-      expect(database.allTables, hasLength(5));
+    test('新装版本与六表/索引符合当前定义', () async {
+      expect(await _version(database), 5);
+      expect(database.allTables, hasLength(6));
       await database.validateDatabaseSchema();
       expect(
         (await database.customSelect('PRAGMA foreign_keys').getSingle())

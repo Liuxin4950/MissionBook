@@ -432,10 +432,12 @@ class MissionInputLabel extends StatelessWidget {
     required this.label,
     required this.child,
     this.fieldSemantics = true,
+    this.isRequired = true,
   });
   final String label;
   final Widget child;
   final bool fieldSemantics;
+  final bool isRequired;
 
   @override
   Widget build(BuildContext context) {
@@ -446,7 +448,7 @@ class MissionInputLabel extends StatelessWidget {
       children: [
         ExcludeSemantics(
           child: Text(
-            '$label *',
+            isRequired ? '$label *' : label,
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ),

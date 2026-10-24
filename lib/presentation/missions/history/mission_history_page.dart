@@ -6,9 +6,12 @@ import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/rules/execution_time_rules.dart';
 import '../detail/mission_detail_page.dart';
 import '../shared/mission_execution_display.dart';
+import '../shared/mission_phase_display.dart';
+import '../evidence/mission_evidence_section.dart';
 
 /// 执行历史与取消记录分开读取。没有 END 的任务通过“当前任务”恢复执行。
 class MissionHistoryPage extends StatefulWidget {
@@ -24,6 +27,23 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
   StreamSubscription<void>? _changes;
   bool _cancelled = false;
   bool _opening = false;
+  List<MissionDetail>? _lastRecords;
+  final _evidenceKeys = <String, GlobalKey<MissionEvidenceSectionState>>{};
+
+  Future<void> _selectCancelled(bool value) async {
+    if (_cancelled == value) return;
+    for (final key in _evidenceKeys.values) {
+      if (!await (key.currentState?.prepareToLeave() ?? Future.value(true))) {
+        return;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _cancelled = value;
+      _lastRecords = null;
+      _records = _load();
+    });
+  }
 
   @override
   void initState() {
@@ -119,27 +139,13 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                       ChoiceChip(
                         label: const Text('执行记录'),
                         selected: !_cancelled,
-                        onSelected: (_) {
-                          if (_cancelled) {
-                            setState(() {
-                              _cancelled = false;
-                              _records = _load();
-                            });
-                          }
-                        },
+                        onSelected: (_) => unawaited(_selectCancelled(false)),
                       ),
                       ChoiceChip(
                         key: const Key('history-cancelled'),
                         label: const Text('已取消'),
                         selected: _cancelled,
-                        onSelected: (_) {
-                          if (!_cancelled) {
-                            setState(() {
-                              _cancelled = true;
-                              _records = _load();
-                            });
-                          }
-                        },
+                        onSelected: (_) => unawaited(_selectCancelled(true)),
                       ),
                     ],
                   ),
@@ -149,10 +155,12 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                 child: FutureBuilder<List<MissionDetail>>(
                   future: _records,
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState != ConnectionState.done) {
+                    if (snapshot.connectionState != ConnectionState.done &&
+                        !snapshot.hasData &&
+                        _lastRecords == null) {
                       return const Center(child: CircularProgressIndicator());
                     }
-                    if (snapshot.hasError) {
+                    if (snapshot.hasError && _lastRecords == null) {
                       return Center(
                         child: TextButton(
                           onPressed: _refresh,
@@ -160,7 +168,11 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                         ),
                       );
                     }
-                    final records = snapshot.data!;
+                    final records =
+                        snapshot.data ??
+                        _lastRecords ??
+                        const <MissionDetail>[];
+                    if (snapshot.hasData) _lastRecords = snapshot.data;
                     return RefreshIndicator(
                       onRefresh: () async {
                         _refresh();
@@ -179,15 +191,53 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                             ),
                           for (final detail in records)
                             Card(
-                              child: ListTile(
-                                title: Text(detail.mission.title),
-                                subtitle: Text(
-                                  _cancelled
-                                      ? '已取消 · ${missionLocalTime(detail.mission.cancelledAt!, detail.schedule.timeZone)}'
-                                      : '${detail.events.last.userReportedResult == UserReportedResult.completed ? '报告完成' : '报告未完成'} · 专注 ${focusDuration(calculateExecutionTimes(detail.events, detail.events.last.occurredAt).focus)}',
-                                ),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: () => _open(detail),
+                              key: ValueKey(
+                                'history-record-${detail.mission.id}',
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  ListTile(
+                                    title: Text(detail.mission.title),
+                                    subtitle: Text(
+                                      _cancelled
+                                          ? '已取消 · ${missionLocalTime(detail.mission.cancelledAt!, detail.schedule.timeZone)}'
+                                          : '${detail.events.last.userReportedResult == UserReportedResult.completed ? '报告完成' : '报告未完成'} · 专注 ${focusDuration(calculateExecutionTimes(detail.events, detail.events.last.occurredAt).focus)}${evidenceStatusLabel(detail).isEmpty ? '' : '\n${evidenceStatusLabel(detail)}'}',
+                                    ),
+                                    trailing: const Icon(Icons.chevron_right),
+                                    onTap: () => _open(detail),
+                                  ),
+                                  if (!_cancelled &&
+                                      (detail.phase ==
+                                              MissionPhase.evidencePending ||
+                                          detail.evidence.isNotEmpty ||
+                                          detail.failures.any(
+                                            (failure) =>
+                                                failure.trigger ==
+                                                'EVIDENCE_DEADLINE_MISSED',
+                                          )))
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        12,
+                                        0,
+                                        12,
+                                        12,
+                                      ),
+                                      child: MissionEvidenceSection(
+                                        key: _evidenceKeys.putIfAbsent(
+                                          detail.mission.id,
+                                          () =>
+                                              GlobalKey<
+                                                MissionEvidenceSectionState
+                                              >(),
+                                        ),
+                                        detail: detail,
+                                        service: widget.service,
+                                        protectNavigation: false,
+                                        onChanged: _refresh,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                         ],

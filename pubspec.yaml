@@ -47,6 +47,8 @@ dependencies:
   file_selector_platform_interface: 2.7.0
   file_selector_windows: 0.9.3+6
   path_provider: 2.1.6
+  # 浏览器图片使用自己的 OPFS 持久目录，不把附件只留在内存里。
+  web: 1.1.1
   flutter_local_notifications: ^22.3.0
   timezone: ^0.11.1
 

@@ -5,9 +5,19 @@ import '../entities/scheduled_mission.dart';
 import '../entities/mission_detail.dart';
 import '../entities/execution_command.dart';
 import '../entities/execution_event.dart';
+import '../entities/evidence.dart';
 
 /// 任务仓储接口：约定任务相关的数据访问能力。
 abstract interface class MissionRepository {
+  /// 稳定批次身份、事务重读、整批原子保存；已超时返回已提交的超时结果。
+  Future<EvidenceSubmissionResult> submitEvidence(
+    EvidenceSubmission submission,
+  );
+  Future<void> skipOptionalEvidence(String missionId);
+  Future<int> reconcileEvidenceDeadlines();
+  Future<List<MissionDetail>> findPendingEvidence();
+  Future<Set<String>> referencedAttachmentKeys();
+
   /// 固定身份的动作意图；取得写权限后重读、校验并原子追加必要事实。
   Future<ExecutionEvent> execute(ExecutionCommand command);
 
@@ -29,6 +39,8 @@ abstract interface class MissionRepository {
     required String title,
     required String objective,
     required MissionScheduleRevision schedule,
+    VerificationPolicy? verificationPolicy,
+    String? verificationCriteria,
   });
 
   /// 在写事务中重读任务并取消，只修改 cancelledAt 和 updatedAt。

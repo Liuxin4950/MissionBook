@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../application/missions/mission_service.dart';
-import '../../../domain/entities/mission.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_top_bar.dart';
@@ -16,6 +15,7 @@ import '../shared/mission_retry_button.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/execution_command.dart';
+import '../evidence/mission_evidence_section.dart';
 
 // 入口意图与任务阶段分开：同一已结束任务，从任务列表读详情，从历史读执行记录。
 enum _MissionPageEntry { task, executionDetails, historyRecord, recordDetails }
@@ -61,6 +61,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
     with WidgetsBindingObserver {
   // Future 是“这一次读取的结果”，不是数据库连接；可能得到详情、null 或错误。
   late Future<MissionDetail?> _detail;
+  MissionDetail? _lastDetail;
   bool _isConfirmingCancel = false;
   bool _isCancelling = false;
   bool _isEditing = false;
@@ -134,6 +135,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
       _isEditing = false;
       _cancelError = null;
       _executionDetail = null;
+      _lastDetail = null;
       _isExecuting = false;
       _resetAction();
       _redirecting = false;
@@ -364,32 +366,44 @@ class _MissionDetailPageState extends State<MissionDetailPage>
         body: SafeArea(
           top: false,
           child: FutureBuilder<MissionDetail?>(
+            key: ValueKey(
+              '${widget.missionId}-${identityHashCode(widget.missionService)}-${widget._entry.name}',
+            ),
             // 监听 _detail，读取完成后由框架重新调用这里。
             future: _detail,
             builder: (context, snapshot) {
               // FutureBuilder 监听 _detail，读取完成后由框架重新调用这里。
               // 等待时不显示上一次结果，避免重试或换任务时短暂展示旧数据。
-              if (snapshot.connectionState != ConnectionState.done) {
+              if (snapshot.connectionState != ConnectionState.done &&
+                  !snapshot.hasData &&
+                  _lastDetail == null) {
                 return const Center(
                   child: CircularProgressIndicator(semanticsLabel: '正在读取任务详情'),
                 );
               }
-              if (snapshot.hasError) {
+              final preserveMaterials =
+                  _lastDetail?.phase == MissionPhase.evidencePending ||
+                  _lastDetail?.evidence.isNotEmpty == true;
+              if (snapshot.hasError && !preserveMaterials) {
                 return _DetailMessage(message: '任务详情读取失败，请重试', onRetry: _retry);
               }
-              final detail = _executionDetail ?? snapshot.data;
+              final detail =
+                  _executionDetail ??
+                  snapshot.data ??
+                  (snapshot.connectionState != ConnectionState.done ||
+                          snapshot.hasError
+                      ? _lastDetail
+                      : null);
               if (detail == null) {
                 return const _DetailMessage(message: '未找到这个任务，请返回列表刷新');
               }
+              _lastDetail = detail;
               _openCurrentPage(detail);
               if (_redirecting) {
                 return const Center(child: CircularProgressIndicator());
               }
               final action = _actionsFor(detail);
               final notStarted = detail.phase == MissionPhase.notStarted;
-              final selfReport =
-                  detail.mission.verificationPolicy ==
-                  VerificationPolicy.selfReport;
               final disabled = _isCancelBusy || !action.canAct;
               Widget? auxiliaryAction;
               if (widget._entry == _MissionPageEntry.executionDetails &&
@@ -423,7 +437,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                   icon: const Icon(Icons.receipt_long_outlined),
                   label: const Text('查看执行记录', textAlign: TextAlign.center),
                 );
-              } else if (selfReport && detail.phase == MissionPhase.cancelled) {
+              } else if (detail.phase == MissionPhase.cancelled) {
                 auxiliaryAction = MissionRetryButton(
                   source: detail,
                   service: widget.missionService,
@@ -431,6 +445,14 @@ class _MissionDetailPageState extends State<MissionDetailPage>
               }
               return MissionDetailContent(
                 detail: detail,
+                materialSection: MissionEvidenceSection(
+                  key: ValueKey('detail-evidence-${detail.mission.id}'),
+                  detail: detail,
+                  service: widget.missionService,
+                  initiallyExpanded:
+                      detail.phase == MissionPhase.evidencePending,
+                  onChanged: _retry,
+                ),
                 actionFeedback: MissionActionFeedback(
                   controller: action,
                   onRetry: () => _submit(action.pending!),
@@ -453,15 +475,14 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                             spacing: 16,
                             runSpacing: 8,
                             children: [
-                              if (selfReport)
-                                TextButton.icon(
-                                  key: const Key('edit-mission'),
-                                  onPressed: disabled
-                                      ? null
-                                      : () => _requestEdit(detail),
-                                  icon: const Icon(Icons.edit_outlined),
-                                  label: const Text('修改任务'),
-                                ),
+                              TextButton.icon(
+                                key: const Key('edit-mission'),
+                                onPressed: disabled
+                                    ? null
+                                    : () => _requestEdit(detail),
+                                icon: const Icon(Icons.edit_outlined),
+                                label: const Text('修改任务'),
+                              ),
                               TextButton.icon(
                                 key: const Key('cancel-mission'),
                                 onPressed: disabled ? null : _requestCancel,
@@ -470,21 +491,20 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                               ),
                             ],
                           ),
-                          if (selfReport)
-                            FilledButton.icon(
-                              key: const Key('execution-start'),
-                              onPressed: disabled
-                                  ? null
-                                  : () => _submit(
-                                      action.prepare(ExecutionEventType.start),
-                                    ),
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size.fromHeight(52),
-                                shape: const StadiumBorder(),
-                              ),
-                              icon: const Icon(Icons.play_arrow_rounded),
-                              label: const Text('开始任务'),
+                          FilledButton.icon(
+                            key: const Key('execution-start'),
+                            onPressed: disabled
+                                ? null
+                                : () => _submit(
+                                    action.prepare(ExecutionEventType.start),
+                                  ),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(52),
+                              shape: const StadiumBorder(),
                             ),
+                            icon: const Icon(Icons.play_arrow_rounded),
+                            label: const Text('开始任务'),
+                          ),
                         ],
                       )
                     : auxiliaryAction,

@@ -6,11 +6,13 @@ import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../domain/entities/mission_schedule_revision.dart';
 import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/entities/mission.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import 'mission_schedule_fields.dart';
+import 'mission_evidence_fields.dart';
 
-/// 创建或编辑独立自报任务，共用输入布局、校验反馈和未保存保护。
+/// 创建、编辑或再次尝试任务，共用排期、材料要求及未保存输入保护。
 // Widget 描述页面配置；可变化的输入与资源交给下面的 State 管理。
 class MissionFormPage extends StatefulWidget {
   // required 要求打开本页的调用者提供业务对象；this 将参数存到同名属性。
@@ -82,6 +84,12 @@ class _MissionFormPageState extends State<MissionFormPage> {
   final _hourController = TextEditingController();
   final _minuteController = TextEditingController();
   TimePolicy _timePolicy = TimePolicy.flexible;
+  // 普通新任务允许自愿留材料；旧任务和再次尝试会在 initState 带入原策略。
+  VerificationPolicy _verificationPolicy = VerificationPolicy.optionalEvidence;
+  final _criteriaController = TextEditingController();
+  final _deadlineHourController = TextEditingController();
+  final _deadlineMinuteController = TextEditingController();
+  DateTime? _deadlineDate; // 只装年月日；保存时再按任务时区转为绝对时刻。
 
   // late 表示在 initState 中初始化；final 保留打开表单时的日期，供返回时比较。
   late final String _initialDateText;
@@ -121,6 +129,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
     );
     final seed = original ?? widget.retrySource;
     if (seed != null) {
+      _verificationPolicy = seed.mission.verificationPolicy;
+      _criteriaController.text = seed.executionPlan.verificationCriteria ?? '';
       _titleController.text = seed.mission.title;
       _objectiveController.text = seed.executionPlan.objective;
       _durationController.text = seed.schedule.plannedDurationMinutes
@@ -134,17 +144,38 @@ class _MissionFormPageState extends State<MissionFormPage> {
         _minuteController.text = local.minute.toString().padLeft(2, '0');
       }
     }
+    // 编辑保留原截止；再次尝试必须重新选截止，不复制已过去的日期。
+    final deadline = original?.schedule.evidenceDeadlineAt;
+    if (deadline != null) {
+      final local = tz.TZDateTime.from(deadline, tz.getLocation(_timeZone));
+      _deadlineDate = DateTime.utc(local.year, local.month, local.day);
+      _deadlineHourController.text = local.hour.toString().padLeft(2, '0');
+      _deadlineMinuteController.text = local.minute.toString().padLeft(2, '0');
+    } else if (_verificationPolicy == VerificationPolicy.requiredEvidence) {
+      // 再次尝试沿用材料要求，但截止随本次新排期计算，不复制旧任务的期限。
+      _setDefaultEvidenceDeadline();
+    }
     _initialTitle = _titleController.text;
     _initialObjective = _objectiveController.text;
     _initialDuration = _durationController.text;
     _initialPolicy = _timePolicy;
     _initialHour = _hourController.text;
     _initialMinute = _minuteController.text;
+    _initialVerificationPolicy = _verificationPolicy;
+    _initialCriteria = _criteriaController.text;
+    _initialDeadlineDate = _deadlineDate;
+    _initialDeadlineHour = _deadlineHourController.text;
+    _initialDeadlineMinute = _deadlineMinuteController.text;
   }
 
   late final String _initialTitle, _initialObjective, _initialDuration;
   late final String _initialHour, _initialMinute;
   late final TimePolicy _initialPolicy;
+  late final VerificationPolicy _initialVerificationPolicy;
+  late final String _initialCriteria,
+      _initialDeadlineHour,
+      _initialDeadlineMinute;
+  late final DateTime? _initialDeadlineDate;
 
   bool get _hasChanges =>
       _titleController.text != _initialTitle ||
@@ -153,7 +184,23 @@ class _MissionFormPageState extends State<MissionFormPage> {
       _dateText != _initialDateText ||
       _timePolicy != _initialPolicy ||
       _hourController.text != _initialHour ||
-      _minuteController.text != _initialMinute;
+      _minuteController.text != _initialMinute ||
+      _verificationPolicy != _initialVerificationPolicy ||
+      _criteriaController.text != _initialCriteria ||
+      _deadlineDate != _initialDeadlineDate ||
+      _deadlineHourController.text != _initialDeadlineHour ||
+      _deadlineMinuteController.text != _initialDeadlineMinute;
+
+  /// 默认给到排期日结束；这里只填写可见草稿，用户仍可改日期和钟面时间。
+  void _setDefaultEvidenceDeadline() {
+    _deadlineDate = DateTime.utc(
+      _scheduledDate.year,
+      _scheduledDate.month,
+      _scheduledDate.day + 1,
+    );
+    _deadlineHourController.text = '00';
+    _deadlineMinuteController.text = '00';
+  }
 
   @override
   void dispose() {
@@ -164,6 +211,9 @@ class _MissionFormPageState extends State<MissionFormPage> {
     _durationController.dispose();
     _hourController.dispose();
     _minuteController.dispose();
+    _criteriaController.dispose();
+    _deadlineHourController.dispose();
+    _deadlineMinuteController.dispose();
     super.dispose();
   }
 
@@ -232,6 +282,18 @@ class _MissionFormPageState extends State<MissionFormPage> {
       }
       // widget 保存页面配置，其中的业务对象由今天页传入。
       // 按本页模式选择创建或编辑；await 成功返回才代表事务已完成。
+      final evidenceDeadlineAt = _readEvidenceDeadline();
+      final criteria = _criteriaController.text.trim();
+      if (_verificationPolicy == VerificationPolicy.requiredEvidence &&
+          criteria.isEmpty) {
+        throw ArgumentError('请填写需要提交什么材料，便于之后核对');
+      }
+      // 切换策略保留页面草稿，但不把当前策略不适用的值写入任务。
+      final verificationCriteria =
+          _verificationPolicy == VerificationPolicy.selfReport ||
+              criteria.isEmpty
+          ? null
+          : criteria;
       final original = widget.original;
       if (original == null) {
         await widget.missionService.create(
@@ -243,6 +305,9 @@ class _MissionFormPageState extends State<MissionFormPage> {
           fixedStartAt: fixedStartAt,
           retrySource: widget.retrySource,
           objective: _isRetry ? _objectiveController.text : null,
+          verificationPolicy: _verificationPolicy,
+          verificationCriteria: verificationCriteria,
+          evidenceDeadlineAt: evidenceDeadlineAt,
         );
       } else {
         await widget.missionService.edit(
@@ -253,6 +318,9 @@ class _MissionFormPageState extends State<MissionFormPage> {
           plannedDurationMinutes: minutes,
           timePolicy: _timePolicy,
           fixedStartAt: fixedStartAt,
+          verificationPolicy: _verificationPolicy,
+          verificationCriteria: verificationCriteria,
+          evidenceDeadlineAt: evidenceDeadlineAt,
         );
       }
       if (!mounted) return;
@@ -289,6 +357,47 @@ class _MissionFormPageState extends State<MissionFormPage> {
         });
       }
     }
+  }
+
+  /// 将用户选中的截止日期、时分按排期时区解释；非强制策略不带出旧草稿。
+  DateTime? _readEvidenceDeadline() {
+    if (_verificationPolicy != VerificationPolicy.requiredEvidence) return null;
+    final date = _deadlineDate;
+    final hour = int.tryParse(_deadlineHourController.text);
+    final minute = int.tryParse(_deadlineMinuteController.text);
+    if (date == null) throw ArgumentError('请选择材料提交截止日期');
+    if (hour == null ||
+        minute == null ||
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59) {
+      throw ArgumentError('请填写有效的截止时间：小时 00–23，分钟 00–59');
+    }
+    final local = tz.TZDateTime(
+      tz.getLocation(_timeZone),
+      date.year,
+      date.month,
+      date.day,
+      hour,
+      minute,
+    );
+    // 夏令时不存在的钟面时间不能被静默顺延。
+    if (local.year != date.year ||
+        local.month != date.month ||
+        local.day != date.day ||
+        local.hour != hour ||
+        local.minute != minute) {
+      throw ArgumentError('所选截止时间在任务时区不存在，请重新填写');
+    }
+    final oldDeadline = widget.original?.schedule.evidenceDeadlineAt;
+    if (oldDeadline != null &&
+        _deadlineDate == _initialDeadlineDate &&
+        _deadlineHourController.text == _initialDeadlineHour &&
+        _deadlineMinuteController.text == _initialDeadlineMinute) {
+      return oldDeadline; // 未改截止时保留原秒/毫秒，避免无意新增排期版本。
+    }
+    return local.toUtc();
   }
 
   // 顶部返回与系统返回共用此方法。Future<void> 表示异步结束后不提供结果值。
@@ -366,59 +475,78 @@ class _MissionFormPageState extends State<MissionFormPage> {
               constraints: const BoxConstraints(
                 maxWidth: AppLayout.maxPageWidth,
               ),
-              child: ListView(
+              // 本页只有少量固定输入区，整体滚动保留所有输入组件。
+              // 展开日历或滚到材料设置后，标题等离屏字段仍保持同一编辑状态。
+              child: SingleChildScrollView(
                 padding: AppLayout.pagePadding(context),
-                children: [
-                  // 输入区只显示与收集草稿；保存、冲突检查和返回保护仍由本页负责。
-                  _MissionFormFields(
-                    titleController: _titleController,
-                    objectiveController: _objectiveController,
-                    enabled: _canEdit,
-                    showObjective: _isEditing || _isRetry,
-                    retrySourceTitle: widget.retrySource?.mission.title,
-                  ),
-                  MissionScheduleFields(
-                    selectedDate: _scheduledDate,
-                    dateText: _dateText,
-                    timePolicy: _timePolicy,
-                    timeZone: _timeZone,
-                    durationController: _durationController,
-                    hourController: _hourController,
-                    minuteController: _minuteController,
-                    enabled: _canEdit,
-                    onDateChanged: (date) => setState(() {
-                      _scheduledDate = date;
-                      _errorText = null;
-                    }),
-                    onTimePolicyChanged: (policy) => setState(() {
-                      _timePolicy = policy;
-                      _errorText = null;
-                    }),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Divider(height: 1),
-                  ),
-                  // 当前只接通自报；这里是静态信息，不画尚未实现的材料策略下拉按钮。
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '完成方式',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          '自报完成',
-                          textAlign: TextAlign.end,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 输入区只显示与收集草稿；保存、冲突检查和返回保护仍由本页负责。
+                    _MissionFormFields(
+                      titleController: _titleController,
+                      objectiveController: _objectiveController,
+                      enabled: _canEdit,
+                      showObjective: _isEditing || _isRetry,
+                      retrySourceTitle: widget.retrySource?.mission.title,
+                    ),
+                    MissionScheduleFields(
+                      selectedDate: _scheduledDate,
+                      dateText: _dateText,
+                      timePolicy: _timePolicy,
+                      timeZone: _timeZone,
+                      durationController: _durationController,
+                      hourController: _hourController,
+                      minuteController: _minuteController,
+                      enabled: _canEdit,
+                      onDateChanged: (date) => setState(() {
+                        final changed = date != _scheduledDate;
+                        _scheduledDate = date;
+                        if (changed &&
+                            _verificationPolicy ==
+                                VerificationPolicy.requiredEvidence) {
+                          // 改排期日时，按新日期重设并展示截止；保存后才形成新排期版本。
+                          _setDefaultEvidenceDeadline();
+                        }
+                        _errorText = null;
+                      }),
+                      onTimePolicyChanged: (policy) => setState(() {
+                        _timePolicy = policy;
+                        _errorText = null;
+                      }),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Divider(height: 1),
+                    ),
+                    MissionEvidenceFields(
+                      policy: _verificationPolicy,
+                      criteriaController: _criteriaController,
+                      deadlineDate: _deadlineDate,
+                      suggestedDate: _scheduledDate,
+                      hourController: _deadlineHourController,
+                      minuteController: _deadlineMinuteController,
+                      timeZone: _timeZone,
+                      enabled: _canEdit,
+                      onPolicyChanged: (policy) => setState(() {
+                        _verificationPolicy = policy;
+                        if (policy == VerificationPolicy.requiredEvidence &&
+                            _deadlineDate == null) {
+                          _setDefaultEvidenceDeadline();
+                        }
+                        _errorText = null;
+                      }),
+                      onDateChanged: (date) => setState(() {
+                        _deadlineDate = DateTime.utc(
+                          date.year,
+                          date.month,
+                          date.day,
+                        );
+                        _errorText = null;
+                      }),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

@@ -16,6 +16,7 @@ class MissionDetailContent extends StatelessWidget {
     required this.footer, // 页面决定当前允许显示哪些操作。
     required this.isCancelling, // 取消期间显示等待提示。
     this.cancelError, // 页面取消失败后的提示文字。
+    this.materialSection,
   });
 
   final MissionDetail detail;
@@ -23,6 +24,7 @@ class MissionDetailContent extends StatelessWidget {
   final Widget? footer;
   final bool isCancelling;
   final String? cancelError;
+  final Widget? materialSection;
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +142,10 @@ class MissionDetailContent extends StatelessWidget {
                             VerificationPolicy.selfReport ||
                         _hasText(plan.verificationCriteria))
                       _MaterialRequirementsCard(detail: detail),
+                    if (materialSection != null) ...[
+                      const SizedBox(height: 16),
+                      materialSection!,
+                    ],
                     if (_hasText(plan.notes)) ...[
                       const SizedBox(height: AppLayout.sectionGap),
                       _DetailSection(title: '补充说明', child: Text(plan.notes!)),

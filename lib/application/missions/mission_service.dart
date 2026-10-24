@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -11,6 +12,9 @@ import '../../domain/entities/scheduled_mission.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/execution_command.dart';
 import '../../domain/entities/execution_event.dart';
+import '../../domain/entities/evidence.dart';
+import '../../domain/rules/evidence_rules.dart';
+import '../evidence/evidence_image_service.dart';
 
 /// 任务的应用业务入口：组织创建、查询、编辑、取消和执行。
 ///
@@ -18,13 +22,19 @@ import '../../domain/entities/execution_event.dart';
 /// 本类负责输入检查与业务对象组织；SQL、行转换和事务保存仍由仓储完成。
 class MissionService {
   // 调用者传入仓储对象，保存到下面的 repository 属性。
-  MissionService(this.repository) {
+  MissionService(this.repository, {EvidenceImageService? images})
+    : _images = images {
     // 创建共享服务时准备时区资料，多个业务方法共用。
     tzdata.initializeTimeZones();
   }
 
   // 只依赖仓储接口；这里不需要知道 Companion 或数据库表。
   final MissionRepository repository;
+  final EvidenceImageService? _images;
+  Future<void>? _imageInitialization;
+  final _preparedImageKeys = <String>{}; // 当前会话准备的副本，删除草稿不能删正式引用。
+  EvidenceImageService get _imageService =>
+      _images ?? (throw StateError('当前环境未配置图片存储，请重新打开应用'));
 
   // 创建一个编号生成器，后面用 v4() 生成唯一编号。
   final Uuid uuid = const Uuid();
@@ -58,6 +68,7 @@ class MissionService {
     UserReportedResult? report,
     String? userReasonCategory,
     String? userReasonText,
+    bool? submitOptionalEvidence,
   }) {
     return ExecutionCommand(
       id: uuid.v4(),
@@ -74,6 +85,7 @@ class MissionService {
       userReportedResult: report,
       userReasonCategory: userReasonCategory,
       userReasonText: userReasonText,
+      submitOptionalEvidence: submitOptionalEvidence,
     );
   }
 
@@ -87,11 +99,129 @@ class MissionService {
   }
 
   Future<List<MissionDetail>> findActive() => repository.findActive();
-  Future<List<MissionDetail>> findFinished() => repository.findFinished();
+  Future<List<MissionDetail>> findFinished() async {
+    await reconcileEvidenceDeadlines();
+    return repository.findFinished();
+  }
+
   Future<List<MissionDetail>> findCancelled() => repository.findCancelled();
 
-  /// 编辑当前已接通的独立自报任务；原快照用于事务内的冲突检查。
-  /// 页面只提供可编辑值，不能改任务身份、验证策略或已有执行事实。
+  /// 查询前/恢复前台补算，不在纯阶段函数或 Focus 重绘中写事实。
+  Future<int> reconcileEvidenceDeadlines() async {
+    final count = await repository.reconcileEvidenceDeadlines();
+    if (count > 0) _notify();
+    return count;
+  }
+
+  Future<List<MissionDetail>> findPendingEvidence() async {
+    await reconcileEvidenceDeadlines();
+    return repository.findPendingEvidence();
+  }
+
+  EvidenceDraft createTextEvidence(String content) => EvidenceDraft(
+    id: uuid.v4(),
+    type: EvidenceType.text,
+    source: EvidenceSource.user,
+    content: content,
+  );
+
+  Future<void> _initializeImages() async {
+    try {
+      // 缓存正在进行的恢复工作；并发点击也会等它完成，之后才允许创建新草稿。
+      await (_imageInitialization ??= () async {
+        final referenced = await repository.referencedAttachmentKeys();
+        await _imageService.removeUnreferenced(referenced);
+      }());
+    } catch (_) {
+      _imageInitialization = null; // 首次失败允许用户重试，不永久缓存失败 Future。
+      rethrow;
+    }
+  }
+
+  /// 编辑区显示时提前准备，系统选择按钮就绪后可直接保留浏览器用户激活。
+  Future<void> initializeEvidenceImages() => _initializeImages();
+
+  Future<EvidenceDraft?> pickEvidenceImage(String missionId) async {
+    await _initializeImages();
+    final prepared = await _imageService.pickAndPrepare(missionId);
+    if (prepared == null) return null;
+    _preparedImageKeys.add(prepared.storageKey);
+    return EvidenceDraft(
+      id: uuid.v4(),
+      type: EvidenceType.image,
+      source: EvidenceSource.fileSystem,
+      attachmentStorageKey: prepared.storageKey,
+      attachmentFileName: prepared.fileName,
+      attachmentMimeType: prepared.mimeType,
+    );
+  }
+
+  Future<Uint8List> readEvidenceImage(String storageKey) =>
+      _imageService.read(storageKey);
+
+  Future<void> discardEvidenceDrafts(List<EvidenceDraft> items) async {
+    final referenced = await repository.referencedAttachmentKeys();
+    for (final item in items) {
+      final key = item.attachmentStorageKey;
+      if (key != null &&
+          _preparedImageKeys.contains(key) &&
+          !referenced.contains(key)) {
+        await _imageService.delete(key);
+        _preparedImageKeys.remove(key);
+      }
+    }
+  }
+
+  EvidenceSubmission prepareEvidenceSubmission({
+    required MissionDetail detail,
+    required List<EvidenceDraft> items,
+  }) {
+    if (items.isEmpty) throw ArgumentError('请至少添加一份文本或图片');
+    for (final item in items) {
+      validateEvidenceDraft(item, detail.mission.id);
+    }
+    return EvidenceSubmission(
+      id: uuid.v4(),
+      missionId: detail.mission.id,
+      items: items,
+    );
+  }
+
+  Future<EvidenceSubmissionResult> submitEvidence(
+    EvidenceSubmission submission,
+  ) async {
+    // 文件校验在事务前完成，SQLite 不等待系统选择器或复制文件。
+    // 已保存批次重试交给仓储认原身份，缺失附件由材料阅读明确提示。
+    final current = await repository.findDetail(submission.missionId);
+    final alreadySaved =
+        current?.evidence.any((item) => item.submissionId == submission.id) ??
+        false;
+    if (!alreadySaved) {
+      for (final item in submission.items) {
+        validateEvidenceDraft(item, submission.missionId);
+        if (item.type == EvidenceType.image) {
+          await _imageService.read(item.attachmentStorageKey!);
+        }
+      }
+    }
+    final result = await repository.submitEvidence(submission);
+    if (result == EvidenceSubmissionResult.submitted) {
+      for (final item in submission.items) {
+        _preparedImageKeys.remove(item.attachmentStorageKey);
+      }
+    }
+    _notify();
+    return result;
+  }
+
+  Future<void> skipOptionalEvidence(String missionId) async {
+    await repository.skipOptionalEvidence(missionId);
+    _notify();
+  }
+
+  /// 开始前编辑任务、材料要求和排期；原快照用于事务内的冲突检查。
+  /// 页面只提供可编辑值，任务身份和已经发生的执行事实不能修改。
+  /// 旧入口省略 verificationPolicy 时保留原材料配置；新表单传完整配置，空说明表示清空。
   Future<void> edit({
     required MissionDetail original,
     required String title,
@@ -100,6 +230,9 @@ class MissionService {
     required int plannedDurationMinutes,
     required TimePolicy timePolicy,
     DateTime? fixedStartAt,
+    VerificationPolicy? verificationPolicy,
+    String? verificationCriteria,
+    DateTime? evidenceDeadlineAt,
   }) async {
     final cleanTitle = title.trim();
     final cleanObjective = objective.trim();
@@ -108,9 +241,6 @@ class MissionService {
     }
     if (cleanObjective.isEmpty) {
       throw ArgumentError('具体目标不能为空');
-    }
-    if (original.mission.verificationPolicy != VerificationPolicy.selfReport) {
-      throw ArgumentError('当前仅支持编辑自报任务');
     }
     _validateSchedule(
       scheduledDate: scheduledDate,
@@ -129,6 +259,9 @@ class MissionService {
       plannedDurationMinutes: plannedDurationMinutes,
       timePolicy: timePolicy,
       fixedStartAt: fixedStartAt?.toUtc(),
+      evidenceDeadlineAt: verificationPolicy == null
+          ? original.schedule.evidenceDeadlineAt
+          : evidenceDeadlineAt?.toUtc(),
       changedAt: DateTime.now().toUtc(),
     );
     await repository.edit(
@@ -136,6 +269,8 @@ class MissionService {
       title: cleanTitle,
       objective: cleanObjective,
       schedule: proposedSchedule,
+      verificationPolicy: verificationPolicy,
+      verificationCriteria: _clean(verificationCriteria),
     );
     _notify();
   }
@@ -184,7 +319,7 @@ class MissionService {
     _notify();
   }
 
-  /// 创建独立、自报任务；默认自选时间，也可指定固定开始时刻。
+  /// 创建独立任务；界面显式传入材料策略，旧调用保留自报默认值。
   ///
   /// fixedStartAt 表达绝对时刻，保存前统一转 UTC；固定策略必须提供，
   /// 且在 timeZone 内属于 scheduledDate，自选策略则必须为空。
@@ -199,6 +334,9 @@ class MissionService {
     DateTime? fixedStartAt,
     MissionDetail? retrySource,
     String? objective,
+    VerificationPolicy verificationPolicy = VerificationPolicy.selfReport,
+    String? verificationCriteria,
+    DateTime? evidenceDeadlineAt,
   }) async {
     // trim 去掉标题首尾空白；全是空格也算没填写。
     final cleanTitle = title.trim();
@@ -208,11 +346,6 @@ class MissionService {
       throw ArgumentError('任务标题不能为空');
     }
     if (cleanObjective.isEmpty) throw ArgumentError('具体目标不能为空');
-    if (retrySource != null &&
-        retrySource.mission.verificationPolicy !=
-            VerificationPolicy.selfReport) {
-      throw ArgumentError('当前只支持再次尝试自报任务');
-    }
 
     _validateSchedule(
       scheduledDate: scheduledDate,
@@ -234,7 +367,7 @@ class MissionService {
       why: retrySource?.mission.why,
       sourceMissionId: retrySource?.mission.id,
       relationType: retrySource == null ? null : MissionRelationType.retry,
-      verificationPolicy: VerificationPolicy.selfReport,
+      verificationPolicy: verificationPolicy,
       createdAt: now,
       updatedAt: now,
     );
@@ -247,6 +380,7 @@ class MissionService {
       timeZone: timeZone,
       timePolicy: timePolicy,
       fixedStartAt: fixedStartAt?.toUtc(),
+      evidenceDeadlineAt: evidenceDeadlineAt?.toUtc(),
       plannedDurationMinutes: plannedDurationMinutes,
       changedAt: now,
     );
@@ -256,7 +390,9 @@ class MissionService {
       missionId: missionId,
       objective: cleanObjective, // 普通创建默认标题；再次尝试允许调整具体目标。
       steps: retrySource?.executionPlan.steps ?? const [],
-      verificationCriteria: retrySource?.executionPlan.verificationCriteria,
+      verificationCriteria:
+          _clean(verificationCriteria) ??
+          retrySource?.executionPlan.verificationCriteria,
       notes: retrySource?.executionPlan.notes,
       createdAt: now,
       updatedAt: now,
@@ -264,6 +400,11 @@ class MissionService {
 
     // 三个业务对象准备完毕，交给已有仓储。
     // await 等待仓储的整个事务完成；保存失败会把异常传回调用者。
+    validateEvidenceRequirement(
+      policy: verificationPolicy,
+      criteria: plan.verificationCriteria,
+      schedule: schedule,
+    );
     await repository.create(
       mission: mission,
       initialSchedule: schedule,
@@ -281,6 +422,7 @@ class MissionService {
   }) async {
     validateScheduledDate(scheduledDate);
     // 这里只约束输入；读表和存储类型转换由真实仓储负责。
+    await reconcileEvidenceDeadlines();
     final missions = await repository.findScheduledOn(scheduledDate);
     return missions;
   }
@@ -294,6 +436,7 @@ class MissionService {
     }
 
     // await 等仓储读完，再把完整结果交回详情页；这里不创建或修改任务。
+    await reconcileEvidenceDeadlines();
     final detail = await repository.findDetail(missionId);
     if (detail != null) {
       // 页面需要按此时区换算时刻。无效时区在 Future 中报错，走页面的重试状态，
@@ -301,5 +444,10 @@ class MissionService {
       tz.getLocation(detail.schedule.timeZone);
     }
     return detail;
+  }
+
+  String? _clean(String? value) {
+    final text = value?.trim();
+    return text == null || text.isEmpty ? null : text;
   }
 }

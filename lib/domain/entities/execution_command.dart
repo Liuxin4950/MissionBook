@@ -12,6 +12,7 @@ class ExecutionCommand {
     this.grantedDurationMinutes,
     this.reason,
     this.userReportedResult,
+    this.submitOptionalEvidence,
     this.userReasonCategory,
     this.userReasonText,
   });
@@ -24,6 +25,7 @@ class ExecutionCommand {
   final int? grantedDurationMinutes;
   final String? reason;
   final UserReportedResult? userReportedResult;
+  final bool? submitOptionalEvidence; // 仅可选材料且报告完成时，明确选择交或不交。
   // 未完成的用户原因保存在 FailureRecord，不混进 END.reason。
   final String? userReasonCategory;
   final String? userReasonText;
