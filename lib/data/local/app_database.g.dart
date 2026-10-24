@@ -3,12 +3,1073 @@
 part of 'app_database.dart';
 
 // ignore_for_file: type=lint
+class $GoalsTable extends Goals with TableInfo<$GoalsTable, GoalRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GoalsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (length(trim(title)) > 0)',
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _whyMeta = const VerificationMeta('why');
+  @override
+  late final GeneratedColumn<String> why = GeneratedColumn<String>(
+    'why',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('ACTIVE'),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    title,
+    description,
+    why,
+    status,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'goals';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GoalRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('why')) {
+      context.handle(
+        _whyMeta,
+        why.isAcceptableOrUnknown(data['why']!, _whyMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GoalRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GoalRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      why: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}why'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $GoalsTable createAlias(String alias) {
+    return $GoalsTable(attachedDatabase, alias);
+  }
+}
+
+class GoalRow extends DataClass implements Insertable<GoalRow> {
+  final String id;
+  final String title;
+  final String? description;
+  final String? why;
+  final String status;
+  final int createdAt;
+  final int updatedAt;
+  const GoalRow({
+    required this.id,
+    required this.title,
+    this.description,
+    this.why,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    if (!nullToAbsent || why != null) {
+      map['why'] = Variable<String>(why);
+    }
+    map['status'] = Variable<String>(status);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  GoalsCompanion toCompanion(bool nullToAbsent) {
+    return GoalsCompanion(
+      id: Value(id),
+      title: Value(title),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      why: why == null && nullToAbsent ? const Value.absent() : Value(why),
+      status: Value(status),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory GoalRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GoalRow(
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      description: serializer.fromJson<String?>(json['description']),
+      why: serializer.fromJson<String?>(json['why']),
+      status: serializer.fromJson<String>(json['status']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'description': serializer.toJson<String?>(description),
+      'why': serializer.toJson<String?>(why),
+      'status': serializer.toJson<String>(status),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  GoalRow copyWith({
+    String? id,
+    String? title,
+    Value<String?> description = const Value.absent(),
+    Value<String?> why = const Value.absent(),
+    String? status,
+    int? createdAt,
+    int? updatedAt,
+  }) => GoalRow(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    description: description.present ? description.value : this.description,
+    why: why.present ? why.value : this.why,
+    status: status ?? this.status,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  GoalRow copyWithCompanion(GoalsCompanion data) {
+    return GoalRow(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      why: data.why.present ? data.why.value : this.why,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GoalRow(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('why: $why, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, title, description, why, status, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GoalRow &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.description == this.description &&
+          other.why == this.why &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class GoalsCompanion extends UpdateCompanion<GoalRow> {
+  final Value<String> id;
+  final Value<String> title;
+  final Value<String?> description;
+  final Value<String?> why;
+  final Value<String> status;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const GoalsCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.why = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GoalsCompanion.insert({
+    required String id,
+    required String title,
+    this.description = const Value.absent(),
+    this.why = const Value.absent(),
+    this.status = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       title = Value(title),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<GoalRow> custom({
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<String>? description,
+    Expression<String>? why,
+    Expression<String>? status,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (why != null) 'why': why,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GoalsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? title,
+    Value<String?>? description,
+    Value<String?>? why,
+    Value<String>? status,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return GoalsCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      why: why ?? this.why,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (why.present) {
+      map['why'] = Variable<String>(why.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GoalsCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('why: $why, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GoalNodesTable extends GoalNodes
+    with TableInfo<$GoalNodesTable, GoalNodeRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GoalNodesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _goalIdMeta = const VerificationMeta('goalId');
+  @override
+  late final GeneratedColumn<String> goalId = GeneratedColumn<String>(
+    'goal_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES goals (id)',
+    ),
+  );
+  static const VerificationMeta _parentNodeIdMeta = const VerificationMeta(
+    'parentNodeId',
+  );
+  @override
+  late final GeneratedColumn<String> parentNodeId = GeneratedColumn<String>(
+    'parent_node_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (length(trim(title)) > 0)',
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _orderIndexMeta = const VerificationMeta(
+    'orderIndex',
+  );
+  @override
+  late final GeneratedColumn<int> orderIndex = GeneratedColumn<int>(
+    'order_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    $customConstraints: 'NOT NULL CHECK (order_index >= 0)',
+  );
+  static const VerificationMeta _archivedAtMeta = const VerificationMeta(
+    'archivedAt',
+  );
+  @override
+  late final GeneratedColumn<int> archivedAt = GeneratedColumn<int>(
+    'archived_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    goalId,
+    parentNodeId,
+    title,
+    description,
+    orderIndex,
+    archivedAt,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'goal_nodes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<GoalNodeRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('goal_id')) {
+      context.handle(
+        _goalIdMeta,
+        goalId.isAcceptableOrUnknown(data['goal_id']!, _goalIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_goalIdMeta);
+    }
+    if (data.containsKey('parent_node_id')) {
+      context.handle(
+        _parentNodeIdMeta,
+        parentNodeId.isAcceptableOrUnknown(
+          data['parent_node_id']!,
+          _parentNodeIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('order_index')) {
+      context.handle(
+        _orderIndexMeta,
+        orderIndex.isAcceptableOrUnknown(data['order_index']!, _orderIndexMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_orderIndexMeta);
+    }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+        _archivedAtMeta,
+        archivedAt.isAcceptableOrUnknown(data['archived_at']!, _archivedAtMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GoalNodeRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GoalNodeRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      goalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}goal_id'],
+      )!,
+      parentNodeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_node_id'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      orderIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}order_index'],
+      )!,
+      archivedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}archived_at'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $GoalNodesTable createAlias(String alias) {
+    return $GoalNodesTable(attachedDatabase, alias);
+  }
+}
+
+class GoalNodeRow extends DataClass implements Insertable<GoalNodeRow> {
+  final String id;
+  final String goalId;
+  final String? parentNodeId;
+  final String title;
+  final String? description;
+  final int orderIndex;
+  final int? archivedAt;
+  final int createdAt;
+  final int updatedAt;
+  const GoalNodeRow({
+    required this.id,
+    required this.goalId,
+    this.parentNodeId,
+    required this.title,
+    this.description,
+    required this.orderIndex,
+    this.archivedAt,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['goal_id'] = Variable<String>(goalId);
+    if (!nullToAbsent || parentNodeId != null) {
+      map['parent_node_id'] = Variable<String>(parentNodeId);
+    }
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    map['order_index'] = Variable<int>(orderIndex);
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<int>(archivedAt);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  GoalNodesCompanion toCompanion(bool nullToAbsent) {
+    return GoalNodesCompanion(
+      id: Value(id),
+      goalId: Value(goalId),
+      parentNodeId: parentNodeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentNodeId),
+      title: Value(title),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      orderIndex: Value(orderIndex),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory GoalNodeRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GoalNodeRow(
+      id: serializer.fromJson<String>(json['id']),
+      goalId: serializer.fromJson<String>(json['goalId']),
+      parentNodeId: serializer.fromJson<String?>(json['parentNodeId']),
+      title: serializer.fromJson<String>(json['title']),
+      description: serializer.fromJson<String?>(json['description']),
+      orderIndex: serializer.fromJson<int>(json['orderIndex']),
+      archivedAt: serializer.fromJson<int?>(json['archivedAt']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'goalId': serializer.toJson<String>(goalId),
+      'parentNodeId': serializer.toJson<String?>(parentNodeId),
+      'title': serializer.toJson<String>(title),
+      'description': serializer.toJson<String?>(description),
+      'orderIndex': serializer.toJson<int>(orderIndex),
+      'archivedAt': serializer.toJson<int?>(archivedAt),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  GoalNodeRow copyWith({
+    String? id,
+    String? goalId,
+    Value<String?> parentNodeId = const Value.absent(),
+    String? title,
+    Value<String?> description = const Value.absent(),
+    int? orderIndex,
+    Value<int?> archivedAt = const Value.absent(),
+    int? createdAt,
+    int? updatedAt,
+  }) => GoalNodeRow(
+    id: id ?? this.id,
+    goalId: goalId ?? this.goalId,
+    parentNodeId: parentNodeId.present ? parentNodeId.value : this.parentNodeId,
+    title: title ?? this.title,
+    description: description.present ? description.value : this.description,
+    orderIndex: orderIndex ?? this.orderIndex,
+    archivedAt: archivedAt.present ? archivedAt.value : this.archivedAt,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  GoalNodeRow copyWithCompanion(GoalNodesCompanion data) {
+    return GoalNodeRow(
+      id: data.id.present ? data.id.value : this.id,
+      goalId: data.goalId.present ? data.goalId.value : this.goalId,
+      parentNodeId: data.parentNodeId.present
+          ? data.parentNodeId.value
+          : this.parentNodeId,
+      title: data.title.present ? data.title.value : this.title,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      orderIndex: data.orderIndex.present
+          ? data.orderIndex.value
+          : this.orderIndex,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GoalNodeRow(')
+          ..write('id: $id, ')
+          ..write('goalId: $goalId, ')
+          ..write('parentNodeId: $parentNodeId, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('orderIndex: $orderIndex, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    goalId,
+    parentNodeId,
+    title,
+    description,
+    orderIndex,
+    archivedAt,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GoalNodeRow &&
+          other.id == this.id &&
+          other.goalId == this.goalId &&
+          other.parentNodeId == this.parentNodeId &&
+          other.title == this.title &&
+          other.description == this.description &&
+          other.orderIndex == this.orderIndex &&
+          other.archivedAt == this.archivedAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class GoalNodesCompanion extends UpdateCompanion<GoalNodeRow> {
+  final Value<String> id;
+  final Value<String> goalId;
+  final Value<String?> parentNodeId;
+  final Value<String> title;
+  final Value<String?> description;
+  final Value<int> orderIndex;
+  final Value<int?> archivedAt;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const GoalNodesCompanion({
+    this.id = const Value.absent(),
+    this.goalId = const Value.absent(),
+    this.parentNodeId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.orderIndex = const Value.absent(),
+    this.archivedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GoalNodesCompanion.insert({
+    required String id,
+    required String goalId,
+    this.parentNodeId = const Value.absent(),
+    required String title,
+    this.description = const Value.absent(),
+    required int orderIndex,
+    this.archivedAt = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       goalId = Value(goalId),
+       title = Value(title),
+       orderIndex = Value(orderIndex),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<GoalNodeRow> custom({
+    Expression<String>? id,
+    Expression<String>? goalId,
+    Expression<String>? parentNodeId,
+    Expression<String>? title,
+    Expression<String>? description,
+    Expression<int>? orderIndex,
+    Expression<int>? archivedAt,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (goalId != null) 'goal_id': goalId,
+      if (parentNodeId != null) 'parent_node_id': parentNodeId,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (orderIndex != null) 'order_index': orderIndex,
+      if (archivedAt != null) 'archived_at': archivedAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GoalNodesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? goalId,
+    Value<String?>? parentNodeId,
+    Value<String>? title,
+    Value<String?>? description,
+    Value<int>? orderIndex,
+    Value<int?>? archivedAt,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return GoalNodesCompanion(
+      id: id ?? this.id,
+      goalId: goalId ?? this.goalId,
+      parentNodeId: parentNodeId ?? this.parentNodeId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      orderIndex: orderIndex ?? this.orderIndex,
+      archivedAt: archivedAt ?? this.archivedAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (goalId.present) {
+      map['goal_id'] = Variable<String>(goalId.value);
+    }
+    if (parentNodeId.present) {
+      map['parent_node_id'] = Variable<String>(parentNodeId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (orderIndex.present) {
+      map['order_index'] = Variable<int>(orderIndex.value);
+    }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<int>(archivedAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GoalNodesCompanion(')
+          ..write('id: $id, ')
+          ..write('goalId: $goalId, ')
+          ..write('parentNodeId: $parentNodeId, ')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('orderIndex: $orderIndex, ')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $MissionsTable extends Missions
     with TableInfo<$MissionsTable, MissionRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $MissionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _goalIdMeta = const VerificationMeta('goalId');
+  @override
+  late final GeneratedColumn<String> goalId = GeneratedColumn<String>(
+    'goal_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES goals (id)',
+    ),
+  );
+  static const VerificationMeta _goalNodeIdMeta = const VerificationMeta(
+    'goalNodeId',
+  );
+  @override
+  late final GeneratedColumn<String> goalNodeId = GeneratedColumn<String>(
+    'goal_node_id',
+    aliasedName,
+    true,
+    check: () => const CustomExpression<bool>(
+      'goal_node_id IS NULL OR goal_id IS NOT NULL',
+    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES goal_nodes (id)',
+    ),
+  );
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
@@ -132,6 +1193,8 @@ class $MissionsTable extends Missions
   );
   @override
   List<GeneratedColumn> get $columns => [
+    goalId,
+    goalNodeId,
     id,
     title,
     description,
@@ -156,6 +1219,21 @@ class $MissionsTable extends Missions
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
+    if (data.containsKey('goal_id')) {
+      context.handle(
+        _goalIdMeta,
+        goalId.isAcceptableOrUnknown(data['goal_id']!, _goalIdMeta),
+      );
+    }
+    if (data.containsKey('goal_node_id')) {
+      context.handle(
+        _goalNodeIdMeta,
+        goalNodeId.isAcceptableOrUnknown(
+          data['goal_node_id']!,
+          _goalNodeIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
@@ -254,6 +1332,14 @@ class $MissionsTable extends Missions
   MissionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return MissionRow(
+      goalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}goal_id'],
+      ),
+      goalNodeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}goal_node_id'],
+      ),
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}id'],
@@ -308,6 +1394,8 @@ class $MissionsTable extends Missions
 }
 
 class MissionRow extends DataClass implements Insertable<MissionRow> {
+  final String? goalId;
+  final String? goalNodeId;
   final String id;
   final String title;
   final String? description;
@@ -320,6 +1408,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
   final String? sourceMissionId;
   final String? relationType;
   const MissionRow({
+    this.goalId,
+    this.goalNodeId,
     required this.id,
     required this.title,
     this.description,
@@ -335,6 +1425,12 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    if (!nullToAbsent || goalId != null) {
+      map['goal_id'] = Variable<String>(goalId);
+    }
+    if (!nullToAbsent || goalNodeId != null) {
+      map['goal_node_id'] = Variable<String>(goalNodeId);
+    }
     map['id'] = Variable<String>(id);
     map['title'] = Variable<String>(title);
     if (!nullToAbsent || description != null) {
@@ -363,6 +1459,12 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
 
   MissionsCompanion toCompanion(bool nullToAbsent) {
     return MissionsCompanion(
+      goalId: goalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(goalId),
+      goalNodeId: goalNodeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(goalNodeId),
       id: Value(id),
       title: Value(title),
       description: description == null && nullToAbsent
@@ -393,6 +1495,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return MissionRow(
+      goalId: serializer.fromJson<String?>(json['goalId']),
+      goalNodeId: serializer.fromJson<String?>(json['goalNodeId']),
       id: serializer.fromJson<String>(json['id']),
       title: serializer.fromJson<String>(json['title']),
       description: serializer.fromJson<String?>(json['description']),
@@ -412,6 +1516,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
+      'goalId': serializer.toJson<String?>(goalId),
+      'goalNodeId': serializer.toJson<String?>(goalNodeId),
       'id': serializer.toJson<String>(id),
       'title': serializer.toJson<String>(title),
       'description': serializer.toJson<String?>(description),
@@ -427,6 +1533,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
   }
 
   MissionRow copyWith({
+    Value<String?> goalId = const Value.absent(),
+    Value<String?> goalNodeId = const Value.absent(),
     String? id,
     String? title,
     Value<String?> description = const Value.absent(),
@@ -439,6 +1547,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     Value<String?> sourceMissionId = const Value.absent(),
     Value<String?> relationType = const Value.absent(),
   }) => MissionRow(
+    goalId: goalId.present ? goalId.value : this.goalId,
+    goalNodeId: goalNodeId.present ? goalNodeId.value : this.goalNodeId,
     id: id ?? this.id,
     title: title ?? this.title,
     description: description.present ? description.value : this.description,
@@ -457,6 +1567,10 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
   );
   MissionRow copyWithCompanion(MissionsCompanion data) {
     return MissionRow(
+      goalId: data.goalId.present ? data.goalId.value : this.goalId,
+      goalNodeId: data.goalNodeId.present
+          ? data.goalNodeId.value
+          : this.goalNodeId,
       id: data.id.present ? data.id.value : this.id,
       title: data.title.present ? data.title.value : this.title,
       description: data.description.present
@@ -486,6 +1600,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
   @override
   String toString() {
     return (StringBuffer('MissionRow(')
+          ..write('goalId: $goalId, ')
+          ..write('goalNodeId: $goalNodeId, ')
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('description: $description, ')
@@ -503,6 +1619,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
 
   @override
   int get hashCode => Object.hash(
+    goalId,
+    goalNodeId,
     id,
     title,
     description,
@@ -519,6 +1637,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is MissionRow &&
+          other.goalId == this.goalId &&
+          other.goalNodeId == this.goalNodeId &&
           other.id == this.id &&
           other.title == this.title &&
           other.description == this.description &&
@@ -533,6 +1653,8 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
 }
 
 class MissionsCompanion extends UpdateCompanion<MissionRow> {
+  final Value<String?> goalId;
+  final Value<String?> goalNodeId;
   final Value<String> id;
   final Value<String> title;
   final Value<String?> description;
@@ -546,6 +1668,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
   final Value<String?> relationType;
   final Value<int> rowid;
   const MissionsCompanion({
+    this.goalId = const Value.absent(),
+    this.goalNodeId = const Value.absent(),
     this.id = const Value.absent(),
     this.title = const Value.absent(),
     this.description = const Value.absent(),
@@ -560,6 +1684,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     this.rowid = const Value.absent(),
   });
   MissionsCompanion.insert({
+    this.goalId = const Value.absent(),
+    this.goalNodeId = const Value.absent(),
     required String id,
     required String title,
     this.description = const Value.absent(),
@@ -577,6 +1703,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
        createdAt = Value(createdAt),
        updatedAt = Value(updatedAt);
   static Insertable<MissionRow> custom({
+    Expression<String>? goalId,
+    Expression<String>? goalNodeId,
     Expression<String>? id,
     Expression<String>? title,
     Expression<String>? description,
@@ -591,6 +1719,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
+      if (goalId != null) 'goal_id': goalId,
+      if (goalNodeId != null) 'goal_node_id': goalNodeId,
       if (id != null) 'id': id,
       if (title != null) 'title': title,
       if (description != null) 'description': description,
@@ -607,6 +1737,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
   }
 
   MissionsCompanion copyWith({
+    Value<String?>? goalId,
+    Value<String?>? goalNodeId,
     Value<String>? id,
     Value<String>? title,
     Value<String?>? description,
@@ -621,6 +1753,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     Value<int>? rowid,
   }) {
     return MissionsCompanion(
+      goalId: goalId ?? this.goalId,
+      goalNodeId: goalNodeId ?? this.goalNodeId,
       id: id ?? this.id,
       title: title ?? this.title,
       description: description ?? this.description,
@@ -639,6 +1773,12 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    if (goalId.present) {
+      map['goal_id'] = Variable<String>(goalId.value);
+    }
+    if (goalNodeId.present) {
+      map['goal_node_id'] = Variable<String>(goalNodeId.value);
+    }
     if (id.present) {
       map['id'] = Variable<String>(id.value);
     }
@@ -681,6 +1821,8 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
   @override
   String toString() {
     return (StringBuffer('MissionsCompanion(')
+          ..write('goalId: $goalId, ')
+          ..write('goalNodeId: $goalNodeId, ')
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('description: $description, ')
@@ -3806,7 +4948,25 @@ class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
+  late final $GoalsTable goals = $GoalsTable(this);
+  late final $GoalNodesTable goalNodes = $GoalNodesTable(this);
   late final $MissionsTable missions = $MissionsTable(this);
+  late final Trigger missionsOwnershipInsert = Trigger(
+    'CREATE TRIGGER missions_ownership_insert BEFORE INSERT ON missions WHEN NEW.goal_node_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM goal_nodes WHERE id = NEW.goal_node_id AND goal_id = NEW.goal_id) BEGIN SELECT RAISE (ABORT, \'mission node must belong to goal\');END',
+    'missions_ownership_insert',
+  );
+  late final Trigger missionsOwnershipUpdate = Trigger(
+    'CREATE TRIGGER missions_ownership_update BEFORE UPDATE OF goal_id, goal_node_id ON missions WHEN NEW.goal_node_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM goal_nodes WHERE id = NEW.goal_node_id AND goal_id = NEW.goal_id) BEGIN SELECT RAISE (ABORT, \'mission node must belong to goal\');END',
+    'missions_ownership_update',
+  );
+  late final Index goalNodesSiblings = Index(
+    'goal_nodes_siblings',
+    'CREATE INDEX goal_nodes_siblings ON goal_nodes (goal_id, parent_node_id, order_index)',
+  );
+  late final Index missionsGoalNode = Index(
+    'missions_goal_node',
+    'CREATE INDEX missions_goal_node ON missions (goal_id, goal_node_id)',
+  );
   late final $MissionScheduleRevisionsTable missionScheduleRevisions =
       $MissionScheduleRevisionsTable(this);
   late final $ExecutionPlansTable executionPlans = $ExecutionPlansTable(this);
@@ -3830,7 +4990,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
+    goals,
+    goalNodes,
     missions,
+    missionsOwnershipInsert,
+    missionsOwnershipUpdate,
+    goalNodesSiblings,
+    missionsGoalNode,
     missionScheduleRevisions,
     executionPlans,
     executionEvents,
@@ -3839,10 +5005,951 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     executionEventsOneStart,
     executionEventsOneEnd,
   ];
+  @override
+  StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'missions',
+        limitUpdateKind: UpdateKind.insert,
+      ),
+      result: [],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'missions',
+        limitUpdateKind: UpdateKind.update,
+      ),
+      result: [],
+    ),
+  ]);
 }
 
+typedef $$GoalsTableCreateCompanionBuilder =
+    GoalsCompanion Function({
+      required String id,
+      required String title,
+      Value<String?> description,
+      Value<String?> why,
+      Value<String> status,
+      required int createdAt,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$GoalsTableUpdateCompanionBuilder =
+    GoalsCompanion Function({
+      Value<String> id,
+      Value<String> title,
+      Value<String?> description,
+      Value<String?> why,
+      Value<String> status,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$GoalsTableReferences
+    extends BaseReferences<_$AppDatabase, $GoalsTable, GoalRow> {
+  $$GoalsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$GoalNodesTable, List<GoalNodeRow>>
+  _goalNodesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.goalNodes,
+    aliasName: 'goals__id__goal_nodes__goal_id',
+  );
+
+  $$GoalNodesTableProcessedTableManager get goalNodesRefs {
+    final manager = $$GoalNodesTableTableManager(
+      $_db,
+      $_db.goalNodes,
+    ).filter((f) => f.goalId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_goalNodesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$MissionsTable, List<MissionRow>>
+  _missionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.missions,
+    aliasName: 'goals__id__missions__goal_id',
+  );
+
+  $$MissionsTableProcessedTableManager get missionsRefs {
+    final manager = $$MissionsTableTableManager(
+      $_db,
+      $_db.missions,
+    ).filter((f) => f.goalId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_missionsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
+  $$GoalsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get why => $composableBuilder(
+    column: $table.why,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> goalNodesRefs(
+    Expression<bool> Function($$GoalNodesTableFilterComposer f) f,
+  ) {
+    final $$GoalNodesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.goalNodes,
+      getReferencedColumn: (t) => t.goalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalNodesTableFilterComposer(
+            $db: $db,
+            $table: $db.goalNodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> missionsRefs(
+    Expression<bool> Function($$MissionsTableFilterComposer f) f,
+  ) {
+    final $$MissionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.goalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableFilterComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$GoalsTableOrderingComposer
+    extends Composer<_$AppDatabase, $GoalsTable> {
+  $$GoalsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get why => $composableBuilder(
+    column: $table.why,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$GoalsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GoalsTable> {
+  $$GoalsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get why =>
+      $composableBuilder(column: $table.why, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> goalNodesRefs<T extends Object>(
+    Expression<T> Function($$GoalNodesTableAnnotationComposer a) f,
+  ) {
+    final $$GoalNodesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.goalNodes,
+      getReferencedColumn: (t) => t.goalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalNodesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.goalNodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> missionsRefs<T extends Object>(
+    Expression<T> Function($$MissionsTableAnnotationComposer a) f,
+  ) {
+    final $$MissionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.goalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$GoalsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GoalsTable,
+          GoalRow,
+          $$GoalsTableFilterComposer,
+          $$GoalsTableOrderingComposer,
+          $$GoalsTableAnnotationComposer,
+          $$GoalsTableCreateCompanionBuilder,
+          $$GoalsTableUpdateCompanionBuilder,
+          (GoalRow, $$GoalsTableReferences),
+          GoalRow,
+          PrefetchHooks Function({bool goalNodesRefs, bool missionsRefs})
+        > {
+  $$GoalsTableTableManager(_$AppDatabase db, $GoalsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GoalsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GoalsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GoalsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<String?> why = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GoalsCompanion(
+                id: id,
+                title: title,
+                description: description,
+                why: why,
+                status: status,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String title,
+                Value<String?> description = const Value.absent(),
+                Value<String?> why = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => GoalsCompanion.insert(
+                id: id,
+                title: title,
+                description: description,
+                why: why,
+                status: status,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) =>
+                    (e.readTable(table), $$GoalsTableReferences(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({goalNodesRefs = false, missionsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (goalNodesRefs) db.goalNodes,
+                    if (missionsRefs) db.missions,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (goalNodesRefs)
+                        await $_getPrefetchedData<
+                          GoalRow,
+                          $GoalsTable,
+                          GoalNodeRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$GoalsTableReferences
+                              ._goalNodesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GoalsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).goalNodesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.goalId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (missionsRefs)
+                        await $_getPrefetchedData<
+                          GoalRow,
+                          $GoalsTable,
+                          MissionRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$GoalsTableReferences
+                              ._missionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GoalsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).missionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.goalId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$GoalsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GoalsTable,
+      GoalRow,
+      $$GoalsTableFilterComposer,
+      $$GoalsTableOrderingComposer,
+      $$GoalsTableAnnotationComposer,
+      $$GoalsTableCreateCompanionBuilder,
+      $$GoalsTableUpdateCompanionBuilder,
+      (GoalRow, $$GoalsTableReferences),
+      GoalRow,
+      PrefetchHooks Function({bool goalNodesRefs, bool missionsRefs})
+    >;
+typedef $$GoalNodesTableCreateCompanionBuilder =
+    GoalNodesCompanion Function({
+      required String id,
+      required String goalId,
+      Value<String?> parentNodeId,
+      required String title,
+      Value<String?> description,
+      required int orderIndex,
+      Value<int?> archivedAt,
+      required int createdAt,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$GoalNodesTableUpdateCompanionBuilder =
+    GoalNodesCompanion Function({
+      Value<String> id,
+      Value<String> goalId,
+      Value<String?> parentNodeId,
+      Value<String> title,
+      Value<String?> description,
+      Value<int> orderIndex,
+      Value<int?> archivedAt,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$GoalNodesTableReferences
+    extends BaseReferences<_$AppDatabase, $GoalNodesTable, GoalNodeRow> {
+  $$GoalNodesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $GoalsTable _goalIdTable(_$AppDatabase db) =>
+      db.goals.createAlias('goal_nodes__goal_id__goals__id');
+
+  $$GoalsTableProcessedTableManager get goalId {
+    final $_column = $_itemColumn<String>('goal_id')!;
+
+    final manager = $$GoalsTableTableManager(
+      $_db,
+      $_db.goals,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_goalIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$MissionsTable, List<MissionRow>>
+  _missionsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.missions,
+    aliasName: 'goal_nodes__id__missions__goal_node_id',
+  );
+
+  $$MissionsTableProcessedTableManager get missionsRefs {
+    final manager = $$MissionsTableTableManager(
+      $_db,
+      $_db.missions,
+    ).filter((f) => f.goalNodeId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_missionsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$GoalNodesTableFilterComposer
+    extends Composer<_$AppDatabase, $GoalNodesTable> {
+  $$GoalNodesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get parentNodeId => $composableBuilder(
+    column: $table.parentNodeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get orderIndex => $composableBuilder(
+    column: $table.orderIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$GoalsTableFilterComposer get goalId {
+    final $$GoalsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableFilterComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> missionsRefs(
+    Expression<bool> Function($$MissionsTableFilterComposer f) f,
+  ) {
+    final $$MissionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.goalNodeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableFilterComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$GoalNodesTableOrderingComposer
+    extends Composer<_$AppDatabase, $GoalNodesTable> {
+  $$GoalNodesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get parentNodeId => $composableBuilder(
+    column: $table.parentNodeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get orderIndex => $composableBuilder(
+    column: $table.orderIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$GoalsTableOrderingComposer get goalId {
+    final $$GoalsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableOrderingComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$GoalNodesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GoalNodesTable> {
+  $$GoalNodesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get parentNodeId => $composableBuilder(
+    column: $table.parentNodeId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get orderIndex => $composableBuilder(
+    column: $table.orderIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get archivedAt => $composableBuilder(
+    column: $table.archivedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$GoalsTableAnnotationComposer get goalId {
+    final $$GoalsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> missionsRefs<T extends Object>(
+    Expression<T> Function($$MissionsTableAnnotationComposer a) f,
+  ) {
+    final $$MissionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.missions,
+      getReferencedColumn: (t) => t.goalNodeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MissionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$GoalNodesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GoalNodesTable,
+          GoalNodeRow,
+          $$GoalNodesTableFilterComposer,
+          $$GoalNodesTableOrderingComposer,
+          $$GoalNodesTableAnnotationComposer,
+          $$GoalNodesTableCreateCompanionBuilder,
+          $$GoalNodesTableUpdateCompanionBuilder,
+          (GoalNodeRow, $$GoalNodesTableReferences),
+          GoalNodeRow,
+          PrefetchHooks Function({bool goalId, bool missionsRefs})
+        > {
+  $$GoalNodesTableTableManager(_$AppDatabase db, $GoalNodesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GoalNodesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GoalNodesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GoalNodesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> goalId = const Value.absent(),
+                Value<String?> parentNodeId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<int> orderIndex = const Value.absent(),
+                Value<int?> archivedAt = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GoalNodesCompanion(
+                id: id,
+                goalId: goalId,
+                parentNodeId: parentNodeId,
+                title: title,
+                description: description,
+                orderIndex: orderIndex,
+                archivedAt: archivedAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String goalId,
+                Value<String?> parentNodeId = const Value.absent(),
+                required String title,
+                Value<String?> description = const Value.absent(),
+                required int orderIndex,
+                Value<int?> archivedAt = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => GoalNodesCompanion.insert(
+                id: id,
+                goalId: goalId,
+                parentNodeId: parentNodeId,
+                title: title,
+                description: description,
+                orderIndex: orderIndex,
+                archivedAt: archivedAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$GoalNodesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({goalId = false, missionsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (missionsRefs) db.missions],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (goalId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.goalId,
+                                referencedTable: $$GoalNodesTableReferences
+                                    ._goalIdTable(db),
+                                referencedColumn: $$GoalNodesTableReferences
+                                    ._goalIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (missionsRefs)
+                    await $_getPrefetchedData<
+                      GoalNodeRow,
+                      $GoalNodesTable,
+                      MissionRow
+                    >(
+                      currentTable: table,
+                      referencedTable: $$GoalNodesTableReferences
+                          ._missionsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$GoalNodesTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).missionsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.goalNodeId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$GoalNodesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GoalNodesTable,
+      GoalNodeRow,
+      $$GoalNodesTableFilterComposer,
+      $$GoalNodesTableOrderingComposer,
+      $$GoalNodesTableAnnotationComposer,
+      $$GoalNodesTableCreateCompanionBuilder,
+      $$GoalNodesTableUpdateCompanionBuilder,
+      (GoalNodeRow, $$GoalNodesTableReferences),
+      GoalNodeRow,
+      PrefetchHooks Function({bool goalId, bool missionsRefs})
+    >;
 typedef $$MissionsTableCreateCompanionBuilder =
     MissionsCompanion Function({
+      Value<String?> goalId,
+      Value<String?> goalNodeId,
       required String id,
       required String title,
       Value<String?> description,
@@ -3858,6 +5965,8 @@ typedef $$MissionsTableCreateCompanionBuilder =
     });
 typedef $$MissionsTableUpdateCompanionBuilder =
     MissionsCompanion Function({
+      Value<String?> goalId,
+      Value<String?> goalNodeId,
       Value<String> id,
       Value<String> title,
       Value<String?> description,
@@ -3875,6 +5984,40 @@ typedef $$MissionsTableUpdateCompanionBuilder =
 final class $$MissionsTableReferences
     extends BaseReferences<_$AppDatabase, $MissionsTable, MissionRow> {
   $$MissionsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $GoalsTable _goalIdTable(_$AppDatabase db) =>
+      db.goals.createAlias('missions__goal_id__goals__id');
+
+  $$GoalsTableProcessedTableManager? get goalId {
+    final $_column = $_itemColumn<String>('goal_id');
+    if ($_column == null) return null;
+    final manager = $$GoalsTableTableManager(
+      $_db,
+      $_db.goals,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_goalIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $GoalNodesTable _goalNodeIdTable(_$AppDatabase db) =>
+      db.goalNodes.createAlias('missions__goal_node_id__goal_nodes__id');
+
+  $$GoalNodesTableProcessedTableManager? get goalNodeId {
+    final $_column = $_itemColumn<String>('goal_node_id');
+    if ($_column == null) return null;
+    final manager = $$GoalNodesTableTableManager(
+      $_db,
+      $_db.goalNodes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_goalNodeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
 
   static $MissionsTable _sourceMissionIdTable(_$AppDatabase db) =>
       db.missions.createAlias('missions__source_mission_id__missions__id');
@@ -4053,6 +6196,52 @@ class $$MissionsTableFilterComposer
     column: $table.relationType,
     builder: (column) => ColumnFilters(column),
   );
+
+  $$GoalsTableFilterComposer get goalId {
+    final $$GoalsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableFilterComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GoalNodesTableFilterComposer get goalNodeId {
+    final $$GoalNodesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalNodeId,
+      referencedTable: $db.goalNodes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalNodesTableFilterComposer(
+            $db: $db,
+            $table: $db.goalNodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   $$MissionsTableFilterComposer get sourceMissionId {
     final $$MissionsTableFilterComposer composer = $composerBuilder(
@@ -4264,6 +6453,52 @@ class $$MissionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  $$GoalsTableOrderingComposer get goalId {
+    final $$GoalsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableOrderingComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GoalNodesTableOrderingComposer get goalNodeId {
+    final $$GoalNodesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalNodeId,
+      referencedTable: $db.goalNodes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalNodesTableOrderingComposer(
+            $db: $db,
+            $table: $db.goalNodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
   $$MissionsTableOrderingComposer get sourceMissionId {
     final $$MissionsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -4336,6 +6571,52 @@ class $$MissionsTableAnnotationComposer
     column: $table.relationType,
     builder: (column) => column,
   );
+
+  $$GoalsTableAnnotationComposer get goalId {
+    final $$GoalsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GoalNodesTableAnnotationComposer get goalNodeId {
+    final $$GoalNodesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalNodeId,
+      referencedTable: $db.goalNodes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalNodesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.goalNodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
   $$MissionsTableAnnotationComposer get sourceMissionId {
     final $$MissionsTableAnnotationComposer composer = $composerBuilder(
@@ -4502,6 +6783,8 @@ class $$MissionsTableTableManager
           (MissionRow, $$MissionsTableReferences),
           MissionRow,
           PrefetchHooks Function({
+            bool goalId,
+            bool goalNodeId,
             bool sourceMissionId,
             bool missionScheduleRevisionsRefs,
             bool executionPlansRefs,
@@ -4523,6 +6806,8 @@ class $$MissionsTableTableManager
               $$MissionsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
+                Value<String?> goalId = const Value.absent(),
+                Value<String?> goalNodeId = const Value.absent(),
                 Value<String> id = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<String?> description = const Value.absent(),
@@ -4536,6 +6821,8 @@ class $$MissionsTableTableManager
                 Value<String?> relationType = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MissionsCompanion(
+                goalId: goalId,
+                goalNodeId: goalNodeId,
                 id: id,
                 title: title,
                 description: description,
@@ -4551,6 +6838,8 @@ class $$MissionsTableTableManager
               ),
           createCompanionCallback:
               ({
+                Value<String?> goalId = const Value.absent(),
+                Value<String?> goalNodeId = const Value.absent(),
                 required String id,
                 required String title,
                 Value<String?> description = const Value.absent(),
@@ -4564,6 +6853,8 @@ class $$MissionsTableTableManager
                 Value<String?> relationType = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MissionsCompanion.insert(
+                goalId: goalId,
+                goalNodeId: goalNodeId,
                 id: id,
                 title: title,
                 description: description,
@@ -4587,6 +6878,8 @@ class $$MissionsTableTableManager
               .toList(),
           prefetchHooksCallback:
               ({
+                goalId = false,
+                goalNodeId = false,
                 sourceMissionId = false,
                 missionScheduleRevisionsRefs = false,
                 executionPlansRefs = false,
@@ -4620,6 +6913,32 @@ class $$MissionsTableTableManager
                           dynamic
                         >
                       >(state) {
+                        if (goalId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.goalId,
+                                    referencedTable: $$MissionsTableReferences
+                                        ._goalIdTable(db),
+                                    referencedColumn: $$MissionsTableReferences
+                                        ._goalIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (goalNodeId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.goalNodeId,
+                                    referencedTable: $$MissionsTableReferences
+                                        ._goalNodeIdTable(db),
+                                    referencedColumn: $$MissionsTableReferences
+                                        ._goalNodeIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
                         if (sourceMissionId) {
                           state =
                               state.withJoin(
@@ -4764,6 +7083,8 @@ typedef $$MissionsTableProcessedTableManager =
       (MissionRow, $$MissionsTableReferences),
       MissionRow,
       PrefetchHooks Function({
+        bool goalId,
+        bool goalNodeId,
         bool sourceMissionId,
         bool missionScheduleRevisionsRefs,
         bool executionPlansRefs,
@@ -7075,6 +9396,10 @@ typedef $$EvidenceRecordsTableProcessedTableManager =
 class $AppDatabaseManager {
   final _$AppDatabase _db;
   $AppDatabaseManager(this._db);
+  $$GoalsTableTableManager get goals =>
+      $$GoalsTableTableManager(_db, _db.goals);
+  $$GoalNodesTableTableManager get goalNodes =>
+      $$GoalNodesTableTableManager(_db, _db.goalNodes);
   $$MissionsTableTableManager get missions =>
       $$MissionsTableTableManager(_db, _db.missions);
   $$MissionScheduleRevisionsTableTableManager get missionScheduleRevisions =>

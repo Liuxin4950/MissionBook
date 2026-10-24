@@ -1,9 +1,25 @@
 import 'package:drift/drift.dart';
+import 'goals.dart';
+import 'goal_nodes.dart';
 
 // 指定 Drift 生成的“数据库行对象”叫 MissionRow，
 // 避免与 domain 中的 Mission 混淆。
 @DataClassName('MissionRow')
+@TableIndex.sql(
+  'CREATE INDEX missions_goal_node ON missions (goal_id, goal_node_id)',
+)
 class Missions extends Table {
+  // v8：都可以为空，旧任务升级后自然仍是独立任务。
+  TextColumn get goalId => text().nullable().references(Goals, #id)();
+  TextColumn get goalNodeId => text()
+      .nullable()
+      .references(GoalNodes, #id)
+      .check(
+        const CustomExpression<bool>(
+          'goal_node_id IS NULL OR goal_id IS NOT NULL',
+        ),
+      )();
+
   // 任务唯一编号，由创建流程生成后传入。
   TextColumn get id => text()();
 

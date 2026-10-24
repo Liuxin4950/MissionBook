@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'package:mission_book/domain/entities/execution_command.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/evidence.dart';
@@ -19,6 +20,15 @@ import 'package:mission_book/presentation/widgets/app_confirm_dialog.dart';
 
 // 由测试决定读取何时完成，才能观察等待、失败、重试、离页和乱序返回。
 class DetailRepository implements MissionRepository {
+  @override
+  Future<List<MissionGoalChoices>> findGoalChoices() async => [];
+  @override
+  Future<MissionOwnershipInfo?> findOwnershipInfo(
+    MissionOwnership ownership,
+  ) async => null;
+  @override
+  Future<List<MissionDetail>> findForGoal(String goalId) async => [];
+
   @override
   Future<ExecutionEvent> execute(ExecutionCommand command) =>
       throw UnsupportedError('本替身不执行任务');
@@ -50,6 +60,10 @@ class DetailRepository implements MissionRepository {
     required MissionScheduleRevision schedule,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
+    MissionOwnership? ownership,
+    String? description,
+    String? why,
+    bool updateContext = false,
   }) => throw UnsupportedError('本测试不编辑任务');
 
   final ids = <String>[];

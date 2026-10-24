@@ -33,6 +33,7 @@ class MissionInlineWorkspace extends StatefulWidget {
 class MissionInlineWorkspaceState extends State<MissionInlineWorkspace>
     with AutomaticKeepAliveClientMixin<MissionInlineWorkspace> {
   bool _open = false;
+  bool get isExpanded => _open; // 节点刷新时，上层据此保留仍在办理的任务和草稿。
   bool _loading = false;
   String? _error;
   MissionDetail? _detail;
@@ -40,6 +41,21 @@ class MissionInlineWorkspaceState extends State<MissionInlineWorkspace>
   final _executionKey = GlobalKey<MissionExecutionPageState>();
   @override
   bool get wantKeepAlive => _open;
+
+  @override
+  void didUpdateWidget(covariant MissionInlineWorkspace oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 已有执行页会自行监听并保留报告草稿，只更新尚未进入执行页的旧入口。
+    if (_open &&
+        !_loading &&
+        _detail?.events.isEmpty == true &&
+        oldWidget.phase != widget.phase &&
+        _action?.locked == false) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _read();
+      });
+    }
+  }
 
   void _changed() {
     if (mounted) setState(() {});

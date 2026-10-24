@@ -44,13 +44,14 @@ class MissionDetailContent extends StatelessWidget {
                   key: const Key('mission-detail-list'),
                   padding: AppLayout.pagePadding(context),
                   children: [
-                    // 当前任务没有目标路径字段，真实展示临时任务，不复制原型样例归属。
-                    Text(
-                      '临时任务',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
+                    // 路径名称来自详情查询；没有归属时真实显示独立任务。
+                    if (detail.ownershipInfo == null)
+                      Text(
+                        '独立任务',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 12),
                     MissionHeading(detail: detail),
                     const SizedBox(height: AppLayout.sectionGap),

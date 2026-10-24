@@ -1,3 +1,5 @@
+import 'mission_ownership.dart';
+
 /// 用枚举列出合法策略，避免在业务代码中随意拼写字符串。
 enum VerificationPolicy {
   selfReport, // 用户自报
@@ -25,6 +27,8 @@ class Mission {
     this.evidenceWaivedAt,
     this.sourceMissionId,
     this.relationType,
+    this.goalId,
+    this.goalNodeId,
     this.verificationPolicy = VerificationPolicy.selfReport,
   });
 
@@ -59,4 +63,9 @@ class Mission {
   /// 来自哪次已结束或已取消的任务；普通新建为 null，创建后不可修改。
   final String? sourceMissionId;
   final MissionRelationType? relationType;
+
+  final String? goalId; // 可空的目标编号；没有关联目标时为 null。
+  final String? goalNodeId; // 可空的直接关联节点；不要求每个任务都绑定节点。
+  MissionOwnership get ownership =>
+      MissionOwnership(goalId: goalId, goalNodeId: goalNodeId);
 }

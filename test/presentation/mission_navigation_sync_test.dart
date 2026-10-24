@@ -6,6 +6,8 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'package:mission_book/app_shell.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/application/goals/goal_service.dart';
+import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
@@ -21,11 +23,13 @@ void main() {
   late AppDatabase database;
   late DriftMissionRepository repository;
   late MissionService service;
+  late GoalService goals;
   late DateTime now;
   late String missionId;
   setUp(() async {
     now = DateTime.now().toUtc();
     database = AppDatabase(executor: NativeDatabase.memory());
+    goals = GoalService(DriftGoalRepository(database));
     repository = DriftMissionRepository(database, clock: () => now);
     service = MissionService(repository);
     final local = tz.TZDateTime.from(now, tz.getLocation('Asia/Shanghai'));
@@ -42,6 +46,7 @@ void main() {
     )).single.mission.id;
   });
   tearDown(() async {
+    await goals.dispose();
     await service.dispose();
     await database.close();
   });
@@ -57,7 +62,7 @@ void main() {
         locale: const Locale('zh', 'CN'),
         supportedLocales: const [Locale('zh', 'CN')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
-        home: home ?? AppShell(missionService: service),
+        home: home ?? AppShell(missionService: service, goalService: goals),
       ),
     );
     await tester.pumpAndSettle();

@@ -10,6 +10,8 @@ import 'data/repositories/drift_mission_repository.dart';
 import 'app_shell.dart';
 import 'application/evidence/evidence_image_service.dart';
 import 'data/attachments/evidence_image_platform.dart' as image_platform;
+import 'application/goals/goal_service.dart';
+import 'data/repositories/drift_goal_repository.dart';
 
 /// 装配本地数据库、任务仓储和业务入口，并提供全局主题及中文界面。
 class App extends StatefulWidget {
@@ -24,6 +26,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   // final 表示初始化后不再换成另一个对象。
   late final AppDatabase _database; // 定义数据库连接器
   late final MissionService _missionService; // 业务操作对象
+  late final GoalService _goalService; // 目标服务，与任务服务共用数据库。
   StreamSubscription<void>? _deadlineChanges;
   Timer? _deadlineTimer;
   bool _checkingDeadlines = false;
@@ -36,6 +39,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // Flutter 创建这个 State 后调用一次 initState。
     // 不传 executor，由 AppDatabase 按平台选择原生文件或浏览器存储。
     _database = AppDatabase();
+    _goalService = GoalService(DriftGoalRepository(_database));
     // 将同一个数据库交给真实仓储。
     final repository = DriftMissionRepository(_database);
     // 这里只创建一个共享的任务业务对象，不执行创建或查询。
@@ -119,7 +123,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // build 可以重复执行，但这里始终传入已创建的同一个业务对象。
-      home: AppShell(missionService: _missionService),
+      home: AppShell(
+        missionService: _missionService,
+        goalService: _goalService,
+      ),
     );
   }
 
@@ -132,6 +139,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // close 返回 Future，但 dispose 不能等待异步完成；
     // unawaited 明确表示在这里发起关闭，不等待它。
     unawaited(_missionService.dispose());
+    unawaited(_goalService.dispose());
     unawaited(_database.close());
     super.dispose();
   }

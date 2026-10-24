@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'dart:async';
 
 import 'package:drift/native.dart';
@@ -31,6 +32,10 @@ class EditingRepository extends PendingRepository {
     required MissionScheduleRevision schedule,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
+    MissionOwnership? ownership,
+    String? description,
+    String? why,
+    bool updateContext = false,
   }) {
     edits.add(schedule);
     titles.add(title);
@@ -81,6 +86,7 @@ Future<void> enter(WidgetTester tester, String key, String text) async {
   await tester.ensureVisible(field);
   await tester.pumpAndSettle();
   await tester.enterText(field, text);
+  await tester.pumpAndSettle();
 }
 
 Future<void> chooseMissionAction(WidgetTester tester, String action) async {

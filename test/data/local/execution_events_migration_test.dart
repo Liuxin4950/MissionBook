@@ -64,7 +64,9 @@ Future<Map<String, List<Map<String, dynamic>>>> _readOldRows(
         Map<String, dynamic>.from(row.data)
           ..remove('source_mission_id')
           ..remove('relation_type')
-          ..remove('evidence_waived_at'),
+          ..remove('evidence_waived_at')
+          ..remove('goal_id')
+          ..remove('goal_node_id'),
     ];
   }
   return result;
@@ -195,7 +197,194 @@ void main() {
       await directory.delete(recursive: true);
     });
 
-    test('v4真实来源与完整执行历史逐字段保留，v5只追加空放弃字段及材料表', () async {
+    for (final oldVersion in [5, 6, 7]) {
+      test('v$oldVersion 全表逐字段保留，旧任务独立，关闭重开仍完整', () async {
+        final tables = [
+          ..._oldTables,
+          'execution_events',
+          'failure_records',
+          'evidence_records',
+          if (oldVersion >= 6) 'goals',
+          if (oldVersion >= 7) 'goal_nodes',
+        ];
+        Future<Map<String, List<Map<String, dynamic>>>> snapshot(
+          GeneratedDatabase connection,
+        ) async {
+          return {
+            for (final table in tables)
+              table: [
+                for (final row
+                    in await connection
+                        .customSelect('SELECT * FROM $table ORDER BY id')
+                        .get())
+                  {
+                    for (final entry in row.data.entries)
+                      if (table != 'missions' ||
+                          !['goal_id', 'goal_node_id'].contains(entry.key))
+                        entry.key: entry.value,
+                  },
+              ],
+          };
+        }
+
+        final old = _SnapshotV1Database(
+          NativeDatabase(file),
+          oldVersion: oldVersion,
+        );
+        late Map<String, List<Map<String, dynamic>>> before;
+        try {
+          await _seedV1(old);
+          if (oldVersion >= 6) {
+            for (final status in ['ACTIVE', 'PAUSED', 'ACHIEVED', 'DROPPED']) {
+              await old.customStatement(
+                'INSERT INTO goals (id, title, description, why, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [
+                  'goal-$status',
+                  '原有目标$status',
+                  '保留说明\n及换行',
+                  '保留目标原因',
+                  status,
+                  _time,
+                  _time + 10,
+                ],
+              );
+            }
+          }
+          if (oldVersion >= 7) {
+            await old.customStatement(
+              "INSERT INTO goal_nodes (id, goal_id, parent_node_id, title, description, order_index, archived_at, created_at, updated_at) VALUES ('old-root', 'goal-ACTIVE', NULL, '原父节点', '原说明', 0, NULL, ?, ?)",
+              [_time, _time + 1],
+            );
+            await old.customStatement(
+              "INSERT INTO goal_nodes (id, goal_id, parent_node_id, title, description, order_index, archived_at, created_at, updated_at) VALUES ('old-child', 'goal-ACTIVE', 'old-root', '原归档节点', '原子说明', 0, ?, ?, ?)",
+              [_time + 2, _time, _time + 3],
+            );
+          }
+          await old.customStatement(
+            "UPDATE missions SET evidence_waived_at = ? WHERE id = 'mission-b'",
+            [_time + 2000],
+          );
+          await old.customStatement(
+            "INSERT INTO execution_events (id, mission_id, sequence, type, occurred_at, schedule_revision_id) VALUES ('start-v5', 'mission-a', 1, 'START', ?, 'schedule-a2')",
+            [_time],
+          );
+          await old.customStatement(
+            "INSERT INTO execution_events (id, mission_id, sequence, type, occurred_at, user_reported_result) VALUES ('end-v5', 'mission-a', 2, 'END', ?, 'COMPLETED')",
+            [_time + 1000],
+          );
+          await old.customStatement(
+            "INSERT INTO failure_records (id, mission_id, \"trigger\", occurred_at, user_reason_text, created_at) VALUES ('failure-v5', 'mission-b', 'EVIDENCE_DEADLINE_MISSED', ?, '旧原因原样保留', ?)",
+            [_time + 1000, _time + 1000],
+          );
+          await old.customStatement(
+            "INSERT INTO evidence_records (id, mission_id, submission_id, type, source, content, submitted_at) VALUES ('text-v5', 'mission-a', 'batch-v5', 'TEXT', 'USER', '已有正文\\n不丢失', ?)",
+            [_time + 1000],
+          );
+          await old.customStatement(
+            "INSERT INTO evidence_records (id, mission_id, submission_id, type, source, attachment_storage_key, attachment_file_name, attachment_mime_type, submitted_at) VALUES ('image-v5', 'mission-a', 'batch-v5', 'IMAGE', 'FILE_SYSTEM', 'attachments/mission-a/original.png', '原图.png', 'image/png', ?)",
+            [_time + 1000],
+          );
+          before = await snapshot(old);
+        } finally {
+          await old.close();
+        }
+        final upgraded = AppDatabase(executor: NativeDatabase(file));
+        try {
+          expect(await _version(upgraded), 8);
+          expect(await snapshot(upgraded), before);
+          expect(
+            await upgraded.select(upgraded.goals).get(),
+            hasLength(oldVersion >= 6 ? 4 : 0),
+          );
+          expect(
+            await upgraded.select(upgraded.goalNodes).get(),
+            hasLength(oldVersion >= 7 ? 2 : 0),
+          );
+          expect(
+            (await upgraded.select(upgraded.missions).get()).every(
+              (row) => row.goalId == null && row.goalNodeId == null,
+            ),
+            isTrue,
+          );
+          if (oldVersion >= 7) {
+            await expectLater(
+              upgraded.customStatement(
+                "UPDATE missions SET goal_id = 'goal-PAUSED', goal_node_id = 'old-child' WHERE id = 'mission-a'",
+              ),
+              throwsA(isA<SqliteException>()),
+            );
+          }
+          await upgraded.validateDatabaseSchema();
+          expect(
+            await upgraded.customSelect('PRAGMA foreign_key_check').get(),
+            isEmpty,
+          );
+        } finally {
+          await upgraded.close();
+        }
+        final reopened = AppDatabase(executor: NativeDatabase(file));
+        try {
+          expect(await snapshot(reopened), before);
+          expect(await _version(reopened), 8);
+        } finally {
+          await reopened.close();
+        }
+      });
+    }
+
+    test('v7 升级在第二条归属触发器处失败，新增列和第一条触发器一起回滚后可重试', () async {
+      final old = _SnapshotV1Database(NativeDatabase(file), oldVersion: 7);
+      late Map<String, List<Map<String, dynamic>>> before;
+      try {
+        await _seedV1(old);
+        before = await _readOldRows(old);
+        // 制造同名结构冲突，使故障发生在 v8 迁移末尾，验证整个事务会回滚。
+        await old.customStatement(
+          'CREATE TRIGGER missions_ownership_update BEFORE INSERT ON missions BEGIN SELECT 1; END',
+        );
+      } finally {
+        await old.close();
+      }
+      final failing = AppDatabase(executor: NativeDatabase(file));
+      try {
+        await expectLater(_version(failing), throwsA(isA<SqliteException>()));
+      } finally {
+        await failing.close();
+      }
+      final inspect = _SnapshotV1Database(NativeDatabase(file), oldVersion: 7);
+      try {
+        expect(await _version(inspect), 7);
+        expect(await _readOldRows(inspect), before);
+        final columns = await inspect
+            .customSelect('PRAGMA table_info(missions)')
+            .get();
+        expect(
+          columns.map((row) => row.read<String>('name')),
+          isNot(contains('goal_id')),
+        );
+        expect(
+          await inspect
+              .customSelect(
+                "SELECT name FROM sqlite_master WHERE name IN ('missions_ownership_insert', 'missions_goal_node')",
+              )
+              .get(),
+          isEmpty,
+        );
+        await inspect.customStatement('DROP TRIGGER missions_ownership_update');
+      } finally {
+        await inspect.close();
+      }
+      final retry = AppDatabase(executor: NativeDatabase(file));
+      try {
+        expect(await _version(retry), 8);
+        expect(await _readOldRows(retry), before);
+        await retry.validateDatabaseSchema();
+      } finally {
+        await retry.close();
+      }
+    });
+
+    test('v4真实来源与完整执行历史逐字段保留，当前版追加空放弃字段、材料与目标表', () async {
       const preservedTables = [
         ..._oldTables,
         'execution_events',
@@ -211,7 +400,10 @@ void main() {
                 in await connection
                     .customSelect('SELECT * FROM $table ORDER BY id')
                     .get())
-              Map<String, dynamic>.from(row.data)..remove('evidence_waived_at'),
+              Map<String, dynamic>.from(row.data)
+                ..remove('evidence_waived_at')
+                ..remove('goal_id')
+                ..remove('goal_node_id'),
           ];
         }
         return result;
@@ -251,7 +443,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 5);
+        expect(await _version(upgraded), 8);
         expect(await snapshot(upgraded), before);
         expect(
           (await upgraded.select(upgraded.missions).get()).every(
@@ -270,7 +462,7 @@ void main() {
       }
     });
 
-    test('v3完整执行记录升级v5：事件、报告、失败原因保留，新增材料事实为空', () async {
+    test('v3完整执行记录升级当前版：事件、报告、失败原因保留，新增材料事实为空', () async {
       final old = _SnapshotV1Database(NativeDatabase(file), oldVersion: 3);
       late Map<String, List<Map<String, dynamic>>> before;
       late List<Map<String, dynamic>> oldEvents;
@@ -317,7 +509,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 5);
+        expect(await _version(upgraded), 8);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -378,7 +570,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 5);
+        expect(await _version(upgraded), 8);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -407,7 +599,7 @@ void main() {
 
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 5);
+        expect(await _version(upgraded), 8);
         expect(await _readOldRows(upgraded), before);
         expect(await upgraded.select(upgraded.executionEvents).get(), isEmpty);
         await upgraded.validateDatabaseSchema();
@@ -445,7 +637,7 @@ void main() {
 
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 5);
+        expect(await _version(reopened), 8);
         expect(await _readOldRows(reopened), before);
         final event = await reopened
             .select(reopened.executionEvents)
@@ -477,7 +669,7 @@ void main() {
       }
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 5);
+        expect(await _version(reopened), 8);
         expect(await _readOldRows(reopened), before);
         await reopened.validateDatabaseSchema();
       } finally {
@@ -520,7 +712,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 5);
+        expect(await _version(retry), 8);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -563,9 +755,9 @@ void main() {
 
     tearDown(() async => database.close());
 
-    test('新装版本与六表/索引符合当前定义', () async {
-      expect(await _version(database), 5);
-      expect(database.allTables, hasLength(6));
+    test('新装版本与八表/索引符合当前定义', () async {
+      expect(await _version(database), 8);
+      expect(database.allTables, hasLength(8));
       await database.validateDatabaseSchema();
       expect(
         (await database.customSelect('PRAGMA foreign_keys').getSingle())

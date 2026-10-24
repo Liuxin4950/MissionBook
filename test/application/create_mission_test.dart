@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'package:mission_book/domain/entities/execution_command.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,6 +30,15 @@ class RecordingMissionRepository
     with _UnusedEvidenceMethods
     implements MissionRepository {
   @override
+  Future<List<MissionGoalChoices>> findGoalChoices() async => [];
+  @override
+  Future<MissionOwnershipInfo?> findOwnershipInfo(
+    MissionOwnership ownership,
+  ) async => null;
+  @override
+  Future<List<MissionDetail>> findForGoal(String goalId) async => [];
+
+  @override
   Future<ExecutionEvent> execute(ExecutionCommand command) =>
       throw UnsupportedError('本替身不执行任务');
   @override
@@ -46,6 +56,10 @@ class RecordingMissionRepository
     required MissionScheduleRevision schedule,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
+    MissionOwnership? ownership,
+    String? description,
+    String? why,
+    bool updateContext = false,
   }) => throw UnsupportedError('本测试不编辑任务');
 
   @override
@@ -87,6 +101,15 @@ class FailingMissionRepository
     with _UnusedEvidenceMethods
     implements MissionRepository {
   @override
+  Future<List<MissionGoalChoices>> findGoalChoices() async => [];
+  @override
+  Future<MissionOwnershipInfo?> findOwnershipInfo(
+    MissionOwnership ownership,
+  ) async => null;
+  @override
+  Future<List<MissionDetail>> findForGoal(String goalId) async => [];
+
+  @override
   Future<ExecutionEvent> execute(ExecutionCommand command) =>
       throw UnsupportedError('本替身不执行任务');
   @override
@@ -104,6 +127,10 @@ class FailingMissionRepository
     required MissionScheduleRevision schedule,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
+    MissionOwnership? ownership,
+    String? description,
+    String? why,
+    bool updateContext = false,
   }) => throw UnsupportedError('本测试不编辑任务');
 
   @override

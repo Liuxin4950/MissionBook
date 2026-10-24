@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'package:mission_book/domain/entities/execution_command.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/evidence.dart';
@@ -19,6 +20,15 @@ import 'package:timezone/timezone.dart' as tz;
 
 // 用可控制完成时机的仓储替代磁盘，验证页面确实等待业务保存结果。
 class PendingRepository implements MissionRepository {
+  @override
+  Future<List<MissionGoalChoices>> findGoalChoices() async => [];
+  @override
+  Future<MissionOwnershipInfo?> findOwnershipInfo(
+    MissionOwnership ownership,
+  ) async => null;
+  @override
+  Future<List<MissionDetail>> findForGoal(String goalId) async => [];
+
   @override
   Future<ExecutionEvent> execute(ExecutionCommand command) =>
       throw UnsupportedError('本替身不执行任务');
@@ -50,6 +60,10 @@ class PendingRepository implements MissionRepository {
     required MissionScheduleRevision schedule,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
+    MissionOwnership? ownership,
+    String? description,
+    String? why,
+    bool updateContext = false,
   }) => throw UnsupportedError('本测试不编辑任务');
 
   @override
@@ -57,8 +71,7 @@ class PendingRepository implements MissionRepository {
       throw UnsupportedError('创建表单测试不取消任务');
 
   @override
-  Future<MissionDetail?> findDetail(String missionId) =>
-      throw UnsupportedError('创建表单测试不读取详情');
+  Future<MissionDetail?> findDetail(String missionId) async => null;
 
   @override
   Future<List<ScheduledMission>> findScheduledOn(String scheduledDate) =>
@@ -221,6 +234,8 @@ void main() {
       find.byKey(const ValueKey('mission-duration')),
       '45',
     );
+    await tester.ensureVisible(find.text('固定'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('固定'));
     await tester.pumpAndSettle();
     // 没有填写时分不能用默认 00:00 静默保存。
@@ -276,6 +291,8 @@ void main() {
       '15',
     );
     expect(find.text('10月24日'), findsOneWidget);
+    await tester.tap(find.text('检查保存结果'));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('自选'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('自选'));
@@ -358,6 +375,8 @@ void main() {
     );
     await tester.ensureVisible(find.text('固定'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('固定'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('固定'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const ValueKey('mission-minute')));
@@ -404,6 +423,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(MissionFormPage), findsNothing);
     await tester.tap(find.text('打开表单'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('固定'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('固定'));
     await tester.pumpAndSettle();
@@ -500,6 +521,8 @@ void main() {
           tester.getRect(find.byKey(const ValueKey('mission-date'))).bottom,
         ),
       );
+      await tester.ensureVisible(find.text('固定'));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('固定'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('固定'));

@@ -5,6 +5,8 @@ import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../domain/entities/mission.dart';
+import '../../domain/entities/mission_ownership.dart';
+import '../../domain/entities/mission_creation.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/execution_plan.dart';
 import '../../domain/repositories/mission_repository.dart';
@@ -125,6 +127,15 @@ class MissionService {
   }
 
   Future<List<MissionDetail>> findActive() => repository.findActive();
+  Future<List<MissionGoalChoices>> findGoalChoices() =>
+      repository.findGoalChoices();
+  Future<MissionOwnershipInfo?> findOwnershipInfo(MissionOwnership ownership) =>
+      repository.findOwnershipInfo(ownership);
+  Future<List<MissionDetail>> findForGoal(String goalId) async {
+    await reconcileEvidenceDeadlines();
+    return repository.findForGoal(goalId);
+  }
+
   Future<List<MissionDetail>> findFinished() async {
     await reconcileEvidenceDeadlines();
     return repository.findFinished();
@@ -259,6 +270,10 @@ class MissionService {
     DateTime? fixedStartAt,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
+    MissionOwnership? ownership,
+    String? description,
+    String? why,
+    bool updateContext = false,
     DateTime? evidenceDeadlineAt,
   }) async {
     final cleanTitle = title.trim();
@@ -298,6 +313,10 @@ class MissionService {
       schedule: proposedSchedule,
       verificationPolicy: verificationPolicy,
       verificationCriteria: _clean(verificationCriteria),
+      ownership: ownership,
+      description: _clean(description),
+      why: _clean(why),
+      updateContext: updateContext,
     );
     _notify();
   }
@@ -346,7 +365,7 @@ class MissionService {
     _notify();
   }
 
-  /// 创建独立任务；界面显式传入材料策略，旧调用保留自报默认值。
+  /// 一次创建入口；未提供归属时创建独立任务，关联目标和节点均为可选项。
   ///
   /// fixedStartAt 表达绝对时刻，保存前统一转 UTC；固定策略必须提供，
   /// 且在 timeZone 内属于 scheduledDate，自选策略则必须为空。
@@ -364,7 +383,47 @@ class MissionService {
     VerificationPolicy verificationPolicy = VerificationPolicy.selfReport,
     String? verificationCriteria,
     DateTime? evidenceDeadlineAt,
+    MissionOwnership ownership = const MissionOwnership(),
+    String? description,
+    String? why,
   }) async {
+    final request = prepareCreation(
+      title: title,
+      scheduledDate: scheduledDate,
+      timeZone: timeZone,
+      plannedDurationMinutes: plannedDurationMinutes,
+      timePolicy: timePolicy,
+      fixedStartAt: fixedStartAt,
+      retrySource: retrySource,
+      objective: objective,
+      verificationPolicy: verificationPolicy,
+      verificationCriteria: verificationCriteria,
+      evidenceDeadlineAt: evidenceDeadlineAt,
+      ownership: ownership,
+      description: description,
+      why: why,
+    );
+    await createPrepared(request);
+  }
+
+  /// 把表单值准备成一整份固定请求，交回表单保留；这里还没有写数据库。
+  MissionCreation prepareCreation({
+    required String title,
+    required String scheduledDate,
+    required String timeZone,
+    required int plannedDurationMinutes,
+    TimePolicy timePolicy = TimePolicy.flexible,
+    DateTime? fixedStartAt,
+    MissionDetail? retrySource,
+    String? objective,
+    VerificationPolicy verificationPolicy = VerificationPolicy.selfReport,
+    String? verificationCriteria,
+    DateTime? evidenceDeadlineAt,
+    MissionOwnership ownership = const MissionOwnership(),
+    String? description,
+    String? why,
+  }) {
+    ownership.validate(); // 检查编号组合；目标是否有效由保存事务重新读取后判断。
     // trim 去掉标题首尾空白；全是空格也算没填写。
     final cleanTitle = title.trim();
     final cleanObjective = (objective ?? cleanTitle).trim();
@@ -385,13 +444,18 @@ class MissionService {
     // 校验通过后再生成编号、取得当前时间。
     // 同一次创建只取一次 now，让三个对象的创建时间一致。
     final missionId = uuid.v4();
-    final now = DateTime.now().toUtc();
+    final now = DateTime.fromMillisecondsSinceEpoch(
+      DateTime.now().millisecondsSinceEpoch,
+      isUtc: true,
+    );
 
     final mission = Mission(
       id: missionId,
       title: cleanTitle,
-      description: retrySource?.mission.description,
-      why: retrySource?.mission.why,
+      description: _clean(description ?? retrySource?.mission.description),
+      why: _clean(why ?? retrySource?.mission.why),
+      goalId: ownership.goalId,
+      goalNodeId: ownership.goalNodeId,
       sourceMissionId: retrySource?.mission.id,
       relationType: retrySource == null ? null : MissionRelationType.retry,
       verificationPolicy: verificationPolicy,
@@ -417,25 +481,27 @@ class MissionService {
       missionId: missionId,
       objective: cleanObjective, // 普通创建默认标题；再次尝试允许调整具体目标。
       steps: retrySource?.executionPlan.steps ?? const [],
-      verificationCriteria:
-          _clean(verificationCriteria) ??
-          retrySource?.executionPlan.verificationCriteria,
+      verificationCriteria: _clean(verificationCriteria),
       notes: retrySource?.executionPlan.notes,
       createdAt: now,
       updatedAt: now,
     );
 
-    // 三个业务对象准备完毕，交给已有仓储。
-    // await 等待仓储的整个事务完成；保存失败会把异常传回调用者。
+    // 三个业务对象准备完毕，先检查材料配置，再把完整请求交回表单保留。
     validateEvidenceRequirement(
       policy: verificationPolicy,
       criteria: plan.verificationCriteria,
       schedule: schedule,
     );
+    return MissionCreation(mission: mission, schedule: schedule, plan: plan);
+  }
+
+  /// 使用表单保留的请求保存；重复提交同一请求由仓储识别，成功后通知页面重读。
+  Future<void> createPrepared(MissionCreation request) async {
     await repository.create(
-      mission: mission,
-      initialSchedule: schedule,
-      executionPlan: plan,
+      mission: request.mission,
+      initialSchedule: request.schedule,
+      executionPlan: request.plan,
     );
     _notify();
   }

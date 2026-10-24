@@ -4,25 +4,60 @@ import 'app_typography.dart';
 import 'colors.dart'; // 引入全局颜色令牌
 
 abstract final class AppTheme {
+  // 按下、悬停、键盘聚焦只显示轻微底色，不使用扩散的大水波纹。
+  static WidgetStateProperty<Color?> _feedback(Color color) =>
+      WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) return null;
+        if (states.contains(WidgetState.pressed)) {
+          return color.withValues(alpha: .06);
+        }
+        if (states.contains(WidgetState.focused)) {
+          return color.withValues(alpha: .08);
+        }
+        if (states.contains(WidgetState.hovered)) {
+          return color.withValues(alpha: .03);
+        }
+        return null;
+      });
   // 全局主题配置
   static final ThemeData light = ThemeData(
     // 浅色主题
     useMaterial3: true, // 使用 Material 3 设计规范
+    splashFactory: NoSplash.splashFactory,
+    highlightColor: AppColors.primary.withValues(alpha: .04),
+    hoverColor: AppColors.primary.withValues(alpha: .03),
+    focusColor: AppColors.primary.withValues(alpha: .08),
     scaffoldBackgroundColor: AppColors.background, // 页面背景
     textTheme: AppTypography.textTheme,
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        textStyle: AppTypography.textTheme.labelLarge,
-      ),
+      style:
+          FilledButton.styleFrom(
+            textStyle: AppTypography.textTheme.labelLarge,
+          ).copyWith(
+            splashFactory: NoSplash.splashFactory,
+            overlayColor: _feedback(AppColors.onPrimary),
+          ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        textStyle: AppTypography.textTheme.labelLarge,
-      ),
+      style:
+          OutlinedButton.styleFrom(
+            textStyle: AppTypography.textTheme.labelLarge,
+          ).copyWith(
+            splashFactory: NoSplash.splashFactory,
+            overlayColor: _feedback(AppColors.primary),
+          ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        textStyle: AppTypography.textTheme.labelLarge,
+      style: TextButton.styleFrom(textStyle: AppTypography.textTheme.labelLarge)
+          .copyWith(
+            splashFactory: NoSplash.splashFactory,
+            overlayColor: _feedback(AppColors.primary),
+          ),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: ButtonStyle(
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: _feedback(AppColors.primary),
       ),
     ),
     appBarTheme: const AppBarThemeData(

@@ -68,7 +68,7 @@ class MissionHeading extends StatelessWidget {
         style: Theme.of(context).textTheme.titleSmall,
       ),
     );
-    return LayoutBuilder(
+    final heading = LayoutBuilder(
       builder: (context, box) {
         final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
         if (!showPhase) return title;
@@ -87,6 +87,21 @@ class MissionHeading extends StatelessWidget {
           ],
         );
       },
+    );
+    if (detail.ownershipInfo == null) return heading;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          detail.ownershipInfo!.label,
+          key: const Key('mission-ownership-path'),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 8),
+        heading,
+      ],
     );
   }
 }

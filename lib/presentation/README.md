@@ -1,6 +1,6 @@
 # 页面代码在哪里
 
-更新：2026-10-24。按功能找页面，进入页面文件后，再沿它使用的组件阅读。
+更新：2026-10-25。按功能找页面，进入页面文件后，再沿它使用的组件阅读。
 
 ## 先找到要修改的功能
 
@@ -12,7 +12,8 @@
 | 自选任务、展开与收起 | [today/today_page.dart](today/today_page.dart) | 同文件的 _FlexibleMissionSection，自选列表和局部展开状态 |
 | 今天列表分组、日期和展示文字 | [today/today_display.dart](today/today_display.dart) | 整理已查询的数据，不访问数据库 |
 | 新建、修改、重试新建 | [missions/form/mission_form_page.dart](missions/form/mission_form_page.dart) | 接收输入草稿、保存、处理错误和离开前确认 |
-| 名称和目标输入框 | [missions/form/mission_form_page.dart](missions/form/mission_form_page.dart) | 同文件的 _MissionFormFields，使用页面持有的输入草稿 |
+| 可选任务归属 | [missions/form/mission_ownership_field.dart](missions/form/mission_ownership_field.dart) | 默认独立，按需选择有效目标/节点，归属编号交回表单 |
+| 名称输入与折叠方案 | [missions/form/mission_form_page.dart](missions/form/mission_form_page.dart) | 同文件的 _MissionFormFields 及方案折叠区，使用页面持有的输入草稿 |
 | 日期、时长、自选或固定时间 | [missions/form/mission_schedule_fields.dart](missions/form/mission_schedule_fields.dart) | 排期输入与日历展开，选值交回页面；文件末尾保留本表单共用的输入样式和标签 |
 | 可选/强制材料、要求与截止 | [missions/form/mission_evidence_fields.dart](missions/form/mission_evidence_fields.dart) | 在原表单展开条件输入，可选说明不强制 |
 | 文本/图片草稿、提交、放弃与材料阅读 | [missions/evidence/mission_evidence_section.dart](missions/evidence/mission_evidence_section.dart) | 多页共用的复杂材料区域，稳定身份保留草稿；正式状态由服务重读 |
@@ -23,6 +24,13 @@
 | 今天任务行原位开始、报告与材料 | [missions/execution/mission_inline_workspace.dart](missions/execution/mission_inline_workspace.dart) | 展开上下文并复用同一执行组件，保护收起/切日草稿，无额外办理路由 |
 | 执行页圆环、底部双按钮布局 | [missions/execution/execution_widgets.dart](missions/execution/execution_widgets.dart) | 展示页面传入的时长和按钮，不保存执行事实 |
 | 查看一次任务的执行结果和时间线 | [missions/record/mission_record_page.dart](missions/record/mission_record_page.dart) | 展示结束后的只读记录 |
+| 目标列表与新建入口 | [goals/goals_page.dart](goals/goals_page.dart) | 查询正式目标、卡内展开路径、创建和详情导航 |
+| 创建目标 | [goals/goal_form_page.dart](goals/goal_form_page.dart) | 输入草稿、稳定请求重试、返回保护 |
+| 目标详情、路径与说明 | [goals/goal_detail_page.dart](goals/goal_detail_page.dart) | 按编号读取目标，复用节点工作区及展示说明/原因 |
+| 节点树、展开、排序与归档恢复 | [goals/goal_outline_section.dart](goals/goal_outline_section.dart) | 列表/详情共用，独立查询、监听与节点菜单交互 |
+| 节点/目标的直接任务与记录标签 | [goals/goal_missions_section.dart](goals/goal_missions_section.dart) | 原位任务摘要、建任务、复用执行工作区及收起保护 |
+| 目标卡/详情的真实节点记录摘要 | [goals/goal_record_summary.dart](goals/goal_record_summary.dart) | 读取有效节点与直接完成报告，去重显示，不保存进度 |
+| 添加和编辑节点 | [goals/goal_node_editor.dart](goals/goal_node_editor.dart) | 原位底部填写框，固定创建请求、失败重试和草稿保护 |
 | 浏览已结束与已取消任务 | [missions/history/mission_history_page.dart](missions/history/mission_history_page.dart) | 查询历史列表，打开对应记录或详情 |
 
 `form` 是“表单”：创建、修改和重试新建共同使用，因此没有只叫 `create`。

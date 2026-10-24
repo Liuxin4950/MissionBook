@@ -1,0 +1,20 @@
+import 'tables/missions.dart';
+import 'tables/goal_nodes.dart';
+
+-- 追加列不能增加复合外键，因此用触发器核对“任务节点属于任务目标”。
+-- 声明在 Drift 文件中，让新装建库和冻结的数据库结构快照都包含这两条约束。
+CREATE TRIGGER missions_ownership_insert BEFORE INSERT ON missions
+WHEN NEW.goal_node_id IS NOT NULL AND NOT EXISTS (
+  SELECT 1 FROM goal_nodes WHERE id = NEW.goal_node_id AND goal_id = NEW.goal_id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'mission node must belong to goal');
+END;
+
+CREATE TRIGGER missions_ownership_update BEFORE UPDATE OF goal_id, goal_node_id ON missions
+WHEN NEW.goal_node_id IS NOT NULL AND NOT EXISTS (
+  SELECT 1 FROM goal_nodes WHERE id = NEW.goal_node_id AND goal_id = NEW.goal_id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'mission node must belong to goal');
+END;

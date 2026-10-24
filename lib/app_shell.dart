@@ -4,12 +4,19 @@ import 'application/missions/mission_service.dart';
 import 'core/theme/colors.dart';
 import 'presentation/missions/shared/active_missions_bar.dart';
 import 'presentation/missions/history/mission_history_page.dart';
+import 'application/goals/goal_service.dart';
+import 'presentation/goals/goals_page.dart';
 
 /// 管理四个顶层导航入口，并保留各页状态、转交共享业务对象。
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, required this.missionService});
-  // App 传入共享的任务业务对象；本层只转交给今天页，不执行业务方法。
+  const AppShell({
+    super.key,
+    required this.missionService,
+    required this.goalService,
+  });
+  // App 传入共享任务服务，本层转交给今天、历史及当前任务栏。
   final MissionService missionService;
+  final GoalService goalService; // 由 App 装配并转交给目标页面。
 
   @override
   State<AppShell> createState() {
@@ -34,7 +41,7 @@ class _AppShellState extends State<AppShell> {
     // 通过 widget 读取 App 传入的服务引用；重建页面时不重新创建服务。
     final pages = <Widget>[
       TodayPage(missionService: widget.missionService),
-      Center(child: Text('目标页面')),
+      GoalsPage(service: widget.goalService, missionService: widget.missionService),
       MissionHistoryPage(service: widget.missionService),
       Center(child: Text('我的页面')),
     ];

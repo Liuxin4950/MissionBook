@@ -11,6 +11,11 @@ import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import 'mission_schedule_fields.dart';
 import 'mission_evidence_fields.dart';
+import 'mission_ownership_field.dart';
+import '../../../domain/entities/goal.dart';
+import '../../../domain/entities/goal_node.dart';
+import '../../../domain/entities/mission_ownership.dart';
+import '../../../domain/entities/mission_creation.dart';
 
 /// 创建、编辑或再次尝试任务，共用排期、材料要求及未保存输入保护。
 // Widget 描述页面配置；可变化的输入与资源交给下面的 State 管理。
@@ -22,7 +27,20 @@ class MissionFormPage extends StatefulWidget {
     required this.missionService,
     this.initialScheduledDate,
   }) : original = null,
-       retrySource = null;
+       retrySource = null,
+       initialGoal = null,
+       initialNode = null;
+
+  const MissionFormPage.forGoal({
+    super.key,
+    required this.missionService,
+    required Goal goal,
+    GoalNode? node,
+  }) : initialGoal = goal,
+       initialNode = node,
+       original = null,
+       retrySource = null,
+       initialScheduledDate = null;
 
   /// 详情页传入读到的完整快照，既用于带入原值，也用于保存时检查冲突。
   const MissionFormPage.edit({
@@ -30,6 +48,8 @@ class MissionFormPage extends StatefulWidget {
     required this.missionService,
     required MissionDetail detail,
   }) : original = detail,
+       initialGoal = null,
+       initialNode = null,
        retrySource = null,
        initialScheduledDate = null;
 
@@ -39,11 +59,15 @@ class MissionFormPage extends StatefulWidget {
     required this.missionService,
     required MissionDetail source,
   }) : retrySource = source,
+       initialGoal = null,
+       initialNode = null,
        original = null,
        initialScheduledDate = null;
 
   final MissionDetail? original;
   final MissionDetail? retrySource;
+  final Goal? initialGoal; // 从目标/节点“建任务”传入，只预填草稿，不会自动创建。
+  final GoalNode? initialNode;
 
   // 从 TodayPage 传来的同一个业务对象；后续保存时调用，不在本页重新创建。
   final MissionService missionService;
@@ -79,6 +103,13 @@ class _MissionFormPageState extends State<MissionFormPage> {
   // final 固定控制器引用，不妨碍控制器内部的文字变化；下划线表示库内私有。
   final _titleController = TextEditingController();
   final _objectiveController = TextEditingController();
+  bool _objectiveEdited = false; // 用户亲自改过具体目标后，不再用任务名称覆盖它。
+  final _descriptionController = TextEditingController();
+  final _whyController = TextEditingController();
+  late MissionOwnership _ownership;
+  late final MissionOwnership _initialOwnership;
+  late final String _initialDescription, _initialWhy;
+  MissionCreation? _pendingCreation; // 保存结果未知时保留原请求，重试沿用原任务编号。
   final _durationController = TextEditingController();
   // 只保存用户填写的钟面时间；切回自选可保留草稿，但保存时不会传出。
   final _hourController = TextEditingController();
@@ -104,7 +135,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
     return '$year-$month-$day';
   }
 
-  bool get _canEdit => !_isSaving && !_isCreated && !_isClosing;
+  bool get _canEdit =>
+      !_isSaving && !_isCreated && !_isClosing && _pendingCreation == null;
 
   @override
   void initState() {
@@ -128,6 +160,21 @@ class _MissionFormPageState extends State<MissionFormPage> {
       int.parse(parts[2]),
     );
     final seed = original ?? widget.retrySource;
+    _ownership =
+        seed?.mission.ownership ??
+        MissionOwnership(
+          goalId: widget.initialGoal?.id,
+          goalNodeId: widget.initialNode?.id,
+        );
+    _initialOwnership = _ownership;
+    _descriptionController.text =
+        seed?.mission.description ?? widget.initialNode?.description ?? '';
+    _whyController.text = seed?.mission.why ?? widget.initialGoal?.why ?? '';
+    if (seed == null && widget.initialGoal != null) {
+      _titleController.text =
+          widget.initialNode?.title ?? widget.initialGoal!.title;
+      _objectiveController.text = _titleController.text;
+    }
     if (seed != null) {
       _verificationPolicy = seed.mission.verificationPolicy;
       _criteriaController.text = seed.executionPlan.verificationCriteria ?? '';
@@ -156,6 +203,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
       _setDefaultEvidenceDeadline();
     }
     _initialTitle = _titleController.text;
+    _initialDescription = _descriptionController.text;
+    _initialWhy = _whyController.text;
     _initialObjective = _objectiveController.text;
     _initialDuration = _durationController.text;
     _initialPolicy = _timePolicy;
@@ -166,6 +215,11 @@ class _MissionFormPageState extends State<MissionFormPage> {
     _initialDeadlineDate = _deadlineDate;
     _initialDeadlineHour = _deadlineHourController.text;
     _initialDeadlineMinute = _deadlineMinuteController.text;
+    _titleController.addListener(() {
+      if (!_isEditing && !_isRetry && !_objectiveEdited) {
+        _objectiveController.text = _titleController.text;
+      }
+    }); // 新任务的默认具体目标跟随名称；监听只整理草稿，不会保存任务。
   }
 
   late final String _initialTitle, _initialObjective, _initialDuration;
@@ -178,6 +232,10 @@ class _MissionFormPageState extends State<MissionFormPage> {
   late final DateTime? _initialDeadlineDate;
 
   bool get _hasChanges =>
+      _ownership != _initialOwnership ||
+      _pendingCreation != null ||
+      _descriptionController.text != _initialDescription ||
+      _whyController.text != _initialWhy ||
       _titleController.text != _initialTitle ||
       _objectiveController.text != _initialObjective ||
       _durationController.text != _initialDuration ||
@@ -208,6 +266,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
     // 关闭确认框不会销毁创建页，也不会执行这里。
     _titleController.dispose();
     _objectiveController.dispose();
+    _descriptionController.dispose();
+    _whyController.dispose();
     _durationController.dispose();
     _hourController.dispose();
     _minuteController.dispose();
@@ -296,7 +356,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
           : criteria;
       final original = widget.original;
       if (original == null) {
-        await widget.missionService.create(
+        _pendingCreation ??= widget.missionService.prepareCreation(
           title: title,
           scheduledDate: date,
           timeZone: _timeZone,
@@ -304,11 +364,17 @@ class _MissionFormPageState extends State<MissionFormPage> {
           timePolicy: _timePolicy,
           fixedStartAt: fixedStartAt,
           retrySource: widget.retrySource,
-          objective: _isRetry ? _objectiveController.text : null,
+          objective: _objectiveController.text.trim().isEmpty
+              ? null
+              : _objectiveController.text,
+          ownership: _ownership,
+          description: _descriptionController.text,
+          why: _whyController.text,
           verificationPolicy: _verificationPolicy,
           verificationCriteria: verificationCriteria,
           evidenceDeadlineAt: evidenceDeadlineAt,
         );
+        await widget.missionService.createPrepared(_pendingCreation!);
       } else {
         await widget.missionService.edit(
           original: original,
@@ -321,13 +387,17 @@ class _MissionFormPageState extends State<MissionFormPage> {
           verificationPolicy: _verificationPolicy,
           verificationCriteria: verificationCriteria,
           evidenceDeadlineAt: evidenceDeadlineAt,
+          ownership: _ownership,
+          description: _descriptionController.text,
+          why: _whyController.text,
+          updateContext: true,
         );
       }
       if (!mounted) return;
       setState(() {
         _isCreated = true;
       });
-      if (_isEditing || _isRetry) {
+      if (_isEditing || _isRetry || widget.initialGoal != null) {
         // 编辑成功直接返回原详情，true 让详情重新读库，不额外堆一个结果页。
         Navigator.of(context).pop(true);
       }
@@ -340,6 +410,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
       // 业务校验失败：显示原因，不清空控制器中的任何输入。
       if (!mounted) return;
       setState(() {
+        _pendingCreation = null; // 明确的业务拒绝没有写入，可以修改归属或其他输入后重新保存。
         _errorText = error.message.toString();
       });
     } catch (error, stackTrace) {
@@ -356,6 +427,33 @@ class _MissionFormPageState extends State<MissionFormPage> {
           _isSaving = false;
         });
       }
+    }
+  }
+
+  Future<void> _checkCreation() async {
+    final request = _pendingCreation;
+    if (request == null || _isSaving) return;
+    setState(() => _isSaving = true);
+    try {
+      final saved = await widget.missionService.findDetail(
+        missionId: request.mission.id,
+      );
+      if (!mounted) return;
+      if (saved != null) {
+        setState(() => _isCreated = true);
+        if (_isRetry || widget.initialGoal != null) {
+          Navigator.of(context).pop(true);
+        }
+      } else {
+        setState(() {
+          _pendingCreation = null;
+          _errorText = '尚未保存，可继续修改后创建';
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _errorText = '暂时无法确认，请保留当前请求，稍后重试或检查保存结果');
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -423,7 +521,11 @@ class _MissionFormPageState extends State<MissionFormPage> {
         discard = await AppConfirmDialog.show(
           context: context,
           title: _isEditing ? '放弃本次修改？' : '放弃本次填写？',
-          message: _isEditing ? '返回后，本次修改不会保存，原任务保持不变。' : '返回后，已填写的内容不会保存。',
+          message: _pendingCreation != null
+              ? '这次保存结果尚未确认，任务可能已经保存。建议先检查保存结果；现在离开会丢弃当前页面输入。'
+              : _isEditing
+              ? '返回后，本次修改不会保存，原任务保持不变。'
+              : '返回后，已填写的内容不会保存。',
           cancelText: '继续填写',
           confirmText: _isEditing ? '放弃修改' : '放弃填写',
         );
@@ -478,17 +580,24 @@ class _MissionFormPageState extends State<MissionFormPage> {
               // 本页只有少量固定输入区，整体滚动保留所有输入组件。
               // 展开日历或滚到材料设置后，标题等离屏字段仍保持同一编辑状态。
               child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: AppLayout.pagePadding(context),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // 输入区只显示与收集草稿；保存、冲突检查和返回保护仍由本页负责。
+                    MissionOwnershipField(
+                      service: widget.missionService,
+                      value: _ownership,
+                      enabled: _canEdit,
+                      onChanged: (value) => setState(() {
+                        _ownership = value;
+                        _errorText = null;
+                      }),
+                    ),
                     _MissionFormFields(
                       titleController: _titleController,
-                      objectiveController: _objectiveController,
                       enabled: _canEdit,
-                      showObjective: _isEditing || _isRetry,
-                      retrySourceTitle: widget.retrySource?.mission.title,
                     ),
                     MissionScheduleFields(
                       selectedDate: _scheduledDate,
@@ -545,6 +654,78 @@ class _MissionFormPageState extends State<MissionFormPage> {
                         _errorText = null;
                       }),
                     ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    ExpansionTile(
+                      key: const Key('mission-plan-toggle'),
+                      tilePadding: EdgeInsets.zero,
+                      title: Text(
+                        '详细方案（选填）',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      initiallyExpanded: _isEditing || _isRetry,
+                      shape: const Border(),
+                      collapsedShape: const Border(),
+                      expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (widget.retrySource != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: Text(
+                              '来自任务：${widget.retrySource!.mission.title}\n保存后创建新的尝试，原记录保持不变。',
+                            ),
+                          ),
+                        MissionInputLabel(
+                          label: '具体目标',
+                          child: TextField(
+                            key: const Key('mission-objective'),
+                            controller: _objectiveController,
+                            enabled: _canEdit,
+                            minLines: 2,
+                            maxLines: 4,
+                            onChanged: (_) => _objectiveEdited = true,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                            decoration: missionInputDecoration(
+                              context,
+                              hint: '默认使用任务名称，可以单独修改',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        MissionInputLabel(
+                          label: '任务说明',
+                          child: TextField(
+                            key: const Key('mission-description'),
+                            controller: _descriptionController,
+                            enabled: _canEdit,
+                            minLines: 2,
+                            maxLines: 5,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                            decoration: missionInputDecoration(
+                              context,
+                              hint: '补充本次行动的范围',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        MissionInputLabel(
+                          label: '为什么做',
+                          child: TextField(
+                            key: const Key('mission-why'),
+                            controller: _whyController,
+                            enabled: _canEdit,
+                            minLines: 2,
+                            maxLines: 5,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                            decoration: missionInputDecoration(
+                              context,
+                              hint: '这次行动对你有什么意义',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -593,16 +774,24 @@ class _MissionFormPageState extends State<MissionFormPage> {
                       ),
                       const SizedBox(height: 12),
                     ],
+                    if (_pendingCreation != null && !_isCreated)
+                      TextButton(
+                        onPressed: _isSaving ? null : _checkCreation,
+                        child: const Text('检查保存结果'),
+                      ),
                     FilledButton(
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(56),
+                        shape: const StadiumBorder(),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 24,
                           vertical: 16,
                         ),
                         textStyle: Theme.of(context).textTheme.labelLarge,
                       ),
-                      onPressed: _canEdit ? _save : null,
+                      onPressed: (!_isSaving && !_isCreated && !_isClosing)
+                          ? _save
+                          : null,
                       child: Text(createButtonLabel),
                     ),
                   ],
@@ -616,40 +805,19 @@ class _MissionFormPageState extends State<MissionFormPage> {
   }
 }
 
-/// 任务名称与目标输入；控制器由页面创建、读取和释放。
+/// 任务名称输入；草稿控制器由表单持有，其余方案字段在表单的折叠区组装。
 class _MissionFormFields extends StatelessWidget {
   const _MissionFormFields({
-    required this.titleController, // 页面持有的任务名称草稿。
-    required this.objectiveController, // 页面持有的行动目标草稿。
-    required this.enabled, // 保存或关闭期间禁止修改。
-    required this.showObjective, // 修改和重试时显示目标输入。
-    this.retrySourceTitle, // 重试来源，仅展示，不复制执行记录。
+    required this.titleController,
+    required this.enabled,
   });
-
   final TextEditingController titleController;
-  final TextEditingController objectiveController;
   final bool enabled;
-  final bool showObjective;
-  final String? retrySourceTitle;
-
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _titleField(context),
-      const SizedBox(height: AppLayout.sectionGap),
-      if (showObjective) ...[
-        if (retrySourceTitle != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Text('来自任务：$retrySourceTitle\n保存后创建新的尝试，原记录保持不变。'),
-          ),
-        _objectiveField(context),
-        const SizedBox(height: AppLayout.sectionGap),
-      ],
-    ],
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: AppLayout.sectionGap),
+    child: _titleField(context),
   );
-
   Widget _titleField(BuildContext context) {
     return MissionInputLabel(
       label: '任务名称',
@@ -669,21 +837,6 @@ class _MissionFormFields extends StatelessWidget {
           textInputAction: TextInputAction.next,
           decoration: missionInputDecoration(context, hint: '例如：阅读 Flutter'),
         ),
-      ),
-    );
-  }
-
-  Widget _objectiveField(BuildContext context) {
-    return MissionInputLabel(
-      label: '具体目标',
-      child: TextField(
-        key: const ValueKey('mission-objective'),
-        controller: objectiveController,
-        enabled: enabled,
-        minLines: 2,
-        maxLines: 4,
-        style: Theme.of(context).textTheme.bodyLarge,
-        decoration: missionInputDecoration(context, hint: '这次希望完成什么'),
       ),
     );
   }

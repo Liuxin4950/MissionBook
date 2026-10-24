@@ -5,6 +5,7 @@ import 'execution_event.dart';
 import 'failure_record.dart';
 import 'evidence.dart';
 import 'mission_phase.dart';
+import 'mission_ownership.dart';
 import '../rules/execution_event_rules.dart';
 
 /// 编辑期间原任务已变化；保留当前草稿，由用户重新读取后决定怎样修改。
@@ -23,6 +24,7 @@ class MissionDetail {
     this.events = const [], // 完整执行记录：开始、暂停等；无记录时为空列表。
     this.failures = const [], // 失败事实；没有失败记录时为空列表。
     this.evidence = const [], // 同一快照内的全部正式材料；页面草稿不参与阶段计算。
+    this.ownershipInfo, // 同次查询读取的目标名称与路径，独立任务为 null。
   });
 
   final Mission mission;
@@ -32,6 +34,7 @@ class MissionDetail {
   final List<ExecutionEvent> events;
   final List<FailureRecord> failures;
   final List<Evidence> evidence;
+  final MissionOwnershipInfo? ownershipInfo;
   // 没有事件时为0；开始命令用它检查页面是否过期，仓储再分配新序号1。
   int get lastSequence => events.isEmpty ? 0 : events.last.sequence;
   // get 是按需计算的属性：读取 detail.phase 时，根据事实重新计算，结果不写回库。

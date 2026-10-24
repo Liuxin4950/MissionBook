@@ -1,4 +1,6 @@
 import 'dart:convert';
+import '../../domain/entities/mission_ownership.dart';
+import 'drift_goal_repository.dart';
 
 import 'package:drift/drift.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
@@ -35,6 +37,8 @@ MissionsCompanion missionToCompanion(Mission mission) {
     // 它与 Value.absent()（省略这一列）不同。
     description: Value(mission.description),
     why: Value(mission.why),
+    goalId: Value(mission.goalId),
+    goalNodeId: Value(mission.goalNodeId),
 
     // 业务对象使用枚举，数据库约定保存下面这些文本。
     // switch 按任务的实际策略选出字符串，再包装成 Value 传给该列。
@@ -70,6 +74,8 @@ Mission missionFromRow(MissionRow row) {
     title: row.title,
     description: row.description,
     why: row.why,
+    goalId: row.goalId,
+    goalNodeId: row.goalNodeId,
     sourceMissionId: row.sourceMissionId,
     relationType: switch (row.relationType) {
       null => null,
@@ -218,6 +224,70 @@ class DriftMissionRepository implements MissionRepository {
   final AppDatabase database;
   // 只用于捕获实际操作时刻；测试注入可控时钟，不允许命令指定 occurredAt。
   final DateTime Function() clock;
+
+  @override
+  Future<List<MissionGoalChoices>> findGoalChoices() =>
+      database.transaction(() async {
+        final rows =
+            await (database.select(database.goals)
+                  ..where((table) => table.status.equals('ACTIVE'))
+                  ..orderBy([
+                    (table) => OrderingTerm.desc(table.createdAt),
+                    (table) => OrderingTerm.asc(table.id),
+                  ]))
+                .get();
+        final goals = DriftGoalRepository(database); // 复用已有的目标转换和节点树完整性检查。
+        final result = <MissionGoalChoices>[];
+        for (final row in rows) {
+          result.add(
+            MissionGoalChoices(
+              goal: (await goals.findById(row.id))!,
+              nodes: await goals.findNodes(row.id),
+            ),
+          );
+        }
+        return result;
+      });
+
+  @override
+  Future<MissionOwnershipInfo?> findOwnershipInfo(MissionOwnership ownership) =>
+      database.transaction(() async {
+        ownership.validate();
+        if (ownership.goalId == null) return null; // 独立任务不需要目标或节点也能保存和执行。
+        final goals = DriftGoalRepository(database);
+        final goal = await goals.findById(ownership.goalId!);
+        if (goal == null) throw StateError('关联的目标不存在，请重新选择归属');
+        final choices = MissionGoalChoices(
+          goal: goal,
+          nodes: await goals.findNodes(goal.id),
+        );
+        return choices.resolve(ownership);
+      });
+
+  Future<void> _validateNewOwnership(MissionOwnership ownership) async {
+    final info = await findOwnershipInfo(ownership);
+    if (info != null && !info.available) {
+      throw ArgumentError('目标暂未推进或节点已归档，请重新选择有效归属，或改为独立任务');
+    }
+  }
+
+  @override
+  Future<List<MissionDetail>> findForGoal(String goalId) =>
+      database.transaction(() async {
+        final rows =
+            await (database.select(database.missions)
+                  ..where((table) => table.goalId.equals(goalId))
+                  ..orderBy([
+                    (table) => OrderingTerm.desc(table.createdAt),
+                    (table) => OrderingTerm.asc(table.id),
+                  ]))
+                .get();
+        final result = <MissionDetail>[];
+        for (final row in rows) {
+          result.add((await findDetail(row.id))!); // 复用唯一的阶段、材料和执行时间线查询。
+        }
+        return result;
+      });
 
   Future<void> _acquireWrite(String missionId) async {
     // 显式在读取事实前执行写语句，字段值不变；同库连接受 SQLite 写锁约束。
@@ -622,6 +692,10 @@ class DriftMissionRepository implements MissionRepository {
     required MissionScheduleRevision schedule,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
+    MissionOwnership? ownership,
+    String? description,
+    String? why,
+    bool updateContext = false,
   }) async {
     final missionId = original.mission.id;
     if (missionId.trim().isEmpty ||
@@ -655,12 +729,24 @@ class DriftMissionRepository implements MissionRepository {
       final policyChanged = newPolicy != current.mission.verificationPolicy;
       final criteriaChanged =
           newCriteria != current.executionPlan.verificationCriteria;
+      final newOwnership = ownership ?? original.mission.ownership;
+      newOwnership.validate();
+      final ownershipChanged = newOwnership != current.mission.ownership;
+      final newDescription = updateContext
+          ? description
+          : original.mission.description;
+      final newWhy = updateContext ? why : original.mission.why;
+      final contextChanged =
+          newDescription != current.mission.description ||
+          newWhy != current.mission.why;
       // 无改动、双击或重试同一份已成功的内容都不制造新版本或修改时间。
       if (!scheduleChanged &&
           !titleChanged &&
           !objectiveChanged &&
           !policyChanged &&
-          !criteriaChanged) {
+          !criteriaChanged &&
+          !ownershipChanged &&
+          !contextChanged) {
         return;
       }
 
@@ -673,6 +759,9 @@ class DriftMissionRepository implements MissionRepository {
           current.executionPlan.updatedAt != oldPlan.updatedAt ||
           current.executionPlan.objective != oldPlan.objective ||
           current.mission.verificationPolicy != oldMission.verificationPolicy ||
+          current.mission.ownership != oldMission.ownership ||
+          current.mission.description != oldMission.description ||
+          current.mission.why != oldMission.why ||
           current.executionPlan.verificationCriteria !=
               oldPlan.verificationCriteria) {
         throw const MissionEditConflict('任务已被修改，输入已保留；请返回详情刷新后重新编辑');
@@ -686,6 +775,8 @@ class DriftMissionRepository implements MissionRepository {
         throw ArgumentError('排期提案与当前任务不一致');
       }
       final now = schedule.changedAt.millisecondsSinceEpoch;
+      // 只在改归属时要求新目标/节点有效；原节点归档后仍允许保留原归属编辑标题。
+      if (ownershipChanged) await _validateNewOwnership(newOwnership);
       if (scheduleChanged &&
           newPolicy == VerificationPolicy.requiredEvidence &&
           !schedule.evidenceDeadlineAt!.isAfter(_now())) {
@@ -697,6 +788,10 @@ class DriftMissionRepository implements MissionRepository {
       await missionUpdate.write(
         MissionsCompanion(
           title: Value(title),
+          goalId: Value(newOwnership.goalId),
+          goalNodeId: Value(newOwnership.goalNodeId),
+          description: Value(newDescription),
+          why: Value(newWhy),
           updatedAt: Value(now),
           verificationPolicy: Value(switch (newPolicy) {
             VerificationPolicy.selfReport => 'SELF_REPORT',
@@ -850,6 +945,7 @@ class DriftMissionRepository implements MissionRepository {
         events: events,
         failures: failures,
         evidence: evidence,
+        ownershipInfo: await findOwnershipInfo(mission.ownership),
       );
     });
   }
@@ -962,6 +1058,19 @@ class DriftMissionRepository implements MissionRepository {
     // 外层 await 等待整个事务完成。
     // 三次写入全部成功才提交，任意一次失败就一起回滚。
     await database.transaction(() async {
+      await _acquireWrite(mission.id); // 先取得写锁，再核对归属和任务身份，防止与归档并发穿透。
+      final existing = await (database.select(
+        database.missions,
+      )..where((table) => table.id.equals(mission.id))).getSingleOrNull();
+      if (existing != null) {
+        final saved = (await findDetail(mission.id))!;
+        // 先识别原请求是否已提交，之后才判断目标归档和截止变化；成功重试不再创建。
+        if (!_sameCreation(saved, mission, initialSchedule, executionPlan)) {
+          throw StateError('这个创建请求已保存为其他内容，请先检查任务记录');
+        }
+        return;
+      }
+      await _validateNewOwnership(mission.ownership);
       // 创建强制任务也在事务中重查实际时刻，避免编辑期间截止已经过去。
       if (mission.verificationPolicy == VerificationPolicy.requiredEvidence &&
           !initialSchedule.evidenceDeadlineAt!.isAfter(_now())) {
@@ -992,5 +1101,40 @@ class DriftMissionRepository implements MissionRepository {
           .into(database.executionPlans)
           .insert(executionPlanToCompanion(executionPlan));
     });
+  }
+
+  bool _sameCreation(
+    MissionDetail saved,
+    Mission mission,
+    MissionScheduleRevision schedule,
+    ExecutionPlan plan,
+  ) {
+    bool sameTime(DateTime a, DateTime b) =>
+        a.millisecondsSinceEpoch == b.millisecondsSinceEpoch;
+    final old = saved.mission;
+    final oldPlan = saved.executionPlan;
+    return old.title == mission.title &&
+        old.description == mission.description &&
+        old.why == mission.why &&
+        old.ownership == mission.ownership &&
+        old.sourceMissionId == mission.sourceMissionId &&
+        old.relationType == mission.relationType &&
+        old.verificationPolicy == mission.verificationPolicy &&
+        sameTime(old.createdAt, mission.createdAt) &&
+        sameTime(old.updatedAt, mission.updatedAt) &&
+        old.cancelledAt == mission.cancelledAt &&
+        old.evidenceWaivedAt == mission.evidenceWaivedAt &&
+        saved.schedule.id == schedule.id &&
+        saved.schedule.revisionNumber == schedule.revisionNumber &&
+        _sameSchedule(saved.schedule, schedule) &&
+        sameTime(saved.schedule.changedAt, schedule.changedAt) &&
+        saved.schedule.changeReason == schedule.changeReason &&
+        oldPlan.id == plan.id &&
+        oldPlan.objective == plan.objective &&
+        jsonEncode(oldPlan.steps) == jsonEncode(plan.steps) &&
+        oldPlan.verificationCriteria == plan.verificationCriteria &&
+        oldPlan.notes == plan.notes &&
+        sameTime(oldPlan.createdAt, plan.createdAt) &&
+        sameTime(oldPlan.updatedAt, plan.updatedAt);
   }
 }

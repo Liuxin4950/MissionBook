@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'package:mission_book/domain/entities/execution_command.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/evidence.dart';
@@ -10,6 +11,9 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/app_shell.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/application/goals/goal_service.dart';
+import 'package:mission_book/domain/entities/goal.dart';
+import 'package:mission_book/domain/repositories/goal_repository.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
@@ -27,6 +31,15 @@ import 'package:timezone/timezone.dart' as tz;
 
 // 每次读取都有独立 Future，用来控制等待、失败、重试和乱序返回。
 class ControlledQueryRepository implements MissionRepository {
+  @override
+  Future<List<MissionGoalChoices>> findGoalChoices() async => [];
+  @override
+  Future<MissionOwnershipInfo?> findOwnershipInfo(
+    MissionOwnership ownership,
+  ) async => null;
+  @override
+  Future<List<MissionDetail>> findForGoal(String goalId) async => [];
+
   @override
   Future<ExecutionEvent> execute(ExecutionCommand command) =>
       throw UnsupportedError('本替身不执行任务');
@@ -58,6 +71,10 @@ class ControlledQueryRepository implements MissionRepository {
     required MissionScheduleRevision schedule,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
+    MissionOwnership? ownership,
+    String? description,
+    String? why,
+    bool updateContext = false,
   }) => throw UnsupportedError('本测试不编辑任务');
 
   @override
@@ -95,6 +112,22 @@ class ControlledQueryRepository implements MissionRepository {
 
 // 重建组件时仍复用同一服务，与 App 的实际装配一致；换仓储才是换数据源。
 final _testServices = Expando<MissionService>();
+final _goalServices = Expando<GoalService>();
+
+// 此文件只验收任务列表，目标入口使用明确的空查询替身，不访问用户数据。
+class _EmptyGoals implements GoalRepository {
+  // 今天页的控制查询测试不会打开目标节点；意外调用应明确失败。
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('本测试不操作目标节点：${invocation.memberName}');
+
+  @override
+  Future<void> create(Goal goal) => throw UnsupportedError('本测试不创建目标');
+  @override
+  Future<List<Goal>> findAll() async => [];
+  @override
+  Future<Goal?> findById(String id) async => null;
+}
 
 Widget testApp(
   MissionRepository repository, {
@@ -104,13 +137,21 @@ Widget testApp(
   final missionService = _testServices[repository] ??= MissionService(
     repository,
   );
+  if (_goalServices[repository] == null) {
+    final goals = GoalService(_EmptyGoals());
+    _goalServices[repository] = goals;
+    addTearDown(goals.dispose);
+  }
   return MaterialApp(
     theme: AppTheme.light,
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
     home: shell
-        ? AppShell(missionService: missionService)
+        ? AppShell(
+            missionService: missionService,
+            goalService: _goalServices[repository]!,
+          )
         : Scaffold(
             body: TodayPage(
               missionService: missionService,
@@ -184,7 +225,13 @@ void main() {
         expect(data.flagsCollection.isButton, isTrue);
       }
 
-      final target = tester.getSemantics(find.bySemanticsLabel('目标'));
+      // 目标页已接通，页头也有“目标”；按导航按钮角色定位，避免匹配正文标题。
+      final goalNavigation = find.byWidgetPredicate((widget) {
+        return widget is Semantics &&
+            widget.properties.label == '目标' &&
+            widget.properties.button == true;
+      });
+      final target = tester.getSemantics(goalNavigation);
       final owner = target.owner;
       if (owner == null) {
         throw StateError('导航语义节点尚未挂载');
@@ -192,14 +239,14 @@ void main() {
       // 从语义树派发动作，验证读屏实际走到切页逻辑，而非只检查有一个回调。
       owner.performAction(target.id, SemanticsAction.tap);
       await tester.pumpAndSettle();
-      expect(find.text('目标页面'), findsOneWidget);
+      expect(find.text('从一个想实现的目标开始'), findsOneWidget);
       expect(
         TickerMode.valuesOf(
           tester.element(find.byType(TodayPage, skipOffstage: false)),
         ).enabled,
         isFalse,
       );
-      final selectedTarget = tester.getSemantics(find.bySemanticsLabel('目标'));
+      final selectedTarget = tester.getSemantics(goalNavigation);
       expect(
         selectedTarget.getSemanticsData().flagsCollection.isSelected,
         Tristate.isTrue,

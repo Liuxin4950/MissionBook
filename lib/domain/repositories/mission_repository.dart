@@ -6,9 +6,13 @@ import '../entities/mission_detail.dart';
 import '../entities/execution_command.dart';
 import '../entities/execution_event.dart';
 import '../entities/evidence.dart';
+import '../entities/mission_ownership.dart';
 
 /// 任务仓储接口：约定任务相关的数据访问能力。
 abstract interface class MissionRepository {
+  Future<List<MissionGoalChoices>> findGoalChoices(); // 只列出可用于新任务的有效目标。
+  Future<MissionOwnershipInfo?> findOwnershipInfo(MissionOwnership ownership);
+  Future<List<MissionDetail>> findForGoal(String goalId); // 包含直接关联目标及其节点的全部任务。
   /// 稳定批次身份、事务重读、整批原子保存；已超时返回已提交的超时结果。
   Future<EvidenceSubmissionResult> submitEvidence(
     EvidenceSubmission submission,
@@ -41,6 +45,10 @@ abstract interface class MissionRepository {
     required MissionScheduleRevision schedule,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
+    MissionOwnership? ownership, // 省略保留原归属；显式传空选择表示改为独立任务。
+    String? description,
+    String? why,
+    bool updateContext = false, // true 时按表单值写说明和 Why，允许明确清空。
   });
 
   /// 在写事务中重读任务并取消，只修改 cancelledAt 和 updatedAt。

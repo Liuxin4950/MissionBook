@@ -7,6 +7,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/evidence/evidence_image_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/application/goals/goal_service.dart';
+import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/app_shell.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
@@ -109,16 +111,19 @@ void main() {
   late AppDatabase database;
   late _LostReply repository;
   late MissionService service;
+  late GoalService goals;
   late _Images images;
   late DateTime now;
   setUp(() {
     now = DateTime.utc(2030, 1, 1, 6);
     database = AppDatabase(executor: NativeDatabase.memory());
+    goals = GoalService(DriftGoalRepository(database));
     repository = _LostReply(database, clock: () => now);
     images = _Images();
     service = MissionService(repository, images: _PreparedImages(images));
   });
   tearDown(() async {
+    await goals.dispose();
     await service.dispose();
     await database.close();
   });
@@ -649,7 +654,10 @@ void main() {
     final detail = await create(date: date);
     final routes = _Routes();
     await tester.pumpWidget(
-      app(AppShell(missionService: service), observers: [routes]),
+      app(
+        AppShell(missionService: service, goalService: goals),
+        observers: [routes],
+      ),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('历史').last);
