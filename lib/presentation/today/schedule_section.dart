@@ -7,6 +7,7 @@ import 'today_display.dart' as display;
 import '../../domain/entities/mission_phase.dart';
 import '../missions/shared/mission_phase_display.dart';
 import '../missions/shared/mission_live_status.dart';
+import '../widgets/app_visibility.dart';
 
 /// 首页窗口和当日完整列表共用一份日程布局；时钟只影响展示，不写执行事实。
 class ScheduleSection extends StatefulWidget {
@@ -19,8 +20,6 @@ class ScheduleSection extends StatefulWidget {
     this.onOpenAll,
     this.onCreate,
     this.fullList = false,
-    this.workspaceBuilder,
-    this.keepVisibleMissionIds = const {},
   });
 
   final List<display.TodayMissionItem> items;
@@ -30,8 +29,6 @@ class ScheduleSection extends StatefulWidget {
   final VoidCallback? onOpenAll;
   final VoidCallback? onCreate;
   final bool fullList;
-  final Widget Function(display.TodayMissionItem item)? workspaceBuilder;
-  final Set<String> keepVisibleMissionIds;
 
   @override
   State<ScheduleSection> createState() => _ScheduleSectionState();
@@ -42,15 +39,13 @@ class _ScheduleSectionState extends State<ScheduleSection>
   late DateTime _now;
   Timer? _timer;
   bool _visible = false;
-  bool _foreground = true;
+  bool _appVisible = true;
 
   @override
   void initState() {
     super.initState();
     _now = widget.clock();
-    _foreground =
-        WidgetsBinding.instance.lifecycleState == null ||
-        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _appVisible = isAppVisible(WidgetsBinding.instance.lifecycleState);
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -69,16 +64,19 @@ class _ScheduleSectionState extends State<ScheduleSection>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _foreground = state == AppLifecycleState.resumed;
+    _appVisible = isAppVisible(state);
     _syncClock();
     if (mounted) setState(() {});
   }
 
   void _syncClock() {
-    _timer?.cancel();
-    if (!_visible || !_foreground || widget.items.isEmpty) return;
+    if (!_visible || !_appVisible || widget.items.isEmpty) {
+      _timer?.cancel();
+      _timer = null;
+      return;
+    }
     _now = widget.clock();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
       final next = widget.clock();
       // 分钟文案或时段边界改变才重建，稳定时段不反复测量所有文字。
       final changed =
@@ -115,12 +113,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
     final preview = widget.fullList
         ? widget.items
         : display.schedulePreview(widget.items, _now, limit: limit);
-    final shownIds = preview.map((item) => item.id).toSet()
-      ..addAll(widget.keepVisibleMissionIds);
-    // 正在办理的原行固定在列表内，计划窗口变化不能销毁报告/材料草稿。
-    final items = widget.items
-        .where((item) => shownIds.contains(item.id))
-        .toList();
+    final items = preview;
     final hidden = widget.items.length - items.length;
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
@@ -212,7 +205,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
                   children: [
                     for (var index = 0; index < items.length; index++)
                       Column(
-                        key: ValueKey('schedule-workspace-${items[index].id}'),
+                        key: ValueKey('schedule-row-${items[index].id}'),
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           ScheduleMissionRow(
@@ -224,8 +217,6 @@ class _ScheduleSectionState extends State<ScheduleSection>
                             showFullTitle: widget.fullList,
                             onTap: () => widget.onOpenMission(items[index].id),
                           ),
-                          if (widget.workspaceBuilder != null)
-                            widget.workspaceBuilder!(items[index]),
                         ],
                       ),
                   ],

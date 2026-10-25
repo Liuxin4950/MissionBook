@@ -6,6 +6,28 @@ import 'package:mission_book/presentation/today/today_display.dart' as display;
 import 'today_page_test.dart' show ControlledQueryRepository, example, testApp;
 
 void main() {
+  testWidgets('日程在失去输入焦点但仍可见时跨越计划边界继续刷新', (tester) async {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    });
+    final start = DateTime.utc(2026, 10, 23, 8, 30);
+    var now = start;
+    final repository = ControlledQueryRepository();
+    await tester.pumpWidget(testApp(repository, clock: () => now));
+    repository.requests.single.complete([
+      example('失焦时仍可见', fixed: true, start: start, plannedDurationMinutes: 1),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('当前时段'), findsOneWidget);
+    now = now.add(const Duration(minutes: 1));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('时段已过'), findsOneWidget);
+    expect(repository.requests, hasLength(1));
+  });
+
   testWidgets('零、一、多日程按窗口展示，单项不留占位行', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -85,7 +107,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('当日日程'), findsOneWidget);
     expect(find.byType(ScheduleMissionRow), findsNWidgets(12));
-    await tester.tap(find.byType(BackButton));
+    await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(repository.requests, hasLength(3));
     repository.requests.last.complete(items.take(1).toList());

@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import '../../application/missions/mission_service.dart';
-import '../../core/theme/colors.dart';
-import '../../domain/entities/goal.dart';
-import '../../domain/entities/goal_node.dart';
-import '../../domain/entities/mission_detail.dart';
-import '../../domain/entities/mission_phase.dart';
-import '../../domain/entities/execution_event.dart';
-import '../missions/form/mission_form_page.dart';
-import '../missions/detail/mission_detail_page.dart';
-import '../missions/record/mission_record_page.dart';
-import '../missions/execution/mission_inline_workspace.dart';
-import '../missions/shared/mission_phase_display.dart';
-import '../missions/shared/mission_live_status.dart';
+import '../../../application/missions/mission_service.dart';
+import '../../../core/theme/colors.dart';
+import '../../../domain/entities/goal.dart';
+import '../../../domain/entities/goal_node.dart';
+import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/entities/mission_phase.dart';
+import '../../../domain/entities/execution_event.dart';
+import '../../missions/form/mission_form_page.dart';
+import '../../missions/detail/mission_detail_page.dart';
+import '../../missions/record/mission_record_page.dart';
+import '../../missions/execution/mission_execution_page.dart';
+import '../../missions/shared/mission_phase_display.dart';
+import '../../missions/shared/mission_live_status.dart';
 
-/// 目标或节点下的直接关联任务，复用已有执行工作区，不另写一套开始/暂停逻辑。
+/// 目标或节点下的直接关联任务，操作转入独立任务页面。
 class GoalMissionsSection extends StatefulWidget {
   const GoalMissionsSection({
     super.key,
@@ -41,24 +41,10 @@ class GoalMissionsSection extends StatefulWidget {
 class GoalMissionsSectionState extends State<GoalMissionsSection> {
   bool _expanded = false;
   bool _opening = false;
-  final _workspaces = <String, GlobalKey<MissionInlineWorkspaceState>>{};
   List<MissionDetail>? _lastMissions;
   Future<void> createMission() => _open(); // 节点菜单与行内按钮共用同一个建任务入口。
-  bool get hasExpandedWorkspace =>
-      _workspaces.values.any((key) => key.currentState?.isExpanded == true);
-
-  Future<bool> prepareToCollapse() async {
-    for (final key in _workspaces.values) {
-      if (!await (key.currentState?.prepareToCollapse() ??
-          Future.value(true))) {
-        return false;
-      }
-    }
-    return true;
-  }
 
   Future<void> _toggle() async {
-    if (_expanded && !await prepareToCollapse()) return;
     if (mounted) setState(() => _expanded = !_expanded);
   }
 
@@ -74,6 +60,13 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                 missionService: widget.service,
                 goal: widget.goal,
                 node: widget.node,
+              );
+            }
+            if (detail.phase == MissionPhase.running ||
+                detail.phase == MissionPhase.paused) {
+              return MissionExecutionPage(
+                detail: detail,
+                service: widget.service,
               );
             }
             if (detail.phase == MissionPhase.closed) {
@@ -251,7 +244,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                       270 * MediaQuery.textScalerOf(context).scale(1);
                   final name = Text(
                     title,
-                    style: theme.textTheme.bodyLarge?.copyWith(
+                    style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
@@ -409,7 +402,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                   children: [
                     Text(
                       detail.mission.title,
-                      style: theme.textTheme.bodyLarge?.copyWith(
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
                       ),
@@ -430,7 +423,11 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
               ),
               IconButton(
                 onPressed: _opening ? null : () => _open(detail: detail),
-                tooltip: detail.phase == MissionPhase.closed
+                tooltip:
+                    detail.phase == MissionPhase.running ||
+                        detail.phase == MissionPhase.paused
+                    ? '返回执行'
+                    : detail.phase == MissionPhase.closed
                     ? '查看执行记录'
                     : detail.phase == MissionPhase.evidencePending
                     ? '提交材料'
@@ -453,16 +450,6 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                 child: const Text('提交材料'),
               ),
             ),
-          MissionInlineWorkspace(
-            key: _workspaces.putIfAbsent(
-              detail.mission.id,
-              () => GlobalKey<MissionInlineWorkspaceState>(),
-            ),
-            missionId: detail.mission.id,
-            phase: detail.phase,
-            service: widget.service,
-            clock: DateTime.now,
-          ),
         ],
       ),
     );

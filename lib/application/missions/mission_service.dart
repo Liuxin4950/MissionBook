@@ -143,6 +143,12 @@ class MissionService {
 
   Future<List<MissionDetail>> findCancelled() => repository.findCancelled();
 
+  /// “全部任务”复用详情事实及截止补算，不建立第二套阶段判断。
+  Future<List<MissionDetail>> findAllDetails() async {
+    await reconcileEvidenceDeadlines();
+    return repository.findAllDetails();
+  }
+
   /// 查询前/恢复前台补算，不在纯阶段函数或 Focus 重绘中写事实。
   Future<int> reconcileEvidenceDeadlines() async {
     final count = await repository.reconcileEvidenceDeadlines();
@@ -155,12 +161,24 @@ class MissionService {
     return repository.findPendingEvidence();
   }
 
-  EvidenceDraft createTextEvidence(String content) => EvidenceDraft(
-    id: uuid.v4(),
-    type: EvidenceType.text,
-    source: EvidenceSource.user,
-    content: content,
-  );
+  EvidenceDraft createTextEvidence(
+    String content, {
+    EvidenceType type = EvidenceType.text,
+    String? supersedesEvidenceId,
+  }) {
+    if (type != EvidenceType.text &&
+        type != EvidenceType.code &&
+        type != EvidenceType.manualRecord) {
+      throw ArgumentError('该入口只创建文字、代码或手动记录');
+    }
+    return EvidenceDraft(
+      id: uuid.v4(),
+      type: type,
+      source: EvidenceSource.user,
+      content: content,
+      supersedesEvidenceId: supersedesEvidenceId,
+    );
+  }
 
   Future<void> _initializeImages() async {
     try {
@@ -178,7 +196,10 @@ class MissionService {
   /// 编辑区显示时提前准备，系统选择按钮就绪后可直接保留浏览器用户激活。
   Future<void> initializeEvidenceImages() => _initializeImages();
 
-  Future<EvidenceDraft?> pickEvidenceImage(String missionId) async {
+  Future<EvidenceDraft?> pickEvidenceImage(
+    String missionId, {
+    String? supersedesEvidenceId,
+  }) async {
     await _initializeImages();
     final prepared = await _imageService.pickAndPrepare(missionId);
     if (prepared == null) return null;
@@ -190,6 +211,45 @@ class MissionService {
       attachmentStorageKey: prepared.storageKey,
       attachmentFileName: prepared.fileName,
       attachmentMimeType: prepared.mimeType,
+      supersedesEvidenceId: supersedesEvidenceId,
+    );
+  }
+
+  Future<EvidenceDraft?> pickEvidenceFile(
+    String missionId, {
+    String? supersedesEvidenceId,
+  }) async {
+    await _initializeImages();
+    final prepared = await _imageService.pickFileAndPrepare(missionId);
+    if (prepared == null) return null;
+    _preparedImageKeys.add(prepared.storageKey);
+    return EvidenceDraft(
+      id: uuid.v4(),
+      type: EvidenceType.file,
+      source: EvidenceSource.fileSystem,
+      attachmentStorageKey: prepared.storageKey,
+      attachmentFileName: prepared.fileName,
+      attachmentMimeType: prepared.mimeType,
+      supersedesEvidenceId: supersedesEvidenceId,
+    );
+  }
+
+  Future<EvidenceDraft> prepareEvidenceCameraImage(
+    String missionId,
+    Uint8List bytes, {
+    required DateTime capturedAt,
+  }) async {
+    await _initializeImages();
+    final prepared = await _imageService.prepareCapturedImage(missionId, bytes);
+    _preparedImageKeys.add(prepared.storageKey);
+    return EvidenceDraft(
+      id: uuid.v4(),
+      type: EvidenceType.image,
+      source: EvidenceSource.camera,
+      attachmentStorageKey: prepared.storageKey,
+      attachmentFileName: prepared.fileName,
+      attachmentMimeType: prepared.mimeType,
+      capturedAt: capturedAt.toUtc(),
     );
   }
 
@@ -214,9 +274,12 @@ class MissionService {
     required MissionDetail detail,
     required List<EvidenceDraft> items,
   }) {
-    if (items.isEmpty) throw ArgumentError('请至少添加一份文本或图片');
+    if (items.isEmpty) throw ArgumentError('请至少添加一份有效材料');
     for (final item in items) {
       validateEvidenceDraft(item, detail.mission.id);
+      if (item.supersedesEvidenceId != null) {
+        throw ArgumentError('首次提交不能修正已有材料');
+      }
     }
     return EvidenceSubmission(
       id: uuid.v4(),
@@ -237,7 +300,7 @@ class MissionService {
     if (!alreadySaved) {
       for (final item in submission.items) {
         validateEvidenceDraft(item, submission.missionId);
-        if (item.type == EvidenceType.image) {
+        if (item.attachmentStorageKey != null) {
           await _imageService.read(item.attachmentStorageKey!);
         }
       }
@@ -251,6 +314,37 @@ class MissionService {
     _notify();
     return result;
   });
+
+  EvidenceCorrection prepareEvidenceCorrection({
+    required MissionDetail detail,
+    required Evidence original,
+    required EvidenceDraft draft,
+  }) {
+    if (!detail.effectiveEvidence.any((item) => item.id == original.id) ||
+        draft.supersedesEvidenceId != original.id ||
+        draft.type != original.type) {
+      throw const EvidenceConflict('只能修正当前有效的同类材料');
+    }
+    validateEvidenceDraft(draft, detail.mission.id);
+    return EvidenceCorrection(missionId: detail.mission.id, item: draft);
+  }
+
+  Future<Evidence> correctEvidence(EvidenceCorrection correction) =>
+      _withAttachmentCommit(() async {
+        final current = await repository.findDetail(correction.missionId);
+        final saved =
+            current?.evidence.any((item) => item.id == correction.item.id) ??
+            false;
+        if (!saved) {
+          validateEvidenceDraft(correction.item, correction.missionId);
+          final key = correction.item.attachmentStorageKey;
+          if (key != null) await _imageService.read(key);
+        }
+        final result = await repository.correctEvidence(correction);
+        _preparedImageKeys.remove(correction.item.attachmentStorageKey);
+        _notify();
+        return result;
+      });
 
   Future<void> skipOptionalEvidence(String missionId) async {
     await repository.skipOptionalEvidence(missionId);

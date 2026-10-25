@@ -29,10 +29,46 @@ abstract final class AppTheme {
     focusColor: AppColors.primary.withValues(alpha: .08),
     scaffoldBackgroundColor: AppColors.background, // 页面背景
     textTheme: AppTypography.textTheme,
+    iconTheme: const IconThemeData(color: AppColors.primary),
+    cardTheme: CardThemeData(
+      color: AppColors.card,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      clipBehavior: Clip.antiAlias,
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: AppColors.card,
+      selectedColor: AppColors.primarySoft,
+      labelStyle: AppTypography.textTheme.labelMedium?.copyWith(
+        color: AppColors.textPrimary,
+      ),
+      checkmarkColor: AppColors.primary,
+      side: const BorderSide(color: AppColors.hairline),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: AppColors.background,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: AppColors.card,
+      textStyle: AppTypography.textTheme.bodyMedium?.copyWith(
+        color: AppColors.textPrimary,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
     filledButtonTheme: FilledButtonThemeData(
       style:
           FilledButton.styleFrom(
             textStyle: AppTypography.textTheme.labelLarge,
+            minimumSize: const Size(48, 48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
           ).copyWith(
             splashFactory: NoSplash.splashFactory,
             overlayColor: _feedback(AppColors.onPrimary),
@@ -42,6 +78,10 @@ abstract final class AppTheme {
       style:
           OutlinedButton.styleFrom(
             textStyle: AppTypography.textTheme.labelLarge,
+            minimumSize: const Size(48, 48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
           ).copyWith(
             splashFactory: NoSplash.splashFactory,
             overlayColor: _feedback(AppColors.primary),

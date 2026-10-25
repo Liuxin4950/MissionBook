@@ -17,6 +17,7 @@ abstract interface class MissionRepository {
   Future<EvidenceSubmissionResult> submitEvidence(
     EvidenceSubmission submission,
   );
+  Future<Evidence> correctEvidence(EvidenceCorrection correction);
   Future<void> skipOptionalEvidence(String missionId);
   Future<int> reconcileEvidenceDeadlines();
   Future<List<MissionDetail>> findPendingEvidence();
@@ -33,6 +34,7 @@ abstract interface class MissionRepository {
 
   /// 取消记录单独列出，不冒充执行历史；按取消时刻倒序。
   Future<List<MissionDetail>> findCancelled();
+  Future<List<MissionDetail>> findAllDetails(); // 跨日期任务查询，包含取消和所有执行阶段。
 
   /// original 是打开编辑页时读到的快照，schedule 是本次完整排期提案。
   /// 同一事务重读并检查可编辑性、旧快照，再更新名称/具体目标。

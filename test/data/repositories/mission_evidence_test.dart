@@ -210,6 +210,94 @@ void main() {
     expect(times.elapsed, oldTimes.elapsed);
   });
 
+  test('五类材料同批保存；同类修正留旧记录、拒绝分叉，截止后仍可修正', () async {
+    await seed('material-types', VerificationPolicy.requiredEvidence);
+    await finish('material-types');
+    final endId = (await detail('material-types')).events.last.id;
+    final first = EvidenceSubmission(
+      id: 'first-batch',
+      missionId: 'material-types',
+      items: [
+        text('plain'),
+        const EvidenceDraft(
+          id: 'code',
+          type: EvidenceType.code,
+          source: EvidenceSource.user,
+          content: 'print(1)',
+        ),
+        const EvidenceDraft(
+          id: 'manual',
+          type: EvidenceType.manualRecord,
+          source: EvidenceSource.user,
+          content: '手动完成十次练习',
+        ),
+        const EvidenceDraft(
+          id: 'image',
+          type: EvidenceType.image,
+          source: EvidenceSource.camera,
+          attachmentStorageKey: 'attachments/material-types/camera.jpg',
+          attachmentFileName: '现场照片.jpg',
+        ),
+        const EvidenceDraft(
+          id: 'file',
+          type: EvidenceType.file,
+          source: EvidenceSource.fileSystem,
+          attachmentStorageKey: 'attachments/material-types/report.pdf',
+          attachmentFileName: '报告.pdf',
+        ),
+      ],
+    );
+    expect(
+      await repository.submitEvidence(first),
+      EvidenceSubmissionResult.submitted,
+    );
+    final before = await detail('material-types');
+    expect(before.effectiveEvidence, hasLength(5));
+    final firstAt = before.evidence.first.submittedAt;
+    now = deadline.add(const Duration(days: 1));
+    const correction = EvidenceCorrection(
+      missionId: 'material-types',
+      item: EvidenceDraft(
+        id: 'code-fixed',
+        type: EvidenceType.code,
+        source: EvidenceSource.user,
+        content: 'print(2)',
+        supersedesEvidenceId: 'code',
+      ),
+    );
+    final saved = await repository.correctEvidence(correction);
+    expect(saved.supersedesEvidenceId, 'code');
+    final retried = await repository.correctEvidence(correction);
+    expect(retried.id, saved.id);
+    expect(retried.submittedAt, saved.submittedAt);
+    final after = await detail('material-types');
+    expect(after.phase, MissionPhase.closed);
+    expect(after.evidence, hasLength(6));
+    expect(after.effectiveEvidence, hasLength(5));
+    expect(after.effectiveEvidence.any((item) => item.id == 'code'), isFalse);
+    expect(
+      after.effectiveEvidence.any((item) => item.id == 'code-fixed'),
+      isTrue,
+    );
+    expect(after.evidence.first.submittedAt, firstAt);
+    expect(after.events.last.id, endId);
+    await expectLater(
+      repository.correctEvidence(
+        const EvidenceCorrection(
+          missionId: 'material-types',
+          item: EvidenceDraft(
+            id: 'fork',
+            type: EvidenceType.code,
+            source: EvidenceSource.user,
+            content: 'print(3)',
+            supersedesEvidenceId: 'code',
+          ),
+        ),
+      ),
+      throwsA(isA<EvidenceConflict>()),
+    );
+  });
+
   test('第二条写入失败时首条也回滚，原稳定批次可重试', () async {
     await seed('optional', VerificationPolicy.optionalEvidence);
     await finish('optional', submitOptionalEvidence: true);

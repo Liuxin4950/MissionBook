@@ -18,10 +18,10 @@ class EvidenceImagePreview extends StatelessWidget {
   final String name;
   final double height;
 
-  ImageProvider get _provider => ResizeImage(
+  ImageProvider get _thumbnail => ResizeImage(
     MemoryImage(bytes),
-    width: 1600,
-    height: 1600,
+    width: 480,
+    height: 480,
     policy: ResizeImagePolicy.fit,
   );
 
@@ -74,7 +74,7 @@ class EvidenceImagePreview extends StatelessWidget {
                     maxScale: 8,
                     child: Center(
                       child: Image(
-                        image: _provider,
+                        image: MemoryImage(bytes),
                         fit: BoxFit.contain,
                         semanticLabel: name,
                       ),
@@ -113,8 +113,8 @@ class EvidenceImagePreview extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               Image(
-                image: _provider,
-                fit: BoxFit.cover,
+                image: _thumbnail,
+                fit: BoxFit.contain,
                 excludeFromSemantics: true,
               ),
               Positioned(

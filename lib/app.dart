@@ -12,6 +12,12 @@ import 'application/evidence/evidence_image_service.dart';
 import 'data/attachments/evidence_image_platform.dart' as image_platform;
 import 'application/goals/goal_service.dart';
 import 'data/repositories/drift_goal_repository.dart';
+import 'data/goal_import/goal_file_picker_platform.dart' as goal_file_platform;
+import 'application/backup/backup_service.dart';
+import 'data/backup/database_backup_service.dart';
+import 'data/settings/app_device_platform.dart';
+import 'application/settings/app_device.dart';
+import 'presentation/launch/launch_page.dart';
 
 /// 装配本地数据库、任务仓储和业务入口，并提供全局主题及中文界面。
 class App extends StatefulWidget {
@@ -22,11 +28,15 @@ class App extends StatefulWidget {
 }
 
 class _AppState extends State<App> with WidgetsBindingObserver {
+  bool _launchComplete = false;
+  Timer? _launchTimer;
   // late 表示这些属性稍后初始化。
   // final 表示初始化后不再换成另一个对象。
   late final AppDatabase _database; // 定义数据库连接器
   late final MissionService _missionService; // 业务操作对象
   late final GoalService _goalService; // 目标服务，与任务服务共用数据库。
+  late final BackupExporter _backupService;
+  late final AppDevice _device;
   StreamSubscription<void>? _deadlineChanges;
   Timer? _deadlineTimer;
   bool _checkingDeadlines = false;
@@ -39,7 +49,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // Flutter 创建这个 State 后调用一次 initState。
     // 不传 executor，由 AppDatabase 按平台选择原生文件或浏览器存储。
     _database = AppDatabase();
-    _goalService = GoalService(DriftGoalRepository(_database));
+    _goalService = GoalService(
+      DriftGoalRepository(_database),
+      filePicker: goal_file_platform.createGoalFilePicker(),
+    );
     // 将同一个数据库交给真实仓储。
     final repository = DriftMissionRepository(_database);
     // 这里只创建一个共享的任务业务对象，不执行创建或查询。
@@ -51,8 +64,21 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       images: EvidenceImageService(
         store: image_platform.createImageStore(),
         picker: image_platform.createImagePicker(),
+        filePicker: image_platform.createFilePicker(),
       ),
     );
+    _backupService = DatabaseBackupService(
+      database: _database,
+      readAttachment: _missionService.readEvidenceImage,
+    );
+    _device = createAppDevice();
+    // 首帧先呈现品牌页；短暂过渡后才装载四个主页面。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _launchTimer = Timer(const Duration(milliseconds: 450), () {
+        if (mounted) setState(() => _launchComplete = true);
+      });
+    });
     WidgetsBinding.instance.addObserver(this);
     _deadlineChanges = _missionService.changes.listen(
       (_) => _scheduleDeadlineCheck(),
@@ -118,14 +144,23 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MissionBook',
+      debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       locale: const Locale('zh', 'CN'),
       supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // build 可以重复执行，但这里始终传入已创建的同一个业务对象。
-      home: AppShell(
-        missionService: _missionService,
-        goalService: _goalService,
+      home: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 100),
+        child: _launchComplete
+            ? AppShell(
+                key: const ValueKey('app-shell'),
+                missionService: _missionService,
+                goalService: _goalService,
+                backupService: _backupService,
+                device: _device,
+              )
+            : const LaunchPage(key: ValueKey('launch-page')),
       ),
     );
   }
@@ -134,6 +169,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _deadlineTimer?.cancel();
+    _launchTimer?.cancel();
     unawaited(_deadlineChanges?.cancel());
     // Flutter 移除这个 State 时调用 dispose。
     // close 返回 Future，但 dispose 不能等待异步完成；

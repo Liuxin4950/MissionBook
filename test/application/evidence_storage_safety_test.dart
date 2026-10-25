@@ -145,4 +145,19 @@ void main() {
     expect(detail.phase, MissionPhase.evidencePending);
     expect(detail.evidence, isEmpty);
   });
+
+  test('相机确认生成私有草稿副本，放弃时只删除未引用照片', () async {
+    final capturedAt = DateTime.utc(2030, 1, 1, 8);
+    final draft = await service.prepareEvidenceCameraImage(
+      'camera-mission',
+      png,
+      capturedAt: capturedAt,
+    );
+    expect(draft.type, EvidenceType.image);
+    expect(draft.source, EvidenceSource.camera);
+    expect(draft.capturedAt, capturedAt);
+    expect(await store.read(draft.attachmentStorageKey!), orderedEquals(png));
+    await service.discardEvidenceDrafts([draft]);
+    expect(await store.listKeys(), isEmpty);
+  });
 }

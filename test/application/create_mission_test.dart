@@ -17,6 +17,8 @@ mixin _UnusedEvidenceMethods {
   Future<EvidenceSubmissionResult> submitEvidence(
     EvidenceSubmission submission,
   ) => throw UnsupportedError('创建测试不提交材料');
+  Future<Evidence> correctEvidence(EvidenceCorrection correction) =>
+      throw UnsupportedError('本替身不修正材料');
   Future<void> skipOptionalEvidence(String missionId) =>
       throw UnsupportedError('创建测试不跳过材料');
   Future<int> reconcileEvidenceDeadlines() async => 0;
@@ -45,6 +47,8 @@ class RecordingMissionRepository
   Future<List<MissionDetail>> findActive() async => [];
   @override
   Future<List<MissionDetail>> findFinished() async => [];
+  @override
+  Future<List<MissionDetail>> findAllDetails() async => [];
   @override
   Future<List<MissionDetail>> findCancelled() async => [];
 
@@ -116,6 +120,8 @@ class FailingMissionRepository
   Future<List<MissionDetail>> findActive() async => [];
   @override
   Future<List<MissionDetail>> findFinished() async => [];
+  @override
+  Future<List<MissionDetail>> findAllDetails() async => [];
   @override
   Future<List<MissionDetail>> findCancelled() async => [];
 

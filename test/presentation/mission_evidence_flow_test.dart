@@ -1,3 +1,4 @@
+import '../support/me_fakes.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -83,6 +84,18 @@ class _PreparedImages extends EvidenceImageService {
       storageKey: key,
       fileName: '运行结果.png',
       mimeType: 'image/png',
+    );
+  }
+
+  @override
+  Future<PreparedEvidenceImage?> pickFileAndPrepare(String missionId) async {
+    if (images.cancel) return null;
+    final key = 'attachments/$missionId/ui-file-${images.files.length}.pdf';
+    await images.writeNew(key, _png);
+    return PreparedEvidenceImage(
+      storageKey: key,
+      fileName: '练习报告.pdf',
+      mimeType: 'application/pdf',
     );
   }
 }
@@ -255,6 +268,64 @@ void main() {
     expect(find.text('已提交 1 份材料'), findsOneWidget);
   });
 
+  testWidgets('代码、手动记录与文件可同批提交；结果页单条修正留历史', (tester) async {
+    final detail = await create(pending: true);
+    await tester.pumpWidget(
+      app(
+        Scaffold(
+          body: SingleChildScrollView(
+            child: MissionEvidenceSection(
+              detail: detail,
+              service: service,
+              initiallyExpanded: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tap(tester, 'evidence-add-code');
+    await tester.enterText(find.byType(TextField).last, 'print(1)');
+    await tap(tester, 'evidence-add-manual');
+    await tester.enterText(find.byType(TextField).last, '完成了十次练习');
+    await tap(tester, 'evidence-add-file');
+    await tap(tester, 'evidence-submit');
+    final saved = (await repository.findDetail(detail.mission.id))!;
+    expect(saved.phase, MissionPhase.closed);
+    expect(saved.evidence.map((item) => item.type).toSet(), {
+      EvidenceType.code,
+      EvidenceType.manualRecord,
+      EvidenceType.file,
+    });
+    final code = saved.evidence.singleWhere(
+      (item) => item.type == EvidenceType.code,
+    );
+    await tap(tester, 'evidence-correct-${code.id}');
+    await tester.enterText(
+      find.byKey(const Key('evidence-correction-content')),
+      'print(2)',
+    );
+    await tap(tester, 'evidence-correction-save');
+    final corrected = (await repository.findDetail(detail.mission.id))!;
+    expect(corrected.evidence, hasLength(4));
+    expect(corrected.effectiveEvidence, hasLength(3));
+    expect(
+      corrected.evidence.singleWhere((item) => item.id == code.id).content,
+      'print(1)',
+    );
+    expect(
+      corrected.effectiveEvidence
+          .singleWhere((item) => item.type == EvidenceType.code)
+          .content,
+      'print(2)',
+    );
+    expect(corrected.phase, MissionPhase.closed);
+    expect(
+      find.byKey(const Key('evidence-correction-history')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('单独图片可无说明提交，选择取消保留原草稿', (tester) async {
     final detail = await create(pending: true);
     await tester.pumpWidget(
@@ -314,14 +385,22 @@ void main() {
       await tester.pumpAndSettle();
       final previews = find.byType(EvidenceImagePreview);
       expect(previews, findsNWidgets(2));
-      expect(tester.getSize(previews.first).height, inHistory ? 104 : 148);
+      expect(tester.getSize(previews.first).height, inHistory ? 88 : 148);
       if (inHistory) {
-        expect(tester.getSize(previews.first).width, lessThanOrEqualTo(112));
+        expect(tester.getSize(previews.first).width, lessThanOrEqualTo(104));
       }
-      expect(
-        tester.getTopLeft(previews.first).dy,
-        tester.getTopLeft(previews.last).dy,
-      );
+      if (inHistory) {
+        // 时间线让材料阅读区变窄，小图自然换行；两张图仍可逐一打开。
+        expect(
+          tester.getTopLeft(previews.last).dy,
+          greaterThanOrEqualTo(tester.getTopLeft(previews.first).dy),
+        );
+      } else {
+        expect(
+          tester.getTopLeft(previews.first).dy,
+          tester.getTopLeft(previews.last).dy,
+        );
+      }
       expect(find.text('展开图片，可缩放查看'), findsNothing);
       await tester.ensureVisible(previews.first);
       await tester.tap(previews.first);
@@ -648,14 +727,19 @@ void main() {
     );
   });
 
-  testWidgets('其他顶层切今天后原行开始报告并交图，全段不增加应用路由', (tester) async {
+  testWidgets('今天列表进入独立执行页并在该页完成报告与交图', (tester) async {
     final shanghaiToday = DateTime.now().toUtc().add(const Duration(hours: 8));
     final date = shanghaiToday.toIso8601String().substring(0, 10);
     final detail = await create(date: date);
     final routes = _Routes();
     await tester.pumpWidget(
       app(
-        AppShell(missionService: service, goalService: goals),
+        AppShell(
+          backupService: TestBackup(),
+          device: TestAppDevice(),
+          missionService: service,
+          goalService: goals,
+        ),
         observers: [routes],
       ),
     );
@@ -664,13 +748,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('今天').last);
     await tester.pumpAndSettle();
-    await tap(tester, 'inline-open-${detail.mission.id}');
-    await tap(tester, 'inline-start-${detail.mission.id}');
-    expect(
-      find.byKey(Key('inline-workspace-${detail.mission.id}')),
-      findsOneWidget,
-    );
-    expect(find.text('计划日程'), findsOneWidget);
+    await tap(tester, 'mission-${detail.mission.id}');
+    await tap(tester, 'execution-start');
+    expect(find.byKey(const Key('mission-execution-page')), findsOneWidget);
+    expect(find.text('计划日程'), findsNothing);
     await tap(tester, 'execution-end');
     await tap(tester, 'report-completed');
     await tap(tester, 'report-evidence-submit');
@@ -680,11 +761,8 @@ void main() {
     final saved = (await repository.findDetail(detail.mission.id))!;
     expect(saved.phase, MissionPhase.closed);
     expect(saved.evidence.single.type, EvidenceType.image);
-    expect(routes.pushes, 1); // 只有 MaterialApp 初始根路由；系统选择器在平台测试另验。
-    expect(
-      find.byKey(Key('inline-workspace-${detail.mission.id}')),
-      findsOneWidget,
-    );
+    expect(routes.pushes, greaterThan(1)); // 列表进入独立任务路由。
+    expect(find.byKey(const Key('mission-evidence-workspace')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

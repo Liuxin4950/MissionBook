@@ -9,12 +9,16 @@ Evidence evidenceFromRow(EvidenceRow row) => Evidence(
   submissionId: row.submissionId,
   type: switch (row.type) {
     'TEXT' => EvidenceType.text,
+    'CODE' => EvidenceType.code,
     'IMAGE' => EvidenceType.image,
+    'FILE' => EvidenceType.file,
+    'MANUAL_RECORD' => EvidenceType.manualRecord,
     _ => throw FormatException('未知材料类型：${row.type}'),
   },
   source: switch (row.source) {
     'USER' => EvidenceSource.user,
     'FILE_SYSTEM' => EvidenceSource.fileSystem,
+    'CAMERA' => EvidenceSource.camera,
     _ => throw FormatException('未知材料来源：${row.source}'),
   },
   content: row.content,
@@ -28,6 +32,7 @@ Evidence evidenceFromRow(EvidenceRow row) => Evidence(
     row.submittedAt,
     isUtc: true,
   ),
+  supersedesEvidenceId: row.supersedesEvidenceId,
 );
 
 EvidenceRecordsCompanion evidenceToCompanion(Evidence item) =>
@@ -35,14 +40,25 @@ EvidenceRecordsCompanion evidenceToCompanion(Evidence item) =>
       id: item.id,
       missionId: item.missionId,
       submissionId: item.submissionId,
-      type: item.type == EvidenceType.text ? 'TEXT' : 'IMAGE',
-      source: item.source == EvidenceSource.user ? 'USER' : 'FILE_SYSTEM',
+      type: switch (item.type) {
+        EvidenceType.text => 'TEXT',
+        EvidenceType.code => 'CODE',
+        EvidenceType.image => 'IMAGE',
+        EvidenceType.file => 'FILE',
+        EvidenceType.manualRecord => 'MANUAL_RECORD',
+      },
+      source: switch (item.source) {
+        EvidenceSource.user => 'USER',
+        EvidenceSource.fileSystem => 'FILE_SYSTEM',
+        EvidenceSource.camera => 'CAMERA',
+      },
       content: Value(item.content),
       attachmentStorageKey: Value(item.attachmentStorageKey),
       attachmentFileName: Value(item.attachmentFileName),
       attachmentMimeType: Value(item.attachmentMimeType),
       capturedAt: Value(item.capturedAt?.millisecondsSinceEpoch),
       submittedAt: item.submittedAt.millisecondsSinceEpoch,
+      supersedesEvidenceId: Value(item.supersedesEvidenceId),
     );
 
 /// 同批次重试逐项比较业务输入，不重新捕获提交时间，也不接受换内容复用身份。
@@ -55,4 +71,5 @@ bool sameEvidenceInput(EvidenceDraft a, EvidenceDraft b) =>
     a.attachmentFileName == b.attachmentFileName &&
     a.attachmentMimeType == b.attachmentMimeType &&
     a.capturedAt?.millisecondsSinceEpoch ==
-        b.capturedAt?.millisecondsSinceEpoch;
+        b.capturedAt?.millisecondsSinceEpoch &&
+    a.supersedesEvidenceId == b.supersedesEvidenceId;

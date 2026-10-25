@@ -98,6 +98,7 @@ void main() {
     expect(find.byKey(const Key('cancel-mission')), findsNothing);
     now = now.add(const Duration(minutes: 5));
     await tap(tester, 'execution-toggle');
+    await tap(tester, 'pause-confirm');
     await tap(tester, 'execution-extend');
     final minutes = find.byKey(const Key('execution-minutes'));
     await tester.ensureVisible(minutes);

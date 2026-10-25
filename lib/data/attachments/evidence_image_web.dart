@@ -8,41 +8,50 @@ import '../../application/evidence/evidence_image_service.dart';
 
 EvidenceImageStore createImageStore() => WebEvidenceImageStore();
 EvidenceImagePicker createImagePicker() => WebEvidenceImagePicker();
+EvidenceFilePicker createFilePicker() => WebEvidenceFilePicker();
+
+class WebEvidenceFilePicker implements EvidenceFilePicker {
+  @override
+  Future<SelectedEvidenceImage?> pick() => _pickSelectedFile('');
+}
 
 /// 系统选择仍由浏览器发起，取消回到同一草稿，不创建额外页面。
 class WebEvidenceImagePicker implements EvidenceImagePicker {
   @override
-  Future<SelectedEvidenceImage?> pick() async {
-    final result = Completer<SelectedEvidenceImage?>();
-    final input = web.HTMLInputElement()
-      ..type = 'file'
-      ..accept = 'image/*';
-    input.style.display = 'none';
-    input.onchange = ((web.Event event) {
-      final file = input.files?.item(0);
-      if (file == null) {
-        result.complete(null);
-      } else {
-        result.complete(
-          SelectedEvidenceImage(
-            fileName: file.name,
-            byteLength: file.size,
-            readBytes: () async =>
-                (await file.arrayBuffer().toDart).toDart.asUint8List(),
-          ),
-        );
-      }
-    }).toJS;
-    input.oncancel = ((web.Event event) {
-      if (!result.isCompleted) result.complete(null);
-    }).toJS;
-    web.document.body!.append(input);
-    try {
-      input.click();
-      return await result.future;
-    } finally {
-      input.remove();
+  Future<SelectedEvidenceImage?> pick() => _pickSelectedFile('image/*');
+}
+
+Future<SelectedEvidenceImage?> _pickSelectedFile(String acceptedType) async {
+  final result = Completer<SelectedEvidenceImage?>();
+  final input = web.HTMLInputElement()
+    ..type = 'file'
+    ..accept = acceptedType;
+  input.style.display = 'none';
+  input.onchange = ((web.Event event) {
+    final file = input.files?.item(0);
+    if (file == null) {
+      result.complete(null);
+    } else {
+      result.complete(
+        SelectedEvidenceImage(
+          fileName: file.name,
+          byteLength: file.size,
+          mimeType: file.type,
+          readBytes: () async =>
+              (await file.arrayBuffer().toDart).toDart.asUint8List(),
+        ),
+      );
     }
+  }).toJS;
+  input.oncancel = ((web.Event event) {
+    if (!result.isCompleted) result.complete(null);
+  }).toJS;
+  web.document.body!.append(input);
+  try {
+    input.click();
+    return await result.future;
+  } finally {
+    input.remove();
   }
 }
 

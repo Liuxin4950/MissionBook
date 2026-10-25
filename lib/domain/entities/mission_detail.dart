@@ -34,6 +34,17 @@ class MissionDetail {
   final List<ExecutionEvent> events;
   final List<FailureRecord> failures;
   final List<Evidence> evidence;
+  // 默认只展示未被后续修正替代的材料；完整 evidence 保留供历史展开。
+  List<Evidence> get effectiveEvidence {
+    final replaced = {
+      for (final item in evidence)
+        if (item.supersedesEvidenceId != null) item.supersedesEvidenceId!,
+    };
+    return List.unmodifiable(
+      evidence.where((item) => !replaced.contains(item.id)),
+    );
+  }
+
   final MissionOwnershipInfo? ownershipInfo;
   // 没有事件时为0；开始命令用它检查页面是否过期，仓储再分配新序号1。
   int get lastSequence => events.isEmpty ? 0 : events.last.sequence;

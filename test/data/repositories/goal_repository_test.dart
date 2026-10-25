@@ -3,9 +3,12 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
+import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
+import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/goal.dart';
+import 'package:mission_book/domain/entities/mission_ownership.dart';
 
 void main() {
   late AppDatabase db;
@@ -90,6 +93,78 @@ void main() {
       db.customStatement("UPDATE goals SET title = '   '"),
       throwsA(isA<SqliteException>()),
     );
+  });
+
+  test('目标文字和四状态由用户保存；放弃隐藏但可找回，节点与既有任务不改写', () async {
+    final goal = service.prepareCreation(title: '手动目标', description: '原说明');
+    await service.create(goal);
+    final missions = MissionService(DriftMissionRepository(db));
+    addTearDown(missions.dispose);
+    await missions.create(
+      title: '既有任务',
+      scheduledDate: '2026-10-25',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 25,
+      ownership: MissionOwnership(goalId: goal.id),
+    );
+    final existingMission = (await missions.findForGoal(goal.id)).single;
+    final node = service.prepareNodeCreation(goalId: goal.id, title: '原节点');
+    await service.createNode(node);
+    await service.updateGoal(
+      goal,
+      title: '更新后的目标',
+      description: '新说明',
+      why: '保留原因',
+    );
+    final edited = (await service.findById(goal.id))!;
+    expect(edited.title, '更新后的目标');
+    expect(edited.updatedAt.isAfter(goal.updatedAt), isTrue);
+    await service.updateGoal(
+      goal,
+      title: '更新后的目标',
+      description: '新说明',
+      why: '保留原因',
+    );
+    expect((await service.findById(goal.id))!.updatedAt, edited.updatedAt);
+    await expectLater(
+      service.updateGoal(goal, title: '错误覆盖'),
+      throwsStateError,
+    );
+
+    await service.setGoalStatus(edited, GoalStatus.paused);
+    final paused = (await service.findById(goal.id))!;
+    expect(paused.status, GoalStatus.paused);
+    await expectLater(
+      missions.create(
+        title: '暂停后新任务',
+        scheduledDate: '2026-10-25',
+        timeZone: 'Asia/Shanghai',
+        plannedDurationMinutes: 25,
+        ownership: MissionOwnership(goalId: goal.id),
+      ),
+      throwsArgumentError,
+    );
+    await service.setGoalStatus(paused, GoalStatus.achieved);
+    final achieved = (await service.findById(goal.id))!;
+    expect(achieved.status, GoalStatus.achieved);
+    await service.setGoalStatus(achieved, GoalStatus.dropped);
+    final dropped = (await service.findById(goal.id))!;
+    expect(await service.findAll(), isEmpty);
+    expect((await service.findDropped()).single.id, goal.id);
+    await service.setGoalStatus(achieved, GoalStatus.dropped); // 同一命令重试。
+    expect((await service.findById(goal.id))!.updatedAt, dropped.updatedAt);
+    await expectLater(
+      service.setGoalStatus(paused, GoalStatus.active),
+      throwsStateError,
+    );
+    expect((await service.findNodes(goal.id)).single.id, node.id);
+    expect(
+      (await missions.findForGoal(goal.id)).single.mission.id,
+      existingMission.mission.id,
+    );
+    await service.setGoalStatus(dropped, GoalStatus.active);
+    expect((await service.findAll()).single.status, GoalStatus.active);
+    expect(await service.findDropped(), isEmpty);
   });
 
   test('独立文件关闭重开后目标仍可完整读取', () async {

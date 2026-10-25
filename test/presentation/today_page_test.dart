@@ -1,3 +1,4 @@
+import '../support/me_fakes.dart';
 import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'package:mission_book/domain/entities/execution_command.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
@@ -48,6 +49,8 @@ class ControlledQueryRepository implements MissionRepository {
   @override
   Future<List<MissionDetail>> findFinished() async => [];
   @override
+  Future<List<MissionDetail>> findAllDetails() async => [];
+  @override
   Future<List<MissionDetail>> findCancelled() async => [];
   @override
   Future<List<MissionDetail>> findPendingEvidence() async => [];
@@ -59,6 +62,9 @@ class ControlledQueryRepository implements MissionRepository {
   Future<EvidenceSubmissionResult> submitEvidence(
     EvidenceSubmission submission,
   ) => throw UnsupportedError('本替身不提交材料');
+  @override
+  Future<Evidence> correctEvidence(EvidenceCorrection correction) =>
+      throw UnsupportedError('本替身不修正材料');
   @override
   Future<void> skipOptionalEvidence(String missionId) =>
       throw UnsupportedError('本替身不跳过材料');
@@ -149,6 +155,8 @@ Widget testApp(
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
     home: shell
         ? AppShell(
+            backupService: TestBackup(),
+            device: TestAppDevice(),
             missionService: missionService,
             goalService: _goalServices[repository]!,
           )
@@ -359,7 +367,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('固定与自选行按自身编号打开详情，读屏可点击且重复点击不叠页', (tester) async {
+  testWidgets('固定与自选行按自身编号读取任务，读屏可点击且缺失任务不叠页', (tester) async {
     final semantics = tester.ensureSemantics();
     try {
       final repository = ControlledQueryRepository();
@@ -367,14 +375,14 @@ void main() {
       await tester.pumpWidget(testApp(repository, shell: true));
       repository.requests.single.complete(items);
       await tester.pumpAndSettle();
-      // 先选另一天，验证关闭详情后仍刷新这一天，而不是重置成今天。
+      // 先选另一天，验证缺失任务不会重置所选日期。
       final now = tz.TZDateTime.now(tz.getLocation('Asia/Shanghai'));
       final day = now.day == 1 ? 2 : 1;
       await tester.tap(find.byKey(const Key('today-date-picker')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('$day').last);
       await tester.tap(find.text('确定'));
-      // 新日期的受控查询尚未完成，加载指示器会持续动画，只推进路由关闭。
+      // 新日期的受控查询尚未完成，加载指示器会持续动画。
       await tester.pump(const Duration(milliseconds: 400));
       repository.requests.last.complete(items);
       await tester.pumpAndSettle();
@@ -401,17 +409,9 @@ void main() {
           await tester.tap(row);
         }
         await tester.pumpAndSettle();
-        expect(
-          find.byType(MissionDetailPage, skipOffstage: false),
-          findsOneWidget,
-        );
+        expect(find.byType(MissionDetailPage), findsNothing);
         expect(repository.detailIds.last, item.mission.id);
-        expect(find.text('未找到这个任务，请返回列表刷新'), findsOneWidget);
-        await tester.tap(find.byTooltip('返回'));
-        await tester.pump();
         expect(repository.dates.last, selectedDate);
-        repository.requests.last.complete(items);
-        await tester.pumpAndSettle();
       }
       expect(repository.detailIds, items.map((item) => item.mission.id));
       await tester.pumpWidget(const SizedBox.shrink());

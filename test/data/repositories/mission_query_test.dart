@@ -6,6 +6,7 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/entities/mission.dart';
+import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 
 void main() {
@@ -117,6 +118,39 @@ void main() {
     expect(result.first.schedule.fixedStartAt, morning);
     expect(result.first.schedule.fixedStartAt!.isUtc, isTrue);
     expect(result.last.mission.cancelledAt, createdAt);
+  });
+
+  test('全部任务包含取消与跨日记录，读取每项最新排期和真实阶段', () async {
+    await addTask(
+      'early',
+      day: '2026-10-19',
+      created: DateTime.utc(2026, 10, 19),
+    );
+    await addTask('moved', day: '2026-10-20');
+    await reschedule('moved', '2026-10-25', 2);
+    await addTask('cancelled', day: '2026-10-21');
+    await repository.cancel('cancelled');
+    final details = await repository.findAllDetails();
+    expect(details.map((item) => item.mission.id).toSet(), {
+      'early',
+      'moved',
+      'cancelled',
+    });
+    expect(
+      details
+          .singleWhere((item) => item.mission.id == 'moved')
+          .schedule
+          .scheduledDate,
+      '2026-10-25',
+    );
+    expect(
+      details.singleWhere((item) => item.mission.id == 'cancelled').phase,
+      MissionPhase.cancelled,
+    );
+    expect(
+      details.singleWhere((item) => item.mission.id == 'early').phase,
+      MissionPhase.notStarted,
+    );
   });
 
   test('先取最新排期再筛日期；改走的不回旧列表，改回的只出现一次', () async {

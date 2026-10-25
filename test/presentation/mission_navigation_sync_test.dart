@@ -1,3 +1,4 @@
+import '../support/me_fakes.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -62,7 +63,14 @@ void main() {
         locale: const Locale('zh', 'CN'),
         supportedLocales: const [Locale('zh', 'CN')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
-        home: home ?? AppShell(missionService: service, goalService: goals),
+        home:
+            home ??
+            AppShell(
+              backupService: TestBackup(),
+              device: TestAppDevice(),
+              missionService: service,
+              goalService: goals,
+            ),
       ),
     );
     await tester.pumpAndSettle();
@@ -120,6 +128,7 @@ void main() {
     expect((await repository.findDetail(missionId))!.events, hasLength(1));
     now = now.add(const Duration(minutes: 2));
     await tap(tester, 'execution-toggle');
+    await tap(tester, 'pause-confirm');
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.textContaining('已暂停 · 计划 20 分钟'), findsOneWidget);

@@ -197,7 +197,7 @@ void main() {
       await directory.delete(recursive: true);
     });
 
-    for (final oldVersion in [5, 6, 7]) {
+    for (final oldVersion in [5, 6, 7, 8]) {
       test('v$oldVersion 全表逐字段保留，旧任务独立，关闭重开仍完整', () async {
         final tables = [
           ..._oldTables,
@@ -221,7 +221,9 @@ void main() {
                     for (final entry in row.data.entries)
                       if (table != 'missions' ||
                           !['goal_id', 'goal_node_id'].contains(entry.key))
-                        entry.key: entry.value,
+                        if (table != 'evidence_records' ||
+                            entry.key != 'supersedes_evidence_id')
+                          entry.key: entry.value,
                   },
               ],
           };
@@ -290,7 +292,7 @@ void main() {
         }
         final upgraded = AppDatabase(executor: NativeDatabase(file));
         try {
-          expect(await _version(upgraded), 8);
+          expect(await _version(upgraded), 9);
           expect(await snapshot(upgraded), before);
           expect(
             await upgraded.select(upgraded.goals).get(),
@@ -325,7 +327,7 @@ void main() {
         final reopened = AppDatabase(executor: NativeDatabase(file));
         try {
           expect(await snapshot(reopened), before);
-          expect(await _version(reopened), 8);
+          expect(await _version(reopened), 9);
         } finally {
           await reopened.close();
         }
@@ -376,7 +378,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 8);
+        expect(await _version(retry), 9);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -443,7 +445,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 8);
+        expect(await _version(upgraded), 9);
         expect(await snapshot(upgraded), before);
         expect(
           (await upgraded.select(upgraded.missions).get()).every(
@@ -509,7 +511,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 8);
+        expect(await _version(upgraded), 9);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -570,7 +572,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 8);
+        expect(await _version(upgraded), 9);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -599,7 +601,7 @@ void main() {
 
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 8);
+        expect(await _version(upgraded), 9);
         expect(await _readOldRows(upgraded), before);
         expect(await upgraded.select(upgraded.executionEvents).get(), isEmpty);
         await upgraded.validateDatabaseSchema();
@@ -637,7 +639,7 @@ void main() {
 
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 8);
+        expect(await _version(reopened), 9);
         expect(await _readOldRows(reopened), before);
         final event = await reopened
             .select(reopened.executionEvents)
@@ -669,7 +671,7 @@ void main() {
       }
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 8);
+        expect(await _version(reopened), 9);
         expect(await _readOldRows(reopened), before);
         await reopened.validateDatabaseSchema();
       } finally {
@@ -712,7 +714,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 8);
+        expect(await _version(retry), 9);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -755,8 +757,8 @@ void main() {
 
     tearDown(() async => database.close());
 
-    test('新装版本与八表/索引符合当前定义', () async {
-      expect(await _version(database), 8);
+    test('v9 新装八表与索引符合当前定义', () async {
+      expect(await _version(database), 9);
       expect(database.allTables, hasLength(8));
       await database.validateDatabaseSchema();
       expect(

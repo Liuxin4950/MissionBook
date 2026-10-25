@@ -24,11 +24,17 @@ class SelectedEvidenceImage {
     required this.fileName,
     required this.byteLength,
     required this.readBytes,
+    this.mimeType,
   });
 
   final String fileName;
   final int byteLength;
   final Future<Uint8List> Function() readBytes;
+  final String? mimeType;
+}
+
+abstract interface class EvidenceFilePicker {
+  Future<SelectedEvidenceImage?> pick();
 }
 
 /// 图片业务使用的两个外部能力；测试可以注入独立实现，不触碰用户文件。
@@ -48,14 +54,17 @@ class EvidenceImageService {
   EvidenceImageService({
     required EvidenceImageStore store,
     required EvidenceImagePicker picker,
+    EvidenceFilePicker? filePicker,
     String Function()? nextId,
   }) : _store = store,
        _picker = picker,
+       _filePicker = filePicker,
        _nextId = nextId ?? const Uuid().v4;
 
   static const maxBytes = 20 * 1024 * 1024;
   final EvidenceImageStore _store;
   final EvidenceImagePicker _picker;
+  final EvidenceFilePicker? _filePicker;
   final String Function() _nextId;
 
   Future<PreparedEvidenceImage?> pickAndPrepare(String missionId) async {
@@ -77,6 +86,56 @@ class EvidenceImageService {
     return PreparedEvidenceImage(
       storageKey: key,
       fileName: _displayName(selection.fileName),
+      mimeType: format.$2,
+    );
+  }
+
+  Future<PreparedEvidenceImage?> pickFileAndPrepare(String missionId) async {
+    validateAttachmentSegment(missionId);
+    final picker = _filePicker;
+    if (picker == null) throw StateError('当前平台没有配置文件选择');
+    final selection = await picker.pick();
+    if (selection == null) return null;
+    if (selection.byteLength <= 0 || selection.byteLength > maxBytes) {
+      throw ArgumentError('每个文件必须非空且不能超过 20 MiB');
+    }
+    final bytes = await selection.readBytes();
+    if (bytes.isEmpty || bytes.length > maxBytes) {
+      throw ArgumentError('每个文件必须非空且不能超过 20 MiB');
+    }
+    final id = _nextId();
+    validateAttachmentSegment(id);
+    final name = _displayName(selection.fileName);
+    final suffix = name.split('.').last.toLowerCase();
+    final extension = RegExp(r'^[a-z0-9]{1,8}$').hasMatch(suffix)
+        ? suffix
+        : 'bin';
+    final key = 'attachments/$missionId/$id.$extension';
+    await _store.writeNew(key, bytes);
+    return PreparedEvidenceImage(
+      storageKey: key,
+      fileName: name,
+      mimeType: selection.mimeType?.trim().isEmpty == true
+          ? null
+          : selection.mimeType,
+    );
+  }
+
+  Future<PreparedEvidenceImage> prepareCapturedImage(
+    String missionId,
+    Uint8List bytes,
+  ) async {
+    validateAttachmentSegment(missionId);
+    _validateSize(bytes.length);
+    await _validateDecodableImage(bytes);
+    final id = _nextId();
+    validateAttachmentSegment(id);
+    final format = _imageFormat(bytes);
+    final key = 'attachments/$missionId/$id.${format.$1}';
+    await _store.writeNew(key, bytes);
+    return PreparedEvidenceImage(
+      storageKey: key,
+      fileName: '现场照片.${format.$1}',
       mimeType: format.$2,
     );
   }

@@ -15,10 +15,12 @@ class EvidenceRecords extends Table {
   TextColumn get attachmentMimeType => text().nullable()();
   IntColumn get capturedAt => integer().nullable()();
   IntColumn get submittedAt => integer()(); // UTC 毫秒；同批相同。
+  TextColumn get supersedesEvidenceId =>
+      text().nullable().unique().references(EvidenceRecords, #id)();
   @override
   Set<Column> get primaryKey => {id};
   @override
   List<String> get customConstraints => [
-    "CHECK ((type = 'TEXT' AND source = 'USER' AND content IS NOT NULL AND length(trim(content)) > 0 AND attachment_storage_key IS NULL AND attachment_file_name IS NULL AND attachment_mime_type IS NULL) OR (type = 'IMAGE' AND source = 'FILE_SYSTEM' AND attachment_storage_key IS NOT NULL AND attachment_file_name IS NOT NULL))",
+    "CHECK (((type IN ('TEXT', 'CODE', 'MANUAL_RECORD')) AND source = 'USER' AND content IS NOT NULL AND length(trim(content)) > 0 AND attachment_storage_key IS NULL AND attachment_file_name IS NULL AND attachment_mime_type IS NULL) OR (type = 'IMAGE' AND source IN ('FILE_SYSTEM', 'CAMERA') AND attachment_storage_key IS NOT NULL AND attachment_file_name IS NOT NULL) OR (type = 'FILE' AND source = 'FILE_SYSTEM' AND attachment_storage_key IS NOT NULL AND attachment_file_name IS NOT NULL))",
   ];
 }

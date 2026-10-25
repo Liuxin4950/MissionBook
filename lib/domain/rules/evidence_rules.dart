@@ -10,19 +10,24 @@ void validateEvidenceDraft(EvidenceDraft item, String missionId) {
   }
   switch (item.type) {
     case EvidenceType.text:
+    case EvidenceType.code:
+    case EvidenceType.manualRecord:
       if (item.source != EvidenceSource.user ||
           (item.content?.trim().isEmpty ?? true)) {
-        throw ArgumentError('请填写文本材料内容');
+        throw ArgumentError('请填写材料内容');
       }
       if (item.attachmentStorageKey != null ||
           item.attachmentFileName != null ||
           item.attachmentMimeType != null) {
-        throw ArgumentError('文本材料不能包含附件引用');
+        throw ArgumentError('文字、代码和手动记录不能包含附件引用');
       }
     case EvidenceType.image:
+    case EvidenceType.file:
       final key = item.attachmentStorageKey;
       // 只允许本任务自己的平铺附件键。UUID 由准备入口提供，不允许盘符或 ../。
-      if (item.source != EvidenceSource.fileSystem ||
+      if ((item.source != EvidenceSource.fileSystem &&
+              !(item.type == EvidenceType.image &&
+                  item.source == EvidenceSource.camera)) ||
           key == null ||
           !key.startsWith('attachments/$missionId/') ||
           key.split('/').length != 3 ||
@@ -31,7 +36,7 @@ void validateEvidenceDraft(EvidenceDraft item, String missionId) {
           key.contains(':') ||
           key.endsWith('/') ||
           (item.attachmentFileName?.trim().isEmpty ?? true)) {
-        throw ArgumentError('图片附件引用无效，请重新选择图片');
+        throw ArgumentError('附件引用无效，请重新选择文件');
       }
   }
 }

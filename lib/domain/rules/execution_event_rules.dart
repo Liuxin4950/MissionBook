@@ -234,19 +234,59 @@ MissionPhase deriveMissionPhase(
   }
   if (evidence.isNotEmpty) {
     if (failures.isNotEmpty) throw const FormatException('已提交材料不能同时超时');
-    final first = evidence.first;
+    final originals = evidence
+        .where((item) => item.supersedesEvidenceId == null)
+        .toList();
+    if (originals.isEmpty) throw const FormatException('修正材料缺少首次提交记录');
+    final first = originals.first;
     final ids = <String>{};
+    final byId = <String, Evidence>{};
     for (final item in evidence) {
       validateEvidenceDraft(item, mission.id);
       if (item.missionId != mission.id ||
           !ids.add(item.id) ||
           item.submissionId.trim().isEmpty ||
-          item.submissionId != first.submissionId ||
-          item.submittedAt != first.submittedAt ||
           !item.submittedAt.isUtc ||
-          item.submittedAt.isBefore(end.occurredAt) ||
-          (deadline != null && !item.submittedAt.isBefore(deadline))) {
-        throw const FormatException('正式材料批次、所属任务或提交时间不一致');
+          item.submittedAt.isBefore(first.submittedAt)) {
+        throw const FormatException('正式材料身份、所属任务或提交时间不一致');
+      }
+      byId[item.id] = item;
+    }
+    if (first.submittedAt.isBefore(end.occurredAt) ||
+        (deadline != null && !first.submittedAt.isBefore(deadline)) ||
+        originals.any(
+          (item) =>
+              item.submissionId != first.submissionId ||
+              item.submittedAt != first.submittedAt,
+        )) {
+      throw const FormatException('首次材料批次或提交时间不一致');
+    }
+    final replaced = <String>{};
+    for (final item in evidence.where(
+      (item) => item.supersedesEvidenceId != null,
+    )) {
+      final parentId = item.supersedesEvidenceId!;
+      final parent = byId[parentId];
+      if (parent == null ||
+          !replaced.add(parentId) ||
+          item.submissionId != item.id ||
+          item.type != parent.type ||
+          item.submittedAt.isBefore(parent.submittedAt)) {
+        throw const FormatException('材料修正关系不一致');
+      }
+      final ancestors = <String>{item.id};
+      Evidence? cursor = parent;
+      while (cursor != null) {
+        if (!ancestors.add(cursor.id)) {
+          throw const FormatException('材料修正不能形成循环');
+        }
+        cursor = cursor.supersedesEvidenceId == null
+            ? null
+            : byId[cursor.supersedesEvidenceId];
+      }
+      if (!ancestors.contains(first.id) &&
+          !ancestors.any((id) => originals.any((root) => root.id == id))) {
+        throw const FormatException('修正材料必须来自首次提交');
       }
     }
     return MissionPhase.closed;

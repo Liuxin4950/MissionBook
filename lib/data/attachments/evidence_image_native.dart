@@ -10,6 +10,34 @@ EvidenceImageStore createImageStore() => NativeEvidenceImageStore(
   applicationDirectory: getApplicationSupportDirectory,
 );
 EvidenceImagePicker createImagePicker() => NativeEvidenceImagePicker();
+EvidenceFilePicker createFilePicker() => NativeEvidenceFilePicker();
+
+class NativeEvidenceFilePicker implements EvidenceFilePicker {
+  @override
+  Future<SelectedEvidenceImage?> pick() async {
+    final file = await FileSelectorPlatform.instance.openFile(
+      confirmButtonText: '添加文件',
+    );
+    if (file == null) return null;
+    return SelectedEvidenceImage(
+      fileName: file.name,
+      mimeType: file.mimeType,
+      byteLength: await file.length(),
+      readBytes: () => _readSelectedFile(file),
+    );
+  }
+}
+
+Future<Uint8List> _readSelectedFile(XFile file) async {
+  final builder = BytesBuilder(copy: false);
+  await for (final chunk in file.openRead()) {
+    if (builder.length + chunk.length > EvidenceImageService.maxBytes) {
+      throw ArgumentError('每个附件不能超过 20 MiB');
+    }
+    builder.add(chunk);
+  }
+  return builder.takeBytes();
+}
 
 /// Windows 使用已注册的官方选择器；Android 复用应用的 ACTION_OPEN_DOCUMENT 通道。
 class NativeEvidenceImagePicker implements EvidenceImagePicker {
@@ -29,17 +57,7 @@ class NativeEvidenceImagePicker implements EvidenceImagePicker {
     return SelectedEvidenceImage(
       fileName: file.name,
       byteLength: await file.length(),
-      readBytes: () async {
-        final builder = BytesBuilder(copy: false);
-        // 分块读取并累计实际大小，防止选中后文件变大而一次读入过量内容。
-        await for (final chunk in file.openRead()) {
-          if (builder.length + chunk.length > EvidenceImageService.maxBytes) {
-            throw ArgumentError('每张图片不能超过 20 MiB');
-          }
-          builder.add(chunk);
-        }
-        return builder.takeBytes();
-      },
+      readBytes: () => _readSelectedFile(file),
     );
   }
 }

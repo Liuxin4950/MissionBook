@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../domain/entities/goal.dart';
 import '../../domain/entities/goal_node.dart';
+import '../../domain/entities/goal_outline_import.dart';
 import '../../domain/repositories/goal_repository.dart';
 import '../local/app_database.dart';
 
@@ -59,6 +60,204 @@ class DriftGoalRepository implements GoalRepository {
             .get();
     return [for (final row in rows) _fromRow(row)];
   }
+
+  @override
+  Future<List<Goal>> findDropped() async {
+    final rows =
+        await (database.select(database.goals)
+              ..where((row) => row.status.equals('DROPPED'))
+              ..orderBy([
+                (row) => OrderingTerm.desc(row.updatedAt),
+                (row) => OrderingTerm.asc(row.id),
+              ]))
+            .get();
+    return [for (final row in rows) _fromRow(row)];
+  }
+
+  @override
+  Future<void> updateGoal(
+    Goal expected, {
+    required String title,
+    String? description,
+    String? why,
+  }) async {
+    if (title.isEmpty ||
+        title != title.trim() ||
+        (description != null &&
+            (description.isEmpty || description != description.trim())) ||
+        (why != null && (why.isEmpty || why != why.trim()))) {
+      throw ArgumentError('目标文字必须完整填写并去除首尾空白');
+    }
+    await database.transaction(() async {
+      await _lockGoals();
+      final current = await findById(expected.id);
+      if (current == null) throw StateError('目标不存在，请返回列表刷新');
+      if (current.title == title &&
+          current.description == description &&
+          current.why == why &&
+          current.status == expected.status) {
+        return; // 上次保存成功但回复丢失时，重试同一内容不会再覆盖或改写时间。
+      }
+      if (current.updatedAt != expected.updatedAt ||
+          current.status != expected.status ||
+          current.title != expected.title ||
+          current.description != expected.description ||
+          current.why != expected.why) {
+        throw StateError('目标已在其他入口修改，请读取最新内容后再编辑');
+      }
+      await (database.update(
+        database.goals,
+      )..where((row) => row.id.equals(expected.id))).write(
+        GoalsCompanion(
+          title: Value(title),
+          description: Value(description),
+          why: Value(why),
+          updatedAt: Value(_nextGoalEditTime(current)),
+        ),
+      );
+    });
+  }
+
+  @override
+  Future<void> setGoalStatus(Goal expected, GoalStatus status) async {
+    await database.transaction(() async {
+      await _lockGoals();
+      final current = await findById(expected.id);
+      if (current == null) throw StateError('目标不存在，请返回列表刷新');
+      if (current.status == status &&
+          current.title == expected.title &&
+          current.description == expected.description &&
+          current.why == expected.why) {
+        return; // 同一状态命令可以安全重试；不修改已有任务或节点。
+      }
+      if (current.updatedAt != expected.updatedAt ||
+          current.status != expected.status ||
+          current.title != expected.title ||
+          current.description != expected.description ||
+          current.why != expected.why) {
+        throw StateError('目标状态已变化，请刷新后重新选择');
+      }
+      await (database.update(
+        database.goals,
+      )..where((row) => row.id.equals(expected.id))).write(
+        GoalsCompanion(
+          status: Value(_statusText(status)),
+          updatedAt: Value(_nextGoalEditTime(current)),
+        ),
+      );
+    });
+  }
+
+  @override
+  Future<void> importOutline(GoalOutlineCreation request) async {
+    final goal = request.goal;
+    goal.validateForCreation();
+    if (request.nodes.length > 500) throw ArgumentError('目标大纲最多包含 500 个节点');
+    final ids = <String>{goal.id}; // 导入请求内目标与节点都使用不重复的全局编号。
+    final depths = <String, int>{};
+    final nextOrder = <String?, int>{};
+    for (final node in request.nodes) {
+      if (node.goalId != goal.id ||
+          !ids.add(node.id) ||
+          (node.parentNodeId != null && !ids.contains(node.parentNodeId)) ||
+          node.orderIndex != (nextOrder[node.parentNodeId] ?? 0) ||
+          node.archivedAt != null ||
+          node.createdAt != goal.createdAt ||
+          node.updatedAt != goal.createdAt) {
+        throw ArgumentError('导入节点的归属、顺序或时间不合法');
+      }
+      final depth = node.parentNodeId == null
+          ? 1
+          : depths[node.parentNodeId]! + 1;
+      if (depth > 12) throw ArgumentError('目标大纲不能超过 12 层');
+      depths[node.id] = depth;
+      GoalNodeCreation(
+        id: node.id,
+        goalId: goal.id,
+        parentNodeId: node.parentNodeId,
+        title: node.title,
+        description: node.description,
+        createdAt: node.createdAt,
+      ).validate();
+      nextOrder[node.parentNodeId] = node.orderIndex + 1;
+    }
+    await database.transaction(() async {
+      await _lockGoals();
+      final existing = await findById(goal.id);
+      if (existing != null) {
+        final savedNodes = await findNodes(goal.id);
+        final savedById = {for (final node in savedNodes) node.id: node};
+        final sameGoal =
+            existing.title == goal.title &&
+            existing.description == goal.description &&
+            existing.why == goal.why &&
+            existing.status == GoalStatus.active &&
+            existing.createdAt == goal.createdAt &&
+            existing.updatedAt == goal.updatedAt;
+        final sameNodes =
+            savedNodes.length == request.nodes.length &&
+            request.nodes.every((node) {
+              final saved = savedById[node.id];
+              return saved != null &&
+                  saved.goalId == node.goalId &&
+                  saved.parentNodeId == node.parentNodeId &&
+                  saved.title == node.title &&
+                  saved.description == node.description &&
+                  saved.orderIndex == node.orderIndex &&
+                  saved.archivedAt == null &&
+                  saved.createdAt == node.createdAt &&
+                  saved.updatedAt == node.updatedAt;
+            });
+        if (sameGoal && sameNodes) return; // 成功响应丢失时，原请求重复确认不会再创建。
+        throw StateError('这次导入编号已有不同内容，请先确认目标列表');
+      }
+      await database
+          .into(database.goals)
+          .insert(
+            GoalsCompanion.insert(
+              id: goal.id,
+              title: goal.title,
+              description: Value(goal.description),
+              why: Value(goal.why),
+              status: const Value('ACTIVE'),
+              createdAt: goal.createdAt.millisecondsSinceEpoch,
+              updatedAt: goal.updatedAt.millisecondsSinceEpoch,
+            ),
+          );
+      for (final node in request.nodes) {
+        await database
+            .into(database.goalNodes)
+            .insert(
+              GoalNodesCompanion.insert(
+                id: node.id,
+                goalId: goal.id,
+                parentNodeId: Value(node.parentNodeId),
+                title: node.title,
+                description: Value(node.description),
+                orderIndex: node.orderIndex,
+                createdAt: node.createdAt.millisecondsSinceEpoch,
+                updatedAt: node.updatedAt.millisecondsSinceEpoch,
+              ),
+            );
+      }
+    });
+  }
+
+  Future<void> _lockGoals() =>
+      database.customStatement('UPDATE goals SET id = id WHERE 0');
+
+  int _nextGoalEditTime(Goal current) {
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final later = current.updatedAt.millisecondsSinceEpoch + 1;
+    return now > later ? now : later;
+  }
+
+  String _statusText(GoalStatus status) => switch (status) {
+    GoalStatus.active => 'ACTIVE',
+    GoalStatus.paused => 'PAUSED',
+    GoalStatus.achieved => 'ACHIEVED',
+    GoalStatus.dropped => 'DROPPED',
+  };
 
   @override
   Future<Goal?> findById(String id) async {

@@ -2,14 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../application/goals/goal_service.dart';
-import '../../core/theme/colors.dart';
-import '../../domain/entities/goal_node.dart';
-import '../widgets/app_confirm_dialog.dart';
+import '../../../application/goals/goal_service.dart';
+import '../../../core/theme/colors.dart';
+import '../../../domain/entities/goal_node.dart';
+import '../../widgets/app_confirm_dialog.dart';
 import 'goal_node_editor.dart';
-import '../../application/missions/mission_service.dart';
-import '../../domain/entities/goal.dart';
-import '../../domain/entities/mission_detail.dart';
+import '../../../application/missions/mission_service.dart';
+import '../../../domain/entities/goal.dart';
+import '../../../domain/entities/mission_detail.dart';
 import 'goal_missions_section.dart';
 
 /// 目标卡和详情共用的节点工作区，独立管理查询、展开与节点编辑交互。
@@ -47,26 +47,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   Future<bool> prepareToCollapse({
     String? subtreeId,
     bool includeRoot = true,
-  }) async {
-    final parents = {
-      for (final node in _lastNodes ?? <GoalNode>[]) node.id: node.parentNodeId,
-    };
-    for (final entry in _taskSections.entries) {
-      if (subtreeId != null) {
-        if (!includeRoot && entry.key == subtreeId) continue;
-        String? id = entry.key;
-        while (id != null && id != subtreeId) {
-          id = parents[id];
-        }
-        if (id == null) continue; // 只检查这次会隐藏的子树，其他节点的报告不应被打扰。
-      }
-      if (!await (entry.value.currentState?.prepareToCollapse() ??
-          Future.value(true))) {
-        return false;
-      }
-    }
-    return true; // 收起目标路径、归档或切换列表前，先让已有工作区保护未提交报告。
-  }
+  }) => Future.value(true); // 执行草稿位于独立页面，折叠目录只影响这里的排版。
 
   final _collapsed = <String>{}; // 只保存界面折叠选择，不写入节点表。
   bool _showArchived = false;
@@ -239,22 +220,8 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
         final byId = {
           for (final node in nodes) node.id: node,
         }; // 把编号作为 key，节点对象作为值，方便查找父节点。
-        // 别的入口归档节点时，保留仍有展开工作区的节点和祖先，直到用户安全收起。
-        final retained = <String>{};
-        for (final node in nodes) {
-          if (_taskSections[node.id]?.currentState?.hasExpandedWorkspace !=
-              true) {
-            continue;
-          }
-          String? id = node.id;
-          while (id != null && retained.add(id)) {
-            id = byId[id]?.parentNodeId;
-          }
-        }
         final active = nodes
-            .where(
-              (node) => node.archivedAt == null || retained.contains(node.id),
-            )
+            .where((node) => node.archivedAt == null)
             .toList(); // where 筛选未归档节点，toList 收集为列表。
         final archived = nodes
             .where((node) => node.archivedAt != null)
@@ -568,7 +535,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             child: Text(
                               node.title,
-                              style: Theme.of(context).textTheme.bodyLarge
+                              style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                           ),

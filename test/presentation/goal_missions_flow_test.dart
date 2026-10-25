@@ -16,7 +16,7 @@ import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
-import 'package:mission_book/presentation/goals/goals_page.dart';
+import 'package:mission_book/presentation/goals/list/goals_page.dart';
 import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
 
 class _UncertainMissionRepository extends DriftMissionRepository {
@@ -280,34 +280,44 @@ void main() {
     expect(find.text('待补材料'), findsOneWidget);
     await tap(tester, 'node-tasks-${node.id}');
     expect(find.text('下一次练习'), findsOneWidget);
-    await tap(tester, 'inline-open-${pending.mission.id}');
-    await tap(tester, 'inline-start-${pending.mission.id}');
-    expect(find.text('有完成记录 · 2'), findsOneWidget);
+    final startEntry = find.descendant(
+      of: find.byKey(Key('goal-task-${pending.mission.id}')),
+      matching: find.byTooltip('任务详情'),
+    );
+    await tester.tap(startEntry);
+    await tester.pumpAndSettle();
+    await tap(tester, 'execution-start');
+    expect(find.byKey(const Key('mission-execution-page')), findsOneWidget);
     expect(
       (await missions.findDetail(missionId: pending.mission.id))!.events,
       hasLength(1),
     );
-    // 从别处归档时，正在执行的工作区仍留在原位，旧任务可继续办理。
+    // 从别处归档不会结束独立执行页，也不会写入暂停事实。
     await goals.archiveNode(parent.id);
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('mission-execution-page')), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
     expect(find.text('暂无节点'), findsOneWidget);
-    expect(
-      find.byKey(Key('inline-workspace-${pending.mission.id}')),
-      findsOneWidget,
-    );
     expect(find.byKey(Key('node-create-mission-${node.id}')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('归档通知和收起路径保护未提交报告，不替用户保存 END', (tester) async {
+  testWidgets('节点任务进入独立执行页，报告返回保护草稿且不保存 END', (tester) async {
     final detail = await create(title: '保护报告', nodeId: node.id);
     await missions.execute(
       missions.prepareExecution(detail: detail, type: ExecutionEventType.start),
     );
     await open(tester);
     await tap(tester, 'node-tasks-${node.id}');
-    await tap(tester, 'inline-open-${detail.mission.id}');
+    final entry = find.descendant(
+      of: find.byKey(Key('goal-task-${detail.mission.id}')),
+      matching: find.byTooltip('返回执行'),
+    );
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('mission-execution-page')), findsOneWidget);
     await tap(tester, 'execution-end');
     await tap(tester, 'report-not-completed');
     await enter(tester, 'report-reason', '保留我的原因');
@@ -320,14 +330,12 @@ void main() {
           .text,
       '保留我的原因',
     );
-    await tap(tester, 'goal-outline-toggle-${goal.id}');
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
     expect(find.text('放弃本次报告？'), findsOneWidget);
     await tester.tap(find.text('继续填写'));
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(Key('inline-workspace-${detail.mission.id}')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('mission-execution-page')), findsOneWidget);
     expect(
       tester
           .widget<TextField>(find.byKey(const Key('report-reason')))
@@ -335,45 +343,11 @@ void main() {
           .text,
       '保留我的原因',
     );
-    await tap(tester, 'goal-outline-toggle-${goal.id}');
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
     await tester.tap(find.text('放弃报告'));
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(Key('inline-workspace-${detail.mission.id}')),
-      findsNothing,
-    );
-    expect(
-      (await missions.findDetail(
-        missionId: detail.mission.id,
-      ))!.events.where((event) => event.type == ExecutionEventType.end),
-      isEmpty,
-    );
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('收起孩子目录不丢弃父节点自己的报告，空节点没有假展开入口', (tester) async {
-    final detail = await create(title: '父节点直接任务', nodeId: parent.id);
-    await missions.execute(
-      missions.prepareExecution(detail: detail, type: ExecutionEventType.start),
-    );
-    await open(tester);
-    expect(find.byKey(Key('node-tasks-${node.id}')), findsNothing);
-    expect(find.byKey(Key('node-create-mission-${node.id}')), findsOneWidget);
-    await tap(tester, 'node-tasks-${parent.id}');
-    await tap(tester, 'inline-open-${detail.mission.id}');
-    await tap(tester, 'execution-end');
-    await tap(tester, 'report-not-completed');
-    await enter(tester, 'report-reason', '父节点报告保留');
-    await tap(tester, 'node-expand-${parent.id}');
-    expect(find.text('放弃本次报告？'), findsNothing);
-    expect(find.byKey(Key('node-row-${node.id}')), findsNothing);
-    expect(
-      tester
-          .widget<TextField>(find.byKey(const Key('report-reason')))
-          .controller!
-          .text,
-      '父节点报告保留',
-    );
+    expect(find.byKey(const Key('mission-execution-page')), findsOneWidget);
     expect(
       (await missions.findDetail(
         missionId: detail.mission.id,

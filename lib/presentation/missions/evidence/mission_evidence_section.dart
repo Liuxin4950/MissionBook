@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/colors.dart';
@@ -12,6 +14,8 @@ import '../../../domain/entities/mission_phase.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../shared/mission_execution_display.dart';
 import 'evidence_image_preview.dart';
+import 'formal_evidence_section.dart';
+import 'evidence_camera_panel.dart';
 
 /// 同一任务上下文内的材料区域：编辑草稿、一次提交、查看正式材料。
 /// 页面刷新必须保留本组件的 key；草稿只在提交成功或明确丢弃后清除。
@@ -44,6 +48,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
   final _drafts = <EvidenceDraft>[];
   final _controllers = <String, TextEditingController>{};
   final _images = <String, Future<Uint8List>>{};
+  final _formalKey = GlobalKey<FormalEvidenceSectionState>();
   EvidenceSubmission? _pending;
   bool _busy = false;
   bool _confirming = false;
@@ -52,11 +57,14 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
   String? _receipt;
   bool _imagesReady = false;
   bool _preparingImages = false;
+  bool _cameraOpen = false;
   String? _imageError;
 
-  bool get hasDraft => _drafts.isNotEmpty;
+  bool get hasDraft => _drafts.isNotEmpty || _cameraOpen;
+  bool get _cameraAvailable =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   bool get busy => _busy;
-  bool get _locked => _busy || _pending != null;
+  bool get _locked => _busy || _pending != null || _cameraOpen;
   bool get _canSubmit => _detail.phase == MissionPhase.evidencePending;
   @override
   bool get wantKeepAlive => hasDraft || _busy || _pending != null;
@@ -106,10 +114,14 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
   }
 
   /// 所属页面主动切换列表或上下文前调用，沿用同一份草稿丢弃确认。
-  Future<bool> prepareToLeave() => _confirmDiscard(leave: true);
+  Future<bool> prepareToLeave() async {
+    final formal = _formalKey.currentState;
+    if (formal != null && !await formal.prepareToLeave()) return false;
+    return _confirmDiscard(leave: true);
+  }
 
-  void _addText() {
-    final draft = widget.service.createTextEvidence('');
+  void _addText([EvidenceType type = EvidenceType.text]) {
+    final draft = widget.service.createTextEvidence('', type: type);
     setState(() {
       _drafts.add(draft);
       _controllers[draft.id] = TextEditingController();
@@ -142,6 +154,47 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
     }
   }
 
+  Future<void> _addFile() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final draft = await widget.service.pickEvidenceFile(_detail.mission.id);
+      if (!mounted) {
+        if (draft != null) await widget.service.discardEvidenceDrafts([draft]);
+        return;
+      }
+      if (draft != null) {
+        setState(() {
+          _drafts.add(draft);
+          _controllers[draft.id] = TextEditingController();
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = '文件添加失败：$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _confirmCameraImage(Uint8List bytes, DateTime capturedAt) async {
+    final draft = await widget.service.prepareEvidenceCameraImage(
+      _detail.mission.id,
+      bytes,
+      capturedAt: capturedAt,
+    );
+    if (!mounted) {
+      await widget.service.discardEvidenceDrafts([draft]);
+      return;
+    }
+    setState(() {
+      _drafts.add(draft);
+      _controllers[draft.id] = TextEditingController();
+      _cameraOpen = false;
+    });
+  }
+
   void _updateContent(String id, String content) {
     final index = _drafts.indexWhere((draft) => draft.id == id);
     if (index >= 0) _drafts[index] = _drafts[index].copyWithContent(content);
@@ -169,12 +222,14 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
     }
     _controllers.clear();
     _drafts.clear();
+    _cameraOpen = false;
     _pending = null;
   }
 
   EvidenceDraft _draftWithCurrentInput(EvidenceDraft draft) {
     final text = _controllers[draft.id]?.text ?? draft.content;
-    if (draft.type == EvidenceType.image && (text?.trim().isEmpty ?? true)) {
+    if ((draft.type == EvidenceType.image || draft.type == EvidenceType.file) &&
+        (text?.trim().isEmpty ?? true)) {
       return draft.copyWithContent(null); // 没填写图片说明时保持“未提供”。
     }
     return draft.copyWithContent(text);
@@ -262,7 +317,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
     final confirmed = await AppConfirmDialog.show(
       context: context,
       title: leave ? '离开并丢弃材料草稿？' : '丢弃材料草稿？',
-      message: '尚未提交的文字和图片将被丢弃，已经保存的执行记录保持不变。',
+      message: '尚未提交的材料将被丢弃，已经保存的执行记录保持不变。',
       cancelText: '继续整理',
       confirmText: '丢弃草稿',
     );
@@ -295,7 +350,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
     if (!mounted || !confirmed) return;
     setState(() => _busy = true);
     try {
-      // 先等用户决定正式保存；写入失败时，文字和图片草稿仍然保留。
+      // 先等用户决定正式保存；写入失败时草稿仍然保留。
       await widget.service.skipOptionalEvidence(_detail.mission.id);
       try {
         await widget.service.discardEvidenceDrafts(List.of(_drafts));
@@ -349,166 +404,14 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
     );
   }
 
-  /// 正式材料以内容为主；要求和原始时间可展开读取，不重复占据首屏。
-  Widget _formalMaterials(BuildContext context) {
-    final theme = Theme.of(context);
-    final images = _detail.evidence.where(
-      (item) => item.type == EvidenceType.image,
-    );
-    final texts = _detail.evidence.where(
-      (item) => item.type == EvidenceType.text,
-    );
-    return Material(
-      key: Key('evidence-section-${_detail.mission.id}'),
-      color: widget.compact ? AppColors.background : AppColors.card,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: AppColors.hairline),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(widget.compact ? 12 : 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.perm_media_outlined, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('任务材料', style: theme.textTheme.titleMedium),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySoft,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${_detail.evidence.length}',
-                    style: theme.textTheme.labelLarge,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (images.isNotEmpty)
-              LayoutBuilder(
-                builder: (context, box) {
-                  // 历史使用约112宽的小图；独立记录两列，窄屏和大字号下仍自然换行。
-                  final width = widget.compact
-                      ? 112.0.clamp(0.0, box.maxWidth)
-                      : ((box.maxWidth - 12) / 2).clamp(0.0, 240.0);
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      for (final item in images)
-                        SizedBox(
-                          width: width,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _image(
-                                item.attachmentStorageKey!,
-                                item.attachmentFileName ?? '图片材料',
-                                height: widget.compact ? 104 : 148,
-                              ),
-                              if (item.content?.trim().isNotEmpty == true) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  item.content!,
-                                  maxLines: widget.compact ? 2 : null,
-                                  overflow: widget.compact
-                                      ? TextOverflow.ellipsis
-                                      : null,
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            for (final item in texts) ...[
-              if (images.isNotEmpty || item != texts.first)
-                const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.notes_rounded, size: 18),
-                        const SizedBox(width: 6),
-                        Text('文字记录', style: theme.textTheme.labelLarge),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    SelectableText(item.content ?? ''),
-                  ],
-                ),
-              ),
-            ],
-            if (!widget.compact) ...[
-              const SizedBox(height: 8),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                childrenPadding: const EdgeInsets.only(bottom: 8),
-                title: Text(
-                  '已提交 ${_detail.evidence.length} 份材料',
-                  style: theme.textTheme.bodySmall,
-                ),
-                children: [
-                  for (final item in _detail.evidence)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      title: Text(item.attachmentFileName ?? '文字记录'),
-                      subtitle: Text(
-                        '提交于 ${missionLocalTime(item.submittedAt, _detail.schedule.timeZone)}',
-                      ),
-                    ),
-                  if (_detail.executionPlan.verificationCriteria
-                          ?.trim()
-                          .isNotEmpty ==
-                      true)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('材料要求'),
-                      subtitle: Text(
-                        _detail.executionPlan.verificationCriteria!,
-                      ),
-                    ),
-                  if (_detail.schedule.evidenceDeadlineAt != null)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('提交截止'),
-                      subtitle: Text(
-                        missionLocalTime(
-                          _detail.schedule.evidenceDeadlineAt!,
-                          _detail.schedule.timeZone,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
+  /// 读取和修正正式材料由独立组件管理；首次提交草稿仍留在本任务区。
+  Widget _formalMaterials(BuildContext context) => FormalEvidenceSection(
+    key: _formalKey,
+    detail: _detail,
+    service: widget.service,
+    compact: widget.compact,
+    onChanged: widget.onChanged,
+  );
   @override
   void dispose() {
     for (final controller in _controllers.values) {
@@ -565,8 +468,8 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
             if (_canSubmit)
               Text(
                 requiredEvidence
-                    ? '按要求提交文本或图片，二者也可以一起提交。'
-                    : '材料可选；可以提交文本或图片，也可以放弃提交并结束。',
+                    ? '按要求提交文字、代码、手动记录、文件或图片，可组合提交。'
+                    : '材料可选；可以提交适合的记录，也可以放弃提交并结束。',
               ),
             if (deadline != null && requiredEvidence)
               Text(
@@ -599,9 +502,8 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                   children: [
                     Expanded(
                       child: Text(
-                        draft.type == EvidenceType.text
-                            ? '文本材料'
-                            : (draft.attachmentFileName ?? '图片材料'),
+                        draft.attachmentFileName ??
+                            evidenceTypeLabel(draft.type),
                         style: theme.textTheme.titleSmall,
                       ),
                     ),
@@ -626,12 +528,14 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                     key: Key('evidence-content-${draft.id}'),
                     controller: _controllers[draft.id],
                     enabled: !_locked && _canSubmit,
-                    minLines: draft.type == EvidenceType.text ? 3 : 1,
-                    maxLines: draft.type == EvidenceType.text ? 10 : 4,
+                    minLines: draft.attachmentStorageKey == null ? 3 : 1,
+                    maxLines: draft.attachmentStorageKey == null ? 10 : 4,
                     decoration: InputDecoration(
-                      labelText: draft.type == EvidenceType.text
-                          ? '文本内容'
-                          : '图片说明（选填）',
+                      labelText: draft.attachmentStorageKey == null
+                          ? draft.type == EvidenceType.text
+                                ? '文本内容'
+                                : '${evidenceTypeLabel(draft.type)}内容'
+                          : '附件说明（选填）',
                       alignLabelWithHint: true,
                     ),
                     onChanged: (value) => _updateContent(draft.id, value),
@@ -646,9 +550,25 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                   children: [
                     OutlinedButton.icon(
                       key: const Key('evidence-add-text'),
-                      onPressed: _locked ? null : _addText,
+                      onPressed: _locked ? null : () => _addText(),
                       icon: const Icon(Icons.notes_rounded),
                       label: const Text('添加文本'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const Key('evidence-add-code'),
+                      onPressed: _locked
+                          ? null
+                          : () => _addText(EvidenceType.code),
+                      icon: const Icon(Icons.code_rounded),
+                      label: const Text('添加代码'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const Key('evidence-add-manual'),
+                      onPressed: _locked
+                          ? null
+                          : () => _addText(EvidenceType.manualRecord),
+                      icon: const Icon(Icons.edit_note_rounded),
+                      label: const Text('手动记录'),
                     ),
                     OutlinedButton.icon(
                       key: const Key('evidence-add-image'),
@@ -656,8 +576,35 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                       icon: const Icon(Icons.add_photo_alternate_outlined),
                       label: Text(_preparingImages ? '图片准备中' : '添加图片'),
                     ),
+                    OutlinedButton.icon(
+                      key: const Key('evidence-add-file'),
+                      onPressed: _locked || !_imagesReady ? null : _addFile,
+                      icon: const Icon(Icons.attach_file_rounded),
+                      label: const Text('添加文件'),
+                    ),
+                    if (_cameraAvailable)
+                      OutlinedButton.icon(
+                        key: const Key('evidence-add-camera'),
+                        onPressed: _locked || !_imagesReady
+                            ? null
+                            : () => setState(() => _cameraOpen = true),
+                        icon: const Icon(Icons.camera_alt_outlined),
+                        label: const Text('拍照'),
+                      ),
                   ],
                 ),
+              if (_cameraOpen) ...[
+                const SizedBox(height: 12),
+                EvidenceCameraPanel(
+                  missionTitle: _detail.mission.title,
+                  onConfirmed: _confirmCameraImage,
+                  onChooseFile: () {
+                    setState(() => _cameraOpen = false);
+                    unawaited(_addImage());
+                  },
+                  onCancel: () => setState(() => _cameraOpen = false),
+                ),
+              ],
               if (_imageError != null) ...[
                 Text(
                   _imageError!,

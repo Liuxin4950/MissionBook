@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/rules/execution_time_rules.dart';
+import '../../widgets/app_visibility.dart';
 import 'mission_execution_display.dart';
 import 'mission_phase_display.dart';
 
@@ -29,19 +30,19 @@ class MissionLiveStatus extends StatefulWidget {
 class _MissionLiveStatusState extends State<MissionLiveStatus>
     with WidgetsBindingObserver {
   Timer? _timer;
-  bool _foreground = true;
+  bool _appVisible = true;
+  bool _tickerEnabled = true;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _foreground =
-        WidgetsBinding.instance.lifecycleState == null ||
-        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _appVisible = isAppVisible(WidgetsBinding.instance.lifecycleState);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _tickerEnabled = TickerMode.valuesOf(context).enabled;
     _configure();
   }
 
@@ -52,21 +53,24 @@ class _MissionLiveStatusState extends State<MissionLiveStatus>
   }
 
   void _configure() {
-    _timer?.cancel();
-    if (_foreground &&
-        TickerMode.valuesOf(context).enabled &&
-        widget.phase == MissionPhase.running) {
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
+    if (!_appVisible ||
+        !_tickerEnabled ||
+        widget.phase != MissionPhase.running) {
+      _timer?.cancel();
+      _timer = null;
+      return;
     }
+    // 父列表重建不重置下一次刷新，否则高频通知可能让标签一直等不到下一秒。
+    _timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _foreground = state == AppLifecycleState.resumed;
+    _appVisible = isAppVisible(state);
     _configure();
-    if (mounted && _foreground) setState(() {});
+    if (mounted && _appVisible) setState(() {});
   }
 
   @override

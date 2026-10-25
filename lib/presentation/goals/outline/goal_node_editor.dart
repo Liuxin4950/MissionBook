@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../application/goals/goal_service.dart';
-import '../../core/theme/app_layout.dart';
-import '../../core/theme/colors.dart';
-import '../../domain/entities/goal_node.dart';
-import '../widgets/app_confirm_dialog.dart';
+import '../../../application/goals/goal_service.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/colors.dart';
+import '../../../domain/entities/goal_node.dart';
+import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_text_field.dart';
 
 /// 在当前目标上方填写节点，创建、添加子节点与编辑共用这个编辑框。
 class GoalNodeEditor extends StatefulWidget {
@@ -227,25 +228,27 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                TextFormField(
+                AppTextField(
                   key: const Key('node-title-input'),
                   controller: _title,
                   readOnly: _saving || _locked,
                   autofocus: true,
                   minLines: 1,
                   maxLines: 3,
-                  decoration: _decoration('节点名称（必填）', '这部分想学习或完成什么？'),
+                  label: '节点名称（必填）',
+                  hint: '这部分想学习或完成什么？',
                   validator: (value) =>
                       value == null || value.trim().isEmpty ? '请填写节点名称' : null,
                 ),
                 const SizedBox(height: 20),
-                TextFormField(
+                AppTextField(
                   key: const Key('node-description-input'),
                   controller: _description,
                   readOnly: _saving || _locked,
                   minLines: 2,
                   maxLines: 6,
-                  decoration: _decoration('节点说明（选填）', '需要时再补充范围或学习重点'),
+                  label: '节点说明（选填）',
+                  hint: '需要时再补充范围或学习重点',
                 ),
                 const SizedBox(height: 24),
                 if (_error != null) ...[
@@ -277,13 +280,4 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
       ),
     );
   }
-
-  InputDecoration _decoration(String label, String hint) => InputDecoration(
-    labelText: label,
-    hintText: hint,
-    alignLabelWithHint: true,
-    filled: true,
-    fillColor: AppColors.card,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-  );
 }

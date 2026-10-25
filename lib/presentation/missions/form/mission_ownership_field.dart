@@ -65,13 +65,10 @@ class _MissionOwnershipFieldState extends State<MissionOwnershipField> {
                 padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         '任务归属',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ),
                     IconButton(

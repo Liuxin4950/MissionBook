@@ -5,6 +5,12 @@ import 'colors.dart';
 /// 全站字号按用途集中定义；页面只选择角色，不再自行填写字号和行高。
 abstract final class AppTypography {
   static const textTheme = TextTheme(
+    displaySmall: TextStyle(
+      fontSize: 48,
+      height: 56 / 48,
+      fontWeight: FontWeight.w700,
+      color: AppColors.textPrimary,
+    ), // 执行页专注时长，其余页面不使用这个大数字角色。
     headlineSmall: TextStyle(
       fontSize: 28,
       height: 36 / 28,

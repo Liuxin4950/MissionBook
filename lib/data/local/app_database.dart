@@ -60,16 +60,16 @@ class AppDatabase extends _$AppDatabase {
             ),
       );
 
-  // v8 给任务追加可空的目标、节点编号；旧任务不会被自动分配到任何目标。
+  // v9 扩展材料类型与不可变修正链，原有八张表和旧材料继续保留。
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     // 首次安装沿用默认 onCreate：Drift 创建全部八表、声明的索引和归属触发器。
     // 已有库版本不同时，Drift 调用此回调，并传入旧版本 from 和目标版本 to。
     onUpgrade: (migrator, from, to) async {
-      if (from < 1 || from > 7 || to != 8) {
+      if (from < 1 || from > 8 || to != 9) {
         // 不认识的版本明确失败，保留原库；不能用删库掩盖升级问题。
         throw StateError('不支持数据库从 v$from 升级或降级到 v$to');
       }
@@ -97,11 +97,33 @@ class AppDatabase extends _$AppDatabase {
           await migrator.createTable(goalNodes);
           await migrator.createIndex(goalNodesSiblings);
         }
-        await migrator.addColumn(missions, missions.goalId);
-        await migrator.addColumn(missions, missions.goalNodeId);
-        await migrator.createIndex(missionsGoalNode);
-        await migrator.createTrigger(missionsOwnershipInsert);
-        await migrator.createTrigger(missionsOwnershipUpdate);
+        if (from < 8) {
+          await migrator.addColumn(missions, missions.goalId);
+          await migrator.addColumn(missions, missions.goalNodeId);
+          await migrator.createIndex(missionsGoalNode);
+          await migrator.createTrigger(missionsOwnershipInsert);
+          await migrator.createTrigger(missionsOwnershipUpdate);
+        }
+        // v5-v8 的 CHECK 仅允许 TEXT/IMAGE。重建同名表保留全部原始记录，
+        // 同时让新安装与升级安装得到相同的五类材料约束和修正列。
+        if (from >= 5) {
+          await customStatement(
+            'ALTER TABLE evidence_records RENAME TO evidence_records_v8',
+          );
+          await migrator.createTable(evidenceRecords);
+          await customStatement('''
+            INSERT INTO evidence_records (
+              id, mission_id, submission_id, type, source, content,
+              attachment_storage_key, attachment_file_name,
+              attachment_mime_type, captured_at, submitted_at
+            ) SELECT
+              id, mission_id, submission_id, type, source, content,
+              attachment_storage_key, attachment_file_name,
+              attachment_mime_type, captured_at, submitted_at
+            FROM evidence_records_v8
+          ''');
+          await customStatement('DROP TABLE evidence_records_v8');
+        }
         // Drift 默认在全部开库回调完成后才记版本。把标记与结构一起提交，
         // 避免结构已建好、后续开库中断后，重开仍按 v1 重复创建索引。
         // to 是 Drift 传入且已在上面确认的目标版本，不来自用户输入。

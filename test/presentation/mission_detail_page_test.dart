@@ -37,6 +37,8 @@ class DetailRepository implements MissionRepository {
   @override
   Future<List<MissionDetail>> findFinished() async => [];
   @override
+  Future<List<MissionDetail>> findAllDetails() async => [];
+  @override
   Future<List<MissionDetail>> findCancelled() async => [];
   @override
   Future<List<MissionDetail>> findPendingEvidence() async => [];
@@ -48,6 +50,9 @@ class DetailRepository implements MissionRepository {
   Future<EvidenceSubmissionResult> submitEvidence(
     EvidenceSubmission submission,
   ) => throw UnsupportedError('本替身不提交材料');
+  @override
+  Future<Evidence> correctEvidence(EvidenceCorrection correction) =>
+      throw UnsupportedError('本替身不修正材料');
   @override
   Future<void> skipOptionalEvidence(String missionId) =>
       throw UnsupportedError('本替身不跳过材料');

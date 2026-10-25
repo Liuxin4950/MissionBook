@@ -1,14 +1,20 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:uuid/uuid.dart';
 
 import '../../domain/entities/goal.dart';
 import '../../domain/entities/goal_node.dart';
+import '../../domain/entities/goal_outline_import.dart';
 import '../../domain/repositories/goal_repository.dart';
+import 'goal_file_picker.dart';
+import 'goal_outline_parser.dart';
 
 /// 组织目标的创建和查询；页面不直接调用数据库仓储。
 class GoalService {
-  GoalService(this.repository);
+  GoalService(this.repository, {GoalFilePicker? filePicker})
+    : _filePicker = filePicker;
   final GoalRepository repository; // 只依赖接口，App 决定传入哪种存储实现。
+  final GoalFilePicker? _filePicker;
   final _uuid = const Uuid();
   final _changes =
       StreamController<void>.broadcast(); // 创建允许多个页面同时监听的控制器，服务通过它发送事件。
@@ -45,7 +51,91 @@ class GoalService {
   }
 
   Future<List<Goal>> findAll() => repository.findAll();
+  Future<List<Goal>> findDropped() => repository.findDropped();
   Future<Goal?> findById(String id) => repository.findById(id);
+
+  /// 修改目标文字；页面传入开始编辑时读到的版本，仓储在写事务内再比较。
+  Future<void> updateGoal(
+    Goal expected, {
+    required String title,
+    String? description,
+    String? why,
+  }) async {
+    final cleanedTitle = title.trim();
+    final cleanedDescription = _optionalText(description);
+    final cleanedWhy = _optionalText(why);
+    if (cleanedTitle.isEmpty) throw ArgumentError('请填写目标名称');
+    await repository.updateGoal(
+      expected,
+      title: cleanedTitle,
+      description: cleanedDescription,
+      why: cleanedWhy,
+    );
+    _notify();
+  }
+
+  /// 状态由用户明确选择；节点完成数量不触发这项操作。
+  Future<void> setGoalStatus(Goal expected, GoalStatus status) async {
+    await repository.setGoalStatus(expected, status);
+    _notify();
+  }
+
+  /// 把已校验预览转成固定编号的目标与节点树；尚未写入数据库。
+  GoalOutlineCreation prepareOutlineImport(GoalOutlineImport outline) {
+    final goal = prepareCreation(
+      title: outline.title,
+      description: outline.description,
+      why: outline.why,
+    );
+    final nodes = <GoalNode>[];
+    void append(List<GoalImportNode> siblings, String? parentId) {
+      for (final (index, item) in siblings.indexed) {
+        final id = _uuid.v4();
+        final node = GoalNode(
+          id: id,
+          goalId: goal.id,
+          parentNodeId: parentId,
+          title: item.title,
+          description: item.description,
+          orderIndex: index,
+          createdAt: goal.createdAt,
+          updatedAt: goal.createdAt,
+        );
+        GoalNodeCreation(
+          id: id,
+          goalId: goal.id,
+          parentNodeId: parentId,
+          title: item.title,
+          description: item.description,
+          createdAt: goal.createdAt,
+        ).validate();
+        nodes.add(node);
+        append(item.children, id);
+      }
+    }
+
+    append(outline.nodes, null);
+    return GoalOutlineCreation(goal: goal, nodes: List.unmodifiable(nodes));
+  }
+
+  /// 一次导入只有一个提交边界；成功后通知列表重读。
+  Future<void> importOutline(GoalOutlineCreation request) async {
+    await repository.importOutline(request);
+    _notify();
+  }
+
+  /// 文件选择结果只填入页面草稿；预览和确认仍由目标页决定。
+  Future<String?> pickOutlineText() async {
+    final picker = _filePicker;
+    if (picker == null) throw UnsupportedError('当前环境无法选取文件，请粘贴 JSON');
+    final bytes = await picker.pickBytes();
+    if (bytes == null) return null;
+    if (bytes.length > GoalOutlineParser.maxBytes) {
+      throw const FormatException('文件超过 2 MiB 限制');
+    }
+    return utf8.decode(bytes, allowMalformed: false);
+  }
+
   Future<List<GoalNode>> findNodes(String goalId) =>
       repository.findNodes(goalId);
   Future<GoalNode?> findNodeById(String id) => repository.findNodeById(id);

@@ -363,6 +363,9 @@ class DriftMissionRepository implements MissionRepository {
     final ids = <String>{};
     for (final item in submission.items) {
       validateEvidenceDraft(item, submission.missionId);
+      if (item.supersedesEvidenceId != null) {
+        throw ArgumentError('首次提交不能替代已有材料');
+      }
       if (!ids.add(item.id)) throw ArgumentError('同批材料编号不能重复');
     }
     return database.transaction(() async {
@@ -422,12 +425,72 @@ class DriftMissionRepository implements MissionRepository {
           attachmentFileName: draft.attachmentFileName,
           attachmentMimeType: draft.attachmentMimeType,
           capturedAt: draft.capturedAt,
+          supersedesEvidenceId: null,
         );
         await database
             .into(database.evidenceRecords)
             .insert(evidenceToCompanion(item));
       }
       return EvidenceSubmissionResult.submitted;
+    });
+  }
+
+  @override
+  Future<Evidence> correctEvidence(EvidenceCorrection correction) async {
+    final draft = correction.item;
+    if (correction.missionId.trim().isEmpty ||
+        draft.supersedesEvidenceId == null ||
+        draft.supersedesEvidenceId!.trim().isEmpty) {
+      throw ArgumentError('请选择一份当前有效的正式材料');
+    }
+    validateEvidenceDraft(draft, correction.missionId);
+    return database.transaction(() async {
+      await _acquireWrite(correction.missionId);
+      final existing = await (database.select(
+        database.evidenceRecords,
+      )..where((table) => table.id.equals(draft.id))).getSingleOrNull();
+      if (existing != null) {
+        final saved = evidenceFromRow(existing);
+        if (saved.missionId != correction.missionId ||
+            saved.submissionId != draft.id ||
+            !sameEvidenceInput(saved, draft)) {
+          throw const EvidenceConflict('修正编号已用于不同内容，请重新读取记录');
+        }
+        await findDetail(correction.missionId);
+        return saved;
+      }
+      final detail = await findDetail(correction.missionId);
+      if (detail == null || detail.phase != MissionPhase.closed) {
+        throw const EvidenceConflict('任务没有可修正的正式材料，请刷新');
+      }
+      final original = detail.effectiveEvidence.where(
+        (item) => item.id == draft.supersedesEvidenceId,
+      );
+      if (original.length != 1 || original.single.type != draft.type) {
+        throw const EvidenceConflict('原材料已被修正或类型不同，请读取最新记录');
+      }
+      final now = _now();
+      if (now.isBefore(original.single.submittedAt)) {
+        throw const EvidenceConflict('系统时间早于原材料，请校正后重试');
+      }
+      final saved = Evidence(
+        id: draft.id,
+        missionId: correction.missionId,
+        submissionId: draft.id,
+        submittedAt: now,
+        type: draft.type,
+        source: draft.source,
+        content: draft.content,
+        attachmentStorageKey: draft.attachmentStorageKey,
+        attachmentFileName: draft.attachmentFileName,
+        attachmentMimeType: draft.attachmentMimeType,
+        capturedAt: draft.capturedAt,
+        supersedesEvidenceId: draft.supersedesEvidenceId,
+      );
+      await database
+          .into(database.evidenceRecords)
+          .insert(evidenceToCompanion(saved));
+      return saved;
     });
   }
 
@@ -654,6 +717,24 @@ class DriftMissionRepository implements MissionRepository {
     }
     return result;
   });
+
+  @override
+  Future<List<MissionDetail>> findAllDetails() =>
+      database.transaction(() async {
+        final rows =
+            await (database.select(database.missions)..orderBy([
+                  (row) => OrderingTerm.desc(row.createdAt),
+                  (row) => OrderingTerm.asc(row.id),
+                ]))
+                .get();
+        final result = <MissionDetail>[];
+        for (final row in rows) {
+          final detail = await findDetail(row.id); // 每项仍经唯一事实组合与阶段校验。
+          if (detail == null) throw const FormatException('任务列表中存在无法读取的任务');
+          result.add(detail);
+        }
+        return result;
+      });
 
   Future<List<MissionDetail>> _findByExecution({required bool ended}) {
     return database.transaction(() async {
@@ -915,7 +996,10 @@ class DriftMissionRepository implements MissionRepository {
       final evidenceRows =
           await (database.select(database.evidenceRecords)
                 ..where((table) => table.missionId.equals(missionId))
-                ..orderBy([(table) => OrderingTerm.asc(table.id)]))
+                ..orderBy([
+                  (table) => OrderingTerm.asc(table.submittedAt),
+                  (table) => OrderingTerm.asc(table.id),
+                ]))
               .get();
       // ④ 行对象 → 业务对象。下面五个变量正好对应 MissionDetail 的五个成员。
       final mission = missionFromRow(joinedRow.readTable(missions));

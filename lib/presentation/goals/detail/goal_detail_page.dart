@@ -1,13 +1,17 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
-import '../../application/goals/goal_service.dart';
-import '../../application/missions/mission_service.dart';
-import '../../core/theme/app_layout.dart';
-import '../../core/theme/colors.dart';
-import '../../domain/entities/goal.dart';
-import '../widgets/app_top_bar.dart';
-import 'goal_outline_section.dart';
-import 'goal_record_summary.dart';
+import '../../../application/goals/goal_service.dart';
+import '../../../application/missions/mission_service.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/colors.dart';
+import '../../../domain/entities/goal.dart';
+import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_confirm_dialog.dart';
+import '../form/goal_form_page.dart';
+import '../outline/goal_outline_section.dart';
+import '../shared/goal_record_summary.dart';
+import '../shared/goal_status_display.dart';
 
 /// 按编号读取目标，并提供目标路径及说明的完整阅读入口。
 class GoalDetailPage extends StatefulWidget {
@@ -26,10 +30,26 @@ class GoalDetailPage extends StatefulWidget {
 
 class _GoalDetailPageState extends State<GoalDetailPage> {
   late Future<Goal?> _goal;
+  StreamSubscription<void>? _changes;
+  bool _busy = false;
+
+  void _refresh() {
+    if (mounted) {
+      setState(() {
+        _goal = widget.service.findById(widget.goalId);
+      });
+    }
+  }
+
+  void _listen() {
+    _changes = widget.service.changes.listen((_) => _refresh());
+  }
+
   @override
   void initState() {
     super.initState();
     _goal = widget.service.findById(widget.goalId);
+    _listen();
   }
 
   @override
@@ -38,6 +58,64 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
     if (oldWidget.service != widget.service ||
         oldWidget.goalId != widget.goalId) {
       _goal = widget.service.findById(widget.goalId);
+      if (oldWidget.service != widget.service) {
+        unawaited(_changes?.cancel());
+        _listen();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_changes?.cancel());
+    super.dispose();
+  }
+
+  Future<void> _edit(Goal goal) async {
+    if (_busy) return;
+    _busy = true;
+    try {
+      await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (_) => GoalFormPage(service: widget.service, goal: goal),
+        ),
+      );
+    } finally {
+      _busy = false;
+      _refresh();
+    }
+  }
+
+  Future<void> _changeStatus(Goal goal, GoalStatus status) async {
+    if (_busy || goal.status == status) return;
+    _busy = true;
+    try {
+      if (status == GoalStatus.dropped) {
+        final confirmed = await AppConfirmDialog.show(
+          context: context,
+          title: '放弃这项目标？',
+          message: '它会从默认列表隐藏。已有任务、节点和执行记录都会保留，之后仍可恢复推进。',
+          cancelText: '继续推进',
+          confirmText: '放弃目标',
+        );
+        if (!confirmed || !mounted) return;
+      }
+      await widget.service.setGoalStatus(goal, status);
+      if (!mounted) return;
+      _refresh();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('目标已${goalStatusLabel(status)}')));
+    } catch (error) {
+      if (!mounted) return;
+      _refresh();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Bad state: ', '')),
+        ),
+      );
+    } finally {
+      _busy = false;
     }
   }
 
@@ -45,7 +123,8 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: const AppTopBar(title: '目标详情'),
     body: SafeArea(
-      child: Center(
+      child: Align(
+        alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
           child: FutureBuilder<Goal?>(
@@ -123,6 +202,62 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                         );
                       },
                     ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          key: const Key('goal-edit'),
+                          onPressed: _busy ? null : () => _edit(goal),
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: const Text('编辑目标'),
+                        ),
+                        PopupMenuButton<GoalStatus>(
+                          key: const Key('goal-status-menu'),
+                          tooltip: '更改目标状态',
+                          enabled: !_busy,
+                          onSelected: (status) => _changeStatus(goal, status),
+                          itemBuilder: (_) => [
+                            if (goal.status != GoalStatus.active)
+                              const PopupMenuItem(
+                                value: GoalStatus.active,
+                                child: Text('恢复推进'),
+                              ),
+                            if (goal.status != GoalStatus.dropped) ...[
+                              if (goal.status != GoalStatus.paused)
+                                const PopupMenuItem(
+                                  value: GoalStatus.paused,
+                                  child: Text('暂时搁置'),
+                                ),
+                              if (goal.status != GoalStatus.achieved)
+                                const PopupMenuItem(
+                                  value: GoalStatus.achieved,
+                                  child: Text('标为已达成'),
+                                ),
+                              const PopupMenuItem(
+                                value: GoalStatus.dropped,
+                                child: Text('放弃目标'),
+                              ),
+                            ],
+                          ],
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.more_horiz, size: 20),
+                                SizedBox(width: 6),
+                                Text('更改状态'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                     if (goal.description != null || goal.why != null)
                       ExpansionTile(
                         key: const Key('goal-description-toggle'),
@@ -184,11 +319,3 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
 
   String _date(DateTime value) => '${value.year}年${value.month}月${value.day}日';
 }
-
-/// 列表与详情共用目标状态文字，不使用任务的“执行阶段”文案。
-String goalStatusLabel(GoalStatus status) => switch (status) {
-  GoalStatus.active => '正在推进',
-  GoalStatus.paused => '暂时搁置',
-  GoalStatus.achieved => '已经达到',
-  GoalStatus.dropped => '已放弃',
-};

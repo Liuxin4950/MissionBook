@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/mission_phase.dart';
-import '../detail/mission_detail_page.dart';
+import '../execution/mission_execution_page.dart';
 import 'mission_live_status.dart';
 
 /// 不按今天日期过滤，跨午夜或切换顶层页也能找回运行/暂停任务。
@@ -61,10 +61,8 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
     try {
       await Navigator.of(context).push<void>(
         MaterialPageRoute(
-          builder: (_) => MissionDetailPage(
-            missionId: detail.mission.id,
-            missionService: widget.service,
-          ),
+          builder: (_) =>
+              MissionExecutionPage(detail: detail, service: widget.service),
         ),
       );
     } finally {

@@ -8,7 +8,7 @@ import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/domain/entities/goal.dart';
-import 'package:mission_book/presentation/goals/goals_page.dart';
+import 'package:mission_book/presentation/goals/list/goals_page.dart';
 
 // 模拟提交前失败、提交后响应丢失，以及慢请求；仍执行真实数据库保存。
 class _UncertainRepository extends DriftGoalRepository {
@@ -76,6 +76,7 @@ void main() {
     await open(tester);
     expect(find.text('从一个想实现的目标开始'), findsOneWidget);
     await tap(tester, 'goal-create');
+    await tap(tester, 'goal-create-manual');
     await tap(tester, 'goal-save');
     expect(find.text('请填写目标名称'), findsOneWidget);
     await tester.enterText(
@@ -88,7 +89,10 @@ void main() {
     );
     await tester.enterText(find.byKey(const Key('goal-why-input')), '想做自己的工具');
     await tap(tester, 'goal-save');
-    expect(find.text('目标详情'), findsOneWidget);
+    expect(find.text('目标详情'), findsNothing);
+    final created = (await service.findAll()).single;
+    expect(find.byKey(Key('goal-${created.id}')), findsOneWidget);
+    await tap(tester, 'goal-${created.id}');
     expect(find.text('独立开发 Flutter 应用'), findsOneWidget);
     await tap(tester, 'goal-description-toggle');
     expect(find.text('想做自己的工具'), findsOneWidget);
@@ -102,9 +106,64 @@ void main() {
     expect(find.text('目标详情'), findsOneWidget);
   });
 
+  testWidgets('编辑目标、搁置、达成、放弃及从隐藏列表恢复都读取正式状态', (tester) async {
+    final goal = service.prepareCreation(title: '原目标');
+    await service.create(goal);
+    await open(tester);
+    await tap(tester, 'goal-${goal.id}');
+    await tap(tester, 'goal-edit');
+    await tester.enterText(find.byKey(const Key('goal-title-input')), '修改后的目标');
+    await tap(tester, 'goal-save');
+    expect((await service.findById(goal.id))!.title, '修改后的目标');
+    expect(find.text('修改后的目标'), findsOneWidget);
+
+    await tap(tester, 'goal-status-menu');
+    await tester.tap(find.text('暂时搁置').last);
+    await tester.pumpAndSettle();
+    expect((await service.findById(goal.id))!.status, GoalStatus.paused);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('修改后的目标'), findsNothing);
+    await tap(tester, 'goal-filter-paused');
+    expect(find.text('修改后的目标'), findsOneWidget);
+    await tap(tester, 'goal-${goal.id}');
+    await tap(tester, 'goal-status-menu');
+    await tester.tap(find.text('标为已达成').last);
+    await tester.pumpAndSettle();
+    expect((await service.findById(goal.id))!.status, GoalStatus.achieved);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    await tap(tester, 'goal-filter-achieved');
+    await tap(tester, 'goal-${goal.id}');
+    await tap(tester, 'goal-status-menu');
+    await tester.tap(find.text('放弃目标').last);
+    await tester.pumpAndSettle();
+    expect(find.text('放弃这项目标？'), findsOneWidget);
+    await tester.tap(find.text('放弃目标').last);
+    await tester.pumpAndSettle();
+    expect((await service.findById(goal.id))!.status, GoalStatus.dropped);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('修改后的目标'), findsNothing);
+    await tap(tester, 'goal-more-filters');
+    await tester.tap(find.text('已放弃的目标').last);
+    await tester.pumpAndSettle();
+    await tap(tester, 'goal-${goal.id}');
+    await tap(tester, 'goal-status-menu');
+    await tester.tap(find.text('恢复推进').last);
+    await tester.pumpAndSettle();
+    expect((await service.findById(goal.id))!.status, GoalStatus.active);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('修改后的目标'), findsNothing);
+    await tap(tester, 'goal-filter-active');
+    expect(find.text('修改后的目标'), findsOneWidget);
+  });
+
   testWidgets('系统返回保留或放弃草稿，放弃不写入', (tester) async {
     await open(tester);
     await tap(tester, 'goal-create');
+    await tap(tester, 'goal-create-manual');
     await tester.enterText(find.byKey(const Key('goal-title-input')), '未保存目标');
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
@@ -122,6 +181,7 @@ void main() {
     repository.failBefore = true;
     await open(tester);
     await tap(tester, 'goal-create');
+    await tap(tester, 'goal-create-manual');
     await tester.enterText(find.byKey(const Key('goal-title-input')), '原目标');
     await tap(tester, 'goal-save');
     expect(find.textContaining('暂时未能确认保存结果'), findsOneWidget);
@@ -137,18 +197,21 @@ void main() {
     repository.loseReply = true;
     await open(tester);
     await tap(tester, 'goal-create');
+    await tap(tester, 'goal-create-manual');
     await tester.enterText(find.byKey(const Key('goal-title-input')), '稳定请求');
     await tap(tester, 'goal-save');
     expect(find.text('重试保存'), findsOneWidget);
     expect(await service.findAll(), hasLength(1));
     await tap(tester, 'goal-save');
-    expect(find.text('目标详情'), findsOneWidget);
+    expect(find.text('目标详情'), findsNothing);
+    expect(find.text('稳定请求'), findsOneWidget);
     expect(await service.findAll(), hasLength(1));
   });
 
   testWidgets('保存期间阻止重复点击和返回；窄屏大字体可滚动完成', (tester) async {
     await open(tester, scale: 2);
     await tap(tester, 'goal-create');
+    await tap(tester, 'goal-create-manual');
     await tester.enterText(
       find.byKey(const Key('goal-title-input')),
       '长一点的目标名称，循序渐进学习',
@@ -161,7 +224,8 @@ void main() {
     expect(find.text('新建目标'), findsOneWidget);
     repository.gate!.complete();
     await tester.pumpAndSettle();
-    expect(find.text('目标详情'), findsOneWidget);
+    expect(find.text('目标详情'), findsNothing);
+    expect(find.text('长一点的目标名称，循序渐进学习'), findsOneWidget);
     expect(await service.findAll(), hasLength(1));
     expect(tester.takeException(), isNull);
   });

@@ -15,26 +15,25 @@ import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/rules/execution_time_rules.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_visibility.dart';
 import '../shared/mission_action_controller.dart';
 import '../shared/mission_execution_display.dart';
 import '../record/mission_record_page.dart';
 import '../detail/mission_detail_page.dart';
 import '../evidence/mission_evidence_section.dart';
 
-/// 已 START 任务的执行工作区；独立页和 Today 原位办理共用同一逻辑。
-/// 结束报告、材料在同一上下文展开，旧自报独立页沿用原记录路由。
+/// 已 START 任务的独立执行页；离开页面不会停止或暂停真实执行。
+/// 结束报告与材料留在独立工作流中，旧自报独立页沿用原记录路由。
 class MissionExecutionPage extends StatefulWidget {
   const MissionExecutionPage({
     super.key,
     required this.detail,
     required this.service,
     this.clock = DateTime.now,
-    this.embedded = false,
   });
   final MissionDetail detail;
   final MissionService service;
   final DateTime Function() clock;
-  final bool embedded;
   @override
   State<MissionExecutionPage> createState() => MissionExecutionPageState();
 }
@@ -44,10 +43,12 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
   late final MissionActionController _action;
   Timer? _timer;
   StreamSubscription<void>? _changes;
-  bool _foreground = true;
+  bool _appVisible = true;
+  bool _tickerEnabled = true;
   bool _report = false;
   bool _extend = false;
   bool _openingReport = false;
+  bool _openingPauseDialog = false;
   bool _closingReport = false;
   bool _navigating = false;
   bool _showingDetails = false;
@@ -59,20 +60,8 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
   String? _reasonCategory;
   String? _inputError;
   final _minutes = TextEditingController(text: '10');
-  final _pauseReason = TextEditingController();
   final _failureReason = TextEditingController();
   final _evidenceKey = GlobalKey<MissionEvidenceSectionState>();
-
-  /// Today 收起原位工作区时保护报告和材料；收起本身不保存暂停或结束事件。
-  Future<bool> prepareToCollapse() async {
-    if (_action.locked) return false;
-    if (_report) {
-      await _leaveReport();
-      if (_report) return false;
-    }
-    return await (_evidenceKey.currentState?.prepareToLeave() ??
-        Future.value(true));
-  }
 
   @override
   void initState() {
@@ -89,9 +78,7 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
       }
     });
     WidgetsBinding.instance.addObserver(this);
-    _foreground =
-        WidgetsBinding.instance.lifecycleState == null ||
-        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _appVisible = isAppVisible(WidgetsBinding.instance.lifecycleState);
   }
 
   void _changed() {
@@ -104,31 +91,64 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _tickerEnabled = TickerMode.valuesOf(context).enabled;
     _configureTimer();
   }
 
   void _configureTimer() {
-    _timer?.cancel();
     final phase = _action.detail.phase;
-    if (_foreground &&
-        TickerMode.valuesOf(context).enabled &&
-        (phase == MissionPhase.running || phase == MissionPhase.paused)) {
-      // Timer 只要求重新绘制；Focus 始终从已保存时间线重新算，后台也不丢时长。
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted && !_report) setState(() {});
-      });
+    if (!_appVisible || !_tickerEnabled || phase != MissionPhase.running) {
+      _timer?.cancel();
+      _timer = null;
+      return;
     }
+    // 已有刷新器就沿用，避免频繁重读或依赖更新把下一秒不断推迟。
+    // Timer 只要求重新绘制；Focus 始终从已保存时间线重新算，后台也不丢时长。
+    _timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && !_report) setState(() {});
+    });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    _foreground = state == AppLifecycleState.resumed;
+    final wasVisible = _appVisible;
+    _appVisible = isAppVisible(state);
     _configureTimer();
-    if (_foreground && _action.pending == null) unawaited(_refresh());
+    if (_appVisible) {
+      // 从隐藏恢复成 inactive 时也先追上时钟，不依赖用户再点一下窗口。
+      setState(() {});
+      if ((!wasVisible || state == AppLifecycleState.resumed) &&
+          _action.pending == null) {
+        unawaited(_refresh());
+      }
+    }
+  }
+
+  Future<void> _requestPause() async {
+    if (_openingPauseDialog ||
+        !_action.canAct ||
+        _action.detail.phase != MissionPhase.running) {
+      return;
+    }
+    _openingPauseDialog = true;
+    // 固定打开弹窗时的事实快照；其它入口变更后不能悄悄换成新序号提交。
+    final detail = _action.detail;
+    try {
+      final reason = await ExecutionPauseDialog.show(context);
+      if (!mounted || reason == null) return;
+      await _run(
+        widget.service.prepareExecution(
+          detail: detail,
+          type: ExecutionEventType.pause,
+          reason: reason,
+        ),
+      );
+    } finally {
+      _openingPauseDialog = false;
+    }
   }
 
   void _showRecord() {
-    if (widget.embedded) return;
     if (ModalRoute.of(context)?.isCurrent != true) return;
     if (!mounted ||
         _navigating ||
@@ -204,15 +224,10 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
     if (!await _action.execute(command) || !mounted) return;
     _inputError = null;
     _extend = false;
-    _pauseReason.clear();
     if (_action.detail.phase == MissionPhase.closed &&
         _action.detail.mission.verificationPolicy ==
             VerificationPolicy.selfReport) {
-      if (widget.embedded) {
-        _report = false;
-      } else {
-        _showRecord();
-      }
+      _showRecord();
     } else if (_action.detail.events.last.type == ExecutionEventType.end) {
       // END 后在同一工作区接材料，不再多跳一页；计时已由 END 冻结。
       _report = false;
@@ -237,10 +252,7 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
   Future<void> _openReport() async {
     if (!_action.canAct) return;
     if (_action.detail.phase == MissionPhase.running) {
-      await _run(
-        _action.prepare(ExecutionEventType.pause, reason: _pauseReason.text),
-        openReport: true,
-      );
+      await _run(_action.prepare(ExecutionEventType.pause), openReport: true);
     } else {
       _beginReport();
     }
@@ -319,7 +331,6 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
     _action.removeListener(_changed);
     _action.dispose();
     _minutes.dispose();
-    _pauseReason.dispose();
     _failureReason.dispose();
     super.dispose();
   }
@@ -338,7 +349,6 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
         detail.events.isNotEmpty &&
         detail.events.last.type == ExecutionEventType.end) {
       final endedBody = MissionPageBody(
-        embedded: widget.embedded,
         listKey: const Key('mission-evidence-workspace-list'),
         children: [
           MissionHeading(detail: detail),
@@ -412,13 +422,11 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
           ),
         ],
       );
-      return widget.embedded
-          ? endedBody
-          : Scaffold(
-              key: const Key('mission-evidence-workspace'),
-              appBar: const AppTopBar(title: '执行记录与材料'),
-              body: endedBody,
-            );
+      return Scaffold(
+        key: const Key('mission-evidence-workspace'),
+        appBar: const AppTopBar(title: '执行记录与材料'),
+        body: endedBody,
+      );
     }
     final hasExtraPlan =
         detail.executionPlan.objective.trim() != detail.mission.title.trim() ||
@@ -459,14 +467,9 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
             primary: FilledButton.icon(
               key: const Key('execution-toggle'),
               onPressed: canAct
-                  ? () => _run(
-                      _action.prepare(
-                        running
-                            ? ExecutionEventType.pause
-                            : ExecutionEventType.resume,
-                        reason: running ? _pauseReason.text : null,
-                      ),
-                    )
+                  ? running
+                        ? _requestPause
+                        : () => _run(_action.prepare(ExecutionEventType.resume))
                   : null,
               icon: Icon(
                 running ? Icons.pause_rounded : Icons.play_arrow_rounded,
@@ -481,11 +484,29 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
             ),
           );
     final body = MissionPageBody(
-      embedded: widget.embedded,
       listKey: const Key('mission-execution-list'),
-      footer: footer,
+      // 结束报告仍固定确认区；执行控制与圆环一起滚动，保持同一视觉中心。
+      footer: _report ? footer : null,
       children: [
-        MissionHeading(detail: detail),
+        if (_report)
+          MissionHeading(detail: detail)
+        else ...[
+          Semantics(
+            header: true,
+            child: Text(
+              detail.mission.title,
+              style: theme.textTheme.headlineSmall,
+            ),
+          ),
+          if (detail.ownershipInfo != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              detail.ownershipInfo!.label,
+              key: const Key('mission-ownership-path'),
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+        ],
         const SizedBox(height: AppLayout.sectionGap),
         if (_report) ...[
           Container(
@@ -606,23 +627,36 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
           ],
           feedback,
         ] else ...[
-          ExecutionFocusRing(focus: times.focus, budgetMinutes: budget),
-          const SizedBox(height: 20),
+          ExecutionFocusRing(
+            focus: times.focus,
+            budgetMinutes: budget,
+            paused: !running,
+          ),
+          if (times.extensionMinutes > 0) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: Text(
+                '原计划 $original 分钟 · 已增加 ${times.extensionMinutes} 分钟',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          ],
+          const SizedBox(height: 28),
           Center(
-            child: Text(
-              '原计划 $original 分钟 · 已增加 ${times.extensionMinutes} 分钟',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: footer,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Center(
-            child: OutlinedButton.icon(
+            child: TextButton.icon(
               key: const Key('execution-extend'),
               onPressed: canAct
                   ? () => setState(() => _extend = !_extend)
                   : null,
-              icon: const Icon(Icons.more_time),
+              icon: const Icon(Icons.add_rounded, size: 20),
               label: const Text('延长时间'),
             ),
           ),
@@ -682,22 +716,29 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
               child: Text('系统时间早于上一条记录，请校正系统时间。时长暂按最后记录计算。'),
             ),
           feedback,
-          const SizedBox(height: 16),
-          const Divider(),
+          const SizedBox(height: AppLayout.sectionGap),
           if (hasExtraPlan)
             Container(
               decoration: BoxDecoration(
-                color: AppColors.primarySoft,
-                borderRadius: BorderRadius.circular(24),
+                color: AppColors.card,
+                borderRadius: BorderRadius.circular(16),
               ),
               child: ExpansionTile(
-                title: const Text('当前目标'),
-                subtitle: Text(detail.executionPlan.objective),
+                leading: const Icon(Icons.track_changes_rounded),
+                title: Text('当前目标', style: theme.textTheme.titleSmall),
+                subtitle: Text(
+                  detail.executionPlan.objective,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium,
+                ),
                 childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
                 shape: const Border(),
                 collapsedShape: const Border(),
                 children: [
+                  // 摘要可以收起，展开后保留完整目标，长文本不会丢失。
+                  Text(detail.executionPlan.objective),
                   for (var i = 0; i < detail.executionPlan.steps.length; i++)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
@@ -708,29 +749,6 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
                 ],
               ),
             ),
-          if (running) ...[
-            const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.primarySoft,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: ExpansionTile(
-                title: const Text('暂停说明（选填）'),
-                shape: const Border(),
-                collapsedShape: const Border(),
-                childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                children: [
-                  TextField(
-                    controller: _pauseReason,
-                    enabled: !_action.locked,
-                    maxLines: 2,
-                    decoration: const InputDecoration(labelText: '暂停原因（可不填）'),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ],
     );
@@ -739,25 +757,23 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && _report) unawaited(_leaveReport());
       },
-      child: widget.embedded
-          ? body
-          : Scaffold(
-              key: const Key('mission-execution-page'),
-              appBar: AppTopBar(
-                title: _report ? '结束报告' : '执行任务',
-                canGoBack: !_action.busy,
-                onBack: _report ? _leaveReport : null,
-                actions: [
-                  if (!_report)
-                    IconButton(
-                      tooltip: '任务详情',
-                      onPressed: _action.locked ? null : _viewDetails,
-                      icon: const Icon(Icons.info_outline),
-                    ),
-                ],
+      child: Scaffold(
+        key: const Key('mission-execution-page'),
+        appBar: AppTopBar(
+          title: _report ? '结束报告' : '执行任务',
+          canGoBack: !_action.busy,
+          onBack: _report ? _leaveReport : null,
+          actions: [
+            if (!_report)
+              IconButton(
+                tooltip: '任务详情',
+                onPressed: _action.locked ? null : _viewDetails,
+                icon: const Icon(Icons.info_outline),
               ),
-              body: body,
-            ),
+          ],
+        ),
+        body: body,
+      ),
     );
   }
 }

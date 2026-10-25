@@ -113,26 +113,13 @@ class MissionPageBody extends StatelessWidget {
     required this.children,
     this.footer,
     this.listKey,
-    this.embedded = false,
   });
   final List<Widget> children;
   final Widget? footer;
   final Key? listKey;
-  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
-    // Today 的任务行已经在可滚动列表内，内嵌办理只展开内容，不再套独立滚动页。
-    if (embedded) {
-      return Column(
-        key: listKey,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ...children,
-          if (footer != null) ...[const SizedBox(height: 20), footer!],
-        ],
-      );
-    }
     return SafeArea(
       top: false,
       child: Center(

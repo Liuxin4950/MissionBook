@@ -1,5 +1,9 @@
 package chat.liuxin.mission_book
 
+import android.app.AlarmManager
+import android.app.NotificationManager
+import android.os.Build
+import android.provider.Settings
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -20,13 +24,66 @@ import java.util.concurrent.Executors
  * 长期依赖 ContentProvider 的临时授权。
  */
 class MainActivity : FlutterActivity() {
+    private var pendingBackupResult: MethodChannel.Result? = null
+    private var pendingBackupFile: File? = null
     private var pendingFileResult: MethodChannel.Result? = null
+    private var pendingFileLimit = MAX_ATTACHMENT_BYTES
     // ContentProvider 读取和副本写入都可能很慢，交给后台线程，避免阻塞 Flutter 界面。
     private val fileCopyExecutor = Executors.newSingleThreadExecutor()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         fileCopyExecutor.execute { fileSelectorCacheRoot().deleteRecursively() }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mission_book/device")
+            .setMethodCallHandler { call, result ->
+                try {
+                    when (call.method) {
+                        "capabilities" -> {
+                            val info = packageManager.getPackageInfo(packageName, 0)
+                            val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+                            result.success(mapOf(
+                                "version" to "${info.versionName} ($code)",
+                                "notifications" to getSystemService(NotificationManager::class.java).areNotificationsEnabled(),
+                                "exactAlarms" to (Build.VERSION.SDK_INT < 31 || getSystemService(AlarmManager::class.java).canScheduleExactAlarms()),
+                            ))
+                        }
+                        "notificationSettings" -> {
+                            val intent = if (Build.VERSION.SDK_INT >= 26) Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                            else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+                            startActivity(intent)
+                            result.success(null)
+                        }
+                        "exactAlarmSettings" -> {
+                            val intent = if (Build.VERSION.SDK_INT >= 31) Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName"))
+                            else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+                            startActivity(intent)
+                            result.success(null)
+                        }
+                        "saveBackup" -> {
+                            check(pendingBackupResult == null) { "已有备份保存窗口" }
+                            val source = File(requireNotNull(call.argument<String>("path"))).canonicalFile
+                            check(source.path.startsWith(cacheDir.canonicalPath + File.separator) && source.isFile) { "备份缓存文件无效" }
+                            pendingBackupFile = source
+                            pendingBackupResult = result
+                            try {
+                                startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                                    addCategory(Intent.CATEGORY_OPENABLE)
+                                    type = "application/zip"
+                                    putExtra(Intent.EXTRA_TITLE, call.argument<String>("name"))
+                                }, SAVE_BACKUP_REQUEST_CODE)
+                            } catch (error: Exception) {
+                                pendingBackupFile = null
+                                pendingBackupResult = null
+                                throw error
+                            }
+                        }
+                        else -> result.notImplemented()
+                    }
+                } catch (error: Exception) {
+                    result.error("device_operation_failed", error.message, null)
+                }
+            }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             FILE_SELECTOR_CHANNEL,
@@ -44,6 +101,7 @@ class MainActivity : FlutterActivity() {
         }
 
         val mimeTypes = extractMimeTypes(call)
+        pendingFileLimit = if (mimeTypes.contains("application/json")) MAX_GOAL_JSON_BYTES else MAX_ATTACHMENT_BYTES
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = if (mimeTypes.size == 1) mimeTypes.single() else "*/*"
@@ -61,6 +119,49 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == SAVE_BACKUP_REQUEST_CODE) {
+            val result = pendingBackupResult ?: return
+            val source = pendingBackupFile
+            if (resultCode != Activity.RESULT_OK || data?.data == null) {
+                pendingBackupResult = null
+                pendingBackupFile = null
+                result.success(null)
+                return
+            }
+            val uri = data.data!!
+            fileCopyExecutor.execute {
+                try {
+                    requireNotNull(source).inputStream().use { input ->
+                        requireNotNull(contentResolver.openOutputStream(uri, "wt")).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    val name = queryDisplayName(uri) ?: uri.toString()
+                    runOnUiThread {
+                        pendingBackupResult = null
+                        pendingBackupFile = null
+                        val location = when (uri.authority) {
+                            "com.android.providers.downloads.documents" -> "下载"
+                            "com.android.externalstorage.documents" -> {
+                                val documentId = android.provider.DocumentsContract.getDocumentId(uri)
+                                documentId.substringAfter(':', "").substringBeforeLast('/', "")
+                            }
+                            else -> ""
+                        }
+                        result.success(if (location.isBlank()) "已保存：$name" else "已保存到 $location\n$name")
+                    }
+                } catch (error: Exception) {
+                    // 本次系统选择器刚创建的目标，失败时尽量回收不完整文件。
+                    try { android.provider.DocumentsContract.deleteDocument(contentResolver, uri) } catch (_: Exception) { }
+                    runOnUiThread {
+                        pendingBackupResult = null
+                        pendingBackupFile = null
+                        result.error("backup_save_failed", error.message, null)
+                    }
+                }
+            }
+            return
+        }
         if (requestCode != OPEN_FILE_REQUEST_CODE) {
             super.onActivityResult(requestCode, resultCode, data)
             return
@@ -80,7 +181,7 @@ class MainActivity : FlutterActivity() {
         }
         fileCopyExecutor.execute {
             try {
-                val selectedPath = copySelectionToCache(uri).absolutePath
+                val selectedPath = copySelectionToCache(uri, pendingFileLimit).absolutePath
                 runOnUiThread {
                     pendingFileResult = null
                     result.success(listOf(selectedPath))
@@ -94,7 +195,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun copySelectionToCache(uri: Uri): File {
+    private fun copySelectionToCache(uri: Uri, maxBytes: Long): File {
         val rawName = queryDisplayName(uri) ?: "attachment"
         // ContentProvider 的文件名属于不可信输入：去掉路径片段与控制字符。
         val safeName = rawName
@@ -120,7 +221,9 @@ class MainActivity : FlutterActivity() {
                         val count = input.read(buffer)
                         if (count < 0) break
                         totalBytes += count
-                        check(totalBytes <= MAX_IMAGE_BYTES) { "每张图片不能超过 20 MiB。" }
+                        check(totalBytes <= maxBytes) {
+                            if (maxBytes == MAX_GOAL_JSON_BYTES) "目标 JSON 不能超过 2 MiB。" else "每个附件不能超过 20 MiB。"
+                        }
                         output.write(buffer, 0, count)
                     }
                 }
@@ -164,8 +267,10 @@ class MainActivity : FlutterActivity() {
     }
 
     private companion object {
-        const val MAX_IMAGE_BYTES = 20L * 1024L * 1024L
+        const val MAX_ATTACHMENT_BYTES = 20L * 1024L * 1024L
+        const val MAX_GOAL_JSON_BYTES = 2L * 1024L * 1024L
         const val FILE_SELECTOR_CHANNEL = "plugins.flutter.io/file_selector"
         const val OPEN_FILE_REQUEST_CODE = 43021
+        const val SAVE_BACKUP_REQUEST_CODE = 43022
     }
 }

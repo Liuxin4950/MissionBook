@@ -1,11 +1,21 @@
 import '../entities/goal.dart';
 import '../entities/goal_node.dart';
+import '../entities/goal_outline_import.dart';
 
 /// 约定目标及其节点需要哪些存取操作；业务层不需要认识 SQL 或 Drift 的类型。
 abstract interface class GoalRepository {
   Future<void> create(Goal goal); // 保存准备好的目标；相同编号和内容重试不重复插入。
   Future<List<Goal>> findAll(); // 默认不含放弃的目标，按创建时间从新到旧排列。
+  Future<List<Goal>> findDropped(); // 放弃目标只从明确的筛选入口读取。
   Future<Goal?> findById(String id); // 查不到时返回 null，由页面显示明确提示。
+  Future<void> updateGoal(
+    Goal expected, {
+    required String title,
+    String? description,
+    String? why,
+  });
+  Future<void> setGoalStatus(Goal expected, GoalStatus status);
+  Future<void> importOutline(GoalOutlineCreation request); // 目标与完整节点树一次提交。
 
   // 目标与它的大纲由同一个仓储维护，页面通过 GoalService 调用这些操作。
   Future<List<GoalNode>> findNodes(String goalId); // 包含归档项，供树展示、恢复和同级调序使用。

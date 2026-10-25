@@ -1,6 +1,8 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -25,6 +27,18 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  flutter::MethodChannel<flutter::EncodableValue> device_channel(
+      flutter_controller_->engine()->messenger(), "mission_book/device",
+      &flutter::StandardMethodCodec::GetInstance());
+  device_channel.SetMethodCallHandler([](const auto& call, auto result) {
+    if (call.method_name() == "capabilities") {
+      flutter::EncodableMap values;
+      values[flutter::EncodableValue("version")] = flutter::EncodableValue(FLUTTER_VERSION);
+      result->Success(flutter::EncodableValue(values));
+    } else {
+      result->NotImplemented();
+    }
+  });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {

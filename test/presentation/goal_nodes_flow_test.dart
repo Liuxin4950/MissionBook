@@ -10,7 +10,7 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/domain/entities/goal.dart';
 import 'package:mission_book/domain/entities/goal_node.dart';
-import 'package:mission_book/presentation/goals/goals_page.dart';
+import 'package:mission_book/presentation/goals/list/goals_page.dart';
 
 // 在真实仓储周围模拟网络式响应不确定和慢保存，验证页面不会重复创建。
 class _UncertainNodes extends DriftGoalRepository {

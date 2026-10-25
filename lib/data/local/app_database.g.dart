@@ -4365,6 +4365,20 @@ class $EvidenceRecordsTable extends EvidenceRecords
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _supersedesEvidenceIdMeta =
+      const VerificationMeta('supersedesEvidenceId');
+  @override
+  late final GeneratedColumn<String> supersedesEvidenceId =
+      GeneratedColumn<String>(
+        'supersedes_evidence_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'UNIQUE REFERENCES evidence_records (id)',
+        ),
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4378,6 +4392,7 @@ class $EvidenceRecordsTable extends EvidenceRecords
     attachmentMimeType,
     capturedAt,
     submittedAt,
+    supersedesEvidenceId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4481,6 +4496,15 @@ class $EvidenceRecordsTable extends EvidenceRecords
     } else if (isInserting) {
       context.missing(_submittedAtMeta);
     }
+    if (data.containsKey('supersedes_evidence_id')) {
+      context.handle(
+        _supersedesEvidenceIdMeta,
+        supersedesEvidenceId.isAcceptableOrUnknown(
+          data['supersedes_evidence_id']!,
+          _supersedesEvidenceIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4534,6 +4558,10 @@ class $EvidenceRecordsTable extends EvidenceRecords
         DriftSqlType.int,
         data['${effectivePrefix}submitted_at'],
       )!,
+      supersedesEvidenceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}supersedes_evidence_id'],
+      ),
     );
   }
 
@@ -4555,6 +4583,7 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
   final String? attachmentMimeType;
   final int? capturedAt;
   final int submittedAt;
+  final String? supersedesEvidenceId;
   const EvidenceRow({
     required this.id,
     required this.missionId,
@@ -4567,6 +4596,7 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
     this.attachmentMimeType,
     this.capturedAt,
     required this.submittedAt,
+    this.supersedesEvidenceId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4592,6 +4622,9 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
       map['captured_at'] = Variable<int>(capturedAt);
     }
     map['submitted_at'] = Variable<int>(submittedAt);
+    if (!nullToAbsent || supersedesEvidenceId != null) {
+      map['supersedes_evidence_id'] = Variable<String>(supersedesEvidenceId);
+    }
     return map;
   }
 
@@ -4618,6 +4651,9 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
           ? const Value.absent()
           : Value(capturedAt),
       submittedAt: Value(submittedAt),
+      supersedesEvidenceId: supersedesEvidenceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(supersedesEvidenceId),
     );
   }
 
@@ -4644,6 +4680,9 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
       ),
       capturedAt: serializer.fromJson<int?>(json['capturedAt']),
       submittedAt: serializer.fromJson<int>(json['submittedAt']),
+      supersedesEvidenceId: serializer.fromJson<String?>(
+        json['supersedesEvidenceId'],
+      ),
     );
   }
   @override
@@ -4661,6 +4700,7 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
       'attachmentMimeType': serializer.toJson<String?>(attachmentMimeType),
       'capturedAt': serializer.toJson<int?>(capturedAt),
       'submittedAt': serializer.toJson<int>(submittedAt),
+      'supersedesEvidenceId': serializer.toJson<String?>(supersedesEvidenceId),
     };
   }
 
@@ -4676,6 +4716,7 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
     Value<String?> attachmentMimeType = const Value.absent(),
     Value<int?> capturedAt = const Value.absent(),
     int? submittedAt,
+    Value<String?> supersedesEvidenceId = const Value.absent(),
   }) => EvidenceRow(
     id: id ?? this.id,
     missionId: missionId ?? this.missionId,
@@ -4694,6 +4735,9 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
         : this.attachmentMimeType,
     capturedAt: capturedAt.present ? capturedAt.value : this.capturedAt,
     submittedAt: submittedAt ?? this.submittedAt,
+    supersedesEvidenceId: supersedesEvidenceId.present
+        ? supersedesEvidenceId.value
+        : this.supersedesEvidenceId,
   );
   EvidenceRow copyWithCompanion(EvidenceRecordsCompanion data) {
     return EvidenceRow(
@@ -4720,6 +4764,9 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
       submittedAt: data.submittedAt.present
           ? data.submittedAt.value
           : this.submittedAt,
+      supersedesEvidenceId: data.supersedesEvidenceId.present
+          ? data.supersedesEvidenceId.value
+          : this.supersedesEvidenceId,
     );
   }
 
@@ -4736,7 +4783,8 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
           ..write('attachmentFileName: $attachmentFileName, ')
           ..write('attachmentMimeType: $attachmentMimeType, ')
           ..write('capturedAt: $capturedAt, ')
-          ..write('submittedAt: $submittedAt')
+          ..write('submittedAt: $submittedAt, ')
+          ..write('supersedesEvidenceId: $supersedesEvidenceId')
           ..write(')'))
         .toString();
   }
@@ -4754,6 +4802,7 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
     attachmentMimeType,
     capturedAt,
     submittedAt,
+    supersedesEvidenceId,
   );
   @override
   bool operator ==(Object other) =>
@@ -4769,7 +4818,8 @@ class EvidenceRow extends DataClass implements Insertable<EvidenceRow> {
           other.attachmentFileName == this.attachmentFileName &&
           other.attachmentMimeType == this.attachmentMimeType &&
           other.capturedAt == this.capturedAt &&
-          other.submittedAt == this.submittedAt);
+          other.submittedAt == this.submittedAt &&
+          other.supersedesEvidenceId == this.supersedesEvidenceId);
 }
 
 class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
@@ -4784,6 +4834,7 @@ class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
   final Value<String?> attachmentMimeType;
   final Value<int?> capturedAt;
   final Value<int> submittedAt;
+  final Value<String?> supersedesEvidenceId;
   final Value<int> rowid;
   const EvidenceRecordsCompanion({
     this.id = const Value.absent(),
@@ -4797,6 +4848,7 @@ class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
     this.attachmentMimeType = const Value.absent(),
     this.capturedAt = const Value.absent(),
     this.submittedAt = const Value.absent(),
+    this.supersedesEvidenceId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   EvidenceRecordsCompanion.insert({
@@ -4811,6 +4863,7 @@ class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
     this.attachmentMimeType = const Value.absent(),
     this.capturedAt = const Value.absent(),
     required int submittedAt,
+    this.supersedesEvidenceId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        missionId = Value(missionId),
@@ -4830,6 +4883,7 @@ class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
     Expression<String>? attachmentMimeType,
     Expression<int>? capturedAt,
     Expression<int>? submittedAt,
+    Expression<String>? supersedesEvidenceId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4847,6 +4901,8 @@ class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
         'attachment_mime_type': attachmentMimeType,
       if (capturedAt != null) 'captured_at': capturedAt,
       if (submittedAt != null) 'submitted_at': submittedAt,
+      if (supersedesEvidenceId != null)
+        'supersedes_evidence_id': supersedesEvidenceId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4863,6 +4919,7 @@ class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
     Value<String?>? attachmentMimeType,
     Value<int?>? capturedAt,
     Value<int>? submittedAt,
+    Value<String?>? supersedesEvidenceId,
     Value<int>? rowid,
   }) {
     return EvidenceRecordsCompanion(
@@ -4877,6 +4934,7 @@ class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
       attachmentMimeType: attachmentMimeType ?? this.attachmentMimeType,
       capturedAt: capturedAt ?? this.capturedAt,
       submittedAt: submittedAt ?? this.submittedAt,
+      supersedesEvidenceId: supersedesEvidenceId ?? this.supersedesEvidenceId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4919,6 +4977,11 @@ class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
     if (submittedAt.present) {
       map['submitted_at'] = Variable<int>(submittedAt.value);
     }
+    if (supersedesEvidenceId.present) {
+      map['supersedes_evidence_id'] = Variable<String>(
+        supersedesEvidenceId.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4939,6 +5002,7 @@ class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
           ..write('attachmentMimeType: $attachmentMimeType, ')
           ..write('capturedAt: $capturedAt, ')
           ..write('submittedAt: $submittedAt, ')
+          ..write('supersedesEvidenceId: $supersedesEvidenceId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -8954,6 +9018,7 @@ typedef $$EvidenceRecordsTableCreateCompanionBuilder =
       Value<String?> attachmentMimeType,
       Value<int?> capturedAt,
       required int submittedAt,
+      Value<String?> supersedesEvidenceId,
       Value<int> rowid,
     });
 typedef $$EvidenceRecordsTableUpdateCompanionBuilder =
@@ -8969,6 +9034,7 @@ typedef $$EvidenceRecordsTableUpdateCompanionBuilder =
       Value<String?> attachmentMimeType,
       Value<int?> capturedAt,
       Value<int> submittedAt,
+      Value<String?> supersedesEvidenceId,
       Value<int> rowid,
     });
 
@@ -8991,6 +9057,27 @@ final class $$EvidenceRecordsTableReferences
       $_db.missions,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_missionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $EvidenceRecordsTable _supersedesEvidenceIdTable(_$AppDatabase db) =>
+      db.evidenceRecords.createAlias(
+        'evidence_records__supersedes_evidence_id__evidence_records__id',
+      );
+
+  $$EvidenceRecordsTableProcessedTableManager? get supersedesEvidenceId {
+    final $_column = $_itemColumn<String>('supersedes_evidence_id');
+    if ($_column == null) return null;
+    final manager = $$EvidenceRecordsTableTableManager(
+      $_db,
+      $_db.evidenceRecords,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(
+      _supersedesEvidenceIdTable($_db),
+    );
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -9071,6 +9158,29 @@ class $$EvidenceRecordsTableFilterComposer
           }) => $$MissionsTableFilterComposer(
             $db: $db,
             $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$EvidenceRecordsTableFilterComposer get supersedesEvidenceId {
+    final $$EvidenceRecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.supersedesEvidenceId,
+      referencedTable: $db.evidenceRecords,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EvidenceRecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.evidenceRecords,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -9162,6 +9272,29 @@ class $$EvidenceRecordsTableOrderingComposer
     );
     return composer;
   }
+
+  $$EvidenceRecordsTableOrderingComposer get supersedesEvidenceId {
+    final $$EvidenceRecordsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.supersedesEvidenceId,
+      referencedTable: $db.evidenceRecords,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EvidenceRecordsTableOrderingComposer(
+            $db: $db,
+            $table: $db.evidenceRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EvidenceRecordsTableAnnotationComposer
@@ -9237,6 +9370,29 @@ class $$EvidenceRecordsTableAnnotationComposer
     );
     return composer;
   }
+
+  $$EvidenceRecordsTableAnnotationComposer get supersedesEvidenceId {
+    final $$EvidenceRecordsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.supersedesEvidenceId,
+      referencedTable: $db.evidenceRecords,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EvidenceRecordsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.evidenceRecords,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EvidenceRecordsTableTableManager
@@ -9252,7 +9408,7 @@ class $$EvidenceRecordsTableTableManager
           $$EvidenceRecordsTableUpdateCompanionBuilder,
           (EvidenceRow, $$EvidenceRecordsTableReferences),
           EvidenceRow,
-          PrefetchHooks Function({bool missionId})
+          PrefetchHooks Function({bool missionId, bool supersedesEvidenceId})
         > {
   $$EvidenceRecordsTableTableManager(
     _$AppDatabase db,
@@ -9280,6 +9436,7 @@ class $$EvidenceRecordsTableTableManager
                 Value<String?> attachmentMimeType = const Value.absent(),
                 Value<int?> capturedAt = const Value.absent(),
                 Value<int> submittedAt = const Value.absent(),
+                Value<String?> supersedesEvidenceId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => EvidenceRecordsCompanion(
                 id: id,
@@ -9293,6 +9450,7 @@ class $$EvidenceRecordsTableTableManager
                 attachmentMimeType: attachmentMimeType,
                 capturedAt: capturedAt,
                 submittedAt: submittedAt,
+                supersedesEvidenceId: supersedesEvidenceId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -9308,6 +9466,7 @@ class $$EvidenceRecordsTableTableManager
                 Value<String?> attachmentMimeType = const Value.absent(),
                 Value<int?> capturedAt = const Value.absent(),
                 required int submittedAt,
+                Value<String?> supersedesEvidenceId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => EvidenceRecordsCompanion.insert(
                 id: id,
@@ -9321,6 +9480,7 @@ class $$EvidenceRecordsTableTableManager
                 attachmentMimeType: attachmentMimeType,
                 capturedAt: capturedAt,
                 submittedAt: submittedAt,
+                supersedesEvidenceId: supersedesEvidenceId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -9331,49 +9491,65 @@ class $$EvidenceRecordsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({missionId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (missionId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.missionId,
-                                referencedTable:
-                                    $$EvidenceRecordsTableReferences
-                                        ._missionIdTable(db),
-                                referencedColumn:
-                                    $$EvidenceRecordsTableReferences
-                                        ._missionIdTable(db)
-                                        .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({missionId = false, supersedesEvidenceId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (missionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.missionId,
+                                    referencedTable:
+                                        $$EvidenceRecordsTableReferences
+                                            ._missionIdTable(db),
+                                    referencedColumn:
+                                        $$EvidenceRecordsTableReferences
+                                            ._missionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (supersedesEvidenceId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.supersedesEvidenceId,
+                                    referencedTable:
+                                        $$EvidenceRecordsTableReferences
+                                            ._supersedesEvidenceIdTable(db),
+                                    referencedColumn:
+                                        $$EvidenceRecordsTableReferences
+                                            ._supersedesEvidenceIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -9390,7 +9566,7 @@ typedef $$EvidenceRecordsTableProcessedTableManager =
       $$EvidenceRecordsTableUpdateCompanionBuilder,
       (EvidenceRow, $$EvidenceRecordsTableReferences),
       EvidenceRow,
-      PrefetchHooks Function({bool missionId})
+      PrefetchHooks Function({bool missionId, bool supersedesEvidenceId})
     >;
 
 class $AppDatabaseManager {

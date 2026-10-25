@@ -11,6 +11,8 @@
 | 固定日程、完整日程列表 | [today/schedule_section.dart](today/schedule_section.dart) | 时间轴、计划时段及对应任务行 |
 | 自选任务、展开与收起 | [today/today_page.dart](today/today_page.dart) | 同文件的 _FlexibleMissionSection，自选列表和局部展开状态 |
 | 今天列表分组、日期和展示文字 | [today/today_display.dart](today/today_display.dart) | 整理已查询的数据，不访问数据库 |
+| 全部任务、日期与阶段/目标筛选 | [missions/all/all_missions_page.dart](missions/all/all_missions_page.dart) | 固定任务直接按时间排布，自选与取消任务在下方，保留查询与任务跳转 |
+| 固定任务的比例布局、冲突和当前时间线 | [missions/all/mission_timetable.dart](missions/all/mission_timetable.dart)、[timetable_layout.dart](missions/all/timetable_layout.dart) | 复杂时间布局与只读交集计算；没有单独课表任务类型或视图切换 |
 | 新建、修改、重试新建 | [missions/form/mission_form_page.dart](missions/form/mission_form_page.dart) | 接收输入草稿、保存、处理错误和离开前确认 |
 | 可选任务归属 | [missions/form/mission_ownership_field.dart](missions/form/mission_ownership_field.dart) | 默认独立，按需选择有效目标/节点，归属编号交回表单 |
 | 名称输入与折叠方案 | [missions/form/mission_form_page.dart](missions/form/mission_form_page.dart) | 同文件的 _MissionFormFields 及方案折叠区，使用页面持有的输入草稿 |
@@ -21,20 +23,42 @@
 | 详情正文、行动步骤、材料要求展示 | [missions/detail/mission_detail_content.dart](missions/detail/mission_detail_content.dart) | 只读取传入的详情，组合正文与底部操作 |
 | 详情里的日期和计划时长卡片 | [missions/detail/mission_detail_content.dart](missions/detail/mission_detail_content.dart) | 同文件的 _ScheduleCard，只展示最新排期 |
 | 暂停、继续、延长、结束报告 | [missions/execution/mission_execution_page.dart](missions/execution/mission_execution_page.dart) | 执行动作、报告草稿、计时重绘和导航 |
-| 今天任务行原位开始、报告与材料 | [missions/execution/mission_inline_workspace.dart](missions/execution/mission_inline_workspace.dart) | 展开上下文并复用同一执行组件，保护收起/切日草稿，无额外办理路由 |
+| 独立执行任务页面 | [missions/execution/mission_execution_page.dart](missions/execution/mission_execution_page.dart) | 今天、目标、全部任务及底部当前任务快捷栏共用同一页，不在列表内嵌执行区 |
 | 执行页圆环、底部双按钮布局 | [missions/execution/execution_widgets.dart](missions/execution/execution_widgets.dart) | 展示页面传入的时长和按钮，不保存执行事实 |
 | 查看一次任务的执行结果和时间线 | [missions/record/mission_record_page.dart](missions/record/mission_record_page.dart) | 展示结束后的只读记录 |
-| 目标列表与新建入口 | [goals/goals_page.dart](goals/goals_page.dart) | 查询正式目标、卡内展开路径、创建和详情导航 |
-| 创建目标 | [goals/goal_form_page.dart](goals/goal_form_page.dart) | 输入草稿、稳定请求重试、返回保护 |
-| 目标详情、路径与说明 | [goals/goal_detail_page.dart](goals/goal_detail_page.dart) | 按编号读取目标，复用节点工作区及展示说明/原因 |
-| 节点树、展开、排序与归档恢复 | [goals/goal_outline_section.dart](goals/goal_outline_section.dart) | 列表/详情共用，独立查询、监听与节点菜单交互 |
-| 节点/目标的直接任务与记录标签 | [goals/goal_missions_section.dart](goals/goal_missions_section.dart) | 原位任务摘要、建任务、复用执行工作区及收起保护 |
-| 目标卡/详情的真实节点记录摘要 | [goals/goal_record_summary.dart](goals/goal_record_summary.dart) | 读取有效节点与直接完成报告，去重显示，不保存进度 |
-| 添加和编辑节点 | [goals/goal_node_editor.dart](goals/goal_node_editor.dart) | 原位底部填写框，固定创建请求、失败重试和草稿保护 |
+| 目标列表与新建入口 | [goals/list/goals_page.dart](goals/list/goals_page.dart) | 查询正式目标、卡内展开路径、创建和详情导航 |
+| 目标分类、编辑与状态 | [goals/list/goals_page.dart](goals/list/goals_page.dart)、[goals/detail/goal_detail_page.dart](goals/detail/goal_detail_page.dart) | 筛选四种状态、编辑文字、搁置、达成、放弃与恢复 |
+| JSON 目标大纲导入 | [goals/form/goal_import_section.dart](goals/form/goal_import_section.dart) | 原位选文件/粘贴、校验、完整树预览、明确确认后一次保存 |
+| 创建目标 | [goals/form/goal_form_page.dart](goals/form/goal_form_page.dart) | 输入草稿、稳定请求重试、返回保护 |
+| 目标详情、路径与说明 | [goals/detail/goal_detail_page.dart](goals/detail/goal_detail_page.dart) | 按编号读取目标，展示节点、说明和原因 |
+| 节点树、展开、排序与归档恢复 | [goals/outline/goal_outline_section.dart](goals/outline/goal_outline_section.dart) | 列表/详情共用，独立查询、监听与节点菜单交互 |
+| 节点/目标的直接任务与记录标签 | [goals/outline/goal_missions_section.dart](goals/outline/goal_missions_section.dart) | 原位任务摘要、建任务；运行或暂停时进入独立执行页 |
+| 目标卡/详情的真实节点记录摘要 | [goals/shared/goal_record_summary.dart](goals/shared/goal_record_summary.dart) | 读取有效节点与直接完成报告，去重显示，不保存进度 |
+| 添加和编辑节点 | [goals/outline/goal_node_editor.dart](goals/outline/goal_node_editor.dart) | 原位底部填写框，固定创建请求、失败重试和草稿保护 |
 | 浏览已结束与已取消任务 | [missions/history/mission_history_page.dart](missions/history/mission_history_page.dart) | 查询历史列表，打开对应记录或详情 |
+| 我的：系统权限、本地备份、关于 | [me/me_page.dart](me/me_page.dart) | 查询设备能力，发起正式备份，展示保存反馈和安装版本 |
 
 `form` 是“表单”：创建、修改和重试新建共同使用，因此没有只叫 `create`。
 `detail` 是详情，`execution` 是执行，`record` 是一条记录，`history` 是历史列表。
+
+## 目标与任务使用同一套归类规则
+
+按业务功能找目录，普通页面内容留在对应页面文件内；独立状态、复杂交互或真实共用的区域才保留独立文件。目标模块不再平铺页面，也不建立任务模块才有的执行、历史目录。
+
+```text
+goals/
+  list/goals_page.dart                 列表、筛选和导航
+  form/goal_form_page.dart             创建与编辑
+  form/goal_import_section.dart        文件或粘贴导入目标
+  detail/goal_detail_page.dart         详情阅读与状态操作
+  outline/goal_outline_section.dart    列表和详情共用的节点树
+  outline/goal_node_editor.dart        节点输入及草稿保护
+  outline/goal_missions_section.dart   树中目标或节点的关联任务区
+  shared/goal_record_summary.dart      跨页共用的真实记录摘要
+  shared/goal_status_display.dart      跨页共用的目标状态文案
+```
+
+`outline` 是目标大纲／节点树，它内部的任务区负责摘要和导航；完整任务表单、执行页与记录页仍在 `missions`。`form` 同时收纳手动创建、编辑和导入，`shared` 放真正跨页使用的目标展示组件与文字转换。
 
 ## 多个页面共用的代码
 
@@ -49,7 +73,7 @@
 | [active_missions_bar.dart](missions/shared/active_missions_bar.dart) | 跨日期显示当前运行或暂停的任务 |
 | [mission_retry_button.dart](missions/shared/mission_retry_button.dart) | 打开带来源的全新任务草稿 |
 
-全站通用的顶栏、确认框仍在 [widgets](widgets)，不与任务专用组件混放。
+全站通用的主页面头、二级顶栏、表单输入和确认框仍在 [widgets](widgets)，不与任务专用组件混放。
 
 ## 状态应该去哪里找
 

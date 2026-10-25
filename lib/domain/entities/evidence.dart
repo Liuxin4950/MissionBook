@@ -1,8 +1,8 @@
-/// 本轮开放文本、图片；类型说明如何读取原始材料，不表示验证通过。
-enum EvidenceType { text, image }
+/// 类型说明如何读取原始材料，不表示验证通过。
+enum EvidenceType { text, code, image, file, manualRecord }
 
 /// 输入渠道，不代表作者身份：粘贴 AI 文本仍属于用户提交。
-enum EvidenceSource { user, fileSystem }
+enum EvidenceSource { user, fileSystem, camera }
 
 /// 页面持有的一份草稿。id 在添加时固定，失败重试沿用；构造不等于入库。
 class EvidenceDraft {
@@ -15,6 +15,7 @@ class EvidenceDraft {
     this.attachmentFileName,
     this.attachmentMimeType,
     this.capturedAt,
+    this.supersedesEvidenceId,
   });
 
   final String id;
@@ -25,6 +26,7 @@ class EvidenceDraft {
   final String? attachmentFileName; // 原名仅用于展示，不作为文件路径。
   final String? attachmentMimeType;
   final DateTime? capturedAt; // 来源可确认的产生时刻；未知留空。
+  final String? supersedesEvidenceId; // 修正指向旧正式材料；首次提交为空。
 
   /// 文本框提供新的内容，其他身份及附件引用保持不变。
   EvidenceDraft copyWithContent(String? content) => EvidenceDraft(
@@ -36,6 +38,7 @@ class EvidenceDraft {
     attachmentFileName: attachmentFileName,
     attachmentMimeType: attachmentMimeType,
     capturedAt: capturedAt,
+    supersedesEvidenceId: supersedesEvidenceId,
   );
 }
 
@@ -54,6 +57,7 @@ class Evidence extends EvidenceDraft {
     super.attachmentFileName,
     super.attachmentMimeType,
     super.capturedAt,
+    super.supersedesEvidenceId,
   });
 
   final String missionId;
@@ -71,6 +75,13 @@ class EvidenceSubmission {
   final String id;
   final String missionId;
   final List<EvidenceDraft> items;
+}
+
+/// 一条修正的固定输入；重试沿用同一草稿 id，不覆盖原记录。
+class EvidenceCorrection {
+  const EvidenceCorrection({required this.missionId, required this.item});
+  final String missionId;
+  final EvidenceDraft item;
 }
 
 /// 超时也有已提交的事实，因此返回业务结果，不抛异常回滚超时记录。

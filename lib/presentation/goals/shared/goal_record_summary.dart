@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../application/goals/goal_service.dart';
-import '../../application/missions/mission_service.dart';
-import '../../core/theme/colors.dart';
-import '../../domain/entities/execution_event.dart';
+import '../../../application/goals/goal_service.dart';
+import '../../../application/missions/mission_service.dart';
+import '../../../core/theme/colors.dart';
+import '../../../domain/entities/execution_event.dart';
 
 /// 目标卡和详情共用的真实记录摘要；仅统计有效节点的直接完成报告，不表示掌握程度。
 class GoalRecordSummary extends StatefulWidget {
@@ -12,10 +12,12 @@ class GoalRecordSummary extends StatefulWidget {
     required this.goalId,
     required this.goals,
     required this.missions,
+    this.highlighted = false,
   });
   final String goalId;
   final GoalService goals;
   final MissionService missions;
+  final bool highlighted;
   @override
   State<GoalRecordSummary> createState() => _GoalRecordSummaryState();
 }
@@ -90,7 +92,9 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
   ) => FutureBuilder<({int total, int completed})>(
     future: _summary,
     builder: (context, snapshot) {
-      const color = AppColors.textSecondary;
+      final color = widget.highlighted
+          ? AppColors.onPrimary
+          : AppColors.textSecondary;
       if (snapshot.hasError) {
         return TextButton(
           onPressed: () => setState(_read),
@@ -132,7 +136,9 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
                     '${value.completed}',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
+                      color: widget.highlighted
+                          ? AppColors.accent
+                          : AppColors.primary,
                     ),
                   ),
                   Text(
@@ -156,8 +162,14 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
                           ),
                           decoration: BoxDecoration(
                             color: i < value.completed
-                                ? AppColors.primary
-                                : AppColors.primarySoft,
+                                ? widget.highlighted
+                                      ? AppColors.accent
+                                      : AppColors.primary
+                                : (widget.highlighted
+                                      ? AppColors.onPrimary.withValues(
+                                          alpha: .24,
+                                        )
+                                      : AppColors.primarySoft),
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
@@ -170,8 +182,12 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
                   child: LinearProgressIndicator(
                     value: value.completed / value.total,
                     minHeight: 7,
-                    color: AppColors.primary,
-                    backgroundColor: AppColors.primarySoft,
+                    color: widget.highlighted
+                        ? AppColors.accent
+                        : AppColors.primary,
+                    backgroundColor: widget.highlighted
+                        ? AppColors.onPrimary.withValues(alpha: .24)
+                        : AppColors.primarySoft,
                   ),
                 ),
             ],

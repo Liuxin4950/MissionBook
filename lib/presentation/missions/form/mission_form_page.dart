@@ -572,7 +572,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
         ),
         body: SafeArea(
           bottom: false,
-          child: Center(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: ConstrainedBox(
               constraints: const BoxConstraints(
                 maxWidth: AppLayout.maxPageWidth,
