@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timezone/data/latest.dart' as tz;
+import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
@@ -38,6 +39,64 @@ MissionDetail planned(
     updatedAt: start,
   ),
 );
+
+/// 自选任务：没有固定开始时刻，执行区间从事实（START/END）读取。
+/// startAt 为空表示还没开始（无执行记录）；已取消任务按领域规则也不能有事件。
+MissionDetail flexible(
+  String id,
+  DateTime? startAt,
+  DateTime? endAt, {
+  bool cancelled = false,
+}) {
+  final anchor = startAt ?? DateTime.utc(2026, 10, 25, 8);
+  final events = <ExecutionEvent>[
+    if (startAt != null && !cancelled)
+      ExecutionEvent(
+        id: 'start-$id',
+        missionId: id,
+        sequence: 1,
+        type: ExecutionEventType.start,
+        occurredAt: startAt,
+        scheduleRevisionId: 'schedule-$id',
+      ),
+    if (startAt != null && endAt != null && !cancelled)
+      ExecutionEvent(
+        id: 'end-$id',
+        missionId: id,
+        sequence: 2,
+        type: ExecutionEventType.end,
+        occurredAt: endAt,
+        userReportedResult: UserReportedResult.completed,
+      ),
+  ];
+  return MissionDetail(
+    mission: Mission(
+      id: id,
+      title: id,
+      createdAt: anchor,
+      updatedAt: anchor,
+      cancelledAt: cancelled ? anchor : null,
+    ),
+    schedule: MissionScheduleRevision(
+      id: 'schedule-$id',
+      missionId: id,
+      revisionNumber: 1,
+      scheduledDate: '2026-10-25',
+      timeZone: 'Asia/Shanghai',
+      timePolicy: TimePolicy.flexible,
+      plannedDurationMinutes: 30,
+      changedAt: anchor,
+    ),
+    executionPlan: ExecutionPlan(
+      id: 'plan-$id',
+      missionId: id,
+      objective: id,
+      createdAt: anchor,
+      updatedAt: anchor,
+    ),
+    events: events,
+  );
+}
 
 void main() {
   setUpAll(tz.initializeTimeZones);
@@ -127,5 +186,99 @@ void main() {
     ], day);
     expect(result.slots.first.start, 540);
     expect(result.slots.first.conflictMinutes, 30);
+  });
+
+  test('自选任务按执行记录上图，未开始与已取消不上图', () {
+    final result = TimetableDay.build([
+      flexible('已完成', at(20), at(21, 11)),
+      flexible('未开始', null, null),
+      flexible('已取消', at(9), null, cancelled: true),
+    ], day);
+    final slot = result.slots.single;
+    expect(slot.id, '已完成');
+    expect(slot.actual, isTrue);
+    expect(slot.start, 20 * 60.0);
+    expect(slot.end - slot.start, 71);
+    expect(slot.timeLabel, startsWith('实际 '));
+    // 实际区间只参与显示排布，不制造“计划时间冲突”，也不进计划全集。
+    expect(result.conflicts, isEmpty);
+    expect(result.allSlots, isEmpty);
+  });
+
+  test('未结束自选任务的实际区间截到 now，与计划任务并排不遮挡', () {
+    final result = TimetableDay.build(
+      [flexible('进行中', at(20), null), planned('固定', at(20, 15), 60)],
+      day,
+      now: at(20, 30),
+    );
+    final running = result.slots.firstWhere((slot) => slot.id == '进行中');
+    expect(running.actual, isTrue);
+    expect([running.start, running.end], [20 * 60.0, 20 * 60.0 + 30]);
+    // 计划冲突只统计计划时段，不因实际区间而报冲突；
+    // 两者时间重叠时各占一列显示，互不遮挡。
+    expect(result.conflicts, isEmpty);
+    expect(result.slots.every((slot) => slot.columns == 2), isTrue);
+  });
+
+  test('时间窗口围绕内容与现在裁剪，整点对齐并保底 3 小时', () {
+    final result = TimetableDay.build([planned('英语', at(21), 11)], day);
+    // 20:06 的现在 + 21:00–21:11 的占位：窗口 19:00–22:00，不再从 8:00 起。
+    final window = timetableWindow(result.slots, nowMinute: 20 * 60 + 6);
+    expect([window.start, window.end], [19 * 60.0, 22 * 60.0]);
+    // 只有上午一小段：窗口向外补齐到 3 小时。
+    final morning = TimetableDay.build([planned('晨读', at(9), 30)], day);
+    final morningWindow = timetableWindow(morning.slots);
+    expect(morningWindow.end - morningWindow.start, 180);
+    expect(morningWindow.start % 60, 0);
+    // 贴近一天两端时只向另一侧扩，不出界。
+    final late = TimetableDay.build([planned('夜读', at(23, 50), 10)], day);
+    final lateWindow = timetableWindow(late.slots);
+    expect(lateWindow.end, 1440);
+    expect(lateWindow.start, 21 * 60.0);
+    // 没有任何占位时回退默认窗口。
+    expect(timetableWindow(const []), (start: 8 * 60.0, end: 18 * 60.0));
+  });
+
+  test('实际区间覆盖的日期参与分组，午夜结束不多占一天', () {
+    final detail = flexible('跨日', at(23, 50), at(24, 10));
+    expect(timetableDateKeys(detail, at(25)).toSet(), {
+      '2026-10-25',
+      '2026-10-26',
+    });
+    final midnight = flexible('午夜结束', at(23, 50), at(24));
+    expect(timetableDateKeys(midnight, at(25)).toSet(), {'2026-10-25'});
+    final late = flexible('隔日才执行', at(25), at(26));
+    expect(timetableDateKeys(late, at(27)).toSet(), {
+      '2026-10-25',
+      '2026-10-26',
+    });
+  });
+
+  test('系统回拨时实际区间至少保留到最后一条事实，午夜刚开始也显示', () {
+    final running = flexible('运行中', at(20), null);
+    final paused = MissionDetail(
+      mission: running.mission,
+      schedule: running.schedule,
+      executionPlan: running.executionPlan,
+      events: [
+        ...running.events,
+        ExecutionEvent(
+          id: 'pause',
+          missionId: running.mission.id,
+          sequence: 2,
+          type: ExecutionEventType.pause,
+          occurredAt: at(21),
+        ),
+      ],
+    );
+    expect(
+      TimetableDay.build([paused], day, now: at(20, 30)).slots.single.end,
+      1260,
+    );
+    final midnight = flexible('刚开始', at(0), null);
+    expect(
+      TimetableDay.build([midnight], day, now: at(0)).slots.single.start,
+      0,
+    );
   });
 }

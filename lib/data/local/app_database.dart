@@ -69,7 +69,10 @@ class AppDatabase extends _$AppDatabase {
     // 首次安装沿用默认 onCreate：Drift 创建全部八表、声明的索引和归属触发器。
     // 已有库版本不同时，Drift 调用此回调，并传入旧版本 from 和目标版本 to。
     onUpgrade: (migrator, from, to) async {
-      if (from < 1 || from > 8 || to != 9) {
+      // 守卫与 schemaVersion 联动，不再手写版本数字：
+      // 只接受“从 1..当前版本-1 的旧库升级到当前版本”，其他一律明确失败。
+      // 升级新版本时仍要补迁移步骤，但这里不会再因漏改数字而误挡升级。
+      if (from < 1 || from >= schemaVersion || to != schemaVersion) {
         // 不认识的版本明确失败，保留原库；不能用删库掩盖升级问题。
         throw StateError('不支持数据库从 v$from 升级或降级到 v$to');
       }

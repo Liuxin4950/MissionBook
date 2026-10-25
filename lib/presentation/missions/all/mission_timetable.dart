@@ -15,12 +15,13 @@ class MissionTimetable extends StatefulWidget {
   const MissionTimetable({
     super.key,
     required this.day,
-    required this.layout,
+    required this.layoutBuilder,
     required this.onOpen,
     required this.clock,
   });
   final DateTime day;
-  final TimetableDay layout;
+  // 每次重绘按当前时刻重建布局，运行中的实际区间才会延伸。
+  final TimetableDay Function(DateTime now) layoutBuilder;
   final ValueChanged<MissionDetail> onOpen;
   final DateTime Function() clock;
 
@@ -33,6 +34,7 @@ class _MissionTimetableState extends State<MissionTimetable>
   Timer? _timer;
   bool _appVisible = true;
   bool _tickerEnabled = true;
+  late TimetableDay _layout;
 
   @override
   void initState() {
@@ -59,7 +61,7 @@ class _MissionTimetableState extends State<MissionTimetable>
       _timer?.cancel();
       _timer = null;
     } else {
-      // 只重绘时间标记，不查询数据库，也不触发 START/END。
+      // 重绘时间标记与实际区间，不查询数据库，也不触发 START/END。
       _timer ??= Timer.periodic(const Duration(seconds: 30), (_) {
         if (mounted) setState(() {});
       });
@@ -81,8 +83,8 @@ class _MissionTimetableState extends State<MissionTimetable>
   }
 
   Future<void> _showConflicts([TimetableSlot? selected]) async {
-    final conflicts = selected?.conflicts ?? widget.layout.conflicts;
-    final visibleIds = widget.layout.slots.map((slot) => slot.id).toSet();
+    final conflicts = selected?.conflicts ?? _layout.conflicts;
+    final visibleIds = _layout.slots.map((slot) => slot.id).toSet();
     final target = await showModalBottomSheet<MissionDetail>(
       context: context,
       isScrollControlled: true,
@@ -136,25 +138,21 @@ class _MissionTimetableState extends State<MissionTimetable>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final slots = widget.layout.slots;
     final now = timetableNow(widget.clock());
+    _layout = widget.layoutBuilder(now);
+    final slots = _layout.slots;
     final sameDay = DateUtils.isSameDay(now, widget.day);
-    final nowMinute = now.hour * 60.0 + now.minute;
-    // 时间轴统一比例；短任务不强行增高，完整信息在下方补充入口阅读。
+    final nowMinute = sameDay ? now.hour * 60.0 + now.minute : null;
+    // 时间轴统一比例；极短任务至少容纳一行标题，显示排布已预留同等高度。
     final scale = math.max(
       1.0,
       MediaQuery.textScalerOf(context).scale(14) / 14,
     );
     final pixelsPerMinute = 2.0 * scale;
-    final earliest = slots.isEmpty ? 8.0 * 60 : slots.first.start;
-    final latest = slots.fold<double>(
-      18 * 60,
-      (end, slot) => math.max(end, slot.end),
-    );
-    final start = math
-        .max(0, (math.min(8 * 60, earliest) / 60).floor() * 60)
-        .toDouble();
-    final end = math.min(1440, (latest / 60).ceil() * 60).toDouble();
+    // 窗口围绕占位和“现在”裁剪，不再固定 8:00–18:00 空跑大片空白。
+    final window = timetableWindow(slots, nowMinute: nowMinute);
+    final start = window.start;
+    final end = window.end;
     final columns = slots.fold<int>(
       1,
       (count, slot) => math.max(count, slot.columns),
@@ -162,6 +160,8 @@ class _MissionTimetableState extends State<MissionTimetable>
     final shortSlots = slots
         .where((slot) => slot.end - slot.start < 30)
         .toList();
+    final actualCount = slots.where((slot) => slot.actual).length;
+    final plannedCount = slots.length - actualCount;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -171,10 +171,12 @@ class _MissionTimetableState extends State<MissionTimetable>
           spacing: 8,
           children: [
             Text(
-              '固定日程 ${slots.length} 项 · 北京时间',
+              '固定日程 $plannedCount 项'
+              '${actualCount > 0 ? ' · 实际执行 $actualCount 项' : ''}'
+              ' · 北京时间',
               style: theme.textTheme.bodyMedium,
             ),
-            if (widget.layout.conflicts.isNotEmpty)
+            if (_layout.conflicts.isNotEmpty)
               TextButton.icon(
                 key: const Key('timetable-conflicts'),
                 onPressed: _showConflicts,
@@ -257,7 +259,7 @@ class _MissionTimetableState extends State<MissionTimetable>
                                     ],
                                   ),
                                 ),
-                              if (sameDay &&
+                              if (nowMinute != null &&
                                   nowMinute >= start &&
                                   nowMinute < end)
                                 Positioned(
@@ -304,8 +306,12 @@ class _MissionTimetableState extends State<MissionTimetable>
                                       gutter +
                                       chartWidth * slot.column / slot.columns,
                                   width: chartWidth / slot.columns - 4,
-                                  height:
-                                      (slot.end - slot.start) * pixelsPerMinute,
+                                  // 极短任务保底 26px 高，只够放下一行标题；
+                                  // 更长的任务仍按时长比例绘制。
+                                  height: math.max(
+                                    26 * scale,
+                                    (slot.end - slot.start) * pixelsPerMinute,
+                                  ),
                                   child: _slot(context, slot),
                                 ),
                             ],
@@ -318,9 +324,13 @@ class _MissionTimetableState extends State<MissionTimetable>
               ),
             ),
           ),
-        if (widget.layout.conflicts.isNotEmpty) ...[
+        if (_layout.conflicts.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text('斜纹标记重叠时段，状态标签表示实际执行情况。', style: theme.textTheme.bodySmall),
+        ],
+        if (actualCount > 0) ...[
+          const SizedBox(height: 8),
+          Text('“实际”色块按执行记录绘制，不占用计划时段。', style: theme.textTheme.bodySmall),
         ],
         if (shortSlots.isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -358,14 +368,21 @@ class _MissionTimetableState extends State<MissionTimetable>
     final phase = slot.detail.phase;
     final hasConflict = slot.conflicts.isNotEmpty;
     final minutes = slot.end - slot.start;
-    final endAt = slot.detail.schedule.fixedStartAt!.add(
+    // 实际区间槽位没有固定开始时刻（自选任务），不能按计划时刻判断“时段已过”。
+    final fixedStart = slot.detail.schedule.fixedStartAt;
+    final endAt = fixedStart?.add(
       Duration(minutes: slot.detail.schedule.plannedDurationMinutes),
     );
     final status =
-        phase == MissionPhase.notStarted && !widget.clock().isBefore(endAt)
+        phase == MissionPhase.notStarted &&
+            endAt != null &&
+            !widget.clock().isBefore(endAt)
         ? '待开始 · 时段已过'
         : phaseLabel(phase);
-    final color = phase == MissionPhase.running
+    // 实际区间用“提醒棕”浅底与计划时段区分；运行中的计划时段仍用强调面。
+    final color = slot.actual
+        ? AppColors.warningSoft
+        : phase == MissionPhase.running
         ? AppColors.accent
         : AppColors.primarySoft;
     return Semantics(
@@ -380,7 +397,8 @@ class _MissionTimetableState extends State<MissionTimetable>
           borderRadius: BorderRadius.circular(12),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            key: Key('all-mission-${slot.id}'),
+            // 与列表行的 all-mission- key 分开：自选任务会同时出现在图和列表里。
+            key: Key('timetable-bar-${slot.id}'),
             onTap: () => widget.onOpen(slot.detail),
             child: Stack(
               children: [
@@ -393,7 +411,11 @@ class _MissionTimetableState extends State<MissionTimetable>
                   bottom: 0,
                   child: Container(
                     width: 3,
-                    color: hasConflict ? AppColors.error : AppColors.primary,
+                    color: hasConflict
+                        ? AppColors.error
+                        : slot.actual
+                        ? AppColors.warning
+                        : AppColors.primary,
                   ),
                 ),
                 if (minutes >= 30)
@@ -442,6 +464,23 @@ class _MissionTimetableState extends State<MissionTimetable>
                             ),
                           ),
                       ],
+                    ),
+                  )
+                else
+                  // 短任务条只有一两行文字的位置：放“标题 · 时段”一行，
+                  // 认不出是谁时看这一行即可，完整信息在悬浮提示和下方列表。
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${slot.detail.mission.title} · ${slot.timeLabel}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
               ],

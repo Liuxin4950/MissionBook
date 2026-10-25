@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/colors.dart';
-import '../../../domain/entities/execution_event.dart';
+import '../../../domain/rules/goal_node_record_rules.dart';
 
 /// 目标卡和详情共用的真实记录摘要；仅统计有效节点的直接完成报告，不表示掌握程度。
 class GoalRecordSummary extends StatefulWidget {
@@ -46,23 +46,9 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
   Future<({int total, int completed})> _load() async {
     final nodes = await widget.goals.findNodes(widget.goalId);
     final tasks = await widget.missions.findForGoal(widget.goalId);
-    final completedIds = <String>{}; // Set 按节点编号去重，同节点完成多次也只记一次。
-    for (final task in tasks) {
-      final nodeId = task.mission.goalNodeId;
-      if (nodeId != null &&
-          task.events.any(
-            (event) =>
-                event.type == ExecutionEventType.end &&
-                event.userReportedResult == UserReportedResult.completed,
-          )) {
-        completedIds.add(nodeId);
-      }
-    }
-    final active = nodes.where((node) => node.archivedAt == null).toList();
-    return (
-      total: active.length,
-      completed: active.where((node) => completedIds.contains(node.id)).length,
-    );
+    // 覆盖率口径（有效节点、直接完成报告、去重）集中在
+    // domain/rules/goal_node_record_rules.dart，页面只负责展示。
+    return goalNodeCoverage(nodes, tasks);
   }
 
   @override

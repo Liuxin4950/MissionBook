@@ -48,8 +48,28 @@ class MissionDetail {
   final MissionOwnershipInfo? ownershipInfo;
   // 没有事件时为0；开始命令用它检查页面是否过期，仓储再分配新序号1。
   int get lastSequence => events.isEmpty ? 0 : events.last.sequence;
+
+  /// 用户报告“已完成”的那条 END 事件；没有报告完成时为 null。
+  ///
+  /// 每个任务最多一条 END（时间线核心保证），所以找到的第一条就是唯一一条。
+  /// 注意：这只是用户的完成自报，不代表材料已提交、验证通过或技能掌握。
+  ExecutionEvent? get completionReport {
+    for (final event in events) {
+      if (event.type == ExecutionEventType.end &&
+          event.userReportedResult == UserReportedResult.completed) {
+        return event;
+      }
+    }
+    return null;
+  }
+
+  /// 是否有 END 事件报告“已完成”。
+  ///
+  /// 全站“完成记录/完成日期”判定统一走这两个属性，页面不再各自
+  /// 重写“END 且 COMPLETED”的比较逻辑，防止口径分叉。
+  bool get endReportedCompleted => completionReport != null;
   // get 是按需计算的属性：读取 detail.phase 时，根据事实重新计算，结果不写回库。
-  // 此处没有传 schedule/执行方案；它们负责计划和展示，不决定 START 是否发生。
+  // 排期提供材料截止等条件；START 是否发生仍只看已保存的执行事实。
   MissionPhase get phase =>
       deriveMissionPhase(mission, events, failures, evidence, schedule);
 }

@@ -5,7 +5,7 @@ import '../../../domain/entities/goal.dart';
 import '../../../domain/entities/goal_node.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/mission_phase.dart';
-import '../../../domain/entities/execution_event.dart';
+import '../../../domain/rules/goal_node_record_rules.dart';
 import '../../missions/form/mission_form_page.dart';
 import '../../missions/detail/mission_detail_page.dart';
 import '../../missions/record/mission_record_page.dart';
@@ -118,27 +118,10 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
           final created = b.mission.createdAt.compareTo(a.mission.createdAt);
           return created != 0 ? created : a.mission.id.compareTo(b.mission.id);
         });
-        final completed = direct.any(
-          (detail) => detail.events.any(
-            (event) =>
-                event.type == ExecutionEventType.end &&
-                event.userReportedResult == UserReportedResult.completed,
-          ),
-        );
-        var label = '暂无完成记录';
-        if (completed) {
-          label = '有完成记录';
-        } else if (direct.any(
-          (detail) =>
-              detail.phase == MissionPhase.running ||
-              detail.phase == MissionPhase.paused,
-        )) {
-          label = '执行中';
-        } else if (direct.any(
-          (detail) => detail.phase == MissionPhase.notStarted,
-        )) {
-          label = '已安排';
-        }
+        // 完成记录与记录标签的口径集中在 domain/rules/goal_node_record_rules.dart，
+        // 这里只负责展示；“完成”只是 END 报告已完成，不表示掌握程度。
+        final completed = hasCompletionRecord(direct);
+        var label = nodeRecordLabel(direct);
         if (widget.node == null) label = '关联任务';
         if (snapshot.hasError) {
           label = '任务读取失败';

@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart'
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/evidence.dart';
+import '../../../domain/entities/failure_record.dart';
 import '../../../domain/entities/mission.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/mission_phase.dart';
@@ -430,7 +431,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
         VerificationPolicy.requiredEvidence;
     final deadline = _detail.schedule.evidenceDeadlineAt;
     final timedOut = _detail.failures.any(
-      (item) => item.trigger == 'EVIDENCE_DEADLINE_MISSED',
+      (item) => item.trigger == evidenceDeadlineMissedTrigger,
     );
     final hasFormal = _detail.evidence.isNotEmpty;
     if (!_canSubmit && hasFormal && !hasDraft && _pending == null) {

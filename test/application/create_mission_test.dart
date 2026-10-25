@@ -164,6 +164,48 @@ class FailingMissionRepository
 }
 
 void main() {
+  test('自选强制材料在准备创建时校验排期日起点，正确使用排期时区', () async {
+    final repository = RecordingMissionRepository();
+    final service = MissionService(
+      repository,
+      clock: () => DateTime.utc(2026, 3, 1),
+    );
+    addTearDown(service.dispose);
+    // 纽约夏令时切换日的 00:00 是 UTC 05:00，不能按当天 UTC 零点判断。
+    final midnight = DateTime.utc(2026, 3, 8, 5);
+    for (final cutoff in [
+      midnight.subtract(const Duration(milliseconds: 1)),
+      midnight,
+    ]) {
+      expect(
+        () => service.prepareCreation(
+          title: '截止预检',
+          scheduledDate: '2026-03-08',
+          timeZone: 'America/New_York',
+          plannedDurationMinutes: 20,
+          verificationPolicy: VerificationPolicy.requiredEvidence,
+          verificationCriteria: '提交练习记录',
+          evidenceDeadlineAt: cutoff,
+        ),
+        throwsArgumentError,
+      );
+    }
+    final request = service.prepareCreation(
+      title: '截止预检',
+      scheduledDate: '2026-03-08',
+      timeZone: 'America/New_York',
+      plannedDurationMinutes: 20,
+      verificationPolicy: VerificationPolicy.requiredEvidence,
+      verificationCriteria: '提交练习记录',
+      evidenceDeadlineAt: midnight.add(const Duration(milliseconds: 1)),
+    );
+    expect(request.mission.createdAt, DateTime.utc(2026, 3, 1));
+    expect(
+      request.schedule.evidenceDeadlineAt,
+      midnight.add(const Duration(milliseconds: 1)),
+    );
+    expect(repository.createCallCount, 0);
+  });
   // test 注册一个测试：第一个参数是名称，第二个参数是测试过程。
   // 测试运行器执行后面的回调；async 允许里面等待异步创建完成。
   test('合法输入创建三个关联对象，并交给仓储一次', () async {

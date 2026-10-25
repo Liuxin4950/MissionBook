@@ -5,7 +5,6 @@ import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
-import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/goal.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/mission_phase.dart';
@@ -154,13 +153,12 @@ class _AllMissionsPageState extends State<AllMissionsPage>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
   DateTime? _completionDay(MissionDetail detail) {
-    for (final event in detail.events) {
-      if (event.type == ExecutionEventType.end &&
-          event.userReportedResult == UserReportedResult.completed) {
-        return DateUtils.dateOnly(event.occurredAt.toLocal());
-      }
-    }
-    return null;
+    // 完成日期按报告完成的 END 事件在设备本地的日历日；
+    // “是否报告完成”的判定口径统一走 MissionDetail 的派生属性。
+    final report = detail.completionReport;
+    return report == null
+        ? null
+        : DateUtils.dateOnly(report.occurredAt.toLocal());
   }
 
   @override
@@ -211,13 +209,10 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                       (detail.phase == MissionPhase.notStarted &&
                           detail.schedule.scheduledDate.compareTo(todayKey) <
                               0));
-              // 全部日期仍按任务的计划日期分组，固定任务使用同一时间轴，不再切换展示模式。
+              // 保留计划日期入口，也补上实际区间覆盖日，跨日执行可在对应日阅读。
               final dates = <String>{
                 for (final detail in all.where(matches))
-                  detail.schedule.fixedStartAt != null &&
-                          detail.phase != MissionPhase.cancelled
-                      ? _dateKey(timetableNow(detail.schedule.fixedStartAt!))
-                      : detail.schedule.scheduledDate,
+                  ...timetableDateKeys(detail, widget.clock()),
               }.toList()..sort((a, b) => b.compareTo(a));
               return RefreshIndicator(
                 onRefresh: () async {
@@ -225,6 +220,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                   await _records;
                 },
                 child: ListView(
+                  key: const Key('all-missions-list'),
                   padding: AppLayout.pagePadding(context),
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
@@ -294,7 +290,16 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     bool Function(MissionDetail) matches, {
     bool showDate = false,
   }) {
-    final layout = TimetableDay.build(all, day, visible: matches);
+    TimetableDay layoutAt(DateTime now) => TimetableDay.build(
+      all,
+      day,
+      visible: matches,
+      // 实际执行区间按“现在”截断未结束任务；自选任务由此也能画上时间轴。
+      now: now,
+      // 26px 最小条高 / 每分钟 2px，字号缩放同时作用于两者，比例仍为 13 分钟。
+      minimumDisplayMinutes: 13,
+    );
+    final layout = layoutAt(widget.clock());
     final other = all
         .where(
           (detail) =>
@@ -328,7 +333,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
           if (layout.slots.isNotEmpty || !showDate && other.isEmpty)
             MissionTimetable(
               day: day,
-              layout: layout,
+              layoutBuilder: layoutAt,
               onOpen: _open,
               clock: widget.clock,
             ),
@@ -339,7 +344,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
             Text('自选任务', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
             Text(
-              '只安排日期，不占用固定时段。',
+              '只安排日期，不占用固定时段；已开始的自选任务按实际执行区间画在图上。',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 12),

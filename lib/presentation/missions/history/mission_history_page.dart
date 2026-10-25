@@ -7,7 +7,6 @@ import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/app_page_header.dart';
-import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/evidence.dart';
 import '../../../domain/entities/mission_phase.dart';
@@ -245,9 +244,8 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
       detail.schedule.timeZone,
       includeDate: false,
     ).substring(0, 5);
-    final completed =
-        !_cancelled &&
-        detail.events.last.userReportedResult == UserReportedResult.completed;
+    // 是否报告完成的判定口径统一走 MissionDetail 的派生属性。
+    final completed = !_cancelled && detail.endReportedCompleted;
     final images = _cancelled
         ? <Evidence>[]
         : detail.effectiveEvidence

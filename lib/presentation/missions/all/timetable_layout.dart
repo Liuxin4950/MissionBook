@@ -2,8 +2,10 @@ import 'dart:math' as math;
 
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/mission_phase.dart';
+import '../../../domain/rules/execution_time_rules.dart';
 
 // 与今天页默认排期时区一致；同一时间轴不能混用各任务的钟面时间。
 const timetableTimeZone = 'Asia/Shanghai';
@@ -17,7 +19,7 @@ String timetableClock(double minute) {
       '${(value % 60).toString().padLeft(2, '0')}';
 }
 
-/// 所选日期内的计划占位，不改变任务阶段或保存任何执行事实。
+/// 所选日期内的占位，不改变任务阶段或保存任何执行事实。
 class TimetableSlot {
   TimetableSlot(
     this.detail,
@@ -25,19 +27,23 @@ class TimetableSlot {
     this.end, {
     this.continuesBefore = false,
     this.continuesAfter = false,
+    this.actual = false,
   });
 
   final MissionDetail detail;
   final double start; // 相对所选日期零点的分钟数，跨日任务已裁切。
   final double end;
-  final bool continuesBefore; // 真实计划起点在前一天，当前只显示续入部分。
-  final bool continuesAfter; // 真实计划终点在后一天。
+  final bool continuesBefore; // 真实起点在前一天，当前只显示续入部分。
+  final bool continuesAfter; // 真实终点在后一天。
+  // false：固定任务的计划时段；true：自选任务按执行记录绘制的实际区间。
+  final bool actual;
   int column = 0;
   int columns = 1;
   final conflicts = <TimetableConflict>[];
 
   String get id => detail.mission.id;
   String get timeLabel =>
+      '${actual ? '实际 ' : ''}'
       '${timetableClock(start)}–${timetableClock(end)}'
       '${continuesBefore ? ' · 接前日' : ''}${continuesAfter ? ' · 续次日' : ''}';
 
@@ -70,6 +76,91 @@ class TimetableConflict {
   final double end;
 }
 
+/// 时间轴的显示窗口（相对所选日期零点的分钟数）。
+///
+/// 围绕占位和“现在”裁掉没有内容的时段：内容前后各留半小时，再向外取整到
+/// 整点（刻度按整点绘制），至少保留 [minWindow] 分钟上下文，不超出 00:00–24:00。
+/// 没有任何占位时回退到默认的 8:00–18:00。
+({double start, double end}) timetableWindow(
+  Iterable<TimetableSlot> slots, {
+  double? nowMinute,
+  double minWindow = 180,
+}) {
+  double? lowest = nowMinute;
+  double? highest = nowMinute;
+  for (final slot in slots) {
+    lowest = lowest == null ? slot.start : math.min(lowest, slot.start);
+    highest = highest == null ? slot.end : math.max(highest, slot.end);
+  }
+  if (lowest == null || highest == null) {
+    return (start: 8 * 60, end: 18 * 60);
+  }
+  var start = math.max(0.0, ((lowest - 30) / 60).floor() * 60.0);
+  var end = math.min(1440.0, ((highest + 30) / 60).ceil() * 60.0);
+  // 内容太少时按整小时向两侧补齐最小窗口；贴近一天两端就只向另一侧扩。
+  while (end - start < minWindow && (start > 0 || end < 1440)) {
+    if (start > 0) start -= 60;
+    if (end - start < minWindow && end < 1440) end += 60;
+  }
+  return (start: start, end: end);
+}
+
+/// 自选任务的已知执行区间：从 START 到 END（未结束则到 now）。
+/// 没有执行记录或仍在等待 now 时返回 null，这类任务不上图、只在列表阅读。
+({DateTime from, DateTime until})? _actualSpan(
+  MissionDetail detail,
+  DateTime? now,
+) {
+  if (detail.events.isEmpty) return null;
+  final from = detail.events.first.occurredAt; // 时间线第一条必为 START。
+  if (now == null && detail.events.last.type != ExecutionEventType.end) {
+    return null;
+  }
+  // 与专注时长复用同一上界：系统回拨时至少显示到最后一条已发生的事件。
+  final times = calculateExecutionTimes(detail.events, now ?? from);
+  return (from: from, until: from.add(times.elapsed));
+}
+
+({DateTime from, DateTime until})? _displaySpan(
+  MissionDetail detail,
+  DateTime? now,
+) {
+  if (detail.phase == MissionPhase.cancelled) return null;
+  final fixedStart = detail.schedule.fixedStartAt;
+  return fixedStart == null
+      ? _actualSpan(detail, now)
+      : (
+          from: fixedStart,
+          until: fixedStart.add(
+            Duration(minutes: detail.schedule.plannedDurationMinutes),
+          ),
+        );
+}
+
+/// 全部日期分组同时包含计划列表日期和图上区间覆盖的日期，跨日事实不会失联。
+Iterable<String> timetableDateKeys(MissionDetail detail, DateTime now) sync* {
+  final span = _displaySpan(detail, now);
+  if (detail.schedule.fixedStartAt == null || span == null) {
+    yield detail.schedule.scheduledDate;
+  }
+  if (span == null) return;
+  final from = timetableNow(span.from);
+  // 半开区间：刚好在次日 00:00 结束，不多建次日分组。
+  final until = timetableNow(
+    span.until.isAfter(span.from)
+        ? span.until.subtract(const Duration(microseconds: 1))
+        : span.from,
+  );
+  var day = DateTime.utc(from.year, from.month, from.day);
+  final last = DateTime.utc(until.year, until.month, until.day);
+  while (!day.isAfter(last)) {
+    yield '${day.year.toString().padLeft(4, '0')}-'
+        '${day.month.toString().padLeft(2, '0')}-'
+        '${day.day.toString().padLeft(2, '0')}';
+    day = DateTime.utc(day.year, day.month, day.day + 1);
+  }
+}
+
 /// 当日完整计划用于检测冲突，筛选后的任务单独分配显示列。
 class TimetableDay {
   const TimetableDay(this.slots, this.allSlots, this.conflicts);
@@ -81,30 +172,42 @@ class TimetableDay {
     List<MissionDetail> records,
     DateTime day, {
     bool Function(MissionDetail)? visible,
+    DateTime? now,
+    double minimumDisplayMinutes = 0,
   }) {
     final zone = tz.getLocation(timetableTimeZone);
     final start = tz.TZDateTime(zone, day.year, day.month, day.day);
     final end = tz.TZDateTime(zone, day.year, day.month, day.day + 1);
-    final all = <TimetableSlot>[];
+    final all = <TimetableSlot>[]; // 固定任务的计划时段：参与冲突检测。
+    final actual = <TimetableSlot>[]; // 自选任务的实际区间：只参与显示排布。
     for (final detail in records) {
+      final span = _displaySpan(detail, now);
+      if (span == null) continue;
       final from = detail.schedule.fixedStartAt;
-      if (from == null || detail.phase == MissionPhase.cancelled) continue;
-      final until = from.add(
-        Duration(minutes: detail.schedule.plannedDurationMinutes),
-      );
+      final spanFrom = span.from;
+      final spanUntil = span.until;
       // 半开区间：前项恰好结束、后项恰好开始不算冲突。
-      if (!from.isBefore(end) || !until.isAfter(start)) continue;
-      all.add(
-        TimetableSlot(
-          detail,
-          math.max(0, from.difference(start).inMilliseconds / 60000),
-          math.min(1440, until.difference(start).inMilliseconds / 60000),
-          continuesBefore: from.isBefore(start),
-          continuesAfter: until.isAfter(end),
-        ),
+      if (!spanFrom.isBefore(end) ||
+          (spanUntil == spanFrom
+              ? spanFrom.isBefore(start)
+              : !spanUntil.isAfter(start))) {
+        continue;
+      }
+      final slot = TimetableSlot(
+        detail,
+        math.max(0, spanFrom.difference(start).inMilliseconds / 60000),
+        math.min(1440, spanUntil.difference(start).inMilliseconds / 60000),
+        continuesBefore: spanFrom.isBefore(start),
+        continuesAfter: spanUntil.isAfter(end),
+        actual: from == null,
       );
+      (from == null ? actual : all).add(slot);
     }
     all.sort((a, b) {
+      final order = a.start.compareTo(b.start);
+      return order != 0 ? order : a.id.compareTo(b.id);
+    });
+    actual.sort((a, b) {
       final order = a.start.compareTo(b.start);
       return order != 0 ? order : a.id.compareTo(b.id);
     });
@@ -123,20 +226,30 @@ class TimetableDay {
         conflicts.add(conflict);
       }
     }
-    final shown = all
-        .where((slot) => visible?.call(slot.detail) ?? true)
-        .toList();
+    // 计划与实际区间一起排布显示列，谁也不遮住谁；
+    // “计划时间冲突”仍只统计固定任务的计划时段。
+    final shown =
+        [
+          ...all.where((slot) => visible?.call(slot.detail) ?? true),
+          ...actual.where((slot) => visible?.call(slot.detail) ?? true),
+        ]..sort((a, b) {
+          final order = a.start.compareTo(b.start);
+          return order != 0 ? order : a.id.compareTo(b.id);
+        });
     var group = <TimetableSlot>[];
     var groupEnd = 0.0;
+    // 短条为了容纳标题会增高；只在显示列排布中预留高度，不改变真实冲突区间。
+    double displayEnd(TimetableSlot slot) =>
+        math.max(slot.end, slot.start + minimumDisplayMinutes);
     void placeGroup() {
       final ends = <double>[];
       for (final slot in group) {
         var column = ends.indexWhere((end) => end <= slot.start);
         if (column < 0) {
           column = ends.length;
-          ends.add(slot.end);
+          ends.add(displayEnd(slot));
         } else {
-          ends[column] = slot.end;
+          ends[column] = displayEnd(slot);
         }
         slot.column = column;
       }
@@ -151,7 +264,9 @@ class TimetableDay {
         group = [];
       }
       group.add(slot);
-      groupEnd = group.length == 1 ? slot.end : math.max(groupEnd, slot.end);
+      groupEnd = group.length == 1
+          ? displayEnd(slot)
+          : math.max(groupEnd, displayEnd(slot));
     }
     placeGroup();
     final shownIds = shown.map((slot) => slot.id).toSet();

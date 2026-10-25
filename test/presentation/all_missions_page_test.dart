@@ -79,9 +79,10 @@ void main() {
     WidgetTester tester,
     Widget home, {
     double width = 390,
+    double height = 844,
     double scale = 1,
   }) async {
-    tester.view.physicalSize = Size(width, 844);
+    tester.view.physicalSize = Size(width, height);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -103,23 +104,29 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> tap(WidgetTester tester, String key) async {
+  Future<void> scrollTo(WidgetTester tester, String key) async {
     final finder = find.byKey(Key(key));
+    // 懒加载列表只构建视口附近的行。图表里的横向滚动区位于列表中部，
+    // 从列表中心拖动会被它截走手势，所以从列表底部空白处垂直拖动；
+    // 目标可能在当前位置上方或下方：先回列表顶部，再向下逐屏构建。
+    final dragPoint = Offset(30, tester.view.physicalSize.height - 64);
     if (finder.evaluate().isEmpty) {
-      await tester.scrollUntilVisible(
-        finder,
-        key == 'all-missions-statistics' ? 300 : -300,
-        scrollable: find
-            .descendant(
-              of: find.byType(ListView).first,
-              matching: find.byType(Scrollable),
-            )
-            .first,
-      );
+      await tester.dragFrom(dragPoint, const Offset(0, 100000));
+      await tester.pumpAndSettle();
     }
-    await tester.ensureVisible(finder);
+    for (var i = 0; i < 50 && finder.evaluate().isEmpty; i++) {
+      await tester.dragFrom(dragPoint, const Offset(0, -300));
+      await tester.pumpAndSettle();
+    }
+    if (finder.evaluate().isNotEmpty) {
+      await tester.ensureVisible(finder);
+    }
     await tester.pumpAndSettle();
-    await tester.tap(finder);
+  }
+
+  Future<void> tap(WidgetTester tester, String key) async {
+    await scrollTo(tester, key);
+    await tester.tap(find.byKey(Key(key)));
     await tester.pumpAndSettle();
   }
 
@@ -136,26 +143,30 @@ void main() {
     expect(find.text('列表'), findsNothing);
     await tap(tester, 'all-missions-filters');
     await tap(tester, 'all-missions-all-dates');
+    // 自选任务现在会同时出现在图（timetable-bar-）和列表行（all-mission-）；
+    // 这里的“恰好一个”断言只针对列表行。
+    await scrollTo(tester, 'all-mission-$doneId');
     expect(find.byKey(Key('all-mission-$doneId')), findsOneWidget);
+    await scrollTo(tester, 'all-mission-$cancelledId');
     expect(find.byKey(Key('all-mission-$cancelledId')), findsOneWidget);
-    await tester.drag(find.byType(ListView).first, const Offset(0, -400));
-    await tester.pumpAndSettle();
+    await scrollTo(tester, 'all-mission-$oldId');
     expect(find.byKey(Key('all-mission-$oldId')), findsOneWidget);
     await tap(tester, 'all-missions-statistics');
     expect(find.text('计划 2 项 · 报告完成 1 项'), findsOneWidget);
-    await tester.drag(find.byType(ListView).first, const Offset(0, 1500));
-    await tester.pumpAndSettle();
     await tap(tester, 'all-missions-phase-cancelled');
+    await scrollTo(tester, 'all-mission-$cancelledId');
     expect(find.byKey(Key('all-mission-$cancelledId')), findsOneWidget);
     expect(find.byKey(Key('all-mission-$doneId')), findsNothing);
     await tap(tester, 'all-missions-phase-all');
     await tap(tester, 'all-missions-past');
+    await scrollTo(tester, 'all-mission-$oldId');
     expect(find.byKey(Key('all-mission-$oldId')), findsOneWidget);
     expect(find.byKey(Key('all-mission-$doneId')), findsNothing);
     await tap(tester, 'all-missions-past');
     await tap(tester, 'all-missions-goal-all');
     await tester.tap(find.text('学习目标').last);
     await tester.pumpAndSettle();
+    await scrollTo(tester, 'all-mission-$doneId');
     expect(find.byKey(Key('all-mission-$doneId')), findsOneWidget);
     expect(find.byKey(Key('all-mission-$oldId')), findsNothing);
     await tap(tester, 'all-missions-date');
@@ -179,6 +190,7 @@ void main() {
     expect(find.text('课表'), findsNothing);
     await tap(tester, 'all-missions-filters');
     await tap(tester, 'all-missions-all-dates');
+    await scrollTo(tester, 'all-mission-$cancelledId');
     expect(find.byKey(Key('all-mission-$cancelledId')), findsOneWidget);
   });
 
@@ -241,7 +253,10 @@ void main() {
     await tester.pumpAndSettle();
     await tap(tester, 'timetable-next-day');
     expect(find.text('10月26日 · 周一'), findsOneWidget);
-    expect(find.byKey(Key('all-mission-${english.mission.id}')), findsNothing);
+    expect(
+      find.byKey(Key('timetable-slot-${english.mission.id}')),
+      findsNothing,
+    );
     await tester.tap(find.text('回到今天'));
     await tester.pumpAndSettle();
     expect(
@@ -249,6 +264,51 @@ void main() {
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('自选任务按实际区间上图，短任务条内显示标题', (tester) async {
+    await fixed('五分钟复盘', 9, 15, 5);
+    await open(
+      tester,
+      AllMissionsPage(missions: missions, goals: goals, clock: () => now),
+    );
+    // setUp 里的“已完成目标任务”是自选任务：实际执行区间画上时间轴。
+    expect(find.byKey(Key('timetable-bar-$doneId')), findsOneWidget);
+    expect(find.textContaining('实际 '), findsWidgets);
+    // 短任务条内直接写“标题 · 时段”，不再是一根认不出的条。
+    expect(find.textContaining('五分钟复盘 · '), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('实际区间随时间重绘延伸，相邻短条增高后仍不遮挡', (tester) async {
+    await fixed('第一分钟', 18, 15, 1);
+    await fixed('第二分钟', 18, 16, 1);
+    await missions.execute(
+      missions.prepareExecution(
+        detail: (await missions.findDetail(missionId: oldId))!,
+        type: ExecutionEventType.start,
+      ),
+    );
+    now = now.add(const Duration(minutes: 20));
+    await open(tester, AllMissionsPage(missions: missions, clock: () => now));
+    final slot = find.byKey(Key('timetable-slot-$oldId'));
+    final before = tester.getSize(slot).height;
+    now = now.add(const Duration(minutes: 10));
+    await tester.pump(const Duration(seconds: 30));
+    expect(tester.getSize(slot).height, before + 20);
+    final details = await missions.findAllDetails();
+    final first = details.singleWhere((d) => d.mission.title == '第一分钟');
+    final second = details.singleWhere((d) => d.mission.title == '第二分钟');
+    final a = tester.getRect(
+      find.byKey(Key('timetable-slot-${first.mission.id}')),
+    );
+    final b = tester.getRect(
+      find.byKey(Key('timetable-slot-${second.mission.id}')),
+    );
+    expect(a.overlaps(b), isFalse);
+    expect(find.byKey(const Key('timetable-conflicts')), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

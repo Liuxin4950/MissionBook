@@ -24,6 +24,7 @@ import 'package:mission_book/presentation/missions/evidence/mission_evidence_sec
 import 'package:mission_book/presentation/missions/evidence/evidence_image_preview.dart';
 import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
 import 'package:mission_book/presentation/missions/history/mission_history_page.dart';
+import 'package:mission_book/presentation/missions/record/mission_record_page.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
 
 late Uint8List _png;
@@ -56,7 +57,14 @@ class _Images implements EvidenceImageStore, EvidenceImagePicker {
 class _LostReply extends DriftMissionRepository {
   _LostReply(super.database, {required super.clock});
   bool lose = false;
+  bool failReads = false;
   final submissions = <String>[];
+  @override
+  Future<MissionDetail?> findDetail(String missionId) {
+    if (failReads) return Future.error(StateError('模拟记录读取失败'));
+    return super.findDetail(missionId);
+  }
+
   @override
   Future<EvidenceSubmissionResult> submitEvidence(
     EvidenceSubmission command,
@@ -211,6 +219,79 @@ void main() {
     await tester.tap(finder);
     await tester.pumpAndSettle();
   }
+
+  // 今天页先查当天任务、再查待补列表，两段异步查询都完成后才重建出待补入口；
+  // 记录页收到事实通知后也要等重读完成才显示新状态。pumpAndSettle 只等已排期
+  // 的帧，所以这里显式等待目标出现，再断言或点击。
+  Future<void> pumpUntilFound(WidgetTester tester, Finder finder) async {
+    for (var i = 0; i < 50 && finder.evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('记录页停留到材料截止会主动补算，刷新保留正在输入的草稿', (tester) async {
+    final detail = await create(
+      policy: VerificationPolicy.requiredEvidence,
+      pending: true,
+    );
+    await tester.pumpWidget(
+      app(MissionRecordPage(detail: detail, service: service)),
+    );
+    await tester.pumpAndSettle();
+    await tap(tester, 'evidence-open-${detail.mission.id}');
+    await tap(tester, 'evidence-add-text');
+    await tester.enterText(find.byType(TextField).last, '到期后也要保留的草稿');
+    now = now.add(const Duration(hours: 3));
+    // 不从其他页面调用补算，也不制造广播：只让可见记录页的截止检查触发。
+    await tester.pump(const Duration(seconds: 30));
+    await pumpUntilFound(tester, find.text('材料超时'));
+    expect(find.text('材料超时'), findsOneWidget);
+    expect(find.text('到期后也要保留的草稿'), findsOneWidget);
+    expect(find.byKey(const Key('evidence-submit')), findsNothing);
+    expect(
+      (await repository.findDetail(detail.mission.id))!.failures,
+      hasLength(1),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('记录页恢复前台立即重读截止事实', (tester) async {
+    final detail = await create(
+      policy: VerificationPolicy.requiredEvidence,
+      pending: true,
+    );
+    await tester.pumpWidget(
+      app(MissionRecordPage(detail: detail, service: service)),
+    );
+    await tester.pumpAndSettle();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    now = now.add(const Duration(hours: 3));
+    await tester.pump(const Duration(minutes: 1));
+    expect((await repository.findDetail(detail.mission.id))!.failures, isEmpty);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await pumpUntilFound(tester, find.text('材料超时'));
+    expect(find.text('材料超时'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('记录刷新失败保留快照并可重试，不产生未处理异常', (tester) async {
+    final detail = await create(pending: true);
+    repository.failReads = true;
+    await tester.pumpWidget(
+      app(MissionRecordPage(detail: detail, service: service)),
+    );
+    await pumpUntilFound(tester, find.byKey(const Key('record-refresh-retry')));
+    expect(find.byKey(const Key('record-refresh-retry')), findsOneWidget);
+    expect(find.text('执行已结束 · 待提交材料'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    repository.failReads = false;
+    await tap(tester, 'record-refresh-retry');
+    expect(find.byKey(const Key('record-refresh-retry')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets('可选任务明确不交材料即可结束，不留下待补提示', (tester) async {
     final detail = await create();
@@ -608,14 +689,21 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('历史行原位提交保留草稿，今天跨日仍能找到待补入口', (tester) async {
+  testWidgets('历史行经记录页提交保留草稿，今天跨日仍能找到待补入口', (tester) async {
     final detail = await create(pending: true);
     await tester.pumpWidget(app(MissionHistoryPage(service: service)));
     await tester.pumpAndSettle();
+    // 历史列表不内嵌材料工作区（界面与交互 §历史页）；
+    // 从“打开记录并补交材料”进入执行记录页，材料整理统一在记录页进行。
+    final entry = find.text('打开记录并补交材料');
+    await tester.ensureVisible(entry);
+    await tester.pumpAndSettle();
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
     await tap(tester, 'evidence-open-${detail.mission.id}');
     await tap(tester, 'evidence-add-text');
-    await tester.enterText(find.byType(TextField).last, '历史行的原位材料');
-    // 另一个入口提交事实后广播刷新，历史行内草稿不能随 Future 等待态消失。
+    await tester.enterText(find.byType(TextField).last, '记录页里的待补材料');
+    // 另一个入口提交事实后广播刷新，记录页正在输入的草稿不能随等待态消失。
     await service.create(
       title: '触发其他入口广播',
       scheduledDate: '2030-01-02',
@@ -623,7 +711,10 @@ void main() {
       plannedDurationMinutes: 10,
     );
     await tester.pumpAndSettle();
-    expect(find.text('历史行的原位材料'), findsOneWidget);
+    expect(find.text('记录页里的待补材料'), findsOneWidget);
+    // 先清空页面树再进入今天页：直接 pumpWidget 复用 MaterialApp 时，
+    // 导航栈里压着的记录页路由会把今天页挡在舞台外（查找器默认跳过舞台外节点）。
+    await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpWidget(
       app(
         Scaffold(
@@ -636,15 +727,22 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // 跨日后今天页保留“打开执行记录补交材料”入口，任务不因日期变化失联。
+    // 待补区在列表末尾：懒加载列表只构建视口附近的子项，必须先滚动主列表
+    // （today-list）把它构建出来才能断言；周条等横向滚动区不是目标。
+    final pendingRow = find.byKey(Key('today-pending-${detail.mission.id}'));
     await tester.scrollUntilVisible(
-      find.byKey(Key('today-pending-${detail.mission.id}')),
+      pendingRow,
       250,
-      scrollable: find.byType(Scrollable).first,
+      // scrollUntilVisible 需要 Scrollable 本体；today-list 是 ListView，
+      // 它内部生成的 Scrollable 才是实际发生滚动的节点。
+      scrollable: find.descendant(
+        of: find.byKey(const Key('today-list')),
+        matching: find.byType(Scrollable),
+      ),
     );
-    expect(
-      find.byKey(Key('evidence-open-${detail.mission.id}')),
-      findsOneWidget,
-    );
+    expect(pendingRow, findsOneWidget);
+    expect(find.text('打开执行记录补交材料'), findsWidgets);
   });
 
   testWidgets('Today超时刷新保留正在输入的草稿，真实状态切为材料超时', (tester) async {
@@ -664,17 +762,19 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
+    // 待补入口点击进入执行记录页，材料整理统一在记录页进行。
+    await pumpUntilFound(
+      tester,
       find.byKey(Key('today-pending-${detail.mission.id}')),
-      250,
-      scrollable: find.byType(Scrollable).first,
     );
+    await tap(tester, 'today-pending-${detail.mission.id}');
     await tap(tester, 'evidence-open-${detail.mission.id}');
     await tap(tester, 'evidence-add-text');
     await tester.enterText(find.byType(TextField).last, '超时也不能直接丢掉的草稿');
     now = now.add(const Duration(hours: 3));
     await service.reconcileEvidenceDeadlines();
-    await tester.pumpAndSettle();
+    // 超时事实写入后记录页随通知重读；等“材料超时”状态出现再断言。
+    await pumpUntilFound(tester, find.text('材料超时'));
     expect(find.text('超时也不能直接丢掉的草稿'), findsOneWidget);
     expect(find.text('材料超时'), findsOneWidget);
     expect(find.byKey(const Key('evidence-submit')), findsNothing);

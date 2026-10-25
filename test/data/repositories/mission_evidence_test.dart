@@ -15,9 +15,19 @@ import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/rules/execution_time_rules.dart';
 
+class _ReadTrackingRepository extends DriftMissionRepository {
+  _ReadTrackingRepository(super.database, {required super.clock});
+  final detailReads = <String>[];
+  @override
+  Future<MissionDetail?> findDetail(String missionId) {
+    detailReads.add(missionId);
+    return super.findDetail(missionId);
+  }
+}
+
 void main() {
   late AppDatabase database;
-  late DriftMissionRepository repository;
+  late _ReadTrackingRepository repository;
   late MissionService service;
   late DateTime now;
   late DateTime deadline;
@@ -25,8 +35,8 @@ void main() {
     now = DateTime.utc(2026, 10, 24);
     deadline = now.add(const Duration(hours: 1));
     database = AppDatabase(executor: NativeDatabase.memory());
-    repository = DriftMissionRepository(database, clock: () => now);
-    service = MissionService(repository);
+    repository = _ReadTrackingRepository(database, clock: () => now);
+    service = MissionService(repository, clock: () => now);
   });
   tearDown(() async {
     await service.dispose();
@@ -119,6 +129,51 @@ void main() {
     missionId: missionId,
     items: items ?? [text('text-a')],
   );
+
+  test('纯验证策略切换保留排期版本，连带修改截止才追加版本', () async {
+    await seed('switch-policy', VerificationPolicy.selfReport);
+    final original = await detail('switch-policy');
+    Future<void> changePolicy(
+      VerificationPolicy policy,
+      DateTime? cutoff,
+    ) async {
+      final current = await detail('switch-policy');
+      await service.edit(
+        original: current,
+        title: current.mission.title,
+        objective: current.executionPlan.objective,
+        scheduledDate: current.schedule.scheduledDate,
+        plannedDurationMinutes: current.schedule.plannedDurationMinutes,
+        timePolicy: current.schedule.timePolicy,
+        verificationPolicy: policy,
+        verificationCriteria: policy == VerificationPolicy.requiredEvidence
+            ? '提交运行结果'
+            : null,
+        evidenceDeadlineAt: cutoff,
+      );
+    }
+
+    await changePolicy(VerificationPolicy.optionalEvidence, null);
+    final optional = await detail('switch-policy');
+    expect(
+      optional.mission.verificationPolicy,
+      VerificationPolicy.optionalEvidence,
+    );
+    expect(optional.schedule.id, original.schedule.id);
+    expect(optional.schedule.revisionNumber, 1);
+    await changePolicy(VerificationPolicy.requiredEvidence, deadline);
+    final required = await detail('switch-policy');
+    expect(required.schedule.revisionNumber, 2);
+    expect(required.schedule.evidenceDeadlineAt, deadline);
+    await changePolicy(VerificationPolicy.optionalEvidence, null);
+    final cleared = await detail('switch-policy');
+    expect(cleared.schedule.revisionNumber, 3);
+    expect(cleared.schedule.evidenceDeadlineAt, isNull);
+    expect(
+      await database.select(database.missionScheduleRevisions).get(),
+      hasLength(3),
+    );
+  });
 
   test('可选材料直接结束不欠交，关闭后不能追加首批材料', () async {
     await seed('optional', VerificationPolicy.optionalEvidence);
@@ -545,8 +600,13 @@ void main() {
     await seed('running', VerificationPolicy.requiredEvidence);
     await act('running', ExecutionEventType.start);
     now = deadline.add(const Duration(hours: 2));
+    repository.detailReads.clear();
     expect(await repository.reconcileEvidenceDeadlines(), 1);
+    expect(repository.detailReads, ['pending']);
+    repository.detailReads.clear();
     expect(await repository.reconcileEvidenceDeadlines(), 0);
+    // 终态历史与仍在执行的任务不再每次补算都重建详情。
+    expect(repository.detailReads, isEmpty);
     expect((await detail('not-started')).phase, MissionPhase.notStarted);
     expect((await detail('not-started')).failures, isEmpty);
     expect((await detail('paused')).phase, MissionPhase.paused);

@@ -102,8 +102,9 @@ void validateExecutionHistory(
 
 /// derivePreEndMissionPhase 意为“推导执行结束前的任务阶段”。
 ///
-/// 当前只处理待开始、执行中、已暂停、已取消。完整六阶段还需要报告、
-/// 正式材料和失败记录等关联事实；不得把此入口作为完整任务阶段查询。
+/// 这是测试/教学用的限定入口：只处理待开始、执行中、已暂停、已取消。
+/// 完整六阶段查询用 deriveMissionPhase，它还需要报告、正式材料和失败记录
+/// 等关联事实；不得把此入口作为完整任务阶段查询。
 /// 合法 END 暂抛 UnsupportedError；非法时间线仍先抛 ArgumentError。
 MissionPhase derivePreEndMissionPhase(
   Mission mission, // 调用方提供的所属任务。
@@ -113,39 +114,6 @@ MissionPhase derivePreEndMissionPhase(
   // 这里不再先校验一次，然后另外循环计算同一套动作转换。
   final state = _replayExecutionHistory(mission, events);
   return _phaseBeforeEnd(mission, state);
-}
-
-/// 当前已开放的自报任务闭环；材料策略的 END 不在此入口猜测关闭。
-/// 未完成必须有同一次 END 原子提交的失败事实，查询遇到缺失明确报错。
-MissionPhase deriveSelfReportMissionPhase(
-  Mission mission,
-  List<ExecutionEvent> events,
-  List<FailureRecord> failures,
-) {
-  // 阶段只需要任务和已保存的执行/失败事实；排期、行动步骤不参与这里的判断。
-  // 核心从未开始出发，按序号读取事件：START变运行、PAUSE变暂停、RESUME变运行。
-  final state = _replayExecutionHistory(mission, events);
-  if (state != _ExecutionState.ended) {
-    if (failures.isNotEmpty) throw const FormatException('尚未结束的任务不应有失败记录');
-    return _phaseBeforeEnd(mission, state);
-  }
-  if (mission.verificationPolicy != VerificationPolicy.selfReport) {
-    throw UnsupportedError('材料任务的结束阶段尚未接入');
-  }
-  final end = events.last;
-  final notCompleted =
-      end.userReportedResult == UserReportedResult.notCompleted;
-  if (notCompleted) {
-    if (failures.length != 1 ||
-        failures.single.missionId != mission.id ||
-        failures.single.trigger != 'USER_MARKED_NOT_COMPLETED' ||
-        failures.single.occurredAt != end.occurredAt) {
-      throw const FormatException('未完成报告缺少一致的失败记录');
-    }
-  } else if (failures.isNotEmpty) {
-    throw const FormatException('自报完成任务不应有失败记录');
-  }
-  return MissionPhase.closed;
 }
 
 MissionPhase _phaseBeforeEnd(Mission mission, _ExecutionState state) {
@@ -195,7 +163,7 @@ MissionPhase deriveMissionPhase(
       end.userReportedResult == UserReportedResult.notCompleted;
   if (notCompleted) {
     if (failures.length != 1 ||
-        failures.single.trigger != 'USER_MARKED_NOT_COMPLETED' ||
+        failures.single.trigger != userMarkedNotCompletedTrigger ||
         failures.single.missionId != mission.id ||
         failures.single.occurredAt != end.occurredAt ||
         evidence.isNotEmpty ||
@@ -297,7 +265,7 @@ MissionPhase deriveMissionPhase(
         : end.occurredAt;
     if (mission.verificationPolicy != VerificationPolicy.requiredEvidence ||
         failures.length != 1 ||
-        failures.single.trigger != 'EVIDENCE_DEADLINE_MISSED' ||
+        failures.single.trigger != evidenceDeadlineMissedTrigger ||
         failures.single.missionId != mission.id ||
         failures.single.occurredAt != expectedTime ||
         failures.single.createdAt.isBefore(expectedTime)) {
@@ -309,7 +277,7 @@ MissionPhase deriveMissionPhase(
 }
 
 // 唯一的时间线推演核心；名称前的 _ 表示仅本规则库内部使用。
-// 返回 _ExecutionState 执行状态，供上面两个入口按各自用途使用。
+// 返回 _ExecutionState 执行状态，供上面的查询入口按各自用途使用。
 // 包含合法 END 的历史也能校验通过；是否支持完整阶段由查询入口单独说明。
 _ExecutionState _replayExecutionHistory(
   Mission mission,

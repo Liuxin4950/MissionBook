@@ -80,7 +80,7 @@ void main() {
               utf8.decode(zip.findFile('manifest.json')!.content as List<int>),
             )
             as Map;
-    expect(manifest['databaseVersion'], 9);
+    expect(manifest['databaseVersion'], db.schemaVersion);
     final sql = utf8.decode(zip.findFile('database.sql')!.content as List<int>);
     final restored = AppDatabase(
       executor: NativeDatabase.memory(setup: (raw) => raw.execute(sql)),
@@ -103,13 +103,15 @@ void main() {
         await restored.customSelect('PRAGMA foreign_key_check').get(),
         isEmpty,
       );
+      // 还原库的 user_version 应与当前 schemaVersion 一致；
+      // 备份 SQL 末尾写入的就是它（见 database_backup_service）。
       expect(
         (await restored.customSelect('PRAGMA user_version').get())
             .single
             .data
             .values
             .single,
-        8,
+        db.schemaVersion,
       );
       final sourceSchema = await db
           .customSelect(

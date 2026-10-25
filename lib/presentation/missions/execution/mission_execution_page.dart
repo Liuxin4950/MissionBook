@@ -35,10 +35,11 @@ class MissionExecutionPage extends StatefulWidget {
   final MissionService service;
   final DateTime Function() clock;
   @override
-  State<MissionExecutionPage> createState() => MissionExecutionPageState();
+  State<MissionExecutionPage> createState() => _MissionExecutionPageState();
 }
 
-class MissionExecutionPageState extends State<MissionExecutionPage>
+// 状态类只被本页 createState 创建；没有 GlobalKey 跨组件调用，保持私有。
+class _MissionExecutionPageState extends State<MissionExecutionPage>
     with WidgetsBindingObserver {
   late final MissionActionController _action;
   Timer? _timer;
@@ -343,7 +344,8 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
       widget.clock().toUtc(),
     );
     final original = detail.schedule.plannedDurationMinutes;
-    final budget = original + times.extensionMinutes;
+    // 当前预算 = 原计划 + 已增加额度；口径统一走领域时间规则，页面不再手写加法。
+    final budget = currentBudget(times, original).inMinutes;
     final theme = Theme.of(context);
     if (!_report &&
         detail.events.isNotEmpty &&
@@ -388,8 +390,8 @@ class MissionExecutionPageState extends State<MissionExecutionPage>
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  detail.events.last.userReportedResult ==
-                          UserReportedResult.completed
+                  // 是否报告完成的判定口径统一走 MissionDetail 的派生属性。
+                  detail.endReportedCompleted
                       ? '执行已结束 · 用户报告已完成'
                       : '执行已结束 · 用户报告未完成',
                   style: theme.textTheme.bodyMedium?.copyWith(

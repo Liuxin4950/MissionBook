@@ -24,8 +24,13 @@ import '../evidence/evidence_image_service.dart';
 /// 本类负责输入检查与业务对象组织；SQL、行转换和事务保存仍由仓储完成。
 class MissionService {
   // 调用者传入仓储对象，保存到下面的 repository 属性。
-  MissionService(this.repository, {EvidenceImageService? images})
-    : _images = images {
+  // clock 提供业务时刻（创建时间、编辑时间）；测试注入可控时钟固定时间断言。
+  MissionService(
+    this.repository, {
+    EvidenceImageService? images,
+    DateTime Function() clock = DateTime.now,
+  }) : _images = images,
+       _clock = clock {
     // 创建共享服务时准备时区资料，多个业务方法共用。
     tzdata.initializeTimeZones();
   }
@@ -33,6 +38,8 @@ class MissionService {
   // 只依赖仓储接口；这里不需要知道 Companion 或数据库表。
   final MissionRepository repository;
   final EvidenceImageService? _images;
+  // 所有“现在几点”都从这里取，不再散落 DateTime.now()，时钟回拨测试才可控。
+  final DateTime Function() _clock;
   Future<void>? _imageInitialization;
   final _preparedImageKeys = <String>{}; // 当前会话准备的副本，删除草稿不能删正式引用。
   Future<void>? _attachmentCommitQueue;
@@ -398,7 +405,8 @@ class MissionService {
       evidenceDeadlineAt: verificationPolicy == null
           ? original.schedule.evidenceDeadlineAt
           : evidenceDeadlineAt?.toUtc(),
-      changedAt: DateTime.now().toUtc(),
+      // 编辑时刻取服务注入时钟；执行事件时刻由仓储时钟在事务内提供。
+      changedAt: _clock().toUtc(),
     );
     await repository.edit(
       original: original,
@@ -536,10 +544,10 @@ class MissionService {
     );
 
     // 校验通过后再生成编号、取得当前时间。
-    // 同一次创建只取一次 now，让三个对象的创建时间一致。
+    // 同一次创建只取一次 now，让三个对象的创建时间一致；统一到毫秒精度。
     final missionId = uuid.v4();
     final now = DateTime.fromMillisecondsSinceEpoch(
-      DateTime.now().millisecondsSinceEpoch,
+      _clock().toUtc().millisecondsSinceEpoch,
       isUtc: true,
     );
 
@@ -622,7 +630,7 @@ class MissionService {
       throw ArgumentError('任务编号不能为空');
     }
 
-    // await 等仓储读完，再把完整结果交回详情页；这里不创建或修改任务。
+    // 先通过业务入口补记必要的材料超时事实，再读取完整快照；阶段 getter 本身不写库。
     await reconcileEvidenceDeadlines();
     final detail = await repository.findDetail(missionId);
     if (detail != null) {

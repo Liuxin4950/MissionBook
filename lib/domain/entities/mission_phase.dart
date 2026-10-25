@@ -1,8 +1,9 @@
 /// MissionPhase 意为“任务阶段”，是根据事实计算出的结果，不保存为表字段。
 ///
-/// 枚举列全现行规格的六阶段，不代表所有阶段的查询与操作已经实现。
-/// 当前 derivePreEndMissionPhase 只计算结束前四阶段，不能用于完整任务查询。
-/// 结束后的两个阶段要结合报告、正式材料及失败记录等事实判断。
+/// 完整六阶段由 deriveMissionPhase 推导（生产入口：MissionDetail.phase 与
+/// 仓储 findDetail），需要执行事件、失败记录、正式材料和最新排期全部事实。
+/// derivePreEndMissionPhase 只计算结束前四阶段，是测试/教学用的限定入口，
+/// 不能用于完整任务查询；结束后的两个阶段要结合报告、正式材料及失败记录判断。
 enum MissionPhase {
   notStarted, // 待开始：没有执行事件，也没有取消。
   running, // 执行中：最近一次开始或继续之后没有暂停、结束。

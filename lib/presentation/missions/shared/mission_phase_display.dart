@@ -1,5 +1,6 @@
 import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/entities/failure_record.dart';
 
 /// 页面、列表和读屏使用同一套阶段文案；这些文字不作为数据库事实保存。
 String phaseLabel(MissionPhase phase) => switch (phase) {
@@ -15,7 +16,7 @@ String phaseLabel(MissionPhase phase) => switch (phase) {
 String evidenceStatusLabel(MissionDetail detail) {
   if (detail.phase == MissionPhase.evidencePending) return '执行已结束 · 待提交材料';
   if (detail.failures.any(
-    (failure) => failure.trigger == 'EVIDENCE_DEADLINE_MISSED',
+    (failure) => failure.trigger == evidenceDeadlineMissedTrigger,
   )) {
     return '材料超时';
   }

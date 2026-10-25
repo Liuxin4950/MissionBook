@@ -4,7 +4,6 @@ import 'drift_goal_repository.dart';
 
 import 'package:drift/drift.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
-import 'package:timezone/timezone.dart' as tz;
 
 import '../../domain/entities/execution_plan.dart';
 import '../../domain/entities/mission.dart';
@@ -298,35 +297,14 @@ class DriftMissionRepository implements MissionRepository {
     );
   }
 
+  /// 补算等“作用于全部任务”的入口用空编号的空更新取得全局写锁，
+  /// 与任何单任务的提交/执行串行，双方不会各按旧快照同时判定超时。
+  Future<void> _acquireGlobalWrite() => _acquireWrite('');
+
   DateTime _now() => DateTime.fromMillisecondsSinceEpoch(
     clock().toUtc().millisecondsSinceEpoch,
     isUtc: true,
   );
-
-  void _validateEvidencePlan(
-    VerificationPolicy policy,
-    String? criteria,
-    MissionScheduleRevision schedule,
-  ) {
-    validateEvidenceRequirement(
-      policy: policy,
-      criteria: criteria,
-      schedule: schedule,
-    );
-    if (policy == VerificationPolicy.requiredEvidence &&
-        schedule.timePolicy == TimePolicy.flexible) {
-      final parts = schedule.scheduledDate.split('-');
-      final start = tz.TZDateTime(
-        tz.getLocation(schedule.timeZone),
-        int.parse(parts[0]),
-        int.parse(parts[1]),
-        int.parse(parts[2]),
-      );
-      if (!schedule.evidenceDeadlineAt!.isAfter(start)) {
-        throw ArgumentError('材料截止必须晚于所选计划日期的起点');
-      }
-    }
-  }
 
   /// 超时发生时刻和实际落库时刻分开；晚 END 不能制造早于 END 的关闭时间。
   Future<void> _insertEvidenceDeadline(
@@ -342,9 +320,10 @@ class DriftMissionRepository implements MissionRepository {
         .into(database.failureRecords)
         .insert(
           FailureRecordsCompanion.insert(
-            id: '${end.id}:evidence-deadline',
+            // 编号由 END 事件派生，同一次 END 的超时事实永远只有一个编号。
+            id: evidenceDeadlineFailureId(end.id),
             missionId: detail.mission.id,
-            trigger: 'EVIDENCE_DEADLINE_MISSED',
+            trigger: evidenceDeadlineMissedTrigger,
             occurredAt: occurredAt.millisecondsSinceEpoch,
             createdAt: now.millisecondsSinceEpoch,
           ),
@@ -393,7 +372,7 @@ class DriftMissionRepository implements MissionRepository {
       final detail = await findDetail(submission.missionId);
       if (detail == null) throw const EvidenceConflict('任务不存在，请刷新');
       if (detail.failures.any(
-        (item) => item.trigger == 'EVIDENCE_DEADLINE_MISSED',
+        (item) => item.trigger == evidenceDeadlineMissedTrigger,
       )) {
         return EvidenceSubmissionResult.deadlineMissed;
       }
@@ -523,19 +502,16 @@ class DriftMissionRepository implements MissionRepository {
 
   @override
   Future<int> reconcileEvidenceDeadlines() => database.transaction(() async {
-    // 整次补算先取得写权限，提交材料和超时不会同时依据旧快照成功。
-    await _acquireWrite('');
-    final rows =
-        await (database.select(database.missions)..where(
-              (table) =>
-                  table.verificationPolicy.equals('REQUIRED_EVIDENCE') &
-                  table.cancelledAt.isNull(),
-            ))
-            .get();
+    // 整次补算先取得全局写权限，提交材料和超时不会同时依据旧快照成功。
+    await _acquireGlobalWrite();
     final now = _now();
+    // 先筛已报告完成、未提交/关闭且绑定排期已到期的强制材料任务，
+    // 排除历史终态与旧排期，避免每次查询都逐一重建已关闭任务的详情。
+    final candidates = await _findDeadlineCandidateIds(now);
     var count = 0;
-    for (final row in rows) {
-      final detail = (await findDetail(row.id))!;
+    for (final id in candidates) {
+      final detail = (await findDetail(id))!;
+      // 真实阶段仍由唯一推演核心判定：只有“待补材料且已过截止”才写超时事实。
       if (detail.phase == MissionPhase.evidencePending &&
           !now.isBefore(detail.schedule.evidenceDeadlineAt!)) {
         await _insertEvidenceDeadline(detail, detail.events.last, now);
@@ -544,6 +520,39 @@ class DriftMissionRepository implements MissionRepository {
     }
     return count;
   });
+
+  /// 只筛可能需要补算的事实组合，最终阶段和写入仍在原事务内按领域规则复查。
+  Future<List<String>> _findDeadlineCandidateIds(DateTime now) async {
+    final rows = await database
+        .customSelect(
+          'SELECT m.id AS mission_id FROM execution_events e '
+          'JOIN missions m ON m.id = e.mission_id '
+          "JOIN execution_events s ON s.mission_id = m.id AND s.type = 'START' "
+          'JOIN mission_schedule_revisions r ON r.id = s.schedule_revision_id '
+          'WHERE m.verification_policy = ? '
+          'AND m.cancelled_at IS NULL '
+          'AND m.evidence_waived_at IS NULL '
+          "AND e.type = 'END' AND e.user_reported_result = 'COMPLETED' "
+          'AND r.evidence_deadline_at IS NOT NULL '
+          'AND r.evidence_deadline_at <= ? '
+          'AND NOT EXISTS (SELECT 1 FROM evidence_records v WHERE v.mission_id = m.id) '
+          'AND NOT EXISTS (SELECT 1 FROM failure_records f WHERE f.mission_id = m.id)',
+          variables: [
+            // 筛选条件与任务表保存的策略文本一致（见 missionToCompanion）。
+            Variable.withString('REQUIRED_EVIDENCE'),
+            Variable.withInt(now.millisecondsSinceEpoch),
+          ],
+          readsFrom: {
+            database.missions,
+            database.missionScheduleRevisions,
+            database.executionEvents,
+            database.evidenceRecords,
+            database.failureRecords,
+          },
+        )
+        .get();
+    return [for (final row in rows) row.read<String>('mission_id')];
+  }
 
   @override
   Future<List<MissionDetail>> findPendingEvidence() async =>
@@ -594,7 +603,7 @@ class DriftMissionRepository implements MissionRepository {
             await (database.select(database.failureRecords)..where(
                   (table) =>
                       table.missionId.equals(event.missionId) &
-                      table.trigger.equals('USER_MARKED_NOT_COMPLETED'),
+                      table.trigger.equals(userMarkedNotCompletedTrigger),
                 ))
                 .get();
         final oldFailure = failures.isEmpty ? null : failures.single;
@@ -671,9 +680,9 @@ class DriftMissionRepository implements MissionRepository {
             .into(database.failureRecords)
             .insert(
               FailureRecordsCompanion.insert(
-                id: '${event.id}:failure',
+                id: userMarkedFailureId(event.id),
                 missionId: event.missionId,
-                trigger: 'USER_MARKED_NOT_COMPLETED',
+                trigger: userMarkedNotCompletedTrigger,
                 occurredAt: now.millisecondsSinceEpoch,
                 createdAt: now.millisecondsSinceEpoch,
                 userReasonCategory: Value(category),
@@ -806,7 +815,12 @@ class DriftMissionRepository implements MissionRepository {
       final newCriteria = verificationPolicy == null
           ? original.executionPlan.verificationCriteria
           : verificationCriteria;
-      _validateEvidencePlan(newPolicy, newCriteria, schedule);
+      // 材料配置规则只有一份（domain/rules/evidence_rules.dart），事务内复查同一口径。
+      validateEvidenceRequirement(
+        policy: newPolicy,
+        criteria: newCriteria,
+        schedule: schedule,
+      );
       final policyChanged = newPolicy != current.mission.verificationPolicy;
       final criteriaChanged =
           newCriteria != current.executionPlan.verificationCriteria;
@@ -937,7 +951,7 @@ class DriftMissionRepository implements MissionRepository {
       if (events.isNotEmpty) {
         throw const ExecutionConflict('任务已经开始，请通过结束报告选择未完成');
       }
-      final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+      final now = _now().millisecondsSinceEpoch;
       final update = database.update(missions);
       update.where(
         (table) => table.id.equals(missionId) & table.cancelledAt.isNull(),
@@ -1015,10 +1029,11 @@ class DriftMissionRepository implements MissionRepository {
       final evidence = List<Evidence>.unmodifiable(
         evidenceRows.map(evidenceFromRow),
       );
-      _validateEvidencePlan(
-        mission.verificationPolicy,
-        executionPlan.verificationCriteria,
-        schedule,
+      // 读取时同步复查材料配置口径；数据被外部损坏时明确报错，不默默显示。
+      validateEvidenceRequirement(
+        policy: mission.verificationPolicy,
+        criteria: executionPlan.verificationCriteria,
+        schedule: schedule,
       );
       deriveMissionPhase(mission, events, failures, evidence, schedule);
       // ⑤ 打包成一次查询结果，不新增一张详情表，也不向数据库写入阶段。
@@ -1128,10 +1143,11 @@ class DriftMissionRepository implements MissionRepository {
     if (mission.cancelledAt != null || mission.evidenceWaivedAt != null) {
       throw ArgumentError('新任务不能已经取消');
     }
-    _validateEvidencePlan(
-      mission.verificationPolicy,
-      executionPlan.verificationCriteria,
-      initialSchedule,
+    // 材料配置（含截止下限）在保存前按 domain 规则校验一次。
+    validateEvidenceRequirement(
+      policy: mission.verificationPolicy,
+      criteria: executionPlan.verificationCriteria,
+      schedule: initialSchedule,
     );
     if ((mission.sourceMissionId == null) != (mission.relationType == null) ||
         mission.sourceMissionId == mission.id) {

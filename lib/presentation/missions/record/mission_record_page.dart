@@ -1,19 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
-import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/failure_record.dart';
 import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/entities/mission.dart';
+import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/rules/execution_time_rules.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_visibility.dart';
 import '../shared/mission_execution_display.dart';
 import '../shared/mission_retry_button.dart';
 import '../detail/mission_detail_page.dart';
 import '../evidence/mission_evidence_section.dart';
 
-/// 已结束的只读记录。使用 END 冻结的时长，绝不显示运行圆环或执行控制。
+/// 执行事实只读，时长按 END 冻结；材料区继续按事实提供提交与修正操作。
 class MissionRecordPage extends StatefulWidget {
   const MissionRecordPage({
     super.key,
@@ -35,10 +39,102 @@ class MissionRecordPage extends StatefulWidget {
   State<MissionRecordPage> createState() => _MissionRecordPageState();
 }
 
-class _MissionRecordPageState extends State<MissionRecordPage> {
-  MissionDetail get detail => widget.detail;
-  MissionService get service => widget.service;
+class _MissionRecordPageState extends State<MissionRecordPage>
+    with WidgetsBindingObserver {
+  // 页面打开后事实仍可能变化（例如别的入口补记了材料超时）。
+  // 与今天/历史/详情页一致：订阅服务通知并重读详情，不长期保留过期快照。
+  late MissionDetail _detail;
+  StreamSubscription<void>? _changes;
+  Timer? _deadlineTimer;
+  bool _appVisible = true;
+  bool _tickerEnabled = true;
+  bool _refreshing = false;
+  bool _refreshAgain = false;
+  String? _refreshError;
   bool _openingDetails = false;
+
+  MissionDetail get detail => _detail;
+  MissionService get service => widget.service;
+
+  @override
+  void initState() {
+    super.initState();
+    _detail = widget.detail;
+    WidgetsBinding.instance.addObserver(this);
+    _appVisible = isAppVisible(WidgetsBinding.instance.lifecycleState);
+    // (_) 忽略没有业务数据的通知；它只表示“事实有变化，请重读”。
+    _changes = widget.service.changes.listen((_) => _refresh());
+    unawaited(_refresh());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _tickerEnabled = TickerMode.valuesOf(context).enabled;
+    _configureDeadlineTimer();
+  }
+
+  void _configureDeadlineTimer() {
+    final waiting =
+        detail.phase == MissionPhase.evidencePending &&
+        detail.mission.verificationPolicy ==
+            VerificationPolicy.requiredEvidence;
+    if (!_appVisible || !_tickerEnabled || !waiting) {
+      _deadlineTimer?.cancel();
+      _deadlineTimer = null;
+    } else {
+      // 截止自然到达时没有提交通知；可见记录页主动走服务补算，不自行改阶段。
+      _deadlineTimer ??= Timer.periodic(const Duration(seconds: 30), (_) {
+        unawaited(_refresh());
+      });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appVisible = isAppVisible(state);
+    _configureDeadlineTimer();
+    if (state == AppLifecycleState.resumed) unawaited(_refresh());
+  }
+
+  @override
+  void dispose() {
+    unawaited(_changes?.cancel());
+    _deadlineTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    if (!mounted) return;
+    if (_refreshing) {
+      // 查询期间到来的通知合并为下一次读取，避免旧查询覆盖较新的事实。
+      _refreshAgain = true;
+      return;
+    }
+    _refreshing = true;
+    try {
+      do {
+        _refreshAgain = false;
+        try {
+          final latest = await service.findDetail(missionId: detail.mission.id);
+          if (!mounted) return;
+          if (latest == null) throw StateError('任务不存在');
+          setState(() {
+            _detail = latest;
+            _refreshError = null;
+          });
+        } catch (_) {
+          if (!mounted) return;
+          // 保留可读快照和材料组件，明确提示读取失败并提供重试。
+          setState(() => _refreshError = '记录刷新失败，当前显示上次读取的内容');
+        }
+        _configureDeadlineTimer();
+      } while (mounted && _refreshAgain);
+    } finally {
+      _refreshing = false;
+    }
+  }
 
   Future<void> _viewDetails() async {
     if (_openingDetails) return;
@@ -68,8 +164,13 @@ class _MissionRecordPageState extends State<MissionRecordPage> {
       detail.events,
       detail.events.last.occurredAt,
     );
-    final completed =
-        detail.events.last.userReportedResult == UserReportedResult.completed;
+    // “用户报告：已完成”只看 END 的自报结果；判定口径统一走 MissionDetail。
+    final completed = detail.endReportedCompleted;
+    // 实际超时 = max(Focus − 原计划, 0)，由领域时间规则统一计算，页面只展示。
+    final overtime = actualOvertime(
+      times,
+      detail.schedule.plannedDurationMinutes,
+    );
     return Scaffold(
       key: const Key('mission-record-page'),
       appBar: AppTopBar(
@@ -86,6 +187,13 @@ class _MissionRecordPageState extends State<MissionRecordPage> {
         listKey: const Key('mission-record-list'),
         footer: MissionRetryButton(source: detail, service: service),
         children: [
+          if (_refreshError != null)
+            TextButton.icon(
+              key: const Key('record-refresh-retry'),
+              onPressed: _refresh,
+              icon: const Icon(Icons.refresh),
+              label: Text('$_refreshError，点击重试'),
+            ),
           MissionHeading(detail: detail, showPhase: false),
           const SizedBox(height: 20),
           Align(
@@ -162,11 +270,8 @@ class _MissionRecordPageState extends State<MissionRecordPage> {
             children: [
               Text('总经过 ${executionDuration(times.elapsed)}'),
               Text('暂停时长 ${executionDuration(times.paused)}'),
-              if (times.focus >
-                  Duration(minutes: detail.schedule.plannedDurationMinutes))
-                Text(
-                  '实际超时 ${executionDuration(times.focus - Duration(minutes: detail.schedule.plannedDurationMinutes))}',
-                ),
+              if (overtime > Duration.zero)
+                Text('实际超时 ${executionDuration(overtime)}'),
             ],
           ),
           for (final failure in detail.failures)
