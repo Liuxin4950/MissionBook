@@ -7,6 +7,7 @@ import '../../../core/theme/colors.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../widgets/app_visibility.dart';
+import '../../widgets/adaptive_sheet.dart';
 import '../shared/mission_phase_display.dart';
 import 'timetable_layout.dart';
 
@@ -85,9 +86,8 @@ class _MissionTimetableState extends State<MissionTimetable>
   Future<void> _showConflicts([TimetableSlot? selected]) async {
     final conflicts = selected?.conflicts ?? _layout.conflicts;
     final visibleIds = _layout.slots.map((slot) => slot.id).toSet();
-    final target = await showModalBottomSheet<MissionDetail>(
+    final target = await showAdaptiveSheet<MissionDetail>(
       context: context,
-      isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
         child: SizedBox(

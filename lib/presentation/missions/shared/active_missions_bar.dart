@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/detail_pane.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/mission_phase.dart';
@@ -59,11 +60,11 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
     if (_opening) return;
     _opening = true;
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) =>
-              MissionExecutionPage(detail: detail, service: widget.service),
-        ),
+      await openDetailPane<void>(
+        context,
+        label: '任务执行',
+        builder: (_) =>
+            MissionExecutionPage(detail: detail, service: widget.service),
       );
     } finally {
       _opening = false;

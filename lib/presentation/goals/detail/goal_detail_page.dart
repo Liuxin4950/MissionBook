@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/detail_pane.dart';
 
 import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
@@ -75,10 +76,10 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
     if (_busy) return;
     _busy = true;
     try {
-      await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          builder: (_) => GoalFormPage(service: widget.service, goal: goal),
-        ),
+      await openDetailPane<String>(
+        context,
+        label: '编辑目标',
+        builder: (_) => GoalFormPage(service: widget.service, goal: goal),
       );
     } finally {
       _busy = false;

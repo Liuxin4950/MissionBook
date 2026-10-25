@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../widgets/detail_pane.dart';
 
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/app_layout.dart';
@@ -144,12 +145,12 @@ class _MissionRecordPageState extends State<MissionRecordPage>
       return;
     }
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => MissionDetailPage.fromRecord(
-            missionId: detail.mission.id,
-            missionService: service,
-          ),
+      await openDetailPane<void>(
+        context,
+        label: '任务详情',
+        builder: (_) => MissionDetailPage.fromRecord(
+          missionId: detail.mission.id,
+          missionService: service,
         ),
       );
     } finally {

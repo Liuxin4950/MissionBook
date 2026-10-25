@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'application/missions/mission_service.dart';
@@ -17,6 +19,14 @@ import 'application/backup/backup_service.dart';
 import 'data/backup/database_backup_service.dart';
 import 'data/settings/app_device_platform.dart';
 import 'application/settings/app_device.dart';
+import 'application/notifications/app_notification_service.dart';
+import 'data/notifications/android_notification_dispatcher.dart';
+import 'data/notifications/notification_dispatcher.dart';
+import 'data/notifications/reminder_store.dart';
+import 'data/notifications/windows_notification_dispatcher.dart';
+import 'domain/notifications/reminder_request.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:path_provider/path_provider.dart';
 import 'presentation/launch/launch_page.dart';
 
 /// 装配本地数据库、任务仓储和业务入口，并提供全局主题及中文界面。
@@ -37,6 +47,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   late final GoalService _goalService; // 目标服务，与任务服务共用数据库。
   late final BackupExporter _backupService;
   late final AppDevice _device;
+  // 系统提醒编排：装配层只负责创建与生命周期；业务规则在应用服务里。
+  AppNotificationService? _notifications;
+  bool _notificationsReady = false;
+  final _pendingNotificationResponses = <NotificationResponse>[];
   StreamSubscription<void>? _deadlineChanges;
   Timer? _deadlineTimer;
   bool _checkingDeadlines = false;
@@ -72,6 +86,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       readAttachment: _missionService.readEvidenceImage,
     );
     _device = createAppDevice();
+    unawaited(_initNotifications());
     // 首帧先呈现品牌页；短暂过渡后才装载四个主页面。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -91,8 +106,110 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     _foreground = state == AppLifecycleState.resumed;
     if (_foreground) {
       unawaited(_scheduleDeadlineCheck());
+      // 回到前台对账一次提醒调度（§7.1：只整理提醒，不写业务事实）。
+      unawaited(_refreshNotifications());
     } else {
       _deadlineTimer?.cancel();
+    }
+  }
+
+  /// 装配系统提醒：按平台选分发端，提醒偏好存应用支持目录（不进备份）。
+  Future<void> _initNotifications() async {
+    try {
+      await _configureNotifications();
+    } catch (error, stack) {
+      debugPrint('通知初始化失败：$error\n$stack');
+      _notifications?.reportFailure('提醒暂不可用，延后偏好可能未恢复，请稍后重试');
+    }
+  }
+
+  Future<void> _refreshNotifications() async {
+    try {
+      await _notifications?.refresh();
+    } catch (error) {
+      _notifications?.reportFailure('提醒更新失败，请稍后重试：$error');
+    }
+  }
+
+  Future<void> _handleNotificationResponse(
+    NotificationResponse response,
+  ) async {
+    if (!mounted ||
+        response.notificationResponseType ==
+            NotificationResponseType.notificationDismissed) {
+      return;
+    }
+    if (_notifications == null || !_notificationsReady) {
+      _pendingNotificationResponses.add(response);
+      return;
+    }
+    final request = ReminderRequest.fromPayload(response.payload);
+    if (request == null) return;
+    await _notifications!.handleAction(
+      request,
+      actionId:
+          response.notificationResponseType ==
+              NotificationResponseType.selectedNotificationAction
+          ? response.actionId ?? ''
+          : '',
+    );
+  }
+
+  Future<void> _configureNotifications() async {
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(
+      settings: const InitializationSettings(
+        android: AndroidInitializationSettings('app_icon'),
+        windows: WindowsInitializationSettings(
+          appName: 'Mission Book',
+          appUserModelId: 'chat.liuxin.mission_book',
+          guid: '6f1b2c8e-4a5d-4f3a-9c0b-2e7d8a1b3c4d',
+        ),
+      ),
+      onDidReceiveNotificationResponse: _handleNotificationResponse,
+    );
+    final NotificationDispatcher dispatcher;
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      dispatcher = AndroidNotificationDispatcher(
+        plugin: plugin,
+        // 精确提醒权限按 capabilities.exactAlarms 定档（N3.1 实测补全）。
+        exactAlarmsAllowed: (await _device.capabilities()).exactAlarms ?? false,
+      );
+    } else if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      // 当前 exe 直发形态无法撤销调度项，实测/MSIX 定档后再调整。
+      dispatcher = WindowsNotificationDispatcher(
+        plugin: plugin,
+        canCancelScheduled: false,
+      );
+    } else {
+      dispatcher = const UnsupportedNotificationDispatcher();
+    }
+    final dir = await getApplicationSupportDirectory();
+    final notifications = AppNotificationService(
+      missions: _missionService,
+      store: ReminderStore(File('${dir.path}/reminders.json')),
+      dispatcher: dispatcher,
+      now: DateTime.now,
+    );
+    if (!mounted) {
+      await notifications.dispose();
+      return;
+    }
+    setState(() => _notifications = notifications);
+    await notifications.start();
+    _notificationsReady = true;
+    // 进程由通知启动时，初始化回调不会补发启动意图，必须显式读取。
+    final launch = await plugin.getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp == true &&
+        launch?.notificationResponse != null) {
+      _pendingNotificationResponses.add(launch!.notificationResponse!);
+    }
+    final pending = List<NotificationResponse>.of(
+      _pendingNotificationResponses,
+    );
+    _pendingNotificationResponses.clear();
+    for (final response in pending) {
+      await _handleNotificationResponse(response);
     }
   }
 
@@ -159,6 +276,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                 goalService: _goalService,
                 backupService: _backupService,
                 device: _device,
+                notifications: _notifications,
               )
             : const LaunchPage(key: ValueKey('launch-page')),
       ),
@@ -171,6 +289,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     _deadlineTimer?.cancel();
     _launchTimer?.cancel();
     unawaited(_deadlineChanges?.cancel());
+    unawaited(_notifications?.dispose());
     // Flutter 移除这个 State 时调用 dispose。
     // close 返回 Future，但 dispose 不能等待异步完成；
     // unawaited 明确表示在这里发起关闭，不等待它。

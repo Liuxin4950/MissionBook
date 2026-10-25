@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../../widgets/detail_pane.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
@@ -83,6 +84,16 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
     _detail = widget.detail;
     _expanded = widget.initiallyExpanded;
     if (_canSubmit) unawaited(_prepareImages());
+  }
+
+  // 材料区放进右栏后，切换/清空前由右栏导航先问 prepareToLeave：
+  // 未提交草稿的丢弃确认与系统返回共用，不允许绕过。
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    DetailPaneScope.maybeOf(
+      context,
+    )?.registerTopGuard(prepareToLeave, route: ModalRoute.of(context));
   }
 
   @override

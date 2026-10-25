@@ -1,6 +1,7 @@
 import 'package:mission_book/presentation/missions/detail/mission_detail_content.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/detail_pane.dart';
 
 import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/mission_detail.dart';
@@ -214,11 +215,11 @@ class _MissionDetailPageState extends State<MissionDetailPage>
       _cancelError = null;
     });
     try {
-      final saved = await Navigator.of(context).push<bool>(
-        MaterialPageRoute<bool>(
-          builder: (context) =>
-              MissionFormPage.edit(missionService: service, detail: detail),
-        ),
+      final saved = await openDetailPane<bool>(
+        context,
+        label: '编辑任务',
+        builder: (context) =>
+            MissionFormPage.edit(missionService: service, detail: detail),
       );
       if (!mounted || request != _cancelRequest) return;
       // 包括放弃草稿后的返回：编辑期间任务也可能被其他操作取消或改动。
@@ -287,12 +288,13 @@ class _MissionDetailPageState extends State<MissionDetailPage>
           ModalRoute.of(context)?.isCurrent != true) {
         return;
       }
-      Navigator.of(context).pushReplacement<void, void>(
-        MaterialPageRoute(
-          settings: RouteSettings(
-            name:
-                '/missions/${detail.mission.id}/${executing ? 'execution' : 'record'}',
-          ),
+      // 同步转场（等价原 pushReplacement），返回值由目标页自行承担。
+      unawaited(
+        openDetailPane<void>(
+          context,
+          label: executing ? '任务执行' : '执行记录',
+          // 从执行/记录返回不再回到本详情页。
+          replace: DetailPaneReplace.top,
           builder: (_) => executing
               ? MissionExecutionPage(
                   detail: detail,
@@ -313,15 +315,12 @@ class _MissionDetailPageState extends State<MissionDetailPage>
     setState(() => _isOpeningRecord = true);
     try {
       // 此处用 push 保留详情；记录页返回时，原计划、Why和方案仍在原阅读上下文。
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          settings: RouteSettings(
-            name: '/missions/${detail.mission.id}/record',
-          ),
-          builder: (_) => MissionRecordPage.fromTaskDetail(
-            detail: detail,
-            service: widget.missionService,
-          ),
+      await openDetailPane<void>(
+        context,
+        label: '执行记录',
+        builder: (_) => MissionRecordPage.fromTaskDetail(
+          detail: detail,
+          service: widget.missionService,
         ),
       );
     } finally {

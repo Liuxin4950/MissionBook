@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/detail_pane.dart';
 
 import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/mission_detail.dart';
@@ -23,12 +24,12 @@ class _MissionRetryButtonState extends State<MissionRetryButton> {
     if (_opening) return;
     setState(() => _opening = true);
     try {
-      final saved = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          builder: (_) => MissionFormPage.retry(
-            missionService: widget.service,
-            source: widget.source,
-          ),
+      final saved = await openDetailPane<bool>(
+        context,
+        label: '再次尝试',
+        builder: (_) => MissionFormPage.retry(
+          missionService: widget.service,
+          source: widget.source,
         ),
       );
       if (mounted && saved == true) {

@@ -9,6 +9,8 @@ import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/mission.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/detail_pane.dart';
+import '../../widgets/page_footer_bar.dart';
 import 'mission_schedule_fields.dart';
 import 'mission_evidence_fields.dart';
 import 'mission_ownership_field.dart';
@@ -498,6 +500,45 @@ class _MissionFormPageState extends State<MissionFormPage> {
     return local.toUtc();
   }
 
+  // 表单放进右栏后，切换/清空前由右栏导航先问这里；
+  // 与顶部返回、系统返回共用同一套未保存确认，不允许绕过。
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    DetailPaneScope.maybeOf(
+      context,
+    )?.registerTopGuard(_mayLeave, route: ModalRoute.of(context));
+  }
+
+  // 只回答“现在能不能离开”：不负责关闭，由调用方决定怎么离开。
+  Future<bool> _mayLeave() async {
+    if (_isSaving || _isClosing) return false;
+    if (_isCreated || !_hasChanges) return true;
+    FocusScope.of(context).unfocus();
+    return _confirmDiscard();
+  }
+
+  // 未保存输入的丢弃确认；await 等待用户选择：明确放弃返回 true，其余 false。
+  Future<bool> _confirmDiscard() async {
+    _isClosing = true;
+    try {
+      return await AppConfirmDialog.show(
+        context: context,
+        title: _isEditing ? '放弃本次修改？' : '放弃本次填写？',
+        message: _pendingCreation != null
+            ? '这次保存结果尚未确认，任务可能已经保存。建议先检查保存结果；现在离开会丢弃当前页面输入。'
+            : _isEditing
+            ? '返回后，本次修改不会保存，原任务保持不变。'
+            : '返回后，已填写的内容不会保存。',
+        cancelText: '继续填写',
+        confirmText: _isEditing ? '放弃修改' : '放弃填写',
+      );
+    } finally {
+      // 无论用户怎样关闭确认框，都允许后续再次处理返回。
+      _isClosing = false;
+    }
+  }
+
   // 顶部返回与系统返回共用此方法。Future<void> 表示异步结束后不提供结果值。
   Future<void> _requestClose() async {
     // 保存期间不离开，确认框已打开时也不重复弹框。
@@ -510,35 +551,12 @@ class _MissionFormPageState extends State<MissionFormPage> {
     FocusScope.of(context).unfocus();
     // 只读取文字判断是否有输入，不保存任务。|| 表示任一条件成立即可。
     // 日期默认就有内容，因此与初始值比较；只修改或清空日期也需要确认丢弃。
-    final hasInput = _hasChanges;
-
-    if (hasInput) {
+    if (_hasChanges) {
       // 公共框只返回选择；是否关闭表单仍由本页判断。
-      // await 等待用户选择：明确放弃返回 true，其余关闭方式返回 false。
-      _isClosing = true;
-      bool discard;
-      try {
-        discard = await AppConfirmDialog.show(
-          context: context,
-          title: _isEditing ? '放弃本次修改？' : '放弃本次填写？',
-          message: _pendingCreation != null
-              ? '这次保存结果尚未确认，任务可能已经保存。建议先检查保存结果；现在离开会丢弃当前页面输入。'
-              : _isEditing
-              ? '返回后，本次修改不会保存，原任务保持不变。'
-              : '返回后，已填写的内容不会保存。',
-          cancelText: '继续填写',
-          confirmText: _isEditing ? '放弃修改' : '放弃填写',
-        );
-      } finally {
-        // 无论用户怎样关闭确认框，都允许后续再次处理返回。
-        _isClosing = false;
-      }
+      final discard = await _confirmDiscard();
       // await 期间页面可能被移除；mounted 表示 State 是否仍挂在组件树上。
-      // ! 表示取反；仅在页面仍存在且明确选择 true 时继续，false 保留输入。
-      // discard 在 if (hasInput) 内声明，所以这个判断也必须放在同一作用域中。
-      if (!mounted || discard != true) {
-        return;
-      }
+      // 仅在页面仍存在且明确选择 true 时继续，false 保留输入。
+      if (!mounted || discard != true) return;
     }
 
     // 没有输入会跳过上面的判断，因此在最终使用 context 前再检查一次。
@@ -563,240 +581,235 @@ class _MissionFormPageState extends State<MissionFormPage> {
         if (didPop) return;
         await _requestClose();
       },
-      child: Scaffold(
-        appBar: AppTopBar(
-          title: _isEditing ? '编辑任务' : (_isRetry ? '再次尝试' : '新建任务'),
-          // 公共组件只负责点击分发，丢弃确认仍使用本页原来的方法。
-          onBack: _requestClose,
-          canGoBack: !_isSaving,
-        ),
-        body: SafeArea(
-          bottom: false,
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppLayout.maxPageWidth,
-              ),
-              // 本页只有少量固定输入区，整体滚动保留所有输入组件。
-              // 展开日历或滚到材料设置后，标题等离屏字段仍保持同一编辑状态。
-              child: SingleChildScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: AppLayout.pagePadding(context),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    MissionOwnershipField(
-                      service: widget.missionService,
-                      value: _ownership,
-                      enabled: _canEdit,
-                      onChanged: (value) => setState(() {
-                        _ownership = value;
-                        _errorText = null;
-                      }),
-                    ),
-                    _MissionFormFields(
-                      titleController: _titleController,
-                      enabled: _canEdit,
-                    ),
-                    MissionScheduleFields(
-                      selectedDate: _scheduledDate,
-                      dateText: _dateText,
-                      timePolicy: _timePolicy,
-                      timeZone: _timeZone,
-                      durationController: _durationController,
-                      hourController: _hourController,
-                      minuteController: _minuteController,
-                      enabled: _canEdit,
-                      onDateChanged: (date) => setState(() {
-                        final changed = date != _scheduledDate;
-                        _scheduledDate = date;
-                        if (changed &&
-                            _verificationPolicy ==
-                                VerificationPolicy.requiredEvidence) {
-                          // 改排期日时，按新日期重设并展示截止；保存后才形成新排期版本。
-                          _setDefaultEvidenceDeadline();
-                        }
-                        _errorText = null;
-                      }),
-                      onTimePolicyChanged: (policy) => setState(() {
-                        _timePolicy = policy;
-                        _errorText = null;
-                      }),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Divider(height: 1),
-                    ),
-                    MissionEvidenceFields(
-                      policy: _verificationPolicy,
-                      criteriaController: _criteriaController,
-                      deadlineDate: _deadlineDate,
-                      suggestedDate: _scheduledDate,
-                      hourController: _deadlineHourController,
-                      minuteController: _deadlineMinuteController,
-                      timeZone: _timeZone,
-                      enabled: _canEdit,
-                      onPolicyChanged: (policy) => setState(() {
-                        _verificationPolicy = policy;
-                        if (policy == VerificationPolicy.requiredEvidence &&
-                            _deadlineDate == null) {
-                          _setDefaultEvidenceDeadline();
-                        }
-                        _errorText = null;
-                      }),
-                      onDateChanged: (date) => setState(() {
-                        _deadlineDate = DateTime.utc(
-                          date.year,
-                          date.month,
-                          date.day,
-                        );
-                        _errorText = null;
-                      }),
-                    ),
-                    const SizedBox(height: 12),
-                    const Divider(height: 1),
-                    ExpansionTile(
-                      key: const Key('mission-plan-toggle'),
-                      tilePadding: EdgeInsets.zero,
-                      title: Text(
-                        '详细方案（选填）',
-                        style: Theme.of(context).textTheme.titleMedium,
+      child: CallbackShortcuts(
+        // 桌面键盘（Phase 4）：Esc 与顶部返回同一关闭守卫；Ctrl+Enter 保存。
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): _requestClose,
+          const SingleActivator(LogicalKeyboardKey.enter, control: true): _save,
+        },
+        child: Scaffold(
+          appBar: AppTopBar(
+            title: _isEditing ? '编辑任务' : (_isRetry ? '再次尝试' : '新建任务'),
+            // 公共组件只负责点击分发，丢弃确认仍使用本页原来的方法。
+            onBack: _requestClose,
+            canGoBack: !_isSaving,
+          ),
+          body: SafeArea(
+            bottom: false,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppLayout.maxPageWidth,
+                ),
+                // 本页只有少量固定输入区，整体滚动保留所有输入组件。
+                // 展开日历或滚到材料设置后，标题等离屏字段仍保持同一编辑状态。
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: AppLayout.pagePadding(context),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      MissionOwnershipField(
+                        service: widget.missionService,
+                        value: _ownership,
+                        enabled: _canEdit,
+                        onChanged: (value) => setState(() {
+                          _ownership = value;
+                          _errorText = null;
+                        }),
                       ),
-                      initiallyExpanded: _isEditing || _isRetry,
-                      shape: const Border(),
-                      collapsedShape: const Border(),
-                      expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (widget.retrySource != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: Text(
-                              '来自任务：${widget.retrySource!.mission.title}\n保存后创建新的尝试，原记录保持不变。',
-                            ),
-                          ),
-                        MissionInputLabel(
-                          label: '具体目标',
-                          child: TextField(
-                            key: const Key('mission-objective'),
-                            controller: _objectiveController,
-                            enabled: _canEdit,
-                            minLines: 2,
-                            maxLines: 4,
-                            onChanged: (_) => _objectiveEdited = true,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                            decoration: missionInputDecoration(
-                              context,
-                              hint: '默认使用任务名称，可以单独修改',
-                            ),
-                          ),
+                      _MissionFormFields(
+                        titleController: _titleController,
+                        enabled: _canEdit,
+                      ),
+                      MissionScheduleFields(
+                        selectedDate: _scheduledDate,
+                        dateText: _dateText,
+                        timePolicy: _timePolicy,
+                        timeZone: _timeZone,
+                        durationController: _durationController,
+                        hourController: _hourController,
+                        minuteController: _minuteController,
+                        enabled: _canEdit,
+                        onDateChanged: (date) => setState(() {
+                          final changed = date != _scheduledDate;
+                          _scheduledDate = date;
+                          if (changed &&
+                              _verificationPolicy ==
+                                  VerificationPolicy.requiredEvidence) {
+                            // 改排期日时，按新日期重设并展示截止；保存后才形成新排期版本。
+                            _setDefaultEvidenceDeadline();
+                          }
+                          _errorText = null;
+                        }),
+                        onTimePolicyChanged: (policy) => setState(() {
+                          _timePolicy = policy;
+                          _errorText = null;
+                        }),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Divider(height: 1),
+                      ),
+                      MissionEvidenceFields(
+                        policy: _verificationPolicy,
+                        criteriaController: _criteriaController,
+                        deadlineDate: _deadlineDate,
+                        suggestedDate: _scheduledDate,
+                        hourController: _deadlineHourController,
+                        minuteController: _deadlineMinuteController,
+                        timeZone: _timeZone,
+                        enabled: _canEdit,
+                        onPolicyChanged: (policy) => setState(() {
+                          _verificationPolicy = policy;
+                          if (policy == VerificationPolicy.requiredEvidence &&
+                              _deadlineDate == null) {
+                            _setDefaultEvidenceDeadline();
+                          }
+                          _errorText = null;
+                        }),
+                        onDateChanged: (date) => setState(() {
+                          _deadlineDate = DateTime.utc(
+                            date.year,
+                            date.month,
+                            date.day,
+                          );
+                          _errorText = null;
+                        }),
+                      ),
+                      const SizedBox(height: 12),
+                      const Divider(height: 1),
+                      ExpansionTile(
+                        key: const Key('mission-plan-toggle'),
+                        tilePadding: EdgeInsets.zero,
+                        title: Text(
+                          '详细方案（选填）',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        const SizedBox(height: 20),
-                        MissionInputLabel(
-                          label: '任务说明',
-                          child: TextField(
-                            key: const Key('mission-description'),
-                            controller: _descriptionController,
-                            enabled: _canEdit,
-                            minLines: 2,
-                            maxLines: 5,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                            decoration: missionInputDecoration(
-                              context,
-                              hint: '补充本次行动的范围',
+                        initiallyExpanded: _isEditing || _isRetry,
+                        shape: const Border(),
+                        collapsedShape: const Border(),
+                        expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (widget.retrySource != null)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: Text(
+                                '来自任务：${widget.retrySource!.mission.title}\n保存后创建新的尝试，原记录保持不变。',
+                              ),
+                            ),
+                          MissionInputLabel(
+                            label: '具体目标',
+                            child: TextField(
+                              key: const Key('mission-objective'),
+                              controller: _objectiveController,
+                              enabled: _canEdit,
+                              minLines: 2,
+                              maxLines: 4,
+                              onChanged: (_) => _objectiveEdited = true,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                              decoration: missionInputDecoration(
+                                context,
+                                hint: '默认使用任务名称，可以单独修改',
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        MissionInputLabel(
-                          label: '为什么做',
-                          child: TextField(
-                            key: const Key('mission-why'),
-                            controller: _whyController,
-                            enabled: _canEdit,
-                            minLines: 2,
-                            maxLines: 5,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                            decoration: missionInputDecoration(
-                              context,
-                              hint: '这次行动对你有什么意义',
+                          const SizedBox(height: 20),
+                          MissionInputLabel(
+                            label: '任务说明',
+                            child: TextField(
+                              key: const Key('mission-description'),
+                              controller: _descriptionController,
+                              enabled: _canEdit,
+                              minLines: 2,
+                              maxLines: 5,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                              decoration: missionInputDecoration(
+                                context,
+                                hint: '补充本次行动的范围',
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(height: 20),
+                          MissionInputLabel(
+                            label: '为什么做',
+                            child: TextField(
+                              key: const Key('mission-why'),
+                              controller: _whyController,
+                              enabled: _canEdit,
+                              minLines: 2,
+                              maxLines: 5,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                              decoration: missionInputDecoration(
+                                context,
+                                hint: '这次行动对你有什么意义',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        // 主操作独立于滚动内容；键盘出现时跟随 Scaffold 上移，内容仍可滚动。
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Center(
-            heightFactor: 1,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppLayout.maxPageWidth,
-              ),
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppLayout.horizontalPadding(context),
-                  12,
-                  AppLayout.horizontalPadding(context),
-                  16 + MediaQuery.viewInsetsOf(context).bottom,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_errorText != null) ...[
-                      Semantics(
-                        liveRegion: true,
-                        child: Text(
-                          _errorText!,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodyMedium?.copyWith(color: colors.error),
-                        ),
+          // 主操作独立于滚动内容；键盘出现时跟随 Scaffold 上移，内容仍可滚动。
+          bottomNavigationBar: SafeArea(
+            top: false,
+            child: PageFooterBar(
+              topPadding: 12,
+              bottomPadding: 16 + MediaQuery.viewInsetsOf(context).bottom,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_errorText != null) ...[
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        _errorText!,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyMedium?.copyWith(color: colors.error),
                       ),
-                      const SizedBox(height: 12),
-                    ],
-                    if (_isCreated) ...[
-                      Semantics(
-                        liveRegion: true,
-                        child: Text(
-                          '任务已创建，可返回今天页',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    if (_pendingCreation != null && !_isCreated)
-                      TextButton(
-                        onPressed: _isSaving ? null : _checkCreation,
-                        child: const Text('检查保存结果'),
-                      ),
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(56),
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
-                        ),
-                        textStyle: Theme.of(context).textTheme.labelLarge,
-                      ),
-                      onPressed: (!_isSaving && !_isCreated && !_isClosing)
-                          ? _save
-                          : null,
-                      child: Text(createButtonLabel),
                     ),
+                    const SizedBox(height: 12),
                   ],
-                ),
+                  if (_isCreated) ...[
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        '任务已创建，可返回今天页',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (_pendingCreation != null && !_isCreated)
+                    TextButton(
+                      onPressed: _isSaving ? null : _checkCreation,
+                      child: const Text('检查保存结果'),
+                    ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(56),
+                      shape: const StadiumBorder(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                      textStyle: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    onPressed: (!_isSaving && !_isCreated && !_isClosing)
+                        ? _save
+                        : null,
+                    child: Text(createButtonLabel),
+                  ),
+                ],
               ),
             ),
           ),

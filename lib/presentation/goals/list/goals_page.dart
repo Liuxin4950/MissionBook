@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/detail_pane.dart';
 
 import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/app_layout.dart';
+import '../../widgets/adaptive_sheet.dart';
 import '../../widgets/app_page_header.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal.dart';
@@ -36,9 +38,8 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     _opening = true;
     String? choice;
     try {
-      choice = await showModalBottomSheet<String>(
+      choice = await showAdaptiveSheet<String>(
         context: context,
-        useSafeArea: true,
         constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
         builder: (sheetContext) => SafeArea(
           child: Padding(
@@ -157,10 +158,10 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     if (_opening) return;
     _opening = true;
     try {
-      final id = await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          builder: (_) => GoalFormPage(service: widget.service),
-        ),
+      final id = await openDetailPane<String>(
+        context,
+        label: '新建目标',
+        builder: (_) => GoalFormPage(service: widget.service),
       ); // 表单保存成功才返回目标编号，放弃填写返回 null。
       if (!mounted) return;
       if (id != null) _selectStatus(GoalStatus.active);
@@ -181,13 +182,13 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     if (_opening) return;
     _opening = true;
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => GoalDetailPage(
-            service: widget.service,
-            goalId: goal.id,
-            missionService: widget.missionService,
-          ),
+      await openDetailPane<void>(
+        context,
+        label: '目标详情',
+        builder: (_) => GoalDetailPage(
+          service: widget.service,
+          goalId: goal.id,
+          missionService: widget.missionService,
         ),
       );
     } finally {

@@ -2,6 +2,7 @@ import 'package:mission_book/presentation/missions/execution/execution_widgets.d
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../widgets/detail_pane.dart';
 
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/app_layout.dart';
@@ -30,10 +31,14 @@ class MissionExecutionPage extends StatefulWidget {
     required this.detail,
     required this.service,
     this.clock = DateTime.now,
+    this.openEndConfirm = false,
   });
   final MissionDetail detail;
   final MissionService service;
   final DateTime Function() clock;
+
+  // 通知「停止」动作直达：打开后直接呈现 END 确认区（§7.2 停止后的第二步）。
+  final bool openEndConfirm;
   @override
   State<MissionExecutionPage> createState() => _MissionExecutionPageState();
 }
@@ -67,6 +72,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
   @override
   void initState() {
     super.initState();
+    _report = widget.openEndConfirm;
     _action = MissionActionController(
       detail: widget.detail,
       service: widget.service,
@@ -157,14 +163,13 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
       return;
     }
     _navigating = true;
-    Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute(
-        settings: RouteSettings(
-          name: '/missions/${_action.detail.mission.id}/record',
-        ),
-        builder: (_) =>
-            MissionRecordPage(detail: _action.detail, service: widget.service),
-      ),
+    // 结束后本执行页就地变成记录工作区，返回不再回到执行视图。
+    openDetailPane<void>(
+      context,
+      label: '执行记录',
+      replace: DetailPaneReplace.top,
+      builder: (_) =>
+          MissionRecordPage(detail: _action.detail, service: widget.service),
     );
   }
 
@@ -172,12 +177,12 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
     if (_showingDetails || _action.locked || _report) return;
     _showingDetails = true;
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => MissionDetailPage.fromExecution(
-            missionId: _action.detail.mission.id,
-            missionService: widget.service,
-          ),
+      await openDetailPane<void>(
+        context,
+        label: '任务详情',
+        builder: (_) => MissionDetailPage.fromExecution(
+          missionId: _action.detail.mission.id,
+          missionService: widget.service,
         ),
       );
       if (mounted) await _refresh();
@@ -411,12 +416,12 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute(
-                builder: (_) => MissionRecordPage(
-                  detail: _action.detail,
-                  service: widget.service,
-                ),
+            onPressed: () => openDetailPane<void>(
+              context,
+              label: '执行记录',
+              builder: (_) => MissionRecordPage(
+                detail: _action.detail,
+                service: widget.service,
               ),
             ),
             icon: const Icon(Icons.receipt_long_outlined),

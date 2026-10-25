@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/detail_pane.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal.dart';
@@ -52,32 +53,39 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
     if (_opening) return;
     setState(() => _opening = true);
     try {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) {
-            if (detail == null) {
-              return MissionFormPage.forGoal(
-                missionService: widget.service,
-                goal: widget.goal,
-                node: widget.node,
-              );
-            }
-            if (detail.phase == MissionPhase.running ||
-                detail.phase == MissionPhase.paused) {
-              return MissionExecutionPage(
-                detail: detail,
-                service: widget.service,
-              );
-            }
-            if (detail.phase == MissionPhase.closed) {
-              return MissionRecordPage(detail: detail, service: widget.service);
-            }
-            return MissionDetailPage(
-              missionId: detail.mission.id,
+      await openDetailPane<void>(
+        context,
+        label: detail == null
+            ? '新建任务'
+            : detail.phase == MissionPhase.running ||
+                  detail.phase == MissionPhase.paused
+            ? '任务执行'
+            : detail.phase == MissionPhase.closed
+            ? '执行记录'
+            : '任务详情',
+        builder: (_) {
+          if (detail == null) {
+            return MissionFormPage.forGoal(
               missionService: widget.service,
+              goal: widget.goal,
+              node: widget.node,
             );
-          },
-        ),
+          }
+          if (detail.phase == MissionPhase.running ||
+              detail.phase == MissionPhase.paused) {
+            return MissionExecutionPage(
+              detail: detail,
+              service: widget.service,
+            );
+          }
+          if (detail.phase == MissionPhase.closed) {
+            return MissionRecordPage(detail: detail, service: widget.service);
+          }
+          return MissionDetailPage(
+            missionId: detail.mission.id,
+            missionService: widget.service,
+          );
+        },
       );
     } finally {
       if (mounted) {

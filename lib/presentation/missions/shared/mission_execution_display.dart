@@ -8,6 +8,7 @@ import '../../../core/theme/colors.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/mission_phase.dart';
+import '../../widgets/page_footer_bar.dart';
 import 'mission_action_controller.dart';
 import 'mission_phase_display.dart';
 
@@ -141,15 +142,7 @@ class MissionPageBody extends StatelessWidget {
                       maxHeight: available.maxHeight * .5,
                     ),
                     child: SingleChildScrollView(
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          AppLayout.horizontalPadding(context),
-                          8,
-                          AppLayout.horizontalPadding(context),
-                          16,
-                        ),
-                        child: SizedBox(width: double.infinity, child: footer),
-                      ),
+                      child: PageFooterBar(child: footer!),
                     ),
                   ),
               ],

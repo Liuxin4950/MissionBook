@@ -8,6 +8,7 @@ import '../../core/theme/app_layout.dart';
 import '../../core/theme/colors.dart';
 import '../widgets/app_page_header.dart';
 import '../widgets/app_top_bar.dart';
+import '../widgets/detail_pane.dart';
 import '../missions/form/mission_form_page.dart';
 import '../missions/detail/mission_detail_page.dart';
 import '../missions/execution/mission_execution_page.dart';
@@ -190,12 +191,12 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     if (_isOpeningCreate) return;
     _isOpeningCreate = true;
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (context) => MissionFormPage(
-            missionService: widget.missionService,
-            initialScheduledDate: display.scheduleDateKey(_selectedDate),
-          ),
+      await openDetailPane<void>(
+        context,
+        label: '新建任务',
+        builder: (context) => MissionFormPage(
+          missionService: widget.missionService,
+          initialScheduledDate: display.scheduleDateKey(_selectedDate),
         ),
       );
     } finally {
@@ -224,19 +225,19 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       final executing =
           detail.phase == MissionPhase.running ||
           detail.phase == MissionPhase.paused;
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (context) => executing
-              ? MissionExecutionPage(
-                  detail: detail,
-                  service: widget.missionService,
-                  clock: widget.clock,
-                )
-              : MissionDetailPage(
-                  missionId: missionId,
-                  missionService: widget.missionService,
-                ),
-        ),
+      await openDetailPane<void>(
+        context,
+        label: executing ? '任务执行' : '任务详情',
+        builder: (context) => executing
+            ? MissionExecutionPage(
+                detail: detail,
+                service: widget.missionService,
+                clock: widget.clock,
+              )
+            : MissionDetailPage(
+                missionId: missionId,
+                missionService: widget.missionService,
+              ),
       );
     } catch (error) {
       if (mounted) {
@@ -256,15 +257,15 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     if (_isOpeningSchedules) return;
     _isOpeningSchedules = true;
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (context) => TodayPage(
-            missionService: widget.missionService,
-            goalService: widget.goalService,
-            clock: widget.clock,
-            initialDate: _selectedDate,
-            fullSchedule: true,
-          ),
+      await openDetailPane<void>(
+        context,
+        label: '当日日程',
+        builder: (context) => TodayPage(
+          missionService: widget.missionService,
+          goalService: widget.goalService,
+          clock: widget.clock,
+          initialDate: _selectedDate,
+          fullSchedule: true,
         ),
       );
     } finally {
@@ -277,13 +278,13 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     if (_isOpeningAllMissions) return;
     _isOpeningAllMissions = true;
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => AllMissionsPage(
-            missions: widget.missionService,
-            goals: widget.goalService,
-            clock: widget.clock,
-          ),
+      await openDetailPane<void>(
+        context,
+        label: '全部任务',
+        builder: (_) => AllMissionsPage(
+          missions: widget.missionService,
+          goals: widget.goalService,
+          clock: widget.clock,
         ),
       );
     } finally {
@@ -296,11 +297,11 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     if (_isOpeningRecord) return;
     _isOpeningRecord = true;
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) =>
-              MissionRecordPage(detail: detail, service: widget.missionService),
-        ),
+      await openDetailPane<void>(
+        context,
+        label: '执行记录',
+        builder: (_) =>
+            MissionRecordPage(detail: detail, service: widget.missionService),
       );
     } finally {
       _isOpeningRecord = false;

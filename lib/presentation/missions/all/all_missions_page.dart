@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../widgets/detail_pane.dart';
 
 import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
@@ -126,22 +127,25 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     if (_opening) return;
     _opening = true;
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) =>
-              detail.phase == MissionPhase.running ||
-                  detail.phase == MissionPhase.paused
-              ? MissionExecutionPage(detail: detail, service: widget.missions)
-              : detail.phase == MissionPhase.cancelled
-              ? MissionDetailPage.fromHistory(
-                  missionId: detail.mission.id,
-                  missionService: widget.missions,
-                )
-              : MissionDetailPage(
-                  missionId: detail.mission.id,
-                  missionService: widget.missions,
-                ),
-        ),
+      await openDetailPane<void>(
+        context,
+        label: detail.phase == MissionPhase.running ||
+                detail.phase == MissionPhase.paused
+            ? '任务执行'
+            : '任务详情',
+        builder: (_) =>
+            detail.phase == MissionPhase.running ||
+                detail.phase == MissionPhase.paused
+            ? MissionExecutionPage(detail: detail, service: widget.missions)
+            : detail.phase == MissionPhase.cancelled
+            ? MissionDetailPage.fromHistory(
+                missionId: detail.mission.id,
+                missionService: widget.missions,
+              )
+            : MissionDetailPage(
+                missionId: detail.mission.id,
+                missionService: widget.missions,
+              ),
       );
     } finally {
       _opening = false;

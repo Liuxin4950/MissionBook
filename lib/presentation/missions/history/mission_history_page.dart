@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../../widgets/detail_pane.dart';
 
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/app_layout.dart';
@@ -89,15 +90,15 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
     if (_opening) return;
     _opening = true;
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => _cancelled
-              ? MissionDetailPage.fromHistory(
-                  missionId: detail.mission.id,
-                  missionService: widget.service,
-                )
-              : MissionRecordPage(detail: detail, service: widget.service),
-        ),
+      await openDetailPane<void>(
+        context,
+        label: _cancelled ? '任务详情' : '执行记录',
+        builder: (_) => _cancelled
+            ? MissionDetailPage.fromHistory(
+                missionId: detail.mission.id,
+                missionService: widget.service,
+              )
+            : MissionRecordPage(detail: detail, service: widget.service),
       );
     } finally {
       _opening = false;

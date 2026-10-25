@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/mission_ownership.dart';
 import '../../../core/theme/colors.dart';
+import '../../widgets/adaptive_sheet.dart';
 
 /// 任务表单的可选归属；默认独立创建，用户点击后才读取目标和节点供选择。
 class MissionOwnershipField extends StatefulWidget {
@@ -52,10 +53,8 @@ class _MissionOwnershipFieldState extends State<MissionOwnershipField> {
       final choices = widget.service
           .findGoalChoices(); // 这次打开重新读取，避免使用之前缓存的归档状态。
       choices.ignore();
-      final selected = await showModalBottomSheet<MissionOwnership>(
+      final selected = await showAdaptiveSheet<MissionOwnership>(
         context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
         builder: (context) => FractionallySizedBox(
           heightFactor: .85,
           child: Column(

@@ -4,6 +4,7 @@ import '../../../application/goals/goal_service.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal_node.dart';
+import '../../widgets/adaptive_sheet.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_text_field.dart';
 
@@ -32,10 +33,8 @@ class GoalNodeEditor extends StatefulWidget {
     String? parentNodeId,
     GoalNode? node,
   }) async {
-    final saved = await showModalBottomSheet<bool>(
+    final saved = await showAdaptiveSheet<bool>(
       context: context,
-      isScrollControlled: true, // 键盘弹出或文字放大时，编辑框可以使用更多高度并滚动。
-      useSafeArea: true,
       isDismissible: false, // 离开统一经过下面的关闭入口，以保留未保存内容提示。
       enableDrag: false,
       constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),

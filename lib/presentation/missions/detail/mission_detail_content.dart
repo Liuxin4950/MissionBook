@@ -5,6 +5,7 @@ import '../../../core/theme/colors.dart';
 import '../../../domain/entities/mission.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../shared/mission_execution_display.dart';
+import '../../widgets/page_footer_bar.dart';
 import '../../../domain/entities/mission_schedule_revision.dart';
 
 /// 详情正文和底部操作布局；只展示页面传入的事实与操作反馈。
@@ -170,13 +171,7 @@ class MissionDetailContent extends StatelessWidget {
               if (footer != null)
                 SafeArea(
                   top: false,
-                  minimum: EdgeInsets.fromLTRB(
-                    AppLayout.horizontalPadding(context),
-                    8,
-                    AppLayout.horizontalPadding(context),
-                    16,
-                  ),
-                  child: SizedBox(width: double.infinity, child: footer),
+                  child: PageFooterBar(child: footer!),
                 ),
             ],
           ),

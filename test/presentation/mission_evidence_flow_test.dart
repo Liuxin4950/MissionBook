@@ -26,6 +26,7 @@ import 'package:mission_book/presentation/missions/execution/mission_execution_p
 import 'package:mission_book/presentation/missions/history/mission_history_page.dart';
 import 'package:mission_book/presentation/missions/record/mission_record_page.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
+import 'package:mission_book/presentation/widgets/detail_pane.dart';
 
 late Uint8List _png;
 
@@ -861,7 +862,17 @@ void main() {
     final saved = (await repository.findDetail(detail.mission.id))!;
     expect(saved.phase, MissionPhase.closed);
     expect(saved.evidence.single.type, EvidenceType.image);
-    expect(routes.pushes, greaterThan(1)); // 列表进入独立任务路由。
+    // 独立任务路由现在属于右栏Navigator，根路由只保留外壳。
+    final pane = tester.widget<DetailPaneHost>(find.byType(DetailPaneHost));
+    expect(routes.pushes, 1);
+    expect(pane.controller.entries, hasLength(1));
+    expect(pane.controller.entries.single.label, '执行记录');
+    expect(
+      Navigator.of(
+        tester.element(find.byKey(const Key('mission-evidence-workspace'))),
+      ),
+      same(pane.controller.navigatorKey.currentState),
+    );
     expect(find.byKey(const Key('mission-evidence-workspace')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

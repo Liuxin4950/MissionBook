@@ -104,9 +104,12 @@ class MissionService {
     String? userReasonCategory,
     String? userReasonText,
     bool? submitOptionalEvidence,
+    String? commandId,
   }) {
     return ExecutionCommand(
-      id: uuid.v4(),
+      // 通知动作带固定候选事件 id：同一动作的重复回调共用同一身份，
+      // 重试按领域规则幂等；前台按钮不传时照旧每次生成新身份。
+      id: commandId ?? uuid.v4(),
       missionId: detail.mission.id,
       expectedSequence: detail.lastSequence,
       type: type,
