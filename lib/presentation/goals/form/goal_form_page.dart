@@ -228,15 +228,6 @@ class _GoalFormPageState extends State<GoalFormPage> {
                         widget.goal == null ? '你希望做到什么？' : '调整目标内容',
                         style: theme.textTheme.headlineSmall,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.goal == null
-                            ? '先确定一个方向，说明和原因可以慢慢补充。'
-                            : '只修改这项目标的名称、说明和原因。',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
                       const SizedBox(height: 28),
                       AppTextField(
                         key: const Key('goal-title-input'),

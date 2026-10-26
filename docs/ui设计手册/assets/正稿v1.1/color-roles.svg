@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="400" viewBox="0 0 1000 400">
+<rect width="1000" height="400" fill="#FFFFFF"/>
+<text x="28" y="38" font-family="sans-serif" font-size="22" fill="#282E2A">MissionBook · color roles · 2026-10-26</text>
+<rect x="28" y="65" width="164" height="90" rx="12" fill="#F7F8F5" stroke="#E0E5DD"/>
+<text x="28" y="180" font-family="sans-serif" font-size="15" fill="#282E2A">Background</text>
+<text x="28" y="203" font-family="monospace" font-size="14" fill="#626A64">#F7F8F5</text>
+<rect x="224" y="65" width="164" height="90" rx="12" fill="#FFFFFF" stroke="#E0E5DD"/>
+<text x="224" y="180" font-family="sans-serif" font-size="15" fill="#282E2A">Surface</text>
+<text x="224" y="203" font-family="monospace" font-size="14" fill="#626A64">#FFFFFF</text>
+<rect x="420" y="65" width="164" height="90" rx="12" fill="#F0F2EE" stroke="#E0E5DD"/>
+<text x="420" y="180" font-family="sans-serif" font-size="15" fill="#282E2A">Muted surface</text>
+<text x="420" y="203" font-family="monospace" font-size="14" fill="#626A64">#F0F2EE</text>
+<rect x="616" y="65" width="164" height="90" rx="12" fill="#244D3D" stroke="#E0E5DD"/>
+<text x="616" y="180" font-family="sans-serif" font-size="15" fill="#282E2A">Primary</text>
+<text x="616" y="203" font-family="monospace" font-size="14" fill="#626A64">#244D3D</text>
+<rect x="812" y="65" width="164" height="90" rx="12" fill="#EEF2EC" stroke="#E0E5DD"/>
+<text x="812" y="180" font-family="sans-serif" font-size="15" fill="#282E2A">Primary soft</text>
+<text x="812" y="203" font-family="monospace" font-size="14" fill="#626A64">#EEF2EC</text>
+<rect x="28" y="229" width="164" height="90" rx="12" fill="#D9F28B" stroke="#E0E5DD"/>
+<text x="28" y="344" font-family="sans-serif" font-size="15" fill="#282E2A">Accent</text>
+<text x="28" y="367" font-family="monospace" font-size="14" fill="#626A64">#D9F28B</text>
+<rect x="224" y="229" width="164" height="90" rx="12" fill="#F1F6E6" stroke="#E0E5DD"/>
+<text x="224" y="344" font-family="sans-serif" font-size="15" fill="#282E2A">Accent soft</text>
+<text x="224" y="367" font-family="monospace" font-size="14" fill="#626A64">#F1F6E6</text>
+<rect x="420" y="229" width="164" height="90" rx="12" fill="#282E2A" stroke="#E0E5DD"/>
+<text x="420" y="344" font-family="sans-serif" font-size="15" fill="#282E2A">Text</text>
+<text x="420" y="367" font-family="monospace" font-size="14" fill="#626A64">#282E2A</text>
+<rect x="616" y="229" width="164" height="90" rx="12" fill="#626A64" stroke="#E0E5DD"/>
+<text x="616" y="344" font-family="sans-serif" font-size="15" fill="#282E2A">Secondary text</text>
+<text x="616" y="367" font-family="monospace" font-size="14" fill="#626A64">#626A64</text>
+<rect x="812" y="229" width="164" height="90" rx="12" fill="#E0E5DD" stroke="#E0E5DD"/>
+<text x="812" y="344" font-family="sans-serif" font-size="15" fill="#282E2A">Divider</text>
+<text x="812" y="367" font-family="monospace" font-size="14" fill="#626A64">#E0E5DD</text>
+</svg>

@@ -382,7 +382,8 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.primary,
+              color: AppColors.card,
+              border: Border.all(color: AppColors.hairline),
               borderRadius: BorderRadius.circular(24),
             ),
             child: Column(
@@ -392,14 +393,14 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                   children: [
                     const Icon(
                       Icons.timelapse_rounded,
-                      color: AppColors.accent,
+                      color: AppColors.primary,
                       size: 20,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       '本次专注',
                       style: theme.textTheme.labelLarge?.copyWith(
-                        color: AppColors.onPrimary,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ],
@@ -407,8 +408,8 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                 const SizedBox(height: 8),
                 Text(
                   focusDuration(times.focus),
-                  style: theme.textTheme.displaySmall?.copyWith(
-                    color: AppColors.onPrimary,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -419,7 +420,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                       ? '执行已结束 · 用户报告已完成'
                       : '执行已结束 · 用户报告未完成',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onPrimary,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ],

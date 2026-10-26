@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../widgets/app_illustration.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../application/missions/mission_service.dart';
@@ -443,6 +444,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
           onOpenAll: _openAllSchedules,
           onCreate: _openCreate,
           fullList: widget.fullSchedule,
+          illustrateEmpty: _missions.isEmpty,
         );
         if (wide) {
           schedule = AppSectionCard(
@@ -472,8 +474,14 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                     child: Center(
                       child: Column(
                         children: [
-                          const Icon(Icons.event_available_outlined, size: 32),
-                          const SizedBox(height: 16),
+                          if (_missions.isEmpty) ...[
+                            AppIllustration(
+                              asset: 'assets/illustrations/day-plan.png',
+                              width: 192,
+                              height: 128,
+                            ),
+                            const SizedBox(height: 16),
+                          ],
                           const Text('这一天还没有固定任务'),
                           const SizedBox(height: 16),
                           FilledButton.icon(
@@ -881,7 +889,6 @@ class _MissionDetailLink extends StatelessWidget {
         type: MaterialType.transparency,
         child: InkWell(
           onTap: onTap,
-          excludeFromSemantics: true,
           borderRadius: BorderRadius.circular(18),
           child: child,
         ),

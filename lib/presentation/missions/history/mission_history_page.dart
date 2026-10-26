@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../../widgets/app_illustration.dart';
 import '../../widgets/detail_pane.dart';
 
 import '../../../application/missions/mission_service.dart';
@@ -120,13 +121,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
             children: [
               Padding(
                 padding: AppLayout.pagePadding(context).copyWith(bottom: 0),
-                child: AppPageHeader(
-                  title: '历史',
-                  subtitle: Text(
-                    '回看执行与材料记录',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
+                child: const AppPageHeader(title: '历史'),
               ),
               Padding(
                 padding: EdgeInsets.symmetric(
@@ -198,8 +193,31 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                           if (records.isEmpty)
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 32),
-                              child: Text(
-                                _cancelled ? '还没有取消的任务' : '还没有执行结束的记录',
+                              child: Column(
+                                children: [
+                                  if (!_cancelled) ...[
+                                    AppIllustration(
+                                      asset:
+                                          'assets/illustrations/history-pages.png',
+                                      width: 192,
+                                      height: 144,
+                                    ),
+                                    const SizedBox(height: 20),
+                                  ],
+                                  Text(
+                                    _cancelled ? '还没有取消的任务' : '还没有执行结束的记录',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                  if (!_cancelled) ...[
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      '报告 · 专注 · 材料',
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           for (final day in {

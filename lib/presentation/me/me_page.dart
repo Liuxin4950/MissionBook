@@ -170,7 +170,6 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
             children: [
               AppPageHeader(
                 title: '我的',
-                subtitle: Text('记录自己的每一次行动', style: text.bodyMedium),
                 action: IconButton.filledTonal(
                   key: const Key('me-settings'),
                   tooltip: '设置',

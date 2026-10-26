@@ -77,7 +77,6 @@ void main() {
 
   testWidgets('粘贴校验预览完整树，确认之前零写入，确认后原位显示正式目标', (tester) async {
     await open(tester);
-    await tap(tester, 'goal-create');
     await tap(tester, 'goal-create-import');
     await tester.enterText(find.byKey(const Key('goal-import-input')), outline);
     await tap(tester, 'goal-import-preview');
@@ -94,7 +93,6 @@ void main() {
 
   testWidgets('非法字段指出位置，取消文件选择保留粘贴内容，放弃预览不写入', (tester) async {
     await open(tester);
-    await tap(tester, 'goal-create');
     await tap(tester, 'goal-create-import');
     await tester.enterText(
       find.byKey(const Key('goal-import-input')),
@@ -110,7 +108,6 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, 650));
     await tester.pumpAndSettle();
     await tap(tester, 'goal-create');
-    await tap(tester, 'goal-create-manual');
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     await tap(tester, 'goal-import-confirm');
@@ -120,7 +117,6 @@ void main() {
   testWidgets('从文件读取后走同一预览与确认流程', (tester) async {
     picker.bytes = Uint8List.fromList(utf8.encode(outline));
     await open(tester);
-    await tap(tester, 'goal-create');
     await tap(tester, 'goal-create-import');
     await tap(tester, 'goal-import-file');
     expect(find.text('完整大纲 · 3 个节点'), findsOneWidget);
@@ -132,7 +128,6 @@ void main() {
     final repository = _UncertainImportRepository(db);
     goals = GoalService(repository, filePicker: picker);
     await open(tester);
-    await tap(tester, 'goal-create');
     await tap(tester, 'goal-create-import');
     await tester.enterText(find.byKey(const Key('goal-import-input')), outline);
     await tap(tester, 'goal-import-preview');
@@ -144,5 +139,19 @@ void main() {
     final saved = (await goals.findAll()).single;
     expect(await goals.findNodes(saved.id), hasLength(3));
     expect(find.byKey(const Key('goal-import-section')), findsNothing);
+  });
+
+  testWidgets('已有目标从更多菜单打开导入，收起后仍能直接新建', (tester) async {
+    await goals.create(goals.prepareCreation(title: '已有目标'));
+    await open(tester);
+    await tap(tester, 'goal-more-filters');
+    await tap(tester, 'goal-import-menu');
+    expect(find.byKey(const Key('goal-import-input')), findsOneWidget);
+    await tester.tap(find.text('收起导入区'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('goal-import-section')), findsNothing);
+    await tap(tester, 'goal-create');
+    expect(find.byKey(const Key('goal-title-input')), findsOneWidget);
+    expect(await goals.findAll(), hasLength(1));
   });
 }

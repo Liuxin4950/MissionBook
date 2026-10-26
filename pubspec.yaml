@@ -84,6 +84,9 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/mission_book_logo_v4.png
+    - assets/illustrations/goal-path.png
+    - assets/illustrations/day-plan.png
+    - assets/illustrations/history-pages.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

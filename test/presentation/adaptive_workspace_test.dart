@@ -29,6 +29,17 @@ final _screen = GlobalKey();
 
 Future<void> _capture(WidgetTester tester, String name) async {
   if (_captureDir.isEmpty) return;
+  // Widget测试的图片解码不一定随着pump完成；截图前等待真实首帧，避免把空占位当成外观。
+  await tester.runAsync(() async {
+    for (final asset in [
+      'assets/illustrations/goal-path.png',
+      'assets/illustrations/day-plan.png',
+      'assets/illustrations/history-pages.png',
+    ]) {
+      await precacheImage(AssetImage(asset), _screen.currentContext!);
+    }
+  });
+  await tester.pumpAndSettle();
   final boundary =
       _screen.currentContext!.findRenderObject()! as RenderRepaintBoundary;
   await tester.runAsync(() async {
@@ -234,13 +245,14 @@ void main() {
       if (width >= 1200) {
         await tester.tap(find.byKey(Key('goal-outline-toggle-$goalId')));
         await tester.pumpAndSettle();
-        final roots = [
-          '布局基础',
-          '状态管理',
-          '项目实践',
-        ].map((label) => tester.getTopLeft(find.text(label))).toList();
-        expect(roots[0].dy, roots[1].dy);
-        expect(roots[1].dx, greaterThan(roots[0].dx));
+        final library = tester.getRect(
+          find.byKey(const Key('goal-library-pane')),
+        );
+        final path = tester.getRect(find.byKey(const Key('goal-action-pane')));
+        expect(path.left, greaterThan(library.right));
+        for (final label in ['布局基础', '状态管理', '项目实践']) {
+          expect(find.text(label), findsOneWidget);
+        }
       }
       await _capture(tester, 'goals-${width.toInt()}');
       await tester.tap(find.byTooltip('我的'));
@@ -258,10 +270,40 @@ void main() {
     for (final goal in await goals.findAll()) {
       await goals.setGoalStatus(goal, GoalStatus.dropped);
     }
+    // 下一天没有测试排期；只改变注入时钟，不删除任务，更不读取用户数据库。
+    now = now.add(const Duration(days: 1));
+    for (final (width, scale) in [
+      (320.0, 2.0),
+      (390.0, 1.0),
+      (768.0, 1.0),
+      (1280.0, 1.0),
+      (1920.0, 1.0),
+    ]) {
+      await open(tester, Size(width, 900), scale: scale);
+      await _capture(tester, 'today-empty-${width.toInt()}');
+      await tester.tap(find.byTooltip('目标'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('goal-create')), findsOneWidget);
+      await _capture(tester, 'goals-empty-${width.toInt()}');
+      final create = find.byKey(const Key('goal-create'));
+      await tester.ensureVisible(create);
+      await tester.pumpAndSettle();
+      await tester.tap(create);
+      await tester.pumpAndSettle();
+      // 创建入口直接进入表单；不再经过创建方式选择器。
+      expect(find.byKey(const Key('goal-title-input')), findsOneWidget);
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('历史'));
+      await tester.pumpAndSettle();
+      expect(find.text('还没有执行结束的记录'), findsOneWidget);
+      await _capture(tester, 'history-empty-${width.toInt()}');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
     await open(tester, const Size(1280, 900));
     await tester.tap(find.byTooltip('目标'));
     await tester.pumpAndSettle();
-    await _capture(tester, 'goals-empty-1280');
     await tester.tap(find.byKey(const Key('goal-more-filters')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('已放弃的目标'));
@@ -269,6 +311,33 @@ void main() {
     expect(find.byKey(const Key('goal-filter-dropped')), findsOneWidget);
     await _capture(tester, 'goals-dropped-1280');
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('宽屏导入与创建并排，缩成窄窗再展开保留同一份导入草稿', (tester) async {
+    for (final goal in await goals.findAll()) {
+      await goals.setGoalStatus(goal, GoalStatus.dropped);
+    }
+    await open(tester, const Size(1280, 900));
+    await tester.tap(find.byTooltip('目标'));
+    await tester.pumpAndSettle();
+    final createRect = tester.getRect(
+      find.byKey(const Key('goal-empty-state')),
+    );
+    final importRect = tester.getRect(
+      find.byKey(const Key('goal-import-pane')),
+    );
+    expect(importRect.left, greaterThan(createRect.right));
+    const draft = '{"尚未保存的目标草稿":true}';
+    final input = find.byKey(const Key('goal-import-input'));
+    await tester.enterText(input, draft);
+    for (final width in [390.0, 768.0, 1536.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(input).controller!.text, draft);
+      expect(tester.takeException(), isNull);
+    }
+    expect(await goals.findAll(), isEmpty);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

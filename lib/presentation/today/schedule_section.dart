@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../widgets/app_illustration.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import 'today_display.dart' as display;
@@ -20,6 +21,7 @@ class ScheduleSection extends StatefulWidget {
     this.onOpenAll,
     this.onCreate,
     this.fullList = false,
+    this.illustrateEmpty = true,
   });
 
   final List<display.TodayMissionItem> items;
@@ -29,6 +31,8 @@ class ScheduleSection extends StatefulWidget {
   final VoidCallback? onOpenAll;
   final VoidCallback? onCreate;
   final bool fullList;
+  // 只有整天无安排时才放插画，避免固定区空态挤走真实自选任务。
+  final bool illustrateEmpty;
 
   @override
   State<ScheduleSection> createState() => _ScheduleSectionState();
@@ -177,14 +181,15 @@ class _ScheduleSectionState extends State<ScheduleSection>
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Column(
                   children: [
-                    Icon(
-                      Icons.event_available_outlined,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(height: 12),
+                    if (widget.illustrateEmpty) ...[
+                      AppIllustration(
+                        asset: 'assets/illustrations/day-plan.png',
+                        width: 156,
+                        height: 104,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     Text('这一天还没有固定任务', style: theme.textTheme.bodyMedium),
-                    const SizedBox(height: 4),
-                    Text('留一点空白，按自己的节奏安排', style: theme.textTheme.bodyMedium),
                     if (widget.onCreate != null) ...[
                       const SizedBox(height: 12),
                       FilledButton.tonalIcon(
@@ -318,7 +323,7 @@ class ScheduleMissionRow extends StatelessWidget {
         curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
           color: current
-              ? colors.secondary.withValues(alpha: .22)
+              ? colors.tertiaryContainer
               : colors.surfaceContainerLow.withValues(alpha: 0),
           borderRadius: BorderRadius.circular(14),
         ),
@@ -362,7 +367,7 @@ class ScheduleMissionRow extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: current
-                              ? colors.secondary
+                              ? colors.primary
                               : colors.surfaceContainerLow,
                           border: Border.all(
                             color: current ? colors.primary : colors.outline,
@@ -509,7 +514,9 @@ class _StatusLabel extends StatelessWidget {
     final theme = Theme.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: current ? theme.colorScheme.secondary : Colors.transparent,
+        color: current
+            ? theme.colorScheme.surfaceContainerLow
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Padding(
@@ -518,7 +525,7 @@ class _StatusLabel extends StatelessWidget {
           status,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: current
-                ? theme.colorScheme.onSecondary
+                ? theme.colorScheme.onSurface
                 : theme.colorScheme.onSurfaceVariant,
           ),
         ),

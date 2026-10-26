@@ -257,7 +257,7 @@ class _SettingsPageState extends State<SettingsPage>
     final reminderSummary = Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: needsPermission ? AppColors.accent : AppColors.primarySoft,
+        color: needsPermission ? AppColors.warningSoft : AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(

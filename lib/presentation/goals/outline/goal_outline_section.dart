@@ -317,29 +317,36 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                 ),
               ),
             // 每个根节点保留其完整子树；宽屏并排呈现行动分支，窄屏自然堆叠。
-            AdaptiveColumns(
-              maxColumns: widget.embedded ? 3 : 1,
-              minColumnWidth: 320,
-              children: [
-                for (final root in roots)
-                  Column(
-                    key: ValueKey(root.id),
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final entry in entries.where(
-                        (entry) => _belongsToRoot(entry.node, root.id, byId),
-                      ))
-                        _nodeRow(
-                          entry,
-                          nodes,
-                          byId,
-                          children,
-                          sizes,
-                          entry.node.archivedAt != null,
-                        ),
-                    ],
-                  ),
-              ],
+            AnimatedSize(
+              alignment: Alignment.topLeft,
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              child: AdaptiveColumns(
+                maxColumns: widget.embedded ? 3 : 1,
+                minColumnWidth: 320,
+                children: [
+                  for (final root in roots)
+                    Column(
+                      key: ValueKey(root.id),
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final entry in entries.where(
+                          (entry) => _belongsToRoot(entry.node, root.id, byId),
+                        ))
+                          _nodeRow(
+                            entry,
+                            nodes,
+                            byId,
+                            children,
+                            sizes,
+                            entry.node.archivedAt != null,
+                          ),
+                      ],
+                    ),
+                ],
+              ),
             ),
             if (widget.missionService != null && widget.goal != null)
               _missionsFor(null),
@@ -513,10 +520,17 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                 }
               });
             },
-            icon: Icon(
-              collapsed ? Icons.chevron_right : Icons.expand_more,
-              size: 20,
-              color: AppColors.primary,
+            icon: AnimatedRotation(
+              turns: collapsed ? 0 : .25,
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              child: const Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: AppColors.primary,
+              ),
             ),
           )
         : null;

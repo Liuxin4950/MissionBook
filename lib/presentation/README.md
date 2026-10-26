@@ -1,6 +1,6 @@
 # 页面代码在哪里
 
-更新：2026-10-25。按功能找页面，进入页面文件后，再沿它使用的组件阅读。
+更新：2026-10-26。按功能找页面，进入页面文件后，再沿它使用的组件阅读。
 
 ## 先找到要修改的功能
 
@@ -94,3 +94,7 @@ goals/
 - [me/me_page.dart](me/me_page.dart)：本机资料、资料编辑草稿保护、真实目标与已结束任务概览；右上角设置入口。
 - [me/settings_page.dart](me/settings_page.dart)：提醒权限、执行频道与超级岛能力说明、计划提醒、备份及关于；返回个人页。
 - [local_profile.dart](../application/settings/local_profile.dart)：本机资料值对象；[AppDevice](../application/settings/app_device.dart) 提供资料读写和系统能力，平台实现在 `data/settings`，不增加领域表。
+
+### 2026-10-26 图形引导与工作区
+
+`goals/list/goals_page.dart` 同时承接手机单列、宽屏创建/导入并排和目标列表/行动路径并排；同一Wrap子树重排，不复制业务或节点树。该文件的私有 `_GoalJourneyHint` 用三个图标和一次顺序显现表达目标→行动→记录。`widgets/app_illustration.dart` 复用于目标、空日程与空历史，只控制首次可见入场及图片尺寸；事实、草稿、查询和保存仍由原页面与服务负责。`goal_import_section.dart` 在开始输入时通知页面保留导入工作区，以免缩成窄窗丢失草稿。

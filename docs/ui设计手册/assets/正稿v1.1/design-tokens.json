@@ -1,64 +1,78 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-23",
-  "status": "provisional-reference",
-  "reference": "今天页.png",
-  "scope": "当前统一UI定义；原型设计参数，尚未全部接入应用。",
+  "updated": "2026-10-26",
+  "status": "implemented-tokens-device-validation-pending",
+  "reference": "../../制作记录/2026-10-26-颜色层级与空态审查.md",
+  "scope": "颜色角色已接入AppColors与AppTheme；其他候选字段保留各自状态，图片不代替设备验收。",
   "colors": {
     "background": {
-      "hex": "#F7F8F2",
-      "flutter": "0xFFF7F8F2",
-      "usage": "页面底",
+      "hex": "#F7F8F5",
+      "flutter": "0xFFF7F8F5",
+      "usage": "中性暖白页面底",
       "label": "页面底",
       "status": "current"
     },
     "primary": {
       "hex": "#244D3D",
       "flutter": "0xFF244D3D",
-      "usage": "主按钮、选中导航、当前节点",
-      "label": "森林绿主色",
+      "usage": "小面积主操作、品牌及聚焦边线；不铺满普通卡片",
+      "label": "森林绿品牌色",
       "status": "current"
     },
     "accent": {
-      "hex": "#D7F57B",
-      "flutter": "0xFFD7F57B",
-      "usage": "当前任务底、选中导航内容",
-      "label": "柑橘强调面",
+      "hex": "#D9F28B",
+      "flutter": "0xFFD9F28B",
+      "usage": "小面积当前状态；不作为通用容器、普通导航或分类选中面",
+      "label": "柑橘强调色",
       "status": "current"
     },
     "surfaceSoft": {
-      "hex": "#E8EDE4",
-      "flutter": "0xFFE8EDE4",
-      "usage": "图标底和数量徽标",
-      "label": "柔和底",
+      "hex": "#EEF2EC",
+      "flutter": "0xFFEEF2EC",
+      "usage": "导航选中、品牌相关图标和徽标",
+      "label": "品牌浅底",
       "status": "current"
     },
     "textPrimary": {
-      "hex": "#233B30",
-      "flutter": "0xFF233B30",
-      "usage": "标题和正文",
+      "hex": "#282E2A",
+      "flutter": "0xFF282E2A",
+      "usage": "标题与正文；内容优先于品牌染色",
       "label": "主文字",
       "status": "current"
     },
     "textSecondary": {
-      "hex": "#617067",
-      "flutter": "0xFF617067",
-      "usage": "日期、计划时长、次级入口",
+      "hex": "#626A64",
+      "flutter": "0xFF626A64",
+      "usage": "日期、计划时长、辅助说明",
       "label": "次级文字",
       "status": "current"
     },
     "divider": {
-      "hex": "#DCE3D8",
-      "flutter": "0xFFDCE3D8",
-      "usage": "节点连线和装饰分隔线",
+      "hex": "#E0E5DD",
+      "flutter": "0xFFE0E5DD",
+      "usage": "装饰连线与分隔",
       "label": "分隔线",
       "status": "current"
     },
     "surface": {
       "hex": "#FFFFFF",
       "flutter": "0xFFFFFFFF",
-      "usage": "导航底、深色按钮内容",
+      "usage": "导航与内容卡片、深色按钮文字",
       "label": "白色面与内容",
+      "status": "current"
+    },
+    "surfaceMuted": {
+      "hex": "#F0F2EE",
+      "flutter": "0xFFF0F2EE",
+      "usage": "分类轨道、普通控件和只读信息面",
+      "label": "中性浅底",
+      "status": "current"
+    },
+    "accentSoft": {
+      "hex": "#F1F6E6",
+      "flutter": "0xFFF1F6E6",
+      "usage": "当前计划时段的浅提示；不表示真实执行",
+      "label": "强调浅底",
       "status": "current"
     }
   },
@@ -95,9 +109,9 @@
       "weight": 600
     },
     "inputValue": {
-      "size": 18,
-      "lineHeight": 24,
-      "weight": 500
+      "size": 15,
+      "lineHeight": 22,
+      "weight": 400
     },
     "fieldLabel": {
       "size": 14,
@@ -162,13 +176,17 @@
       "textSecondary",
       "primary"
     ],
-    "onSoftOrAccent": [
+    "onSoft": [
+      "textPrimary",
+      "textSecondary",
+      "primary"
+    ],
+    "onAccent": [
       "textPrimary",
       "primary"
     ],
     "onPrimary": [
-      "surface",
-      "accent"
+      "surface"
     ]
   },
   "navigation": {
@@ -292,6 +310,14 @@
       "backupProgressAndFeedbackInPlace": true,
       "backupIncludesDrafts": false,
       "aboutDisclosureInPlace": true
+    },
+    "goalEntry": {
+      "status": "implemented-device-validation-pending",
+      "manualCreation": "直接打开目标表单",
+      "import": "空态次级入口或更多菜单，在当前页校验预览",
+      "emptyPrimaryActionCount": 1,
+      "neutralContainer": true,
+      "illustration": "assets/illustrations/goal-path.png"
     }
   },
   "timelineSemantics": "按固定开始时间排序的节点列表；节点间距和卡片高度不编码时长",

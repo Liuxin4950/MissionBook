@@ -74,9 +74,8 @@ void main() {
 
   testWidgets('空列表→校验→保存→详情→返回列表→重建重读', (tester) async {
     await open(tester);
-    expect(find.text('从一个想实现的目标开始'), findsOneWidget);
+    expect(find.text('从一个目标开始'), findsOneWidget);
     await tap(tester, 'goal-create');
-    await tap(tester, 'goal-create-manual');
     await tap(tester, 'goal-save');
     expect(find.text('请填写目标名称'), findsOneWidget);
     await tester.enterText(
@@ -170,13 +169,12 @@ void main() {
     expect(tester.takeException(), isNull);
     await tap(tester, 'goal-filter-active');
     expect(find.byKey(const Key('goal-filter-dropped')), findsNothing);
-    expect(find.text('从一个想实现的目标开始'), findsOneWidget);
+    expect(find.text('从一个目标开始'), findsOneWidget);
   });
 
   testWidgets('系统返回保留或放弃草稿，放弃不写入', (tester) async {
     await open(tester);
     await tap(tester, 'goal-create');
-    await tap(tester, 'goal-create-manual');
     await tester.enterText(find.byKey(const Key('goal-title-input')), '未保存目标');
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
@@ -194,7 +192,6 @@ void main() {
     repository.failBefore = true;
     await open(tester);
     await tap(tester, 'goal-create');
-    await tap(tester, 'goal-create-manual');
     await tester.enterText(find.byKey(const Key('goal-title-input')), '原目标');
     await tap(tester, 'goal-save');
     expect(find.textContaining('暂时未能确认保存结果'), findsOneWidget);
@@ -210,7 +207,6 @@ void main() {
     repository.loseReply = true;
     await open(tester);
     await tap(tester, 'goal-create');
-    await tap(tester, 'goal-create-manual');
     await tester.enterText(find.byKey(const Key('goal-title-input')), '稳定请求');
     await tap(tester, 'goal-save');
     expect(find.text('重试保存'), findsOneWidget);
@@ -224,7 +220,6 @@ void main() {
   testWidgets('保存期间阻止重复点击和返回；窄屏大字体可滚动完成', (tester) async {
     await open(tester, scale: 2);
     await tap(tester, 'goal-create');
-    await tap(tester, 'goal-create-manual');
     await tester.enterText(
       find.byKey(const Key('goal-title-input')),
       '长一点的目标名称，循序渐进学习',

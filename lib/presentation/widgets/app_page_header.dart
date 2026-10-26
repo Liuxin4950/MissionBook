@@ -5,12 +5,12 @@ class AppPageHeader extends StatelessWidget {
   const AppPageHeader({
     super.key,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     this.action,
   });
 
   final String title;
-  final Widget subtitle;
+  final Widget? subtitle;
   final Widget? action;
 
   @override
@@ -29,10 +29,11 @@ class AppPageHeader extends StatelessWidget {
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
             ),
-            ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 40),
-              child: Align(alignment: Alignment.centerLeft, child: subtitle),
-            ),
+            if (subtitle != null)
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 40),
+                child: Align(alignment: Alignment.centerLeft, child: subtitle),
+              ),
           ],
         ),
       ),

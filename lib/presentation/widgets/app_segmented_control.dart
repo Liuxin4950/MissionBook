@@ -18,7 +18,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
     final theme = Theme.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
+        color: theme.colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Padding(
@@ -32,23 +32,34 @@ class AppSegmentedControl<T> extends StatelessWidget {
                   child: TextButton(
                     key: optionKey?.call(entry.key),
                     onPressed: () => onSelected(entry.key),
-                    style: TextButton.styleFrom(
-                      foregroundColor: selected == entry.key
-                          ? theme.colorScheme.onPrimary
-                          : theme.colorScheme.onSurfaceVariant,
-                      backgroundColor: selected == entry.key
-                          ? theme.colorScheme.primary
-                          : Colors.transparent,
-                      minimumSize: const Size(0, 48),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 10,
-                      ),
-                      textStyle: theme.textTheme.labelMedium,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
+                    style:
+                        TextButton.styleFrom(
+                          foregroundColor: selected == entry.key
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurfaceVariant,
+                          backgroundColor: selected == entry.key
+                              ? theme.colorScheme.surfaceContainerLow
+                              : Colors.transparent,
+                          minimumSize: const Size(0, 48),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 10,
+                          ),
+                          textStyle: theme.textTheme.labelMedium,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: BorderSide(
+                              color: selected == entry.key
+                                  ? theme.colorScheme.primary
+                                  : Colors.transparent,
+                            ),
+                          ),
+                        ).copyWith(
+                          animationDuration:
+                              MediaQuery.disableAnimationsOf(context)
+                              ? Duration.zero
+                              : const Duration(milliseconds: 180),
+                        ),
                     child: Text(entry.value, textAlign: TextAlign.center),
                   ),
                 ),

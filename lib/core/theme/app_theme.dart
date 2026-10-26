@@ -29,10 +29,10 @@ abstract final class AppTheme {
     focusColor: AppColors.primary.withValues(alpha: .08),
     scaffoldBackgroundColor: AppColors.background, // 页面背景
     textTheme: AppTypography.textTheme,
-    iconTheme: const IconThemeData(color: AppColors.primary),
+    iconTheme: const IconThemeData(color: AppColors.textSecondary),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppColors.textPrimary,
       contentTextStyle: AppTypography.textTheme.bodyMedium?.copyWith(
         color: AppColors.onPrimary,
       ),
@@ -48,7 +48,7 @@ abstract final class AppTheme {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppColors.primarySoft.withValues(alpha: .45),
+      fillColor: AppColors.card,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       floatingLabelBehavior: FloatingLabelBehavior.always,
       alignLabelWithHint: true,
@@ -158,12 +158,23 @@ abstract final class AppTheme {
           onPrimary: AppColors.onPrimary, // 主色上的内容
           primaryContainer: AppColors.primarySoft, // 主色容器
           onPrimaryContainer: AppColors.textPrimary, // 主色容器上的内容
-          secondary: AppColors.accent, // 强调色
-          onSecondary: AppColors.textPrimary, // 柑橘面使用深色文字
-          secondaryContainer: AppColors.accent, // 强调色容器
-          onSecondaryContainer: AppColors.textPrimary, // 强调容器上的内容
+          secondary: AppColors.primary, // 普通辅助控件不自动获得柑橘强调色
+          onSecondary: AppColors.onPrimary,
+          secondaryContainer: AppColors.surfaceMuted,
+          onSecondaryContainer: AppColors.textPrimary,
+          tertiary: AppColors.accent, // 明确需要小面积强调时才选用
+          onTertiary: AppColors.textPrimary,
+          tertiaryContainer: AppColors.accentSoft,
+          onTertiaryContainer: AppColors.textPrimary,
           surface: AppColors.background, // 基础表面
+          surfaceDim: AppColors.surfaceMuted,
+          surfaceBright: AppColors.card,
+          surfaceContainerLowest: AppColors.card,
           surfaceContainerLow: AppColors.card, // 白色卡片表面
+          surfaceContainer: AppColors.surfaceMuted,
+          surfaceContainerHigh: AppColors.surfaceMuted,
+          surfaceContainerHighest: AppColors.hairline,
+          surfaceTint: Colors.transparent, // 普通容器不额外叠一层品牌染色
           onSurface: AppColors.textPrimary, // 主要文字
           onSurfaceVariant: AppColors.textSecondary, // 次级文字
           outline: AppColors.outline, // 控件边界
@@ -176,7 +187,7 @@ abstract final class AppTheme {
     navigationBarTheme: const NavigationBarThemeData(
       // 底部导航主题
       backgroundColor: AppColors.card, // 导航栏背景
-      indicatorColor: AppColors.primary, // 选中项背景
+      indicatorColor: AppColors.primarySoft, // 导航是位置提示，低于主操作的强调级别
       elevation: 0, // 移除阴影
     ),
     dividerTheme: const DividerThemeData(

@@ -431,9 +431,7 @@ class _AppShellState extends State<AppShell> {
     bool extended = false,
   }) {
     final selected = index == _selectedIndex;
-    final foreground = selected
-        ? (inCapsule ? AppColors.onPrimary : AppColors.primary)
-        : AppColors.textSecondary;
+    final foreground = selected ? AppColors.primary : AppColors.textSecondary;
 
     // 触屏和读屏都调用同一个入口，使用当前导航项的 index 切换页面。
     void selectPage() {
@@ -487,9 +485,7 @@ class _AppShellState extends State<AppShell> {
           child: Ink(
             decoration: ShapeDecoration(
               shape: const StadiumBorder(),
-              color: selected
-                  ? (inCapsule ? AppColors.primary : AppColors.primarySoft)
-                  : AppColors.card,
+              color: selected ? AppColors.primarySoft : AppColors.card,
             ),
             child: content,
           ),

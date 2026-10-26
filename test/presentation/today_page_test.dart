@@ -256,7 +256,7 @@ void main() {
       // 从语义树派发动作，验证读屏实际走到切页逻辑，而非只检查有一个回调。
       owner.performAction(target.id, SemanticsAction.tap);
       await tester.pumpAndSettle();
-      expect(find.text('从一个想实现的目标开始'), findsOneWidget);
+      expect(find.byKey(const Key('goal-empty-state')), findsOneWidget);
       expect(
         TickerMode.valuesOf(
           tester.element(find.byType(TodayPage, skipOffstage: false)),

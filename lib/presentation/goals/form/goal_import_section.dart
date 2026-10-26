@@ -12,9 +12,11 @@ class GoalImportSection extends StatefulWidget {
     super.key,
     required this.service,
     required this.onImported,
+    this.onDraftChanged,
   });
   final GoalService service;
   final ValueChanged<String> onImported;
+  final VoidCallback? onDraftChanged;
   @override
   State<GoalImportSection> createState() => GoalImportSectionState();
 }
@@ -51,6 +53,7 @@ class GoalImportSectionState extends State<GoalImportSection> {
       _saved = false;
       _error = null;
     });
+    widget.onDraftChanged?.call(); // 宽屏默认导入区一旦填写，缩成窄窗仍保留草稿区。
   }
 
   void _validate() {
@@ -78,6 +81,7 @@ class GoalImportSectionState extends State<GoalImportSection> {
       final text = await widget.service.pickOutlineText();
       if (!mounted || text == null) return;
       _input.text = text; // 系统取消时保留原有草稿，选中时回到同一导入区预览。
+      widget.onDraftChanged?.call();
       _validate();
     } catch (error) {
       if (mounted) {
@@ -171,11 +175,6 @@ class GoalImportSectionState extends State<GoalImportSection> {
         children: [
           Text('导入目标大纲', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text(
-            '粘贴 JSON，或选择 .json 文件。先校验并预览，确认后才会创建目标与节点。',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 16),
           TextField(
             key: const Key('goal-import-input'),
             controller: _input,

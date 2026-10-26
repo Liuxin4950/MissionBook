@@ -385,8 +385,8 @@ class _MissionTimetableState extends State<MissionTimetable>
     final color = slot.actual
         ? AppColors.warningSoft
         : phase == MissionPhase.running
-        ? AppColors.accent
-        : AppColors.primarySoft;
+        ? AppColors.primarySoft
+        : AppColors.surfaceMuted;
     return Semantics(
       label:
           '${slot.detail.mission.title}，${slot.timeLabel}，$status'
