@@ -10,7 +10,7 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/notifications/notification_dispatcher.dart';
 import 'package:mission_book/data/notifications/reminder_store.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
-import 'package:mission_book/presentation/me/me_page.dart';
+import 'package:mission_book/presentation/me/settings_page.dart';
 
 import '../support/me_fakes.dart';
 
@@ -67,7 +67,7 @@ void main() {
             textScaler: TextScaler.linear(largeText ? 2 : 1),
           ),
           child: Scaffold(
-            body: MePage(
+            body: SettingsPage(
               device: TestAppDevice(),
               backup: TestBackup(),
               notifications: notifications,

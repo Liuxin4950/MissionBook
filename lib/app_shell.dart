@@ -164,6 +164,8 @@ class _AppShellState extends State<AppShell> {
       ),
       MissionHistoryPage(service: widget.missionService),
       MePage(
+        missions: widget.missionService,
+        goals: widget.goalService,
         device: widget.device,
         backup: widget.backupService,
         notifications: widget.notifications,

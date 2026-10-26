@@ -34,6 +34,11 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
         kind == ReminderKind.executionRunning ||
         kind == ReminderKind.executionPaused;
     final running = kind == ReminderKind.executionRunning;
+    final advancing =
+        running &&
+        !request.clockBehind &&
+        request.focusMilliseconds != null &&
+        request.projectedAt != null;
     return NotificationDetails(
       android: AndroidNotificationDetails(
         executing ? 'mission_execution_v2' : 'mission_reminders',
@@ -52,7 +57,13 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
         onlyAlertOnce: true,
         ongoing: running,
         autoCancel: !executing,
-        showWhen: !executing,
+        // 标准通知也带系统秒表：外观扩展不可用时，退后台仍能显示累计 Focus。
+        showWhen: !executing || advancing,
+        usesChronometer: advancing,
+        when: advancing
+            ? request.projectedAt!.millisecondsSinceEpoch -
+                  request.focusMilliseconds!
+            : null,
         channelShowBadge: !executing,
         color: const Color(0xFF214D3E),
         subText: executing ? (running ? '正在专注' : '已暂停') : '计划提醒',
@@ -113,10 +124,12 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
       await _appearance.invokeMethod<void>('invalidate', {
         'id': notificationId,
       });
-    } finally {
-      // 外观通道失败也必须尝试撤销系统通知，错误仍传回原反馈流程。
-      await _plugin.cancel(id: notificationId);
+    } on PlatformException catch (error) {
+      debugPrint('通知外观通道不可用，继续撤销系统通知：$error');
+    } on MissingPluginException {
+      debugPrint('通知外观通道未注册，继续撤销系统通知');
     }
+    await _plugin.cancel(id: notificationId);
   }
 
   @override
@@ -131,16 +144,22 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
     if (request.focusMilliseconds != null) {
       // 保留插件生成的 PendingIntent、payload 和按钮，只定制系统内容区域。
       // 主引擎与计划任务后台引擎都注册此通道，通知动作仍回到统一业务入口。
-      await _appearance.invokeMethod<void>('decorateExecution', {
-        'id': request.notificationId,
-        'title': request.title,
-        'body': request.body,
-        'running': request.kind == ReminderKind.executionRunning,
-        'focusMilliseconds': request.focusMilliseconds,
-        'projectedAt': request.projectedAt?.millisecondsSinceEpoch,
-        'budgetMinutes': request.budgetMinutes,
-        'clockBehind': request.clockBehind,
-      });
+      try {
+        await _appearance.invokeMethod<void>('decorateExecution', {
+          'id': request.notificationId,
+          'title': request.title,
+          'body': request.body,
+          'running': request.kind == ReminderKind.executionRunning,
+          'focusMilliseconds': request.focusMilliseconds,
+          'projectedAt': request.projectedAt?.millisecondsSinceEpoch,
+          'budgetMinutes': request.budgetMinutes,
+          'clockBehind': request.clockBehind,
+        });
+      } on PlatformException catch (error) {
+        debugPrint('通知外观不可用，保留标准计时通知：$error');
+      } on MissingPluginException {
+        debugPrint('通知外观通道未注册，保留标准计时通知');
+      }
     }
   }
 }

@@ -378,16 +378,8 @@ InputDecoration missionInputDecoration(
   String? hint,
   String? suffix,
 }) {
-  final colors = Theme.of(context).colorScheme;
-  final border = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(12),
-    borderSide: BorderSide(color: colors.outlineVariant),
-  );
   return InputDecoration(
     hintText: hint,
-    hintStyle: Theme.of(
-      context,
-    ).textTheme.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
     // suffixText 在空输入且未聚焦时会隐藏；单位需要一直可见，因此用 suffixIcon 槽位。
     suffixIcon: suffix == null
         ? null
@@ -402,15 +394,6 @@ InputDecoration missionInputDecoration(
             ),
           ),
     suffixIconConstraints: const BoxConstraints(minWidth: 40),
-    filled: true,
-    fillColor: colors.primaryContainer.withValues(alpha: 0.45),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    border: border,
-    enabledBorder: border,
-    disabledBorder: border,
-    focusedBorder: border.copyWith(
-      borderSide: BorderSide(color: colors.primary, width: 1.5),
-    ),
   );
 }
 

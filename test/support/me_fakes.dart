@@ -8,6 +8,14 @@ class TestBackup implements BackupExporter {
 }
 
 class TestAppDevice implements AppDevice {
+  LocalProfile profile = const LocalProfile();
+  @override
+  Future<LocalProfile> readProfile() async => profile;
+  @override
+  Future<void> saveProfile(LocalProfile value) async {
+    profile = value.cleaned();
+  }
+
   @override
   Future<DeviceCapabilities> capabilities() async => const DeviceCapabilities(
     version: '0.2.2 (4)',

@@ -70,6 +70,13 @@ void main() {
       expect(android['silent'], isTrue);
       expect(android['onlyAlertOnce'], isTrue);
       expect(android['autoCancel'], isFalse);
+      expect(android['usesChronometer'], kind == ReminderKind.executionRunning);
+      if (kind == ReminderKind.executionRunning) {
+        expect(
+          android['when'],
+          projected.projectedAt!.millisecondsSinceEpoch - 75000,
+        );
+      }
       expect(
         android['icon'],
         kind == ReminderKind.executionRunning
@@ -95,6 +102,18 @@ void main() {
     });
   }
 
+  test('外观扩展失败时保留标准系统秒表与原动作', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(appearanceChannel, (_) async {
+          throw PlatformException(code: 'appearance_unavailable');
+        });
+    await dispatcher.show(request(ReminderKind.executionRunning));
+    final android = (calls.single.arguments as Map)['platformSpecifics'] as Map;
+    expect(android['usesChronometer'], isTrue);
+    expect(android['ongoing'], isTrue);
+    expect((android['actions'] as List), hasLength(1));
+  });
+
   test('计划提醒继续用提醒频道和单色图标，不套执行计时布局', () async {
     await dispatcher.show(request(ReminderKind.upcomingReminder));
     expect(calls, hasLength(1));
@@ -104,12 +123,12 @@ void main() {
     expect(android['icon'], 'ic_stat_mission');
   });
 
-  test('外观失效通道失败仍撤销系统通知并传回错误', () async {
+  test('外观失效通道失败仍撤销系统通知，不阻断后续对账', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(appearanceChannel, (_) async {
           throw PlatformException(code: 'appearance_unavailable');
         });
-    await expectLater(dispatcher.cancel(42), throwsA(isA<PlatformException>()));
+    await dispatcher.cancel(42);
     expect(calls.single.method, 'cancel');
   });
 }

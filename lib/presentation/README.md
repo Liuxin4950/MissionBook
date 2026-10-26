@@ -87,3 +87,10 @@ goals/
 目录归类用于解决“文件平铺太多，找不到页面”；拆文件用于解决具体的复杂度问题。普通页面组件优先留在页面文件中，不因行数或区域数量拆文件；状态变量很多、交互复杂或独立性很高时，才考虑独立文件。显示转换函数明显遮挡页面主流程时，可像 today_display.dart 一样单独放置。今天页保留 today_page.dart、today_display.dart、schedule_section.dart 三个文件。
 
 业务调用链继续看[任务页面与执行状态流转](../../docs/教学/任务页面与执行状态流转.md)。
+
+
+## 个人资料与设置
+
+- [me/me_page.dart](me/me_page.dart)：本机资料、资料编辑草稿保护、真实目标与已结束任务概览；右上角设置入口。
+- [me/settings_page.dart](me/settings_page.dart)：提醒权限、执行频道与超级岛能力说明、计划提醒、备份及关于；返回个人页。
+- [local_profile.dart](../application/settings/local_profile.dart)：本机资料值对象；[AppDevice](../application/settings/app_device.dart) 提供资料读写和系统能力，平台实现在 `data/settings`，不增加领域表。

@@ -27,10 +27,6 @@ class AppTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
-    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -47,28 +43,7 @@ class AppTextField extends StatelessWidget {
             textInputAction: textInputAction,
             validator: validator,
             style: theme.textTheme.bodyLarge,
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              filled: true,
-              fillColor: theme.colorScheme.primaryContainer.withValues(
-                alpha: .45,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 12,
-              ),
-              border: border,
-              enabledBorder: border,
-              focusedBorder: border.copyWith(
-                borderSide: BorderSide(
-                  color: theme.colorScheme.primary,
-                  width: 1.5,
-                ),
-              ),
-            ),
+            decoration: InputDecoration(hintText: hint),
           ),
         ),
       ],

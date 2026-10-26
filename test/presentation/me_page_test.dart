@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/backup/backup_service.dart';
 import 'package:mission_book/application/settings/app_device.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
-import 'package:mission_book/presentation/me/me_page.dart';
+import 'package:mission_book/presentation/me/settings_page.dart';
 import '../support/me_fakes.dart';
 
 class _Backup implements BackupExporter {
@@ -25,6 +25,9 @@ class _Device extends TestAppDevice {
   bool? notifications = false;
   bool? exactAlarms = true;
   bool failCapabilities = false;
+  bool? executionNotifications = true;
+  bool? islandSupported = false;
+  bool? focusPermission;
   int capabilityQueries = 0;
   Completer<DeviceCapabilities>? pendingCapabilities;
   final settings = <bool>[];
@@ -38,6 +41,9 @@ class _Device extends TestAppDevice {
           android: true,
           notifications: notifications,
           exactAlarms: exactAlarms,
+          executionNotifications: executionNotifications,
+          islandSupported: islandSupported,
+          focusPermission: focusPermission,
         );
   }
 
@@ -68,7 +74,7 @@ void main() {
       MaterialApp(
         theme: AppTheme.light,
         home: Scaffold(
-          body: MePage(device: device, backup: backup),
+          body: SettingsPage(device: device, backup: backup),
         ),
       ),
     );
@@ -167,6 +173,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('提醒权限已就绪'), findsOneWidget);
     expect(find.byKey(const Key('refresh-permissions')), findsNothing);
+  });
+
+  testWidgets('应用通知已允许但执行分类关闭时明确提示；超级岛权限单独显示', (tester) async {
+    device.notifications = true;
+    device.executionNotifications = false;
+    device.islandSupported = true;
+    device.focusPermission = false;
+    await open(tester);
+    expect(find.text('执行状态通知已关闭'), findsOneWidget);
+    expect(find.text('提醒权限已就绪'), findsNothing);
+    await tester.ensureVisible(
+      find.byKey(const Key('island-capability-status')),
+    );
+    expect(find.textContaining('本应用尚未获准焦点通知'), findsOneWidget);
   });
 
   testWidgets('首次权限查询未完成时回前台，会重读并丢弃返回前的旧结果', (tester) async {

@@ -17,7 +17,7 @@ import java.util.UUID
 import java.util.concurrent.Executors
 
 /**
- * Android 只实现 Mission Book 当前需要的 openFile。
+ * Android 系统桥：文件选择、备份保存、版本与通知能力查询。
  *
  * 系统 ACTION_OPEN_DOCUMENT 负责授权；选中的外部 Uri 会先复制到应用 cache，
  * Flutter 随后再复制到正式的 Evidence 私有目录。这样既不申请存储权限，也不
@@ -28,7 +28,7 @@ class MainActivity : FlutterActivity() {
     private var pendingBackupFile: File? = null
     private var pendingFileResult: MethodChannel.Result? = null
     private var pendingFileLimit = MAX_ATTACHMENT_BYTES
-    // ContentProvider 读取和副本写入都可能很慢，交给后台线程，避免阻塞 Flutter 界面。
+    // ContentProvider 读取、能力查询和文件写入交给后台线程，避免阻塞 Flutter 界面。
     private val fileCopyExecutor = Executors.newSingleThreadExecutor()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -40,13 +40,38 @@ class MainActivity : FlutterActivity() {
                 try {
                     when (call.method) {
                         "capabilities" -> {
-                            val info = packageManager.getPackageInfo(packageName, 0)
-                            val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
-                            result.success(mapOf(
-                                "version" to "${info.versionName} ($code)",
-                                "notifications" to getSystemService(NotificationManager::class.java).areNotificationsEnabled(),
-                                "exactAlarms" to (Build.VERSION.SDK_INT < 31 || getSystemService(AlarmManager::class.java).canScheduleExactAlarms()),
-                            ))
+                            fileCopyExecutor.execute {
+                                try {
+                                    val info = packageManager.getPackageInfo(packageName, 0)
+                                    val code = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+                                    val manager = getSystemService(NotificationManager::class.java)
+                                    val channelEnabled = if (Build.VERSION.SDK_INT >= 26)
+                                        manager.getNotificationChannel("mission_execution_v2")?.let { it.importance != NotificationManager.IMPORTANCE_NONE }
+                                        else true
+                                    val protocol = Settings.System.getInt(contentResolver, "notification_focus_protocol", 0)
+                                    val islandSupported: Boolean? = if (protocol < 3) false else try {
+                                        Class.forName("android.os.SystemProperties").getDeclaredMethod("getBoolean", String::class.java, Boolean::class.javaPrimitiveType)
+                                            .invoke(null, "persist.sys.feature.island", false) as Boolean
+                                    } catch (_: Exception) { null }
+                                    // 官方接口是耗时 ContentProvider 调用，不能堵塞 Flutter 主线程。
+                                    val focusPermission: Boolean? = if (protocol == 0) false else try {
+                                        val extras = android.os.Bundle().apply { putString("package", packageName) }
+                                        contentResolver.call(Uri.parse("content://miui.statusbar.notification.public"), "canShowFocus", null, extras)
+                                            ?.getBoolean("canShowFocus", false)
+                                    } catch (_: Exception) { null }
+                                    val value = mapOf(
+                                        "version" to "${info.versionName} ($code)",
+                                        "notifications" to manager.areNotificationsEnabled(),
+                                        "exactAlarms" to (Build.VERSION.SDK_INT < 31 || getSystemService(AlarmManager::class.java).canScheduleExactAlarms()),
+                                        "executionNotifications" to channelEnabled,
+                                        "islandSupported" to islandSupported,
+                                        "focusPermission" to focusPermission,
+                                    )
+                                    runOnUiThread { result.success(value) }
+                                } catch (error: Exception) {
+                                    runOnUiThread { result.error("device_operation_failed", error.message, null) }
+                                }
+                            }
                         }
                         "notificationSettings" -> {
                             val intent = if (Build.VERSION.SDK_INT >= 26) Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)

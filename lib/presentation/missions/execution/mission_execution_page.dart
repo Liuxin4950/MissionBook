@@ -355,7 +355,13 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(builder: _buildWorkspace);
+
+  Widget _buildWorkspace(BuildContext context, BoxConstraints viewport) {
+    // 高屏把留白分配到圆环上方和控制区之间；小窗/键盘展开时收回，正文仍可滚动。
+    final breathingSpace =
+        (viewport.maxHeight - MediaQuery.viewInsetsOf(context).bottom - 680)
+            .clamp(0.0, 200.0);
     final detail = _action.detail;
     final times = calculateExecutionTimes(
       detail.events,
@@ -527,7 +533,9 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             ),
           ],
         ],
-        const SizedBox(height: AppLayout.sectionGap),
+        SizedBox(
+          height: AppLayout.sectionGap + (_report ? 0 : breathingSpace * .35),
+        ),
         if (_report) ...[
           Container(
             padding: const EdgeInsets.all(20),
@@ -662,7 +670,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
               ),
             ),
           ],
-          const SizedBox(height: 28),
+          SizedBox(height: 40 + breathingSpace * .3),
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
@@ -687,13 +695,14 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
               controller: _minutes,
               enabled: !_action.locked,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: '增加分钟数（正整数）'),
-            ),
-            if (_inputError != null)
-              Text(
-                _inputError!,
-                style: TextStyle(color: theme.colorScheme.error),
+              decoration: InputDecoration(
+                labelText: '增加时间',
+                hintText: '请输入正整数',
+                suffixText: '分钟',
+                errorText: _inputError,
               ),
+            ),
+            const SizedBox(height: 16),
             FilledButton(
               onPressed: canAct
                   ? () {

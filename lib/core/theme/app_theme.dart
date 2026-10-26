@@ -46,6 +46,37 @@ abstract final class AppTheme {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       clipBehavior: Clip.antiAlias,
     ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: AppColors.primarySoft.withValues(alpha: .45),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      alignLabelWithHint: true,
+      labelStyle: AppTypography.textTheme.titleSmall,
+      hintStyle: AppTypography.textTheme.bodyLarge?.copyWith(
+        color: AppColors.textSecondary,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.hairline),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.hairline),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+      ),
+    ),
     chipTheme: ChipThemeData(
       backgroundColor: AppColors.card,
       selectedColor: AppColors.primarySoft,

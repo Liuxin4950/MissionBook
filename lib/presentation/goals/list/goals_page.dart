@@ -289,11 +289,18 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                           PopupMenuButton<GoalStatus>(
                             key: const Key('goal-more-filters'),
                             tooltip: '更多目标分类',
+                            initialValue: _selectedStatus,
                             onSelected: _selectStatus,
                             itemBuilder: (_) => const [
                               PopupMenuItem(
                                 value: GoalStatus.dropped,
-                                child: Text('已放弃的目标'),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.archive_outlined, size: 20),
+                                    SizedBox(width: 12),
+                                    Text('已放弃的目标'),
+                                  ],
+                                ),
                               ),
                             ],
                             icon: const Icon(Icons.more_horiz),
@@ -429,61 +436,87 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
   );
 
   Widget _statusTabs(BuildContext context) => AppSegmentedControl<GoalStatus>(
-    options: const {
+    options: {
       GoalStatus.active: '进行中',
       GoalStatus.paused: '已搁置',
       GoalStatus.achieved: '已达成',
+      if (_selectedStatus == GoalStatus.dropped) GoalStatus.dropped: '已放弃',
     },
     selected: _selectedStatus,
     optionKey: (status) => Key('goal-filter-${status.name}'),
     onSelected: _selectStatus,
   );
 
-  Widget _empty(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-    decoration: BoxDecoration(
-      color: AppColors.card,
-      borderRadius: BorderRadius.circular(24),
-    ),
-    child: Column(
-      children: [
-        const CircleAvatar(
-          radius: 32,
-          backgroundColor: AppColors.primarySoft,
-          child: Icon(Icons.flag_outlined, size: 30, color: AppColors.primary),
-        ),
-        const SizedBox(height: 20),
-        Text(
-          _selectedStatus == GoalStatus.active
-              ? '从一个想实现的目标开始'
-              : _selectedStatus == GoalStatus.paused
-              ? '没有已搁置的目标'
-              : _selectedStatus == GoalStatus.achieved
-              ? '没有已达成的目标'
-              : '没有已放弃的目标',
-          style: Theme.of(context).textTheme.titleMedium,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _selectedStatus == GoalStatus.active
-              ? '学习一项技能，或完成一件在意的事。'
-              : _selectedStatus == GoalStatus.dropped
-              ? '放弃的目标会保留在这里，随时可以恢复。'
-              : '目标状态由你自己决定，可以在目标详情中调整。',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 24),
-        if (_selectedStatus == GoalStatus.active)
-          FilledButton.icon(
-            onPressed: _chooseNewGoal,
-            icon: const Icon(Icons.add),
-            label: const Text('创建第一个目标'),
+  Widget _empty(BuildContext context) {
+    final active = _selectedStatus == GoalStatus.active;
+    final foreground = active ? AppColors.onPrimary : AppColors.textPrimary;
+    final title = active
+        ? '从一个想实现的目标开始'
+        : _selectedStatus == GoalStatus.paused
+        ? '没有已搁置的目标'
+        : _selectedStatus == GoalStatus.achieved
+        ? '没有已达成的目标'
+        : '没有已放弃的目标';
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: active ? AppColors.primary : AppColors.card,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: active ? AppColors.accent : AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              _selectedStatus == GoalStatus.dropped
+                  ? Icons.archive_outlined
+                  : Icons.flag_outlined,
+              size: 28,
+              color: AppColors.primary,
+            ),
           ),
-      ],
-    ),
-  );
+          const SizedBox(height: 24),
+          Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(color: foreground),
+          ),
+          const SizedBox(height: 12),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Text(
+              active
+                  ? '学习一项技能，或完成一件在意的事。把方向拆成行动，让每次实践留下记录。'
+                  : _selectedStatus == GoalStatus.dropped
+                  ? '放弃的目标会保留在这里，需要时可以在目标详情中恢复推进。'
+                  : '按自己的节奏调整方向，在目标详情中管理状态。',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: foreground),
+            ),
+          ),
+          if (active) ...[
+            const SizedBox(height: 28),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: AppColors.textPrimary,
+              ),
+              onPressed: _chooseNewGoal,
+              icon: const Icon(Icons.add),
+              label: const Text('创建第一个目标'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 /// 卡片只负责选择与阅读入口；整份行动路径在卡片网格下方使用完整可用宽度。

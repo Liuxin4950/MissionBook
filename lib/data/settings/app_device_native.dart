@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
 import 'package:path_provider/path_provider.dart';
@@ -7,7 +8,35 @@ import '../../application/settings/app_device.dart';
 AppDevice createAppDevice() => NativeAppDevice();
 
 class NativeAppDevice implements AppDevice {
+  NativeAppDevice({File? profileFile}) : _profileOverride = profileFile;
+  final File? _profileOverride;
   static const _channel = MethodChannel('mission_book/device');
+
+  // 使用独立偏好文件，避免与后台提醒进程同时写 reminders.json。
+  Future<File> _profileFile() async {
+    if (_profileOverride != null) return _profileOverride;
+    final directory = await getApplicationSupportDirectory();
+    return File('${directory.path}/local_profile.json');
+  }
+
+  @override
+  Future<LocalProfile> readProfile() async {
+    final file = await _profileFile();
+    if (!await file.exists()) return const LocalProfile();
+    return LocalProfile.fromJson(
+      jsonDecode(await file.readAsString()) as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<void> saveProfile(LocalProfile profile) async {
+    final cleaned = profile.cleaned();
+    final file = await _profileFile();
+    await file.parent.create(recursive: true);
+    final temporary = File('${file.path}.tmp');
+    await temporary.writeAsString(jsonEncode(cleaned.toJson()), flush: true);
+    await temporary.rename(file.path);
+  }
 
   @override
   Future<DeviceCapabilities> capabilities() async {
@@ -22,6 +51,9 @@ class NativeAppDevice implements AppDevice {
       notifications: value['notifications'] as bool?,
       exactAlarms: value['exactAlarms'] as bool?,
       android: Platform.isAndroid,
+      executionNotifications: value['executionNotifications'] as bool?,
+      islandSupported: value['islandSupported'] as bool?,
+      focusPermission: value['focusPermission'] as bool?,
     );
   }
 

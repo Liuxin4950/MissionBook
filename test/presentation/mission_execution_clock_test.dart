@@ -88,6 +88,21 @@ void main() {
     );
   }
 
+  testWidgets('执行圆环与操作保持呼吸空间，高屏分配留白，小窗仍能操作', (tester) async {
+    await open(tester);
+    tester.view.physicalSize = const Size(390, 600);
+    await tester.pumpAndSettle();
+    double gap() =>
+        tester.getTopLeft(find.byKey(const Key('execution-toggle'))).dy -
+        tester.getBottomLeft(find.byKey(const Key('execution-ring'))).dy;
+    final shortGap = gap();
+    expect(shortGap, greaterThanOrEqualTo(40));
+    tester.view.physicalSize = const Size(390, 1000);
+    await tester.pumpAndSettle();
+    expect(gap(), greaterThan(shortGap + 24));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('执行页失去焦点但仍可见时，圆环和数字持续更新', (tester) async {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await open(tester);

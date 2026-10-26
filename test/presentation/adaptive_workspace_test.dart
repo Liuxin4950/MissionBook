@@ -15,6 +15,7 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/mission_ownership.dart';
+import 'package:mission_book/domain/entities/goal.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
@@ -129,6 +130,19 @@ void main() {
     if (_captureDir.isNotEmpty) {
       theme = theme.copyWith(
         textTheme: theme.textTheme.apply(fontFamily: 'UiPreview'),
+        chipTheme: theme.chipTheme.copyWith(
+          labelStyle: theme.chipTheme.labelStyle?.copyWith(
+            fontFamily: 'UiPreview',
+          ),
+        ),
+        inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+          labelStyle: theme.inputDecorationTheme.labelStyle?.copyWith(
+            fontFamily: 'UiPreview',
+          ),
+          hintStyle: theme.inputDecorationTheme.hintStyle?.copyWith(
+            fontFamily: 'UiPreview',
+          ),
+        ),
         textButtonTheme: TextButtonThemeData(
           style: theme.textButtonTheme.style?.copyWith(
             textStyle: WidgetStatePropertyAll(
@@ -231,11 +245,32 @@ void main() {
       await _capture(tester, 'goals-${width.toInt()}');
       await tester.tap(find.byTooltip('我的'));
       await tester.pumpAndSettle();
+      await _capture(tester, 'profile-${width.toInt()}');
+      await tester.tap(find.byKey(const Key('me-settings')));
+      await tester.pumpAndSettle();
       await _capture(tester, 'settings-${width.toInt()}');
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     });
   }
+
+  testWidgets('目标空态与已放弃分类视觉复核', (tester) async {
+    for (final goal in await goals.findAll()) {
+      await goals.setGoalStatus(goal, GoalStatus.dropped);
+    }
+    await open(tester, const Size(1280, 900));
+    await tester.tap(find.byTooltip('目标'));
+    await tester.pumpAndSettle();
+    await _capture(tester, 'goals-empty-1280');
+    await tester.tap(find.byKey(const Key('goal-more-filters')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('已放弃的目标'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('goal-filter-dropped')), findsOneWidget);
+    await _capture(tester, 'goals-dropped-1280');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets('执行工作区视觉复核：底部紧凑任务栏与结束后左右一致', (tester) async {
     final task = (await missions.findAllDetails()).firstWhere(

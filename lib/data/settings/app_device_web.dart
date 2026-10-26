@@ -1,4 +1,5 @@
 import 'dart:js_interop';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:web/web.dart' as web;
 import '../../application/settings/app_device.dart';
@@ -6,6 +7,21 @@ import '../../application/settings/app_device.dart';
 AppDevice createAppDevice() => WebAppDevice();
 
 class WebAppDevice implements AppDevice {
+  @override
+  Future<LocalProfile> readProfile() async {
+    final saved = web.window.localStorage.getItem('mission_book.local_profile');
+    if (saved == null) return const LocalProfile();
+    return LocalProfile.fromJson(jsonDecode(saved) as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> saveProfile(LocalProfile profile) async {
+    web.window.localStorage.setItem(
+      'mission_book.local_profile',
+      jsonEncode(profile.cleaned().toJson()),
+    );
+  }
+
   @override
   Future<DeviceCapabilities> capabilities() async =>
       const DeviceCapabilities(version: '浏览器预览版');

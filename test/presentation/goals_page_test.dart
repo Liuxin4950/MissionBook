@@ -160,6 +160,19 @@ void main() {
     expect(find.text('修改后的目标'), findsOneWidget);
   });
 
+  testWidgets('已放弃分类有独立选中项，大字体下可切回进行中', (tester) async {
+    await open(tester, scale: 2);
+    await tap(tester, 'goal-more-filters');
+    await tester.tap(find.text('已放弃的目标'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('goal-filter-dropped')), findsOneWidget);
+    expect(find.text('没有已放弃的目标'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tap(tester, 'goal-filter-active');
+    expect(find.byKey(const Key('goal-filter-dropped')), findsNothing);
+    expect(find.text('从一个想实现的目标开始'), findsOneWidget);
+  });
+
   testWidgets('系统返回保留或放弃草稿，放弃不写入', (tester) async {
     await open(tester);
     await tap(tester, 'goal-create');

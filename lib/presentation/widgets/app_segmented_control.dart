@@ -33,9 +33,11 @@ class AppSegmentedControl<T> extends StatelessWidget {
                     key: optionKey?.call(entry.key),
                     onPressed: () => onSelected(entry.key),
                     style: TextButton.styleFrom(
-                      foregroundColor: theme.colorScheme.onSurface,
+                      foregroundColor: selected == entry.key
+                          ? theme.colorScheme.onPrimary
+                          : theme.colorScheme.onSurfaceVariant,
                       backgroundColor: selected == entry.key
-                          ? theme.colorScheme.secondaryContainer
+                          ? theme.colorScheme.primary
                           : Colors.transparent,
                       minimumSize: const Size(0, 48),
                       padding: const EdgeInsets.symmetric(
