@@ -74,6 +74,7 @@ lib/                         Flutter 源码
   data/local/                Drift 数据库、表与配套生成代码
   presentation/              页面
 test/                       与 lib 职责对应的测试
+integration_test/           设备或模拟器上的真实平台能力测试
 drift_schemas/              数据库结构版本快照
 assets/branding/            应用使用的品牌资源
 docs/
@@ -87,3 +88,5 @@ docs/
 ```
 
 平台工程目录保留 Flutter 默认位置。根目录保留启动与应用装配文件；不为尚未实现的功能预建目录。生成代码保留在 Drift 源文件旁，结构快照保留在 `drift_schemas/`。正式文档不能依赖仅存在于本机的临时输出；既有缺失来源见[变更记录](docs/教学/变更记录.md)。
+
+测试分工、可控时钟、交互断言和运行方式见[测试维护约定](test/README.md)。

@@ -37,6 +37,7 @@ void main() {
     goals = GoalService(DriftGoalRepository(database));
     missions = MissionService(
       DriftMissionRepository(database, clock: () => now),
+      clock: () => now,
     );
     await missions.create(
       title: '验收任务',
@@ -75,6 +76,7 @@ void main() {
           backupService: TestBackup(),
           device: TestAppDevice(),
           notifications: notifications,
+          clock: () => now,
         ),
       ),
     );
@@ -83,6 +85,7 @@ void main() {
 
   Future<void> tapKey(WidgetTester tester, String key) async {
     final finder = find.byKey(Key(key));
+    expect(finder, findsOneWidget, reason: '操作前应存在唯一入口：$key');
     await tester.ensureVisible(finder);
     await tester.pumpAndSettle();
     await tester.tap(finder);
@@ -183,6 +186,27 @@ void main() {
     expect(find.byTooltip('今天'), findsNothing);
     await tapBack(tester);
     expect(find.byTooltip('今天'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('上海跨年仍按注入时钟查询今天，不使用宿主日期或UTC日期', (tester) async {
+    // UTC 仍是上一年；页面必须展示上海已经进入的 2032-01-01。
+    now = DateTime.utc(2031, 12, 31, 16, 5);
+    await missions.create(
+      title: '跨年任务',
+      scheduledDate: '2032-01-01',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 20,
+    );
+    final nextYearMission = (await missions.findScheduledOn(
+      scheduledDate: '2032-01-01',
+    )).single;
+    await open(tester, width: 1280);
+    expect(find.byKey(Key('mission-$missionId')), findsNothing);
+    await tapKey(tester, 'mission-${nextYearMission.mission.id}');
+    expect(find.byType(MissionDetailPage), findsOneWidget);
+    expect(find.text('跨年任务'), findsWidgets);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

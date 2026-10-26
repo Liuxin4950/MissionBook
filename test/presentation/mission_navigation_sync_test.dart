@@ -28,11 +28,11 @@ void main() {
   late DateTime now;
   late String missionId;
   setUp(() async {
-    now = DateTime.now().toUtc();
+    now = DateTime.utc(2030, 1, 1, 6);
     database = AppDatabase(executor: NativeDatabase.memory());
     goals = GoalService(DriftGoalRepository(database));
     repository = DriftMissionRepository(database, clock: () => now);
-    service = MissionService(repository);
+    service = MissionService(repository, clock: () => now);
     final local = tz.TZDateTime.from(now, tz.getLocation('Asia/Shanghai'));
     final date =
         '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
@@ -70,6 +70,7 @@ void main() {
               device: TestAppDevice(),
               missionService: service,
               goalService: goals,
+              clock: () => now,
             ),
       ),
     );

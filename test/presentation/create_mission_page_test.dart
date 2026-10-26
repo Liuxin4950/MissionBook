@@ -16,7 +16,9 @@ import 'package:mission_book/domain/repositories/mission_repository.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
-import 'package:timezone/timezone.dart' as tz;
+
+// UTC 仍是 12 月 31 日，上海已跨年；默认日期测试不依赖运行当天。
+DateTime _formClock() => DateTime.utc(2031, 12, 31, 16, 5);
 
 // 用可控制完成时机的仓储替代磁盘，验证页面确实等待业务保存结果。
 class PendingRepository implements MissionRepository {
@@ -102,7 +104,10 @@ Future<void> openForm(WidgetTester tester, PendingRepository repository) async {
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.light,
-      home: MissionFormPage(missionService: MissionService(repository)),
+      home: MissionFormPage(
+        missionService: MissionService(repository, clock: _formClock),
+        clock: _formClock,
+      ),
     ),
   );
   await tester.enterText(
@@ -146,15 +151,11 @@ void main() {
     }
   });
 
-  testWidgets('上海默认日期，等待事务、防重复提交及成功锁定', (tester) async {
+  testWidgets('上海跨年默认日期，等待事务、防重复提交及成功锁定', (tester) async {
     final repository = PendingRepository();
     await openForm(tester, repository);
-    final today = tz.TZDateTime.now(tz.getLocation('Asia/Shanghai'));
-    final date =
-        '${today.year.toString().padLeft(4, '0')}-'
-        '${today.month.toString().padLeft(2, '0')}-'
-        '${today.day.toString().padLeft(2, '0')}';
-    expect(find.text('${today.month}月${today.day}日'), findsOneWidget);
+    const date = '2032-01-01';
+    expect(find.text('1月1日'), findsOneWidget);
     await tester.tap(find.byType(FilledButton));
     await tester.pump();
     expect(find.text('正在创建…'), findsOneWidget);

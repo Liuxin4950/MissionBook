@@ -26,6 +26,7 @@ class AppShell extends StatefulWidget {
     required this.backupService,
     required this.device,
     this.notifications,
+    this.clock = DateTime.now,
   });
   // App 传入共享任务服务，本层转交给今天、历史及当前任务栏。
   final MissionService missionService;
@@ -35,6 +36,9 @@ class AppShell extends StatefulWidget {
 
   // 通知动作的 UI 部分由外壳承接：打开 END 确认、旧按钮提示刷新。
   final AppNotificationService? notifications;
+
+  /// 今天页使用的日期时钟；测试传入固定时刻，避免随运行日期改变查询。
+  final DateTime Function() clock;
 
   @override
   State<AppShell> createState() {
@@ -103,6 +107,7 @@ class _AppShellState extends State<AppShell> {
               ? MissionExecutionPage(
                   detail: detail,
                   service: widget.missionService,
+                  clock: widget.clock,
                   openEndConfirm:
                       action.result == NotificationActionResult.openEndConfirm,
                 )
@@ -144,6 +149,7 @@ class _AppShellState extends State<AppShell> {
       TodayPage(
         missionService: widget.missionService,
         goalService: widget.goalService,
+        clock: widget.clock,
       ),
       GoalsPage(
         service: widget.goalService,

@@ -28,6 +28,7 @@ class MissionFormPage extends StatefulWidget {
     super.key,
     required this.missionService,
     this.initialScheduledDate,
+    this.clock = DateTime.now,
   }) : original = null,
        retrySource = null,
        initialGoal = null,
@@ -38,6 +39,7 @@ class MissionFormPage extends StatefulWidget {
     required this.missionService,
     required Goal goal,
     GoalNode? node,
+    this.clock = DateTime.now,
   }) : initialGoal = goal,
        initialNode = node,
        original = null,
@@ -49,6 +51,7 @@ class MissionFormPage extends StatefulWidget {
     super.key,
     required this.missionService,
     required MissionDetail detail,
+    this.clock = DateTime.now,
   }) : original = detail,
        initialGoal = null,
        initialNode = null,
@@ -60,6 +63,7 @@ class MissionFormPage extends StatefulWidget {
     super.key,
     required this.missionService,
     required MissionDetail source,
+    this.clock = DateTime.now,
   }) : retrySource = source,
        initialGoal = null,
        initialNode = null,
@@ -75,6 +79,9 @@ class MissionFormPage extends StatefulWidget {
   final MissionService missionService;
   // 今天页选择了其他日期时，将该日期作为表单默认值；仍允许手动修改。
   final String? initialScheduledDate;
+
+  /// 生成默认排期日期的时钟；先按排期时区转换，再取日历日期。
+  final DateTime Function() clock;
 
   @override
   State<MissionFormPage> createState() {
@@ -144,7 +151,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
   void initState() {
     super.initState();
     // 业务对象已初始化时区资料；按排期时区取得今天，不随设备时区改变。
-    final today = tz.TZDateTime.now(tz.getLocation(_timeZone));
+    final today = tz.TZDateTime.from(widget.clock(), tz.getLocation(_timeZone));
     // padLeft 向左补零，例如 3 → '03'，使日期符合 YYYY-MM-DD 格式。
     final year = today.year.toString().padLeft(4, '0');
     final month = today.month.toString().padLeft(2, '0');

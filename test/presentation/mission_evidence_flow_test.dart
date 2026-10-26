@@ -142,7 +142,11 @@ void main() {
     goals = GoalService(DriftGoalRepository(database));
     repository = _LostReply(database, clock: () => now);
     images = _Images();
-    service = MissionService(repository, images: _PreparedImages(images));
+    service = MissionService(
+      repository,
+      images: _PreparedImages(images),
+      clock: () => now,
+    );
   });
   tearDown(() async {
     await goals.dispose();
@@ -829,9 +833,7 @@ void main() {
   });
 
   testWidgets('今天列表进入独立执行页并在该页完成报告与交图', (tester) async {
-    final shanghaiToday = DateTime.now().toUtc().add(const Duration(hours: 8));
-    final date = shanghaiToday.toIso8601String().substring(0, 10);
-    final detail = await create(date: date);
+    final detail = await create();
     final routes = _Routes();
     await tester.pumpWidget(
       app(
@@ -840,6 +842,7 @@ void main() {
           device: TestAppDevice(),
           missionService: service,
           goalService: goals,
+          clock: () => now,
         ),
         observers: [routes],
       ),
@@ -852,6 +855,7 @@ void main() {
     await tap(tester, 'mission-${detail.mission.id}');
     await tap(tester, 'execution-start');
     expect(find.byKey(const Key('mission-execution-page')), findsOneWidget);
+    final executionState = tester.state(find.byType(MissionExecutionPage));
     expect(find.text('计划日程'), findsNothing);
     await tap(tester, 'execution-end');
     await tap(tester, 'report-completed');
@@ -866,12 +870,40 @@ void main() {
     final pane = tester.widget<DetailPaneHost>(find.byType(DetailPaneHost));
     expect(routes.pushes, 1);
     expect(pane.controller.entries, hasLength(1));
-    expect(pane.controller.entries.single.label, '执行记录');
+    // END 和交材料都留在原工作区，不应强行替换页面或丢掉材料状态。
+    expect(
+      tester.state(find.byType(MissionExecutionPage)),
+      same(executionState),
+    );
     expect(
       Navigator.of(
         tester.element(find.byKey(const Key('mission-evidence-workspace'))),
       ),
       same(pane.controller.navigatorKey.currentState),
+    );
+    expect(find.byKey(const Key('mission-evidence-workspace')), findsOneWidget);
+    // 用户明确查看完整记录时才入栈，返回后仍是原工作区。
+    await tester.scrollUntilVisible(
+      find.text('查看完整执行记录'),
+      180,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('mission-evidence-workspace-list')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(find.text('查看完整执行记录'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MissionRecordPage), findsOneWidget);
+    expect(pane.controller.entries, hasLength(2));
+    expect(pane.controller.entries.last.label, '执行记录');
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(pane.controller.entries, hasLength(1));
+    expect(
+      tester.state(find.byType(MissionExecutionPage)),
+      same(executionState),
     );
     expect(find.byKey(const Key('mission-evidence-workspace')), findsOneWidget);
     expect(tester.takeException(), isNull);

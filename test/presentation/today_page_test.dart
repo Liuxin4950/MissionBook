@@ -120,6 +120,9 @@ class ControlledQueryRepository implements MissionRepository {
 final _testServices = Expando<MissionService>();
 final _goalServices = Expando<GoalService>();
 
+// 默认在 08:00 读列表，早于样本的 09:00 固定任务；当前时段另有专门用例。
+DateTime _todayClock() => DateTime.utc(2026, 10, 21);
+
 // 此文件只验收任务列表，目标入口使用明确的空查询替身，不访问用户数据。
 class _EmptyGoals implements GoalRepository {
   // 今天页的控制查询测试不会打开目标节点；意外调用应明确失败。
@@ -140,8 +143,10 @@ Widget testApp(
   bool shell = false,
   DateTime Function()? clock,
 }) {
+  final effectiveClock = clock ?? _todayClock;
   final missionService = _testServices[repository] ??= MissionService(
     repository,
+    clock: effectiveClock,
   );
   if (_goalServices[repository] == null) {
     final goals = GoalService(_EmptyGoals());
@@ -159,11 +164,12 @@ Widget testApp(
             device: TestAppDevice(),
             missionService: missionService,
             goalService: _goalServices[repository]!,
+            clock: effectiveClock,
           )
         : Scaffold(
             body: TodayPage(
               missionService: missionService,
-              clock: clock ?? DateTime.now,
+              clock: effectiveClock,
             ),
           ),
   );
@@ -376,7 +382,10 @@ void main() {
       repository.requests.single.complete(items);
       await tester.pumpAndSettle();
       // 先选另一天，验证缺失任务不会重置所选日期。
-      final now = tz.TZDateTime.now(tz.getLocation('Asia/Shanghai'));
+      final now = tz.TZDateTime.from(
+        _todayClock(),
+        tz.getLocation('Asia/Shanghai'),
+      );
       final day = now.day == 1 ? 2 : 1;
       await tester.tap(find.byKey(const Key('today-date-picker')));
       await tester.pumpAndSettle();
@@ -793,7 +802,10 @@ void main() {
     final repository = ControlledQueryRepository();
     await tester.pumpWidget(testApp(repository));
     // 初次查询先不返回，模拟它比用户切日期后的查询更慢。
-    final now = tz.TZDateTime.now(tz.getLocation('Asia/Shanghai'));
+    final now = tz.TZDateTime.from(
+      _todayClock(),
+      tz.getLocation('Asia/Shanghai'),
+    );
     final day = now.day == 1 ? 2 : 1;
     await tester.tap(find.byKey(const Key('today-date-picker')));
     await tester.pump(const Duration(milliseconds: 400));
