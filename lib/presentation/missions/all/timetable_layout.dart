@@ -4,6 +4,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/entities/scheduled_mission.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/rules/execution_time_rules.dart';
 
@@ -30,7 +31,7 @@ class TimetableSlot {
     this.actual = false,
   });
 
-  final MissionDetail detail;
+  final ScheduledMission detail;
   final double start; // 相对所选日期零点的分钟数，跨日任务已裁切。
   final double end;
   final bool continuesBefore; // 真实起点在前一天，当前只显示续入部分。
@@ -108,7 +109,7 @@ class TimetableConflict {
 /// 自选任务的已知执行区间：从 START 到 END（未结束则到 now）。
 /// 没有执行记录或仍在等待 now 时返回 null，这类任务不上图、只在列表阅读。
 ({DateTime from, DateTime until})? _actualSpan(
-  MissionDetail detail,
+  ScheduledMission detail,
   DateTime? now,
 ) {
   if (detail.events.isEmpty) return null;
@@ -122,7 +123,7 @@ class TimetableConflict {
 }
 
 ({DateTime from, DateTime until})? _displaySpan(
-  MissionDetail detail,
+  ScheduledMission detail,
   DateTime? now,
 ) {
   if (detail.phase == MissionPhase.cancelled) return null;
@@ -139,7 +140,7 @@ class TimetableConflict {
 
 /// 全部日期分组同时包含计划列表日期和图上区间覆盖的日期，跨日事实不会失联。
 Iterable<String> timetableDateKeys(MissionDetail detail, DateTime now) sync* {
-  final span = _displaySpan(detail, now);
+  final span = _displaySpan(_scheduled(detail), now);
   if (detail.schedule.fixedStartAt == null || span == null) {
     yield detail.schedule.scheduledDate;
   }
@@ -172,6 +173,31 @@ class TimetableDay {
     List<MissionDetail> records,
     DateTime day, {
     bool Function(MissionDetail)? visible,
+    DateTime? now,
+    double minimumDisplayMinutes = 0,
+  }) {
+    final visibleIds = visible == null
+        ? null
+        : {
+            for (final detail in records)
+              if (visible(detail)) detail.mission.id,
+          };
+    return TimetableDay.fromScheduled(
+      records.map(_scheduled).toList(),
+      day,
+      visible: visibleIds == null
+          ? null
+          : (task) => visibleIds.contains(task.mission.id),
+      now: now,
+      minimumDisplayMinutes: minimumDisplayMinutes,
+    );
+  }
+
+  /// 今天页已有排期投影，可直接复用时间轴，无需逐项重查完整详情。
+  factory TimetableDay.fromScheduled(
+    List<ScheduledMission> records,
+    DateTime day, {
+    bool Function(ScheduledMission)? visible,
     DateTime? now,
     double minimumDisplayMinutes = 0,
   }) {
@@ -282,3 +308,10 @@ class TimetableDay {
     );
   }
 }
+
+ScheduledMission _scheduled(MissionDetail detail) => ScheduledMission(
+  mission: detail.mission,
+  schedule: detail.schedule,
+  phase: detail.phase,
+  events: detail.events,
+);

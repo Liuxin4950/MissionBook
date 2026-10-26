@@ -1,16 +1,23 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';
+import '../../widgets/adaptive_sheet.dart';
+import '../../../core/theme/app_layout.dart';
+import 'mission_phase_icon.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/mission_detail.dart';
-import '../../../domain/entities/mission_phase.dart';
 import '../execution/mission_execution_page.dart';
 import 'mission_live_status.dart';
 
 /// 不按今天日期过滤，跨午夜或切换顶层页也能找回运行/暂停任务。
 class ActiveMissionsBar extends StatefulWidget {
-  const ActiveMissionsBar({super.key, required this.service});
+  const ActiveMissionsBar({
+    super.key,
+    required this.service,
+    this.clock = DateTime.now,
+  });
   final MissionService service;
+  final DateTime Function() clock;
   @override
   State<ActiveMissionsBar> createState() => _ActiveMissionsBarState();
 }
@@ -20,6 +27,7 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
   late Future<List<MissionDetail>> _active;
   StreamSubscription<void>? _changes;
   bool _opening = false;
+  bool _choosing = false;
   @override
   void initState() {
     super.initState();
@@ -60,15 +68,66 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
     if (_opening) return;
     _opening = true;
     try {
-      await openDetailPane<void>(
+      final latest = await widget.service.findDetail(
+        missionId: detail.mission.id,
+      );
+      if (!mounted || latest == null) return;
+      final closed = openDetailPane<void>(
         context,
         label: '任务执行',
-        builder: (_) =>
-            MissionExecutionPage(detail: detail, service: widget.service),
+        builder: (_) => MissionExecutionPage(
+          detail: latest,
+          service: widget.service,
+          clock: widget.clock,
+        ),
       );
+      unawaited(closed.then((_) => _refresh()));
     } finally {
       _opening = false;
-      _refresh();
+    }
+  }
+
+  Future<void> _choose(List<MissionDetail> active) async {
+    if (_choosing) return;
+    _choosing = true;
+    try {
+      final selected = await showAdaptiveSheet<MissionDetail>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * .65,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  '当前任务',
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                for (final detail in active)
+                  ListTile(
+                    leading: MissionPhaseIcon(phase: detail.phase),
+                    title: Text(detail.mission.title),
+                    subtitle: MissionLiveStatus(
+                      phase: detail.phase,
+                      events: detail.events,
+                      clock: widget.clock,
+                    ),
+                    onTap: () => Navigator.of(sheetContext).pop(detail),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (mounted && selected != null) await _open(selected);
+    } finally {
+      _choosing = false;
     }
   }
 
@@ -91,56 +150,82 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
       }
       final active = snapshot.data;
       if (active == null || active.isEmpty) return const SizedBox.shrink();
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Card(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                key: const Key('active-mission'),
-                leading: Icon(
-                  active.first.phase == MissionPhase.running
-                      ? Icons.play_circle_outline
-                      : Icons.pause_circle_outline,
+      final detail = active.first;
+      final compact = AppLayout.windowClassOf(context) == WindowClass.compact;
+      return SafeArea(
+        top: false,
+        bottom: !compact,
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
+            child: Material(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
                 ),
-                title: Text(
-                  active.first.mission.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: MissionLiveStatus(
-                  phase: active.first.phase,
-                  events: active.first.events,
-                ),
-                onTap: () => _open(active.first),
               ),
-              if (active.length > 1)
-                ExpansionTile(
-                  title: Text('其他暂停任务 · ${active.length - 1}'),
-                  children: [
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.sizeOf(context).height * .2,
-                      ),
-                      child: ListView(
-                        shrinkWrap: true,
-                        children: [
-                          for (final detail in active.skip(1))
-                            ListTile(
-                              title: Text(detail.mission.title),
-                              subtitle: MissionLiveStatus(
-                                phase: detail.phase,
-                                events: detail.events,
+              clipBehavior: Clip.antiAlias,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      key: const Key('active-mission'),
+                      onTap: () => _open(detail),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            MissionPhaseIcon(phase: detail.phase),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    detail.mission.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  MissionLiveStatus(
+                                    phase: detail.phase,
+                                    events: detail.events,
+                                    clock: widget.clock,
+                                    maxLines: 1,
+                                  ),
+                                ],
                               ),
-                              onTap: () => _open(detail),
                             ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ],
-                ),
-            ],
+                  ),
+                  if (active.length > 1)
+                    IconButton(
+                      key: const Key('active-missions-picker'),
+                      tooltip: '其他暂停任务 · ${active.length - 1}',
+                      onPressed: () => _choose(active),
+                      icon: Badge(
+                        label: Text('${active.length}'),
+                        child: const Icon(Icons.list_rounded),
+                      ),
+                    )
+                  else
+                    const Padding(
+                      padding: EdgeInsets.only(right: 12),
+                      child: Icon(Icons.chevron_right),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       );

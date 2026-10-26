@@ -1,3 +1,4 @@
+import '../../widgets/adaptive_columns.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -31,7 +32,6 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
   late Future<List<MissionDetail>> _records;
   StreamSubscription<void>? _changes;
   bool _cancelled = false;
-  bool _opening = false;
   List<MissionDetail>? _lastRecords;
   final _thumbnails = <String, Future<Uint8List>>{};
 
@@ -87,10 +87,8 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
   }
 
   Future<void> _open(MissionDetail detail) async {
-    if (_opening) return;
-    _opening = true;
-    try {
-      await openDetailPane<void>(
+    unawaited(
+      openDetailPane<void>(
         context,
         label: _cancelled ? '任务详情' : '执行记录',
         builder: (_) => _cancelled
@@ -99,11 +97,8 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                 missionService: widget.service,
               )
             : MissionRecordPage(detail: detail, service: widget.service),
-      );
-    } finally {
-      _opening = false;
-      _refresh();
-    }
+      ).then((_) => _refresh()),
+    );
   }
 
   @override
@@ -118,7 +113,9 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
     body: SafeArea(
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
+          constraints: const BoxConstraints(
+            maxWidth: AppLayout.dashboardMaxWidth,
+          ),
           child: Column(
             children: [
               Padding(
@@ -189,51 +186,49 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                           // 读取失败由 FutureBuilder 在原页提示；结束下拉动画即可。
                         }
                       },
-                      child: ListView.builder(
+                      child: ListView(
                         padding: AppLayout.pagePadding(context),
                         physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount:
-                            (records.isEmpty ? 1 : records.length) +
-                            (snapshot.hasError ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (snapshot.hasError && index == 0) {
-                            return TextButton(
+                        children: [
+                          if (snapshot.hasError)
+                            TextButton(
                               onPressed: _refresh,
                               child: const Text('刷新失败，当前保留上次读取的记录，点击重试'),
-                            );
-                          }
-                          final recordIndex =
-                              index - (snapshot.hasError ? 1 : 0);
-                          if (records.isEmpty) {
-                            return Padding(
+                            ),
+                          if (records.isEmpty)
+                            Padding(
                               padding: const EdgeInsets.symmetric(vertical: 32),
                               child: Text(
                                 _cancelled ? '还没有取消的任务' : '还没有执行结束的记录',
                               ),
-                            );
-                          }
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (recordIndex == 0 ||
-                                  _day(records[recordIndex - 1]) !=
-                                      _day(records[recordIndex]))
-                                Padding(
-                                  padding: EdgeInsets.only(
-                                    top: recordIndex == 0 ? 0 : 16,
-                                    bottom: 10,
+                            ),
+                          for (final day in {
+                            for (final record in records) _day(record),
+                          }) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                top: 12,
+                                bottom: 12,
+                              ),
+                              child: Text(
+                                day,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                            AdaptiveColumns(
+                              minColumnWidth: 360,
+                              children: [
+                                for (final record in records.where(
+                                  (record) => _day(record) == day,
+                                ))
+                                  KeyedSubtree(
+                                    key: ValueKey(record.mission.id),
+                                    child: _recordCard(record),
                                   ),
-                                  child: Text(
-                                    _day(records[recordIndex]),
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
-                                ),
-                              _recordCard(records[recordIndex]),
-                            ],
-                          );
-                        },
+                              ],
+                            ),
+                          ],
+                        ],
                       ),
                     );
                   },

@@ -30,7 +30,7 @@ class AppPageHeader extends StatelessWidget {
               ),
             ),
             ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 48),
+              constraints: const BoxConstraints(minHeight: 40),
               child: Align(alignment: Alignment.centerLeft, child: subtitle),
             ),
           ],

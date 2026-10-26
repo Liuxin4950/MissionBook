@@ -1,6 +1,6 @@
 # Android chroot 中构建预览 APK
 
-核验日期：2026-10-20。适用于本机 ARM64 Android chroot 环境；路径、代理端口和工具版本以后应先核对，不默认永远有效。
+初次核验：2026-10-20；发布注册流程补正：2026-10-26。适用于本机 ARM64 Android chroot 环境；路径、代理端口和工具版本以后应先核对，不默认永远有效。
 
 ## 环境与产物
 
@@ -27,7 +27,7 @@ flutter analyze --no-pub
 
 ```bash
 JAVA_TOOL_OPTIONS='-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=7890 -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=7890 -Dhttp.nonProxyHosts=localhost|127.*' \
-  flutter build apk --release --no-pub --target-platform android-arm64 \
+  flutter build apk --release --target-platform android-arm64 \
   > /tmp/missionbook-apk-build-proxy.log 2>&1
 ```
 
@@ -84,6 +84,18 @@ android.aapt2FromMavenOverride=/opt/android-sdk/build-tools/37.0.0/aapt2
 该 aapt2 已验证为 ARM aarch64；SDK 36 中的 aapt2 为 x86-64。先核对实际工具与配置，不覆盖现有 ARM64 适配。
 
 本机 Flutter 的 release `gen_snapshot` 实际通过 QEMU 执行 x86_64 编译器，因此即使网络完成，AOT 编译仍可能需要数分钟。只构建 `android-arm64` 可减少无关架构工作；不要把编译耗时都归因于代理。
+
+## 2026-10-26：Flutter 3.47 的发布插件注册
+
+当前环境升级为 Flutter 3.47.4 / Dart 3.13.3，项目已有 `integration_test` 开发依赖。若发布构建报 `GeneratedPluginRegistrant.java` 引用 `dev.flutter.plugins.integration_test` 但找不到类，不能手改自动注册代码或删除测试插件来掩盖问题。
+
+已核对本机 Flutter tools：`runner/flutter_command.dart` 的 `regeneratePlatformSpecificToolingIfApplicable` 在 `shouldRunPub == false` 时直接返回；`flutter_plugins.dart` 的 `injectPlugins(releaseMode: true)` 才筛掉只用于开发的插件。因此“先 pub get，再 --no-pub 发布”可能沿用开发模式注册代码。应串行执行带默认 pub 步骤的发布命令，让本次构建生成自己的注册文件：
+
+```bash
+flutter build apk --release --target-platform android-arm64
+```
+
+不要在同一工作区同时运行会重建插件注册文件的其他 Flutter 命令。已有 AOT 产物可复用；此修正不需要修改业务依赖、用户数据或 Flutter SDK。
 
 ## 本次结果与边界
 

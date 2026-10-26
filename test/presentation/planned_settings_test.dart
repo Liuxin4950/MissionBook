@@ -88,12 +88,18 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('提前 10 分钟提醒'), findsOneWidget);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
     await tester.tap(row);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('reminder-minutes-30')));
     await tester.pumpAndSettle();
     expect(find.text('提前 30 分钟提醒'), findsOneWidget);
     expect(store.reminderLeadMinutes, 30);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
     await tester.tap(row);
     await tester.pumpAndSettle();
     await tester.tapAt(const Offset(10, 10));
@@ -110,6 +116,9 @@ void main() {
       250,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
     await tester.tap(row);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('reminder-minutes-15')));
@@ -117,6 +126,9 @@ void main() {
     expect(notifications.reminderLeadMinutes, 10);
     expect(find.textContaining('设置操作未完成'), findsOneWidget);
     (store as _SettingsStore).fail = false;
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
     await tester.tap(row);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('reminder-minutes-15')));
@@ -133,6 +145,9 @@ void main() {
       250,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
     await tester.tap(row);
     await tester.pumpAndSettle();
     final last = find.byKey(const Key('reminder-minutes-60'));

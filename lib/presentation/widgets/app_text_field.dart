@@ -28,7 +28,7 @@ class AppTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
     );
     return Column(
@@ -56,7 +56,10 @@ class AppTextField extends StatelessWidget {
               fillColor: theme.colorScheme.primaryContainer.withValues(
                 alpha: .45,
               ),
-              contentPadding: const EdgeInsets.all(16),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
               border: border,
               enabledBorder: border,
               focusedBorder: border.copyWith(

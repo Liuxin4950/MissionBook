@@ -7,6 +7,7 @@ import '../../../domain/entities/goal.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/detail_pane.dart';
 
 /// 收集一个目标的输入，保存成功后把真实编号交回列表页。
 class GoalFormPage extends StatefulWidget {
@@ -146,9 +147,17 @@ class _GoalFormPageState extends State<GoalFormPage> {
     });
   }
 
-  /// 顶栏和系统返回共用的离开入口，保存期间阻止离开，有输入时先确认。
-  Future<void> _close() async {
-    if (_saving || _closing) return;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    DetailPaneScope.maybeOf(
+      context,
+    )?.registerTopGuard(_mayLeave, route: ModalRoute.of(context));
+  }
+
+  /// 顶栏、系统返回、主导航切换共用草稿确认，守卫不自行关闭路由。
+  Future<bool> _mayLeave() async {
+    if (_saving || _closing) return false;
     final hasInput = _editingExpected == null
         ? _title.text.isNotEmpty ||
               _description.text.isNotEmpty ||
@@ -168,9 +177,13 @@ class _GoalFormPageState extends State<GoalFormPage> {
         confirmText: '离开',
       );
       _closing = false;
-      if (!discard || !mounted) return;
+      if (!discard || !mounted) return false;
     }
-    if (mounted) Navigator.of(context).pop();
+    return mounted;
+  }
+
+  Future<void> _close() async {
+    if (await _mayLeave() && mounted) Navigator.of(context).pop();
   }
 
   @override

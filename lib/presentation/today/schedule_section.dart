@@ -212,6 +212,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
                             key: ValueKey('mission-${items[index].id}'),
                             item: items[index],
                             now: _now,
+                            clock: widget.clock,
                             isFirst: index == 0,
                             isLast: index == items.length - 1,
                             showFullTitle: widget.fullList,
@@ -253,10 +254,12 @@ class ScheduleMissionRow extends StatelessWidget {
     this.isFirst = true,
     this.isLast = true,
     this.showFullTitle = false,
+    this.clock = DateTime.now,
   });
 
   final display.TodayMissionItem item;
   final DateTime now;
+  final DateTime Function() clock;
   final VoidCallback onTap;
   final bool isFirst;
   final bool isLast;
@@ -427,6 +430,7 @@ class ScheduleMissionRow extends StatelessWidget {
                               child: MissionLiveStatus(
                                 phase: item.phase,
                                 events: item.events,
+                                clock: clock,
                                 includePhase: false,
                               ),
                             ),

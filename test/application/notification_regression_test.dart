@@ -8,6 +8,7 @@ import 'package:mission_book/data/notifications/notification_dispatcher.dart';
 import 'package:mission_book/data/notifications/reminder_store.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
+import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/notifications/reminder_request.dart';
 
 class StateDispatcher implements NotificationDispatcher {
@@ -170,6 +171,60 @@ void main() {
       expect((await missions.findDetail(missionId: id))!.events, isEmpty);
     },
   );
+  test('执行摘要复用真实时间规则：暂停冻结、延长不恢复、继续累计、END撤销', () async {
+    final id = await create();
+    await service.refresh();
+    now = DateTime.utc(2026, 10, 25, 1);
+    await missions.startDueScheduledMissions();
+    now = now.add(const Duration(seconds: 75));
+    await service.refresh();
+    final running = dispatcher.visible.values.single;
+    expect(running.focusMilliseconds, 75000);
+    expect(running.body, contains('专注 01:15'));
+    expect(running.budgetMinutes, 30);
+    Future<void> act(
+      ExecutionEventType type, {
+      int? minutes,
+      UserReportedResult? report,
+    }) async {
+      final detail = (await missions.findDetail(missionId: id))!;
+      await missions.execute(
+        missions.prepareExecution(
+          detail: detail,
+          type: type,
+          minutes: minutes,
+          report: report,
+        ),
+      );
+      await service.refresh();
+    }
+
+    await act(ExecutionEventType.pause);
+    now = now.add(const Duration(minutes: 10));
+    await act(ExecutionEventType.extend, minutes: 5);
+    final paused = dispatcher.visible.values.single;
+    expect(paused.kind, ReminderKind.executionPaused);
+    expect(paused.focusMilliseconds, 75000);
+    expect(paused.budgetMinutes, 35);
+    expect(paused.notificationId, running.notificationId);
+    expect(paused.expectedSequence, 3);
+    await act(ExecutionEventType.resume);
+    now = now.add(const Duration(seconds: 45));
+    await service.refresh();
+    expect(dispatcher.visible.values.single.focusMilliseconds, 120000);
+    now = now.add(const Duration(hours: 1));
+    await service.refresh();
+    expect(dispatcher.visible.values.single.body, contains('专注 01:02:00'));
+    final correctTime = now;
+    now = now.subtract(const Duration(hours: 2));
+    await service.refresh();
+    expect(dispatcher.visible.values.single.clockBehind, isTrue);
+    expect(dispatcher.visible.values.single.body, contains('请校时'));
+    now = correctTime;
+    await act(ExecutionEventType.end, report: UserReportedResult.completed);
+    expect(dispatcher.visible, isEmpty);
+  });
+
   test(
     'concurrent duplicate stop callback emits one confirmation and one PAUSE',
     () async {

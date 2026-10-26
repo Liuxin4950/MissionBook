@@ -36,9 +36,9 @@ abstract final class AppTypography {
       color: AppColors.textPrimary,
     ), // 表单外置标签。
     bodyLarge: TextStyle(
-      fontSize: 18,
-      height: 24 / 18,
-      fontWeight: FontWeight.w500,
+      fontSize: 15,
+      height: 22 / 15,
+      fontWeight: FontWeight.w400,
       color: AppColors.textPrimary,
     ), // 输入值和详情计划主值。
     bodyMedium: TextStyle(

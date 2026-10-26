@@ -51,7 +51,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
         child: Material(
           color: colors.primaryContainer.withValues(alpha: 0.45),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             side: BorderSide(color: colors.outlineVariant),
           ),
           clipBehavior: Clip.antiAlias,
@@ -66,8 +66,8 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
                   }
                 : null,
             child: ConstrainedBox(
-              constraints: BoxConstraints.tightFor(
-                height: missionInputHeight(context),
+              constraints: BoxConstraints(
+                minHeight: missionInputHeight(context),
               ),
               child: ExcludeSemantics(
                 child: LayoutBuilder(
@@ -76,7 +76,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
                         MediaQuery.textScalerOf(context).scale(18) / 18;
                     // 大字体优先给完整日期留空间，必要时省去装饰性日历图标。
                     final showCalendarIcon =
-                        constraints.maxWidth >= 190 * scale;
+                        constraints.maxWidth >= 240 * scale;
                     return Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -93,19 +93,9 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
                             const SizedBox(width: 12),
                           ],
                           Expanded(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${widget.selectedDate.year}年',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                                Text(
-                                  '${widget.selectedDate.month}月${widget.selectedDate.day}日',
-                                  style: Theme.of(context).textTheme.bodyLarge,
-                                ),
-                              ],
+                            child: Text(
+                              '${widget.selectedDate.year}年${widget.selectedDate.month}月${widget.selectedDate.day}日',
+                              style: Theme.of(context).textTheme.bodyLarge,
                             ),
                           ),
                           Icon(
@@ -154,7 +144,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
       builder: (context, constraints) {
         // 日期和时长在正常宽度并排；窄屏/大字体改为纵排，保留完整日期和单位。
         final scale = MediaQuery.textScalerOf(context).scale(18) / 18;
-        if (constraints.maxWidth < 300 * scale) {
+        if (constraints.maxWidth < 340 * scale) {
           return Column(
             children: [
               _dateField(),
@@ -201,7 +191,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
               style: Theme.of(context).textTheme.titleMedium,
             );
             final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
-            if (constraints.maxWidth < 300 * scale) {
+            if (constraints.maxWidth < 340 * scale) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [label, const SizedBox(height: 12), selection],
@@ -377,10 +367,10 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
 }
 
 // 本表单共用的输入样式与标签放在这里，避免再增加样式辅助文件。
-// 日期含年份和月日两行，统一按这两行所需空间安排输入框高度。
+// 普通输入最小52像素；日期在大字体下允许换行并自然增高。
 // 随系统字号一起增长，确保真正绘制的边框等高，而不只扩大组件外部占位。
 double missionInputHeight(BuildContext context) =>
-    44 * (MediaQuery.textScalerOf(context).scale(18) / 18) + 24;
+    22 * (MediaQuery.textScalerOf(context).scale(15) / 15) + 30;
 
 // 输入边界由本页组织，文字使用全站主题中的输入角色。
 InputDecoration missionInputDecoration(
@@ -390,7 +380,7 @@ InputDecoration missionInputDecoration(
 }) {
   final colors = Theme.of(context).colorScheme;
   final border = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(16),
+    borderRadius: BorderRadius.circular(12),
     borderSide: BorderSide(color: colors.outlineVariant),
   );
   return InputDecoration(

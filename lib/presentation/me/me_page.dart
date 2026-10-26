@@ -1,3 +1,6 @@
+import '../widgets/adaptive_sheet.dart';
+import '../widgets/adaptive_columns.dart';
+import '../widgets/app_section_card.dart';
 import 'dart:async';
 import '../../application/notifications/app_notification_service.dart';
 import 'package:flutter/material.dart';
@@ -128,7 +131,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
   Future<void> _chooseReminder() async {
     final service = widget.notifications;
     if (service == null || _savingScheduleSettings) return;
-    final minutes = await showModalBottomSheet<int>(
+    final minutes = await showAdaptiveSheet<int>(
       context: context,
       isScrollControlled: true,
       builder: (sheetContext) => SafeArea(
@@ -221,10 +224,35 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
       reminderDescription = '可在系统通知栏查看固定任务提醒与执行状态。';
       reminderIcon = Icons.notifications_active_outlined;
     }
+    final reminderSummary = Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: needsPermission ? AppColors.accent : AppColors.primarySoft,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            backgroundColor: AppColors.card,
+            child: Icon(reminderIcon, color: AppColors.primary),
+          ),
+          const SizedBox(height: 16),
+          Text(reminderTitle, style: text.titleMedium),
+          const SizedBox(height: 8),
+          Text(
+            reminderDescription,
+            style: text.bodyMedium?.copyWith(color: AppColors.textPrimary),
+          ),
+        ],
+      ),
+    );
     return SafeArea(
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
+          constraints: const BoxConstraints(
+            maxWidth: AppLayout.dashboardMaxWidth,
+          ),
           child: ListView(
             padding: AppLayout.pagePadding(context),
             children: [
@@ -232,273 +260,241 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                 title: '我的',
                 subtitle: Text('设置与数据都在这台设备上', style: text.bodyMedium),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Text('提醒与权限', style: text.titleMedium),
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: needsPermission
-                      ? AppColors.accent.withValues(alpha: .78)
-                      : AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      radius: 26,
-                      backgroundColor: AppColors.card,
-                      child: Icon(
-                        reminderIcon,
-                        size: 26,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            reminderTitle,
-                            style: text.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            reminderDescription,
-                            style: text.bodyMedium?.copyWith(
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+              AdaptiveColumns(
+                key: const Key('permission-columns'),
+                minColumnWidth: 270,
+                children: [
+                  reminderSummary,
+                  if (needsPermission && _capabilityError == null) ...[
+                    if (needsNotifications) _permission('系统通知', false),
+                    if (needsExactAlarms) _permission('准时提醒权限', true),
                   ],
-                ),
+                ],
               ),
-              if (_capabilityError != null) ...[
-                const SizedBox(height: 8),
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    _capabilityError!,
-                    style: text.bodyMedium?.copyWith(color: AppColors.error),
+              if (_capabilityError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _capabilityError!,
+                      style: text.bodyMedium?.copyWith(color: AppColors.error),
+                    ),
                   ),
                 ),
-              ],
               if (capabilities == null ||
                   unknownPermission ||
                   _capabilityError != null)
-                TextButton(
-                  key: const Key('refresh-permissions'),
-                  onPressed: _querying ? null : _refresh,
-                  child: Text(_querying ? '正在读取权限…' : '重新读取权限'),
-                ),
-              if (needsPermission && _capabilityError == null) ...[
-                const SizedBox(height: 8),
-                if (needsNotifications) _permission('系统通知', false),
-                if (needsNotifications && needsExactAlarms)
-                  const Divider(height: 1),
-                if (needsExactAlarms) _permission('准时提醒权限', true),
-              ],
-              const SizedBox(height: 16),
-              if (widget.notifications != null) ...[
-                Text('计划任务', style: text.titleMedium),
-                const SizedBox(height: 8),
-                Text(
-                  '固定任务到点自动开始，开始前可修改。若已有任务在执行，会保留当前计时并提醒处理；错过整个计划时段后可手动开始或重新安排。',
-                  style: text.bodySmall,
-                ),
-                StreamBuilder<void>(
-                  stream: widget.notifications!.settingsChanges,
-                  builder: (context, _) => Column(
-                    children: [
-                      ListTile(
-                        key: const Key('planned-reminder-setting'),
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(
-                          Icons.notifications_active_outlined,
-                        ),
-                        title: Text(
-                          _reminderLabel(
-                            widget.notifications!.reminderLeadMinutes,
-                          ),
-                        ),
-                        subtitle: const Text('应用于所有尚未开始的固定任务'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: _savingScheduleSettings ? null : _chooseReminder,
-                      ),
-                    ],
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    key: const Key('refresh-permissions'),
+                    onPressed: _querying ? null : _refresh,
+                    child: Text(_querying ? '正在读取权限…' : '重新读取权限'),
                   ),
                 ),
-                if (_scheduleSettingsError != null)
-                  Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      _scheduleSettingsError!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ),
-                const Divider(),
-                const SizedBox(height: 16),
-              ],
-              Text('数据', style: text.titleMedium),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
+              const SizedBox(height: 24),
+              AdaptiveColumns(
+                key: const Key('settings-columns'),
+                minColumnWidth: 360,
+                maxColumns: 2,
+                children: [
+                  if (widget.notifications != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const CircleAvatar(
-                          radius: 26,
-                          backgroundColor: AppColors.primarySoft,
-                          child: Icon(
-                            Icons.file_upload_outlined,
-                            size: 26,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
+                        Text('计划任务', style: text.titleMedium),
+                        const SizedBox(height: 12),
+                        AppSectionCard(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Text(
-                                '本地备份',
-                                style: text.bodyLarge?.copyWith(
-                                  fontWeight: FontWeight.w600,
+                              StreamBuilder<void>(
+                                stream: widget.notifications!.settingsChanges,
+                                builder: (context, _) => ListTile(
+                                  key: const Key('planned-reminder-setting'),
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(Icons.alarm_outlined),
+                                  title: Text(
+                                    _reminderLabel(
+                                      widget.notifications!.reminderLeadMinutes,
+                                    ),
+                                    style: text.titleMedium,
+                                  ),
+                                  subtitle: const Text('应用于所有尚未开始的固定任务'),
+                                  trailing: const Icon(Icons.chevron_right),
+                                  onTap: _savingScheduleSettings
+                                      ? null
+                                      : _chooseReminder,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 12),
                               Text(
-                                _backupMessage == null
-                                    ? '本次尚未导出'
-                                    : (_backupFailed ? '上次导出未成功' : '查看下方导出结果'),
-                                style: text.bodyMedium,
+                                '固定任务到点自动开始；若已有任务在执行，会保留当前计时并提醒处理。错过整个计划时段后可手动开始或重新安排。',
+                                style: text.bodySmall,
                               ),
+                              if (_scheduleSettingsError != null)
+                                Semantics(
+                                  liveRegion: true,
+                                  child: Text(
+                                    _scheduleSettingsError!,
+                                    style: TextStyle(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.error,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text('包含数据库与正式附件，不含草稿。当前暂不支持恢复导入。', style: text.bodyMedium),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: FilledButton.icon(
-                        key: const Key('backup-export'),
-                        onPressed: _exporting ? null : _export,
-                        icon: _exporting
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.file_download_outlined,
-                                size: 20,
-                              ),
-                        label: Text(
-                          _exporting
-                              ? '正在导出…'
-                              : (_backupFailed ? '重试导出' : '导出备份'),
-                        ),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                          shape: const StadiumBorder(),
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                        ),
-                      ),
-                    ),
-                    if (_backupMessage != null) ...[
-                      const SizedBox(height: 12),
-                      Semantics(
-                        liveRegion: true,
-                        child: Text(
-                          _backupMessage!,
-                          key: const Key('backup-result'),
-                          style: text.bodyMedium?.copyWith(
-                            color: _backupFailed
-                                ? AppColors.error
-                                : AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 12),
-              InkWell(
-                key: const Key('about-toggle'),
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => setState(() => _about = !_about),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Row(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const CircleAvatar(
-                        radius: 26,
-                        backgroundColor: AppColors.primarySoft,
-                        child: Icon(
-                          Icons.info_outline,
-                          size: 26,
-                          color: AppColors.primary,
+                      Text('数据', style: text.titleMedium),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.card,
+                          borderRadius: BorderRadius.circular(24),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              '关于 Mission Book',
-                              style: text.bodyLarge?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                            Row(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: AppColors.primarySoft,
+                                  child: Icon(
+                                    Icons.file_upload_outlined,
+                                    size: 26,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '本地备份',
+                                        style: text.bodyLarge?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _backupMessage == null
+                                            ? '本次尚未导出'
+                                            : (_backupFailed
+                                                  ? '上次导出未成功'
+                                                  : '查看下方导出结果'),
+                                        style: text.bodyMedium,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 8),
                             Text(
-                              capabilities?.version ?? '版本读取中…',
-                              key: const Key('app-version'),
+                              '包含数据库与正式附件，不含草稿。当前暂不支持恢复导入。',
                               style: text.bodyMedium,
                             ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: FilledButton.icon(
+                                key: const Key('backup-export'),
+                                onPressed: _exporting ? null : _export,
+                                icon: _exporting
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.file_download_outlined,
+                                        size: 20,
+                                      ),
+                                label: Text(
+                                  _exporting
+                                      ? '正在导出…'
+                                      : (_backupFailed ? '重试导出' : '导出备份'),
+                                ),
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size(0, 48),
+                                  shape: const StadiumBorder(),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_backupMessage != null) ...[
+                              const SizedBox(height: 12),
+                              Semantics(
+                                liveRegion: true,
+                                child: Text(
+                                  _backupMessage!,
+                                  key: const Key('backup-result'),
+                                  style: text.bodyMedium?.copyWith(
+                                    color: _backupFailed
+                                        ? AppColors.error
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
-                      Icon(
-                        _about ? Icons.expand_less : Icons.expand_more,
-                        color: AppColors.textSecondary,
-                      ),
                     ],
                   ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Text('关于', style: text.titleMedium),
+              const SizedBox(height: 12),
+              AppSectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ListTile(
+                      key: const Key('about-toggle'),
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.info_outline),
+                      title: Text('关于 Mission Book', style: text.titleMedium),
+                      subtitle: Text(
+                        capabilities?.version ?? '版本读取中…',
+                        key: const Key('app-version'),
+                      ),
+                      trailing: Icon(
+                        _about ? Icons.expand_less : Icons.expand_more,
+                      ),
+                      onTap: () => setState(() => _about = !_about),
+                    ),
+                    if (_about)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(
+                          '把目标落到行动，让记录忠于事实。数据保存在当前设备。强行停止或省电限制可能影响后台提醒。',
+                          style: text.bodyMedium,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              if (_about)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(68, 0, 12, 8),
-                  child: Text(
-                    '把目标落到行动，让记录忠于事实。数据保存在当前设备。强行停止或省电限制可能影响后台提醒。',
-                    style: text.bodyMedium,
-                  ),
-                ),
             ],
           ),
         ),
@@ -509,39 +505,26 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
   /// 只为明确缺少的权限提供授权入口；已允许项在摘要中体现。
   Widget _permission(String title, bool exact) {
     final text = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
+    return AppSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
-            radius: 22,
+            radius: 24,
             backgroundColor: AppColors.primarySoft,
             child: Icon(
               exact ? Icons.alarm_outlined : Icons.notifications_outlined,
-              size: 22,
               color: AppColors.primary,
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: text.titleSmall),
-                Text('系统未允许', style: text.bodySmall),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
+          const SizedBox(height: 16),
+          Text(title, style: text.titleMedium),
+          const SizedBox(height: 4),
+          Text('系统未允许', style: text.bodyMedium),
+          const SizedBox(height: 12),
           OutlinedButton(
             key: Key(exact ? 'grant-exact-alarms' : 'grant-notifications'),
             onPressed: _openingSettings ? null : () => _settings(exact),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(48, 44),
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              textStyle: text.labelMedium,
-            ),
             child: const Text('去设置'),
           ),
         ],

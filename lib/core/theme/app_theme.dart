@@ -30,6 +30,15 @@ abstract final class AppTheme {
     scaffoldBackgroundColor: AppColors.background, // 页面背景
     textTheme: AppTypography.textTheme,
     iconTheme: const IconThemeData(color: AppColors.primary),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: AppColors.primary,
+      contentTextStyle: AppTypography.textTheme.bodyMedium?.copyWith(
+        color: AppColors.onPrimary,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+    ),
     cardTheme: CardThemeData(
       color: AppColors.card,
       elevation: 0,
@@ -46,7 +55,7 @@ abstract final class AppTheme {
       checkmarkColor: AppColors.primary,
       side: const BorderSide(color: AppColors.hairline),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     ),
     bottomSheetTheme: const BottomSheetThemeData(
       backgroundColor: AppColors.background,

@@ -98,6 +98,9 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    DetailPaneScope.maybeOf(
+      context,
+    )?.registerTopGuard(_mayLeave, route: ModalRoute.of(context));
     _tickerEnabled = TickerMode.valuesOf(context).enabled;
     _configureTimer();
   }
@@ -291,6 +294,16 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
     });
     // 外部恢复等冲突在离开草稿后再重读；取消报告本身绝不写 RESUME。
     if (_action.stale) await _refresh();
+  }
+
+  Future<bool> _mayLeave() async {
+    if (_action.busy || _action.pending != null || _closingReport) return false;
+    if (_action.detail.phase == MissionPhase.closed && !_action.stale) {
+      return true;
+    }
+    if (!_report) return true;
+    await _leaveReport();
+    return mounted && !_report;
   }
 
   void _confirmReport() {

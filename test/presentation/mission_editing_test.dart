@@ -119,7 +119,7 @@ void main() {
       ),
     );
     await openEditor(tester, repository, detail: detail);
-    expect(find.text('10月22日'), findsOneWidget);
+    expect(find.text('2026年10月22日'), findsOneWidget);
     await tester.ensureVisible(find.byKey(const ValueKey('mission-hour')));
     await tester.pumpAndSettle();
     expect(

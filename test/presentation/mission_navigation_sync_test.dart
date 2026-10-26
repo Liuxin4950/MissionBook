@@ -264,6 +264,8 @@ void main() {
       (await repository.findDetail(missionId))!.phase,
       MissionPhase.cancelled,
     );
+    await tester.tap(find.text('返回原页面'));
+    await tester.pumpAndSettle();
     expect(find.text('没有执行记录'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });

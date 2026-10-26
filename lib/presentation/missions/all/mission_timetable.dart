@@ -4,11 +4,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/colors.dart';
-import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/entities/scheduled_mission.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../widgets/app_visibility.dart';
 import '../../widgets/adaptive_sheet.dart';
 import '../shared/mission_phase_display.dart';
+import '../shared/mission_phase_icon.dart';
 import 'timetable_layout.dart';
 
 /// 日课表负责比例布局、冲突阅读和当前时间线；任务操作仍交回页面。
@@ -19,12 +20,14 @@ class MissionTimetable extends StatefulWidget {
     required this.layoutBuilder,
     required this.onOpen,
     required this.clock,
+    this.pixelsPerMinute = 2,
   });
   final DateTime day;
   // 每次重绘按当前时刻重建布局，运行中的实际区间才会延伸。
   final TimetableDay Function(DateTime now) layoutBuilder;
-  final ValueChanged<MissionDetail> onOpen;
+  final ValueChanged<String> onOpen;
   final DateTime Function() clock;
+  final double pixelsPerMinute;
 
   @override
   State<MissionTimetable> createState() => _MissionTimetableState();
@@ -86,7 +89,7 @@ class _MissionTimetableState extends State<MissionTimetable>
   Future<void> _showConflicts([TimetableSlot? selected]) async {
     final conflicts = selected?.conflicts ?? _layout.conflicts;
     final visibleIds = _layout.slots.map((slot) => slot.id).toSet();
-    final target = await showAdaptiveSheet<MissionDetail>(
+    final target = await showAdaptiveSheet<ScheduledMission>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -132,7 +135,7 @@ class _MissionTimetableState extends State<MissionTimetable>
         ),
       ),
     );
-    if (target != null && mounted) widget.onOpen(target);
+    if (target != null && mounted) widget.onOpen(target.mission.id);
   }
 
   @override
@@ -148,7 +151,7 @@ class _MissionTimetableState extends State<MissionTimetable>
       1.0,
       MediaQuery.textScalerOf(context).scale(14) / 14,
     );
-    final pixelsPerMinute = 2.0 * scale;
+    final pixelsPerMinute = widget.pixelsPerMinute * scale;
     // 窗口围绕占位和“现在”裁剪，不再固定 8:00–18:00 空跑大片空白。
     final window = timetableWindow(slots, nowMinute: nowMinute);
     final start = window.start;
@@ -158,7 +161,7 @@ class _MissionTimetableState extends State<MissionTimetable>
       (count, slot) => math.max(count, slot.columns),
     );
     final shortSlots = slots
-        .where((slot) => slot.end - slot.start < 30)
+        .where((slot) => (slot.end - slot.start) * widget.pixelsPerMinute < 56)
         .toList();
     final actualCount = slots.where((slot) => slot.actual).length;
     final plannedCount = slots.length - actualCount;
@@ -299,9 +302,7 @@ class _MissionTimetableState extends State<MissionTimetable>
                               for (final slot in slots)
                                 Positioned(
                                   key: Key('timetable-slot-${slot.id}'),
-                                  top:
-                                      8 * scale +
-                                      (slot.start - start) * pixelsPerMinute,
+                                  top: (slot.start - start) * pixelsPerMinute,
                                   left:
                                       gutter +
                                       chartWidth * slot.column / slot.columns,
@@ -338,6 +339,7 @@ class _MissionTimetableState extends State<MissionTimetable>
           for (final slot in shortSlots)
             ListTile(
               contentPadding: EdgeInsets.zero,
+              leading: MissionPhaseIcon(phase: slot.detail.phase),
               title: Text(
                 slot.detail.mission.title,
                 style: theme.textTheme.titleMedium,
@@ -356,7 +358,7 @@ class _MissionTimetableState extends State<MissionTimetable>
                         color: AppColors.error,
                       ),
                     ),
-              onTap: () => widget.onOpen(slot.detail),
+              onTap: () => widget.onOpen(slot.id),
             ),
         ],
       ],
@@ -399,7 +401,7 @@ class _MissionTimetableState extends State<MissionTimetable>
           child: InkWell(
             // 与列表行的 all-mission- key 分开：自选任务会同时出现在图和列表里。
             key: Key('timetable-bar-${slot.id}'),
-            onTap: () => widget.onOpen(slot.detail),
+            onTap: () => widget.onOpen(slot.id),
             child: Stack(
               children: [
                 Positioned.fill(
@@ -418,7 +420,7 @@ class _MissionTimetableState extends State<MissionTimetable>
                         : AppColors.primary,
                   ),
                 ),
-                if (minutes >= 30)
+                if (minutes * widget.pixelsPerMinute >= 56)
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -439,7 +441,7 @@ class _MissionTimetableState extends State<MissionTimetable>
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleMedium,
                         ),
-                        if (minutes >= 45) ...[
+                        if (minutes * widget.pixelsPerMinute >= 80) ...[
                           const SizedBox(height: 2),
                           Text(
                             status,
@@ -448,7 +450,8 @@ class _MissionTimetableState extends State<MissionTimetable>
                             style: theme.textTheme.bodyMedium,
                           ),
                         ],
-                        if (hasConflict && minutes >= 60)
+                        if (hasConflict &&
+                            minutes * widget.pixelsPerMinute >= 112)
                           InkWell(
                             onTap: () => _showConflicts(slot),
                             child: Padding(

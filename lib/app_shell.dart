@@ -55,6 +55,7 @@ class _AppShellState extends State<AppShell> {
   final _detailPane = DetailPaneController();
   final _pageStackKey = GlobalKey();
   StreamSubscription<NotificationUiAction>? _uiActions;
+  bool _selectingPage = false;
 
   @override
   void initState() {
@@ -128,10 +129,16 @@ class _AppShellState extends State<AppShell> {
   }
 
   // 路由变更方法
-  void _selectPage(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+  Future<void> _selectPage(int index) async {
+    if (_selectingPage) return;
+    _selectingPage = true;
+    try {
+      // 切主导航先处理右栏及草稿守卫，否则新页面只会在旧面板下面切换。
+      if (!await _detailPane.clear() || !mounted) return;
+      setState(() => _selectedIndex = index);
+    } finally {
+      _selectingPage = false;
+    }
   }
 
   @override
@@ -193,7 +200,10 @@ class _AppShellState extends State<AppShell> {
                       : Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            ActiveMissionsBar(service: widget.missionService),
+                            ActiveMissionsBar(
+                              service: widget.missionService,
+                              clock: widget.clock,
+                            ),
                             _buildNavigationBar(),
                           ],
                         ),
@@ -208,8 +218,11 @@ class _AppShellState extends State<AppShell> {
                       Expanded(
                         child: Column(
                           children: [
-                            ActiveMissionsBar(service: widget.missionService),
                             Expanded(child: body),
+                            ActiveMissionsBar(
+                              service: widget.missionService,
+                              clock: widget.clock,
+                            ),
                           ],
                         ),
                       ),
@@ -235,29 +248,35 @@ class _AppShellState extends State<AppShell> {
                   : constraints.maxWidth;
               final takeover = _detailPane.hasContent && !split;
               // 两个载体始终保持同一树位置；缩放只改尺寸和可见性。
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: split
-                        ? constraints.maxWidth - rightWidth - AppLayout.paneGap
-                        : constraints.maxWidth,
-                    child: Offstage(
-                      offstage: takeover,
-                      child: TickerMode(enabled: !takeover, child: shell),
+              return ColoredBox(
+                key: const Key('workspace-background'),
+                color: Theme.of(context).scaffoldBackgroundColor,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: split
+                          ? constraints.maxWidth -
+                                rightWidth -
+                                AppLayout.paneGap
+                          : constraints.maxWidth,
+                      child: Offstage(
+                        offstage: takeover,
+                        child: TickerMode(enabled: !takeover, child: shell),
+                      ),
                     ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: rightWidth,
-                    child: DetailPaneHost(controller: _detailPane),
-                  ),
-                ],
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: rightWidth,
+                      child: DetailPaneHost(controller: _detailPane),
+                    ),
+                  ],
+                ),
               );
             },
           );
@@ -288,23 +307,44 @@ class _AppShellState extends State<AppShell> {
         ),
       ),
     );
-    return SafeArea(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          border: Border(right: BorderSide(color: AppColors.hairline)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              item(0, '今天', Icons.home_outlined, Icons.home_rounded),
-              item(1, '目标', Icons.track_changes_outlined, Icons.track_changes),
-              item(2, '历史', Icons.schedule_outlined, Icons.schedule),
-              item(3, '我的', Icons.person_outline, Icons.person),
-            ],
+    return SizedBox(
+      width: expanded ? 192 : 88,
+      child: SafeArea(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            border: Border(right: BorderSide(color: AppColors.hairline)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 28),
+                    child: expanded
+                        ? Text(
+                            'MissionBook',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          )
+                        : const Icon(Icons.book_outlined, size: 28),
+                  ),
+                  item(0, '今天', Icons.home_outlined, Icons.home_rounded),
+                  item(
+                    1,
+                    '目标',
+                    Icons.track_changes_outlined,
+                    Icons.track_changes,
+                  ),
+                  item(2, '历史', Icons.schedule_outlined, Icons.schedule),
+                  item(3, '我的', Icons.person_outline, Icons.person),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -389,7 +429,9 @@ class _AppShellState extends State<AppShell> {
     bool extended = false,
   }) {
     final selected = index == _selectedIndex;
-    final foreground = selected ? AppColors.accent : AppColors.textSecondary;
+    final foreground = selected
+        ? (inCapsule ? AppColors.onPrimary : AppColors.primary)
+        : AppColors.textSecondary;
 
     // 触屏和读屏都调用同一个入口，使用当前导航项的 index 切换页面。
     void selectPage() {
@@ -403,16 +445,20 @@ class _AppShellState extends State<AppShell> {
     );
     final labelWidget = Text(
       label,
-      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-        color: foreground,
-      ),
+      style:
+          (extended
+                  ? Theme.of(context).textTheme.labelMedium
+                  : Theme.of(context).textTheme.labelSmall)
+              ?.copyWith(
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: foreground,
+              ),
     );
     final content = extended
         ? Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [iconWidget, const SizedBox(width: 8), labelWidget],
             ),
           )
@@ -439,7 +485,9 @@ class _AppShellState extends State<AppShell> {
           child: Ink(
             decoration: ShapeDecoration(
               shape: const StadiumBorder(),
-              color: selected ? AppColors.primary : AppColors.card,
+              color: selected
+                  ? (inCapsule ? AppColors.primary : AppColors.primarySoft)
+                  : AppColors.card,
             ),
             child: content,
           ),

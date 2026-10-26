@@ -1,3 +1,5 @@
+import '../../widgets/adaptive_columns.dart';
+import '../../widgets/app_section_card.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';
@@ -12,6 +14,7 @@ import '../../../domain/entities/mission_phase.dart';
 import '../detail/mission_detail_page.dart';
 import '../execution/mission_execution_page.dart';
 import '../shared/mission_phase_display.dart';
+import '../shared/mission_phase_icon.dart';
 import '../shared/mission_live_status.dart';
 import '../../widgets/app_top_bar.dart';
 import 'mission_timetable.dart';
@@ -129,7 +132,8 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     try {
       await openDetailPane<void>(
         context,
-        label: detail.phase == MissionPhase.running ||
+        label:
+            detail.phase == MissionPhase.running ||
                 detail.phase == MissionPhase.paused
             ? '任务执行'
             : '任务详情',
@@ -183,7 +187,9 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     body: SafeArea(
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
+          constraints: const BoxConstraints(
+            maxWidth: AppLayout.dashboardMaxWidth,
+          ),
           child: FutureBuilder<List<MissionDetail>>(
             future: _records,
             builder: (context, snapshot) {
@@ -221,7 +227,11 @@ class _AllMissionsPageState extends State<AllMissionsPage>
               return RefreshIndicator(
                 onRefresh: () async {
                   _refresh();
-                  await _records;
+                  try {
+                    await _records;
+                  } catch (_) {
+                    /* FutureBuilder 显示可恢复错误。 */
+                  }
                 },
                 child: ListView(
                   key: const Key('all-missions-list'),
@@ -334,40 +344,62 @@ class _AllMissionsPageState extends State<AllMissionsPage>
             ),
             const SizedBox(height: 8),
           ],
-          if (layout.slots.isNotEmpty || !showDate && other.isEmpty)
-            MissionTimetable(
-              day: day,
-              layoutBuilder: layoutAt,
-              onOpen: _open,
-              clock: widget.clock,
-            ),
-          if (other.any(
-            (detail) => detail.phase != MissionPhase.cancelled,
-          )) ...[
-            const SizedBox(height: 16),
-            Text('自选任务', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 4),
-            Text(
-              '只安排日期，不占用固定时段；已开始的自选任务按实际执行区间画在图上。',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 12),
-            for (final detail in other.where(
-              (detail) => detail.phase != MissionPhase.cancelled,
-            ))
-              _row(context, detail),
-          ],
-          if (other.any(
-            (detail) => detail.phase == MissionPhase.cancelled,
-          )) ...[
-            const SizedBox(height: 16),
-            Text('已取消 · 不占用时段', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
-            for (final detail in other.where(
-              (detail) => detail.phase == MissionPhase.cancelled,
-            ))
-              _row(context, detail),
-          ],
+          AdaptiveColumns(
+            minColumnWidth: 420,
+            maxColumns: 2,
+            children: [
+              if (layout.slots.isNotEmpty || !showDate && other.isEmpty)
+                MissionTimetable(
+                  day: day,
+                  layoutBuilder: layoutAt,
+                  onOpen: (id) => _open(
+                    all.firstWhere((detail) => detail.mission.id == id),
+                  ),
+                  clock: widget.clock,
+                ),
+              if (other.isNotEmpty)
+                AppSectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (other.any(
+                        (detail) => detail.phase != MissionPhase.cancelled,
+                      )) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          '自选任务',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '只安排日期，不占用固定时段；已开始的自选任务按实际执行区间画在图上。',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        for (final detail in other.where(
+                          (detail) => detail.phase != MissionPhase.cancelled,
+                        ))
+                          _row(context, detail),
+                      ],
+                      if (other.any(
+                        (detail) => detail.phase == MissionPhase.cancelled,
+                      )) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          '已取消 · 不占用时段',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        for (final detail in other.where(
+                          (detail) => detail.phase == MissionPhase.cancelled,
+                        ))
+                          _row(context, detail),
+                      ],
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -573,22 +605,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
             padding: const EdgeInsets.all(18),
             child: Row(
               children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: detail.phase == MissionPhase.running
-                        ? AppColors.accent
-                        : AppColors.primarySoft,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    detail.phase == MissionPhase.cancelled
-                        ? Icons.block_outlined
-                        : Icons.task_alt,
-                    color: AppColors.primary,
-                  ),
-                ),
+                MissionPhaseIcon(phase: detail.phase),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

@@ -68,6 +68,7 @@ goals/
 | --- | --- |
 | [mission_action_controller.dart](missions/shared/mission_action_controller.dart) | 统一提交开始、暂停、继续、延长和结束；管理等待、冲突及同一操作重试 |
 | [mission_execution_display.dart](missions/shared/mission_execution_display.dart) | 共用标题、页面正文布局、动作反馈、事件时间线及时间文字转换 |
+| [mission_phase_icon.dart](missions/shared/mission_phase_icon.dart) | 今天、自选、全部与当前任务栏共用的六阶段图标 |
 | [mission_phase_display.dart](missions/shared/mission_phase_display.dart) | 统一阶段文案和打开任务的提示 |
 | [mission_live_status.dart](missions/shared/mission_live_status.dart) | 列表实时时长标签，定时重绘，不每秒查询或写库 |
 | [active_missions_bar.dart](missions/shared/active_missions_bar.dart) | 跨日期显示当前运行或暂停的任务 |

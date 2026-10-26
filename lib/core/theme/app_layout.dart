@@ -15,7 +15,11 @@ enum WindowClass {
 
 /// 全站页面共用阅读宽度和留白，窄屏按实际可用宽度计算。
 abstract final class AppLayout {
-  static const maxPageWidth = 792.0;
+  static const maxPageWidth = 792.0; // 详情与阅读表面的限宽。
+  static const dashboardMaxWidth = 1440.0;
+  static const formMaxWidth = 1080.0;
+  static const dashboardSplitWidth = 840.0; // 已扣除侧栏和页面边距。
+
   static const sectionGap = 24.0;
 
   // 断点（语义化常量）：compact < mediumBreakpoint ≤ medium < expandedBreakpoint。

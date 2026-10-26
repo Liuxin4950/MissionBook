@@ -1,0 +1,331 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mission_book/app_shell.dart';
+import 'package:mission_book/application/goals/goal_service.dart';
+import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/core/theme/app_theme.dart';
+import 'package:mission_book/data/local/app_database.dart';
+import 'package:mission_book/data/repositories/drift_goal_repository.dart';
+import 'package:mission_book/data/repositories/drift_mission_repository.dart';
+import 'package:mission_book/domain/entities/mission_ownership.dart';
+import 'package:mission_book/domain/entities/execution_event.dart';
+import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
+import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
+import 'package:mission_book/presentation/missions/all/mission_timetable.dart';
+import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
+import '../support/me_fakes.dart';
+
+// 可选的真实字体截图只用于本机视觉复核，普通 CI 不依赖系统字体或输出目录。
+const _captureDir = String.fromEnvironment('UI_CAPTURE_DIR');
+final _screen = GlobalKey();
+
+Future<void> _capture(WidgetTester tester, String name) async {
+  if (_captureDir.isEmpty) return;
+  final boundary =
+      _screen.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 1);
+    final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!;
+    await Directory(_captureDir).create(recursive: true);
+    await File(
+      '$_captureDir/$name.png',
+    ).writeAsBytes(bytes.buffer.asUint8List());
+    image.dispose();
+  });
+}
+
+void main() {
+  late AppDatabase db;
+  late MissionService missions;
+  late GoalService goals;
+  late String goalId;
+  late DateTime now;
+
+  setUpAll(() async {
+    if (_captureDir.isEmpty) return;
+    final font = FontLoader('UiPreview');
+    font.addFont(
+      File(
+        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+      ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
+    );
+    await font.load();
+    final icons = FontLoader('MaterialIcons');
+    icons.addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+    await icons.load();
+  });
+  setUp(() async {
+    now = DateTime.utc(2030, 10, 26, 2, 30);
+    db = AppDatabase(executor: NativeDatabase.memory());
+    missions = MissionService(
+      DriftMissionRepository(db, clock: () => now),
+      clock: () => now,
+    );
+    goals = GoalService(DriftGoalRepository(db));
+    for (final title in ['系统学习 Flutter', '完善个人技术网站', '提升软件测试能力']) {
+      final goal = goals.prepareCreation(
+        title: title,
+        description: '把方向拆成清晰的行动，记录每一次实践。',
+      );
+      await goals.create(goal);
+      if (title == '系统学习 Flutter') goalId = goal.id;
+    }
+    for (final title in ['布局基础', '状态管理', '项目实践']) {
+      final node = goals.prepareNodeCreation(
+        goalId: goalId,
+        title: title,
+        description: '学习并完成一次独立练习',
+      );
+      await goals.createNode(node);
+      await missions.createPrepared(
+        missions.prepareCreation(
+          title: '练习$title',
+          scheduledDate: '2030-10-26',
+          timeZone: 'Asia/Shanghai',
+          plannedDurationMinutes: 30,
+          ownership: MissionOwnership(goalId: goalId, goalNodeId: node.id),
+        ),
+      );
+    }
+    for (final (title, hour, minutes) in [
+      ('学习 Flutter 页面布局', 1, 90),
+      ('整理项目需求', 2, 60),
+      ('练习 Spring Boot API', 6, 60),
+    ]) {
+      await missions.create(
+        title: title,
+        scheduledDate: '2030-10-26',
+        timeZone: 'Asia/Shanghai',
+        plannedDurationMinutes: minutes,
+        timePolicy: TimePolicy.fixed,
+        fixedStartAt: DateTime.utc(2030, 10, 26, hour),
+      );
+    }
+  });
+  tearDown(() async {
+    await missions.dispose();
+    await goals.dispose();
+    await db.close();
+  });
+
+  Future<void> open(
+    WidgetTester tester,
+    Size size, {
+    double scale = 1,
+    Widget? home,
+  }) async {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var theme = AppTheme.light;
+    if (_captureDir.isNotEmpty) {
+      theme = theme.copyWith(
+        textTheme: theme.textTheme.apply(fontFamily: 'UiPreview'),
+        textButtonTheme: TextButtonThemeData(
+          style: theme.textButtonTheme.style?.copyWith(
+            textStyle: WidgetStatePropertyAll(
+              theme.textTheme.labelLarge?.copyWith(fontFamily: 'UiPreview'),
+            ),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: theme.filledButtonTheme.style?.copyWith(
+            textStyle: WidgetStatePropertyAll(
+              theme.textTheme.labelLarge?.copyWith(fontFamily: 'UiPreview'),
+            ),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: theme.outlinedButtonTheme.style?.copyWith(
+            textStyle: WidgetStatePropertyAll(
+              theme.textTheme.labelLarge?.copyWith(fontFamily: 'UiPreview'),
+            ),
+          ),
+        ),
+      );
+    }
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: _screen,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: theme,
+          locale: const Locale('zh', 'CN'),
+          supportedLocales: const [Locale('zh', 'CN')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(scale)),
+            child: child!,
+          ),
+          home:
+              home ??
+              AppShell(
+                missionService: missions,
+                goalService: goals,
+                backupService: TestBackup(),
+                device: TestAppDevice(),
+                clock: () => now,
+              ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  for (final (width, scale) in [
+    (320.0, 2.0),
+    (390.0, 1.0),
+    (768.0, 1.0),
+    (1200.0, 1.0),
+    (1536.0, 1.0),
+    (1920.0, 1.0),
+  ]) {
+    testWidgets('真实数据在 $width / $scale 下重组布局，目标三个分类都可点击', (tester) async {
+      await open(tester, Size(width, 1000), scale: scale);
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const Key('today-dashboard-columns')),
+        width >= 1200 ? findsOneWidget : findsNothing,
+      );
+      if (width >= 1200) {
+        expect(find.byType(MissionTimetable), findsOneWidget);
+        final schedule = tester.getRect(
+          find.byKey(const Key('today-timetable-panel')),
+        );
+        final flexible = tester.getRect(find.text('自选时间'));
+        expect(flexible.left, greaterThan(schedule.right));
+      }
+      await _capture(tester, 'today-${width.toInt()}');
+      await tester.tap(find.byTooltip('目标'));
+      await tester.pumpAndSettle();
+      for (final status in ['paused', 'achieved', 'active']) {
+        final tab = find.byKey(Key('goal-filter-$status'));
+        expect(tab.hitTestable(), findsOneWidget);
+        final rect = tester.getRect(tab);
+        expect(rect.left, greaterThanOrEqualTo(0));
+        expect(rect.right, lessThanOrEqualTo(width));
+        await tester.tap(tab);
+        await tester.pumpAndSettle();
+      }
+      if (width >= 1200) {
+        await tester.tap(find.byKey(Key('goal-outline-toggle-$goalId')));
+        await tester.pumpAndSettle();
+        final roots = [
+          '布局基础',
+          '状态管理',
+          '项目实践',
+        ].map((label) => tester.getTopLeft(find.text(label))).toList();
+        expect(roots[0].dy, roots[1].dy);
+        expect(roots[1].dx, greaterThan(roots[0].dx));
+      }
+      await _capture(tester, 'goals-${width.toInt()}');
+      await tester.tap(find.byTooltip('我的'));
+      await tester.pumpAndSettle();
+      await _capture(tester, 'settings-${width.toInt()}');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
+  testWidgets('执行工作区视觉复核：底部紧凑任务栏与结束后左右一致', (tester) async {
+    final task = (await missions.findAllDetails()).firstWhere(
+      (detail) => detail.mission.title == '整理项目需求',
+    );
+    await missions.execute(
+      missions.prepareExecution(detail: task, type: ExecutionEventType.start),
+    );
+    now = now.add(const Duration(minutes: 12, seconds: 34));
+    await open(tester, const Size(1280, 900));
+    await _capture(tester, 'active-bottom-1280');
+    await tester.tap(find.byKey(const Key('active-mission')));
+    await tester.pumpAndSettle();
+    expect(find.byType(MissionExecutionPage), findsOneWidget);
+    await _capture(tester, 'execution-split-1280');
+    for (final key in ['execution-end', 'report-completed', 'report-confirm']) {
+      final control = find.byKey(Key(key));
+      await tester.ensureVisible(control);
+      await tester.tap(control);
+      await tester.pumpAndSettle();
+    }
+    expect(find.byKey(const Key('active-mission')), findsNothing);
+    await _capture(tester, 'ended-split-1280');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('连续创建使用新编号，返回关闭表单；缩放保留草稿和选中日期', (tester) async {
+    await open(
+      tester,
+      const Size(1536, 1000),
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<bool>(
+                builder: (_) => MissionFormPage(
+                  missionService: missions,
+                  initialScheduledDate: '2030-10-26',
+                  clock: () => now,
+                ),
+              ),
+            ),
+            child: const Text('打开创建'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开创建'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('mission-title')), '第一项新任务');
+    await tester.enterText(find.byKey(const Key('mission-duration')), '25');
+    await _capture(tester, 'form-desktop');
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('mission-title')))
+          .controller!
+          .text,
+      '第一项新任务',
+    );
+    await _capture(tester, 'form-phone');
+    await tester.tap(find.text('创建任务'));
+    await tester.pumpAndSettle();
+    expect(find.text('任务已创建'), findsOneWidget);
+    await tester.tap(find.text('继续新建'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('mission-title')))
+          .controller!
+          .text,
+      isEmpty,
+    );
+    expect(find.text('2030年10月26日'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('mission-title')), '第二项新任务');
+    await tester.enterText(find.byKey(const Key('mission-duration')), '15');
+    await tester.tap(find.text('创建任务'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('返回原页面'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MissionFormPage), findsNothing);
+    final saved = (await missions.findAllDetails())
+        .where((detail) => detail.mission.title.endsWith('项新任务'))
+        .toList();
+    expect(saved, hasLength(2));
+    expect(saved[0].mission.id, isNot(saved[1].mission.id));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+}

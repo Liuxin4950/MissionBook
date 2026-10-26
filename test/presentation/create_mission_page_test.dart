@@ -158,7 +158,7 @@ void main() {
     final repository = PendingRepository();
     await openForm(tester, repository);
     const date = '2032-01-01';
-    expect(find.text('1月1日'), findsOneWidget);
+    expect(find.text('2032年1月1日'), findsOneWidget);
     await tester.tap(find.byType(FilledButton));
     await tester.pump();
     expect(find.text('正在创建…'), findsOneWidget);
@@ -179,17 +179,10 @@ void main() {
     expect(repository.schedule!.scheduledDate, date);
     repository.completion.complete();
     await tester.pumpAndSettle();
-    expect(find.text('任务已创建，可返回今天页'), findsOneWidget);
-    expect(
-      tester
-          .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.arrow_back))
-          .onPressed,
-      isNotNull,
-    );
-    expect(
-      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
-      isNull,
-    );
+    expect(find.text('任务已创建'), findsOneWidget);
+    expect(find.text('继续新建'), findsOneWidget);
+    expect(find.text('返回原页面'), findsOneWidget);
+    expect(repository.calls, 1);
     for (final field in tester.widgetList<TextField>(find.byType(TextField))) {
       expect(field.enabled, isFalse);
     }
@@ -225,7 +218,7 @@ void main() {
     expect(repository.calls, 2);
     repository.completion.complete();
     await tester.pumpAndSettle();
-    expect(find.text('任务已创建，可返回今天页'), findsOneWidget);
+    expect(find.text('任务已创建'), findsOneWidget);
   });
   testWidgets('固定时刻按上海时间保存，失败后日期和时分保留；切回自选不带出旧时刻', (tester) async {
     final repository = PendingRepository();
@@ -299,7 +292,7 @@ void main() {
           .text,
       '15',
     );
-    expect(find.text('10月24日'), findsOneWidget);
+    expect(find.text('2026年10月24日'), findsOneWidget);
     await tester.tap(find.text('检查保存结果'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('自选'));
@@ -342,7 +335,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('25').last);
     await tester.pumpAndSettle();
-    expect(find.text('11月25日'), findsOneWidget);
+    expect(find.text('2026年11月25日'), findsOneWidget);
     expect(find.byType(CalendarDatePicker), findsNothing);
     await tester.ensureVisible(dateButton);
     await tester.tap(dateButton);
@@ -376,7 +369,7 @@ void main() {
     await tester.tap(find.text('25').last);
     await tester.pumpAndSettle();
     expect(find.byType(CalendarDatePicker), findsNothing);
-    expect(find.text('10月25日'), findsOneWidget);
+    expect(find.text('2026年10月25日'), findsOneWidget);
     await tester.enterText(find.byKey(const ValueKey('mission-title')), '改日期');
     await tester.enterText(
       find.byKey(const ValueKey('mission-duration')),
@@ -550,7 +543,7 @@ void main() {
       handle.dispose();
     }
   });
-  testWidgets('390宽日期和时长边界对齐，返回白色箭头且单位常驻', (tester) async {
+  testWidgets('390宽表单使用紧凑输入和统一返回，日期时长可纵排', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -568,21 +561,22 @@ void main() {
     final durationRect = tester.getRect(
       find.byKey(const ValueKey('mission-duration')),
     );
-    expect(dateRect.top, closeTo(durationRect.top, 1));
+    expect(durationRect.top, greaterThan(dateRect.bottom));
     expect(dateRect.height, closeTo(durationRect.height, 1));
     final arrow = tester.widget<Icon>(find.byIcon(Icons.arrow_back));
-    expect(arrow.color, AppTheme.light.colorScheme.onPrimary);
+    expect(arrow.color, AppTheme.light.colorScheme.primary);
     final backRect = tester.getRect(
       find.widgetWithIcon(IconButton, Icons.arrow_back),
     );
     expect(backRect.size, const Size(48, 48));
     expect(backRect.left, 24);
-    expect(tester.getRect(find.text('新建任务')).center.dx, closeTo(195, 1));
+    expect(tester.getRect(find.text('新建任务')).left, greaterThan(backRect.right));
+    expect(dateRect.height, lessThan(60));
     final timeLabel = tester.getRect(find.text('时间安排'));
     final choice = tester.getRect(
       find.byKey(const ValueKey(TimePolicy.flexible)),
     );
-    expect(timeLabel.center.dy, closeTo(choice.center.dy, 1));
+    expect(choice.top, greaterThanOrEqualTo(timeLabel.top));
     expect(choice.height, greaterThanOrEqualTo(48));
     expect(find.text('分钟'), findsOneWidget);
     expect(find.text('所属节点'), findsNothing);

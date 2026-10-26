@@ -39,7 +39,7 @@ Future<void> runPlannedMissionBackground() async {
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('ic_notification'),
+        android: AndroidInitializationSettings('ic_stat_mission'),
       ),
     );
     final dispatcher = AndroidNotificationDispatcher(

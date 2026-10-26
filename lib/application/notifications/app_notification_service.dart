@@ -423,6 +423,7 @@ class AppNotificationService {
     return executionReminder(
       detail,
       await _store.notificationIdOf(_executionKey(detail.mission.id)),
+      now: _now(),
     );
   }
 

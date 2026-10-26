@@ -207,9 +207,9 @@ void main() {
     expect(backRect.left, 24);
     expect(
       tester.widget<Icon>(find.byIcon(Icons.arrow_back)).color,
-      AppTheme.light.colorScheme.onPrimary,
+      AppTheme.light.colorScheme.primary,
     );
-    expect(tester.getRect(find.text('任务详情')).center.dx, closeTo(195, 1));
+    expect(tester.getRect(find.text('任务详情')).left, greaterThan(backRect.right));
     expect(find.text('待开始'), findsOneWidget);
     final badge = tester.getRect(find.byKey(const Key('mission-phase')));
     expect(badge.left, greaterThan(tester.getRect(find.text('阅读二十分钟')).right));

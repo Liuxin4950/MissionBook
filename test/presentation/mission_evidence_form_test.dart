@@ -79,7 +79,7 @@ void main() {
     await tester.tap(find.byType(FilledButton));
     await tester.pumpAndSettle();
 
-    expect(find.text('任务已创建，可返回今天页'), findsOneWidget);
+    expect(find.text('任务已创建'), findsOneWidget);
     final mission = (await database.select(database.missions).get()).single;
     final plan = (await database.select(database.executionPlans).get()).single;
     final schedule =

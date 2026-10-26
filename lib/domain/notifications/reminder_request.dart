@@ -34,6 +34,10 @@ class ReminderRequest {
     required this.expectedSequence,
     required this.candidateEventIds,
     this.scheduledFor,
+    this.focusMilliseconds,
+    this.projectedAt,
+    this.budgetMinutes,
+    this.clockBehind = false,
   });
 
   /// 幂等键 `mission-<id>-<kind>-<scheduleRevisionId>`：改期换键，杜绝旧延后沿用。
@@ -58,6 +62,12 @@ class ReminderRequest {
 
   /// 计划触发时刻（UTC）；空表示立即显示（补发/执行通知）。
   final DateTime? scheduledFor;
+
+  /// 只读执行摘要，供平台呈现计时；不属于动作身份，也不写回业务表。
+  final int? focusMilliseconds;
+  final DateTime? projectedAt;
+  final int? budgetMinutes;
+  final bool clockBehind;
 
   String toPayload() => jsonEncode({
     'missionId': missionId,

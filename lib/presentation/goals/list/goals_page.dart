@@ -7,6 +7,9 @@ import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../widgets/adaptive_sheet.dart';
 import '../../widgets/app_page_header.dart';
+import '../../widgets/app_segmented_control.dart';
+import '../../widgets/adaptive_columns.dart';
+import '../../widgets/app_section_card.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal.dart';
 import '../detail/goal_detail_page.dart';
@@ -31,6 +34,28 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
   bool _opening = false; // 防止连续点击叠加两个创建或详情页面。
   GoalStatus _selectedStatus = GoalStatus.active;
   bool _importOpen = false;
+  Goal? _outlineGoal;
+  bool _switchingOutline = false;
+  final _outlineKey = GlobalKey<GoalOutlineSectionState>();
+
+  Future<void> _toggleOutline(Goal goal) async {
+    if (_switchingOutline) return;
+    _switchingOutline = true;
+    try {
+      if (!await (_outlineKey.currentState?.prepareToCollapse() ??
+          Future.value(true))) {
+        return;
+      }
+      if (mounted) {
+        setState(
+          () => _outlineGoal = _outlineGoal?.id == goal.id ? null : goal,
+        );
+      }
+    } finally {
+      _switchingOutline = false;
+    }
+  }
+
   final _importKey = GlobalKey<GoalImportSectionState>();
 
   Future<void> _chooseNewGoal() async {
@@ -131,9 +156,16 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     }
   }
 
-  void _selectStatus(GoalStatus value) {
-    if (_selectedStatus == value) return;
+  Future<void> _selectStatus(GoalStatus value) async {
+    if (_selectedStatus == value || _switchingOutline) return;
+    _switchingOutline = true;
+    final canLeave =
+        await (_outlineKey.currentState?.prepareToCollapse() ??
+            Future.value(true));
+    _switchingOutline = false;
+    if (!mounted || !canLeave) return;
     setState(() {
+      _outlineGoal = null;
       _selectedStatus = value;
       _goals = _load();
     });
@@ -180,9 +212,8 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
   /// 点击列表项时打开同一目标的只读详情，返回后刷新列表。
   Future<void> _open(Goal goal) async {
     if (_opening) return;
-    _opening = true;
-    try {
-      await openDetailPane<void>(
+    unawaited(
+      openDetailPane<void>(
         context,
         label: '目标详情',
         builder: (_) => GoalDetailPage(
@@ -190,11 +221,8 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
           goalId: goal.id,
           missionService: widget.missionService,
         ),
-      );
-    } finally {
-      _opening = false;
-      _refresh();
-    }
+      ).then((_) => _refresh()),
+    );
   }
 
   @override
@@ -209,7 +237,9 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     body: SafeArea(
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
+          constraints: const BoxConstraints(
+            maxWidth: AppLayout.dashboardMaxWidth,
+          ),
           child: FutureBuilder<List<Goal>>(
             future: _goals,
             builder: (context, snapshot) {
@@ -329,18 +359,65 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                       )
                     else if (visible.isEmpty)
                       _empty(context),
-                    for (final (index, goal) in visible.indexed)
-                      Padding(
-                        key: ValueKey(goal.id), // 刷新列表时让同一个目标保留路径展开状态。
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: _GoalCard(
-                          goal: goal,
-                          service: widget.service,
-                          missionService: widget.missionService,
-                          ordinal: index + 1,
-                          onTap: () => _open(goal),
+                    AdaptiveColumns(
+                      key: const Key('goal-card-grid'),
+                      minColumnWidth: 300,
+                      children: [
+                        for (final goal in visible)
+                          _GoalCard(
+                            key: ValueKey(goal.id),
+                            goal: goal,
+                            service: widget.service,
+                            missionService: widget.missionService,
+                            selected: _outlineGoal?.id == goal.id,
+                            onTap: () => _open(goal),
+                            onToggleOutline: () => _toggleOutline(goal),
+                          ),
+                      ],
+                    ),
+                    if (_outlineGoal != null &&
+                        visible.any((goal) => goal.id == _outlineGoal!.id)) ...[
+                      const SizedBox(height: 20),
+                      AppSectionCard(
+                        key: const Key('goal-path-panel'),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '行动路径 · ${_outlineGoal!.title}',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                ),
+                                IconButton(
+                                  key: Key('node-add-root-${_outlineGoal!.id}'),
+                                  tooltip: '添加节点',
+                                  onPressed: () =>
+                                      _outlineKey.currentState?.addRootNode(),
+                                  icon: const Icon(Icons.add),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            GoalOutlineSection(
+                              key: _outlineKey,
+                              service: widget.service,
+                              missionService: widget.missionService,
+                              goal: visible.firstWhere(
+                                (goal) => goal.id == _outlineGoal!.id,
+                              ),
+                              goalId: _outlineGoal!.id,
+                              goalTitle: _outlineGoal!.title,
+                              embedded: true,
+                            ),
+                          ],
                         ),
                       ),
+                    ],
                   ],
                 ),
               );
@@ -351,56 +428,16 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     ),
   );
 
-  Widget _statusTabs(BuildContext context) {
-    const choices = [GoalStatus.active, GoalStatus.paused, GoalStatus.achieved];
-    final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-    Widget tab(GoalStatus value) => TextButton(
-      key: Key('goal-filter-${value.name}'),
-      onPressed: () => _selectStatus(value),
-      style: TextButton.styleFrom(
-        backgroundColor: _selectedStatus == value
-            ? AppColors.accent
-            : Colors.transparent,
-        foregroundColor: AppColors.textPrimary,
-        shape: const StadiumBorder(),
-        minimumSize: const Size(0, 48),
-        textStyle: Theme.of(context).textTheme.labelMedium,
-      ),
-      child: Text(switch (value) {
-        GoalStatus.active => '进行中',
-        GoalStatus.paused => '已搁置',
-        GoalStatus.achieved => '已达成',
-        GoalStatus.dropped => '已放弃',
-      }),
-    );
-    return LayoutBuilder(
-      builder: (context, box) {
-        final narrow = box.maxWidth < 3 * 112 * scale;
-        return Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: AppColors.primarySoft,
-            borderRadius: BorderRadius.circular(32),
-          ),
-          child: narrow
-              ? SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final value in choices)
-                        SizedBox(width: 112 * scale, child: tab(value)),
-                    ],
-                  ),
-                )
-              : Row(
-                  children: [
-                    for (final value in choices) Expanded(child: tab(value)),
-                  ],
-                ),
-        );
-      },
-    );
-  }
+  Widget _statusTabs(BuildContext context) => AppSegmentedControl<GoalStatus>(
+    options: const {
+      GoalStatus.active: '进行中',
+      GoalStatus.paused: '已搁置',
+      GoalStatus.achieved: '已达成',
+    },
+    selected: _selectedStatus,
+    optionKey: (status) => Key('goal-filter-${status.name}'),
+    onSelected: _selectStatus,
+  );
 
   Widget _empty(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
@@ -449,243 +486,121 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
   );
 }
 
-/// 目标名称打开完整详情，路径按钮在当前卡片展开节点操作。
-class _GoalCard extends StatefulWidget {
+/// 卡片只负责选择与阅读入口；整份行动路径在卡片网格下方使用完整可用宽度。
+class _GoalCard extends StatelessWidget {
   const _GoalCard({
+    super.key,
     required this.goal,
     required this.service,
     required this.onTap,
-    required this.ordinal,
+    required this.onToggleOutline,
+    required this.selected,
     this.missionService,
   });
   final Goal goal;
   final GoalService service;
-  final VoidCallback onTap;
-  final int ordinal;
   final MissionService? missionService;
-  @override
-  State<_GoalCard> createState() => _GoalCardState();
-}
-
-class _GoalCardState extends State<_GoalCard> {
-  bool _expanded = false;
-  final _outlineKey = GlobalKey<GoalOutlineSectionState>();
-  Future<void> _toggle() async {
-    if (_expanded &&
-        !await (_outlineKey.currentState?.prepareToCollapse() ??
-            Future.value(true))) {
-      return;
-    }
-    if (mounted) setState(() => _expanded = !_expanded);
-  }
+  final VoidCallback onTap;
+  final VoidCallback onToggleOutline;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    final emphasized = widget.goal.status == GoalStatus.active;
-    final cardColor = emphasized
-        ? AppColors.primary
-        : widget.goal.status == GoalStatus.paused
-        ? AppColors.primarySoft
-        : AppColors.card;
-    final foreground = emphasized ? AppColors.onPrimary : AppColors.textPrimary;
+    final theme = Theme.of(context);
     return Material(
-      color: cardColor,
-      borderRadius: BorderRadius.circular(24),
+      color: AppColors.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: selected ? AppColors.primary : AppColors.hairline,
+          width: selected ? 1.5 : 1,
+        ),
+      ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 颜色只表达目标自身的真实状态；所有正在推进的目标使用相同强调面。
-          Ink(
-            color: cardColor,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                InkWell(
-                  key: Key('goal-${widget.goal.id}'),
-                  onTap: widget.onTap,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 22, 16, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              '目标 ${widget.ordinal.toString().padLeft(2, '0')}',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: foreground),
-                            ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: emphasized
-                                    ? AppColors.accent
-                                    : AppColors.primarySoft,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                goalStatusLabel(widget.goal.status),
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(color: AppColors.textPrimary),
-                              ),
-                            ),
-                          ],
+          InkWell(
+            key: Key('goal-${goal.id}'),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? AppColors.accent
+                              : AppColors.primarySoft,
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                        const SizedBox(height: 14),
-                        Row(
+                        child: const Icon(Icons.flag_outlined),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Text(
-                                widget.goal.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(color: foreground),
-                              ),
+                            Text(
+                              goal.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium,
                             ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.north_east_rounded,
-                              size: 20,
-                              color: foreground,
-                            ),
-                          ],
-                        ),
-                        if (widget.goal.description != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            widget.goal.description!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: emphasized
-                                      ? AppColors.onPrimary.withValues(
-                                          alpha: .82,
-                                        )
-                                      : AppColors.textSecondary,
-                                ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                if (widget.missionService != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                    child: Column(
-                      children: [
-                        Divider(
-                          height: 1,
-                          color: emphasized
-                              ? AppColors.onPrimary.withValues(alpha: .24)
-                              : AppColors.hairline,
-                        ),
-                        const SizedBox(height: 12),
-                        GoalRecordSummary(
-                          goalId: widget.goal.id,
-                          goals: widget.service,
-                          missions: widget.missionService!,
-                          highlighted: emphasized,
-                        ),
-                      ],
-                    ),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-                  child: Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    children: [
-                      TextButton(
-                        key: Key('goal-outline-toggle-${widget.goal.id}'),
-                        onPressed: _toggle,
-                        style:
-                            TextButton.styleFrom(
-                              foregroundColor: foreground,
-                              textStyle: Theme.of(
-                                context,
-                              ).textTheme.labelMedium,
-                              backgroundColor: emphasized
-                                  ? AppColors.onPrimary.withValues(alpha: .14)
-                                  : AppColors.primarySoft,
-                              shape: const StadiumBorder(),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
-                            ).copyWith(
-                              overlayColor: Theme.of(
-                                context,
-                              ).textButtonTheme.style?.overlayColor,
-                            ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(_expanded ? '收起目录' : '展开目录'),
-                            const SizedBox(width: 6),
-                            Icon(
-                              _expanded ? Icons.expand_less : Icons.expand_more,
-                              size: 18,
+                            const SizedBox(height: 4),
+                            Text(
+                              goalStatusLabel(goal.status),
+                              style: theme.textTheme.bodySmall,
                             ),
                           ],
                         ),
                       ),
-                      if (_expanded)
-                        TextButton.icon(
-                          key: Key('node-add-root-${widget.goal.id}'),
-                          onPressed: () =>
-                              _outlineKey.currentState?.addRootNode(),
-                          style: TextButton.styleFrom(
-                            textStyle: Theme.of(context).textTheme.labelMedium,
-                            foregroundColor: foreground,
-                            backgroundColor: emphasized
-                                ? AppColors.onPrimary.withValues(alpha: .14)
-                                : AppColors.primarySoft,
-                            shape: const StadiumBorder(),
-                          ),
-                          icon: const Icon(Icons.add, size: 16),
-                          label: const Text('添加节点'),
-                        ),
+                      const Icon(Icons.chevron_right, size: 20),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-          if (_expanded)
-            Divider(
-              height: 1,
-              indent: 20,
-              endIndent: 20,
-              color: emphasized
-                  ? AppColors.onPrimary.withValues(alpha: .24)
-                  : AppColors.hairline,
-            ),
-          if (_expanded)
-            Material(
-              color: AppColors.card,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: GoalOutlineSection(
-                  key: _outlineKey,
-                  service: widget.service,
-                  missionService: widget.missionService,
-                  goal: widget.goal,
-                  goalId: widget.goal.id,
-                  goalTitle: widget.goal.title,
-                  embedded: true,
-                ),
+                  if (goal.description != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      goal.description!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ],
               ),
             ),
+          ),
+          if (missionService != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: GoalRecordSummary(
+                goalId: goal.id,
+                goals: service,
+                missions: missionService!,
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: TextButton.icon(
+              key: Key('goal-outline-toggle-${goal.id}'),
+              onPressed: onToggleOutline,
+              style: TextButton.styleFrom(
+                backgroundColor: AppColors.background,
+                textStyle: theme.textTheme.labelMedium,
+              ),
+              icon: Icon(
+                selected ? Icons.expand_less : Icons.route_outlined,
+                size: 18,
+              ),
+              label: Text(selected ? '收起目录' : '展开目录'),
+            ),
+          ),
         ],
       ),
     );

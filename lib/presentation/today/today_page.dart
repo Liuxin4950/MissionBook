@@ -16,8 +16,13 @@ import '../missions/all/all_missions_page.dart';
 import '../missions/record/mission_record_page.dart';
 import 'today_display.dart' as display;
 import 'schedule_section.dart';
+import '../missions/all/mission_timetable.dart';
+import '../missions/all/timetable_layout.dart';
+import '../widgets/app_section_card.dart';
+import '../../domain/entities/scheduled_mission.dart';
 import '../missions/shared/mission_live_status.dart';
 import '../missions/shared/mission_phase_display.dart';
+import '../missions/shared/mission_phase_icon.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/mission_phase.dart';
 
@@ -70,6 +75,8 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   StreamSubscription<void>? _changes;
   // 跨日待补与所选排期日期分开；不让昨天结束的任务在今天失去材料入口。
   List<MissionDetail> _pendingEvidence = const [];
+  List<ScheduledMission> _scheduled = const [];
+  final _sideSectionsKey = GlobalKey();
 
   // 入口一：Flutter 创建 State 后调用一次，默认选择上海日历的今天并读取。
   @override
@@ -87,9 +94,9 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     // listen 在这里“登记回调”，不是立即查询；服务以后 add 一次才调用一次回调。
     // (_) 中的 _ 表示忽略无内容的通知；_changes 保存订阅，以便 dispose 时取消。
     // 与服务共用同一个对象引用，才能收到它发出的通知。
-    // 本页自己打开的创建/详情在返回时已有刷新；其他入口提交后再主动重读。
+    // 双栏时列表与详情同时可见，子页提交后也要立即重读，不能等返回才刷新。
     _changes = widget.missionService.changes.listen((_) {
-      if (!_isOpeningCreate && !_isOpeningDetail) unawaited(_loadMissions());
+      unawaited(_loadMissions());
     });
   }
 
@@ -106,7 +113,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     if (oldWidget.missionService != widget.missionService) {
       unawaited(_changes?.cancel());
       _changes = widget.missionService.changes.listen((_) {
-        if (!_isOpeningCreate && !_isOpeningDetail) unawaited(_loadMissions());
+        unawaited(_loadMissions());
       });
       unawaited(_loadMissions());
     }
@@ -141,6 +148,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       final missions = display.groupMissionsForDisplay(result);
       setState(() {
         _missions = missions;
+        _scheduled = result;
         _pendingEvidence = pending;
         _isLoading = false;
       });
@@ -225,7 +233,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       final executing =
           detail.phase == MissionPhase.running ||
           detail.phase == MissionPhase.paused;
-      await openDetailPane<void>(
+      final closed = openDetailPane<void>(
         context,
         label: executing ? '任务执行' : '任务详情',
         builder: (context) => executing
@@ -239,6 +247,12 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                 missionService: widget.missionService,
               ),
       );
+      // 只在读取与派发导航期间防连点；宽屏右栏打开后，左栏仍可选择另一任务。
+      unawaited(
+        closed.then((_) {
+          if (mounted) return _loadMissions();
+        }),
+      );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -248,9 +262,6 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     } finally {
       _isOpeningDetail = false;
     }
-    // await 等待的是详情页关闭；返回时仍读取原来所选日期，不跳回今天。
-    if (!mounted) return;
-    await _loadMissions();
   }
 
   Future<void> _openAllSchedules() async {
@@ -316,7 +327,9 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     final content = SafeArea(
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
+          constraints: const BoxConstraints(
+            maxWidth: AppLayout.dashboardMaxWidth,
+          ),
           child: RefreshIndicator(
             onRefresh: _loadMissions,
             child: ListView(
@@ -402,24 +415,27 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
         ],
       );
     }
-    // 正常内容沿页面视觉顺序排列。分组由加载过程完成，这里只交付对应列表。
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (_errorText != null)
-          Row(
-            children: [
-              Expanded(
-                child: Semantics(
-                  liveRegion: true,
-                  child: const Text('刷新失败，当前显示上次加载的任务'),
-                ),
-              ),
-              TextButton(onPressed: _loadMissions, child: const Text('重试')),
-            ],
-          ),
-        // 两个任务区域常驻：没有数据的一侧保留标题和头部入口，列表位置显示空态提示。
-        ScheduleSection(
+    return LayoutBuilder(
+      builder: (context, box) {
+        final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+        final wide =
+            !widget.fullSchedule &&
+            box.maxWidth >= AppLayout.dashboardSplitWidth * scale;
+        final side = Column(
+          key: _sideSectionsKey,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _FlexibleMissionSection(
+              clock: widget.clock,
+              items: _missions.flexible,
+              onOpenMission: _openDetail,
+              onCreate: _openCreate,
+            ),
+            const SizedBox(height: 20),
+            _ScheduleOverview(missions: _missions),
+          ],
+        );
+        Widget schedule = ScheduleSection(
           items: _missions.fixed,
           selectedDate: _selectedDate,
           clock: widget.clock,
@@ -427,18 +443,99 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
           onOpenAll: _openAllSchedules,
           onCreate: _openCreate,
           fullList: widget.fullSchedule,
-        ),
-        if (!widget.fullSchedule) ...[
-          const SizedBox(height: 16),
-          _FlexibleMissionSection(
-            items: _missions.flexible,
-            onOpenMission: _openDetail,
-            onCreate: _openCreate,
-          ),
-          const SizedBox(height: 16),
-          _ScheduleOverview(missions: _missions),
-        ],
-      ],
+        );
+        if (wide) {
+          schedule = AppSectionCard(
+            key: const Key('today-timetable-panel'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '计划日程',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _openAllMissions,
+                      label: const Text('查看全部'),
+                      icon: const Icon(Icons.chevron_right, size: 18),
+                      iconAlignment: IconAlignment.end,
+                    ),
+                  ],
+                ),
+                if (_missions.fixed.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          const Icon(Icons.event_available_outlined, size: 32),
+                          const SizedBox(height: 16),
+                          const Text('这一天还没有固定任务'),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            onPressed: _openCreate,
+                            icon: const Icon(Icons.add),
+                            label: const Text('新建任务'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  MissionTimetable(
+                    pixelsPerMinute: 1.2,
+                    day: _selectedDate,
+                    clock: widget.clock,
+                    onOpen: _openDetail,
+                    layoutBuilder: (now) => TimetableDay.fromScheduled(
+                      _scheduled
+                          .where((item) => item.schedule.fixedStartAt != null)
+                          .toList(),
+                      _selectedDate,
+                      now: now,
+                      minimumDisplayMinutes: 26 / 1.2,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_errorText != null)
+              Row(
+                children: [
+                  Expanded(
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text('刷新失败，当前显示上次加载的任务'),
+                    ),
+                  ),
+                  TextButton(onPressed: _loadMissions, child: const Text('重试')),
+                ],
+              ),
+            if (wide)
+              Row(
+                key: const Key('today-dashboard-columns'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: schedule),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 2, child: side),
+                ],
+              )
+            else ...[
+              schedule,
+              if (!widget.fullSchedule) ...[const SizedBox(height: 20), side],
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -616,11 +713,13 @@ class _FlexibleMissionSection extends StatefulWidget {
     required this.items, // 今天页已加载并转换的完整自选任务列表。
     required this.onOpenMission, // 用户点击后交回页面打开详情。
     required this.onCreate, // 用户点击添加后交回页面打开创建表单。
+    required this.clock,
   });
 
   final List<display.TodayMissionItem> items;
   final ValueChanged<String> onOpenMission;
   final VoidCallback onCreate;
+  final DateTime Function() clock;
 
   @override
   State<_FlexibleMissionSection> createState() =>
@@ -643,7 +742,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
       color: theme.colorScheme.surfaceContainerLow,
       borderRadius: BorderRadius.circular(20),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -675,6 +774,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _FlexibleMissionRow(
+                      clock: widget.clock,
                       item: item,
                       onTap: () => widget.onOpenMission(item.id),
                     ),
@@ -714,14 +814,18 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
 
 // 自选任务行只负责展示与详情入口。
 class _FlexibleMissionRow extends StatelessWidget {
-  const _FlexibleMissionRow({required this.item, required this.onTap});
+  const _FlexibleMissionRow({
+    required this.item,
+    required this.onTap,
+    required this.clock,
+  });
 
   final display.TodayMissionItem item;
   final VoidCallback onTap;
+  final DateTime Function() clock;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Padding(
       key: ValueKey('mission-${item.id}'),
       padding: const EdgeInsets.only(bottom: 8),
@@ -736,30 +840,11 @@ class _FlexibleMissionRow extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(
-                width: 48,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: item.isCancelled
-                          ? colors.surface
-                          : colors.primaryContainer,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.description_outlined,
-                      size: 20,
-                      color: item.isCancelled
-                          ? colors.onSurfaceVariant
-                          : colors.primary,
-                    ),
-                  ),
-                ),
+              MissionPhaseIcon(phase: item.phase),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MissionDetails(item: item, compact: true, clock: clock),
               ),
-              Expanded(child: _MissionDetails(item: item, compact: true)),
             ],
           ),
         ),
@@ -808,10 +893,15 @@ class _MissionDetailLink extends StatelessWidget {
 // 自选任务文字已由显示转换函数准备好。
 // 这是布局复用，不做类型转换、分组或查询。
 class _MissionDetails extends StatelessWidget {
-  const _MissionDetails({required this.item, this.compact = false});
+  const _MissionDetails({
+    required this.item,
+    this.compact = false,
+    required this.clock,
+  });
 
   final display.TodayMissionItem item;
   final bool compact;
+  final DateTime Function() clock;
 
   @override
   Widget build(BuildContext context) {
@@ -836,6 +926,7 @@ class _MissionDetails extends StatelessWidget {
             phase: item.phase,
             events: item.events,
             includePhase: false,
+            clock: clock,
           ),
         if (item.timeZoneLabel != null)
           Text(item.timeZoneLabel!, style: theme.textTheme.bodySmall),

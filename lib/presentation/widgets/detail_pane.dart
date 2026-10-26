@@ -44,6 +44,7 @@ class DetailPaneController extends ChangeNotifier {
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   final List<DetailPaneEntry> entries = [];
   bool _disposed = false;
+  bool _changing = false;
 
   /// 面板是否有内容：决定外壳并排、让位还是继续显示。
   bool get hasContent => entries.isNotEmpty;
@@ -68,38 +69,55 @@ class DetailPaneController extends ChangeNotifier {
     DetailPaneReplace replace = DetailPaneReplace.none,
   }) async {
     final navigator = navigatorKey.currentState;
-    if (navigator == null || _disposed) return null;
-    if (replace == DetailPaneReplace.all && !await _confirmLeaveAll()) {
-      return null;
-    }
-    if (replace == DetailPaneReplace.top) {
-      final guard = entries.isEmpty ? null : entries.last.onRequestLeave;
-      if (guard != null && !await guard()) return null;
+    if (navigator == null || _disposed || _changing) return null;
+    _changing = true;
+    late Future<T?> closed;
+    try {
+      if (replace == DetailPaneReplace.all && !await _confirmLeaveAll()) {
+        return null;
+      }
+      if (replace == DetailPaneReplace.top) {
+        final guard = entries.isEmpty ? null : entries.last.onRequestLeave;
+        if (guard != null && !await guard()) return null;
+      }
       if (_disposed || !navigator.mounted) return null;
-      if (entries.isNotEmpty) entries.removeLast();
+      if (replace == DetailPaneReplace.all) {
+        navigator.popUntil((route) => route.isFirst);
+        entries.clear();
+      } else if (replace == DetailPaneReplace.top && entries.isNotEmpty) {
+        entries.removeLast();
+      }
       entries.add(entry);
-      notifyListeners();
       final route = MaterialPageRoute<T>(builder: entry.builder);
       entry.route = route;
-      final result = await navigator.pushReplacement<T, void>(route);
-      entries.remove(entry);
-      if (!_disposed) notifyListeners();
-      return result;
+      closed = replace == DetailPaneReplace.top && navigator.canPop()
+          ? navigator.pushReplacement<T, void>(route)
+          : navigator.push<T>(route);
+      notifyListeners();
+    } finally {
+      // 防重入只保护守卫和入栈过程，不锁住页面整个阅读期间。
+      _changing = false;
     }
-    if (replace == DetailPaneReplace.all) {
-      if (_disposed || !navigator.mounted) return null;
-      navigator.popUntil((route) => route.isFirst);
-      entries.clear();
-    }
-    entries.add(entry);
-    notifyListeners();
-    final route = MaterialPageRoute<T>(builder: entry.builder);
-    entry.route = route;
-    final result = await navigator.push<T>(route);
+    final result = await closed;
     // 路由被 pop（返回链回退、保存后返回）时同步入口登记。
     entries.remove(entry);
     if (!_disposed) notifyListeners();
     return result;
+  }
+
+  /// 顶层导航切换前清空子页，先让每层保存/报告草稿决定是否离开。
+  Future<bool> clear() async {
+    if (_disposed || _changing) return false;
+    _changing = true;
+    try {
+      if (!await _confirmLeaveAll() || _disposed) return false;
+      navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      entries.clear();
+      notifyListeners();
+      return true;
+    } finally {
+      _changing = false;
+    }
   }
 
   /// 逐层走返回链；栈空返回 false，由外壳/系统继续处理。
@@ -184,9 +202,14 @@ Future<T?> openDetailPane<T extends Object?>(
 }) {
   final controller = DetailPaneScope.maybeOf(context);
   if (controller != null) {
+    // 主列表选择另一对象时替换整条右栏链；右栏内部的详情→编辑仍逐级入栈。
+    final fromWorkspace =
+        Navigator.of(context) != controller.navigatorKey.currentState;
     return controller.open<T>(
       DetailPaneEntry(label, builder),
-      replace: replace,
+      replace: fromWorkspace && replace == DetailPaneReplace.none
+          ? DetailPaneReplace.all
+          : replace,
     );
   }
   // 无外壳（页面单独测试/预览）：保持 push/pushReplacement 的原有语义。

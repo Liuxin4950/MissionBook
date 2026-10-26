@@ -296,8 +296,8 @@ void main() {
     await tester.ensureVisible(find.byType(FilledButton));
     await tester.tap(find.byType(FilledButton));
     await tester.pumpAndSettle();
-    expect(find.text('任务已创建，可返回今天页'), findsOneWidget);
-    await tester.tap(find.byTooltip('返回'));
+    expect(find.text('任务已创建'), findsOneWidget);
+    await tester.tap(find.text('返回原页面'));
     await tester.pumpAndSettle();
     expect(find.text('真实阅读任务'), findsOneWidget);
     expect(find.text('自选时间'), findsOneWidget);

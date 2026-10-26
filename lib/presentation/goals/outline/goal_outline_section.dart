@@ -1,3 +1,4 @@
+import '../../widgets/adaptive_columns.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -196,6 +197,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
       borderRadius: BorderRadius.circular(24),
     ),
     child: FutureBuilder<List<GoalNode>>(
+      key: ValueKey(widget.goalId),
       future: _nodes,
       builder: (context, snapshot) {
         final theme = Theme.of(context);
@@ -314,15 +316,31 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                   ],
                 ),
               ),
-            for (final entry in entries)
-              _nodeRow(
-                entry,
-                nodes,
-                byId,
-                children,
-                sizes,
-                entry.node.archivedAt != null,
-              ),
+            // 每个根节点保留其完整子树；宽屏并排呈现行动分支，窄屏自然堆叠。
+            AdaptiveColumns(
+              maxColumns: widget.embedded ? 3 : 1,
+              minColumnWidth: 320,
+              children: [
+                for (final root in roots)
+                  Column(
+                    key: ValueKey(root.id),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final entry in entries.where(
+                        (entry) => _belongsToRoot(entry.node, root.id, byId),
+                      ))
+                        _nodeRow(
+                          entry,
+                          nodes,
+                          byId,
+                          children,
+                          sizes,
+                          entry.node.archivedAt != null,
+                        ),
+                    ],
+                  ),
+              ],
+            ),
             if (widget.missionService != null && widget.goal != null)
               _missionsFor(null),
             if (archived.isNotEmpty)
@@ -353,6 +371,19 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
       },
     ),
   );
+
+  bool _belongsToRoot(
+    GoalNode node,
+    String rootId,
+    Map<String, GoalNode> byId,
+  ) {
+    GoalNode? current = node;
+    while (current != null) {
+      if (current.id == rootId) return true;
+      current = byId[current.parentNodeId];
+    }
+    return false;
+  }
 
   Widget _nodeRow(
     _OutlineEntry entry,

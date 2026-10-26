@@ -29,7 +29,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(tester.getTopLeft(find.text('短目标')).dy, 104);
+    expect(tester.getTopLeft(find.text('短目标')).dy, 88);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await goals.dispose();

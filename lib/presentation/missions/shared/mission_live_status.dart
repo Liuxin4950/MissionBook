@@ -18,11 +18,13 @@ class MissionLiveStatus extends StatefulWidget {
     required this.events,
     this.includePhase = true,
     this.clock = DateTime.now,
+    this.maxLines,
   });
   final MissionPhase phase;
   final List<ExecutionEvent> events;
   final bool includePhase;
   final DateTime Function() clock;
+  final int? maxLines;
   @override
   State<MissionLiveStatus> createState() => _MissionLiveStatusState();
 }
@@ -90,6 +92,8 @@ class _MissionLiveStatusState extends State<MissionLiveStatus>
       '${widget.includePhase ? '${phaseLabel(widget.phase)} · ' : ''}'
       '专注 ${focusDuration(times.focus)}${times.clockBehind ? ' · 请校时' : ''}',
       style: Theme.of(context).textTheme.bodySmall,
+      maxLines: widget.maxLines,
+      overflow: widget.maxLines == null ? null : TextOverflow.ellipsis,
     );
   }
 }

@@ -19,6 +19,9 @@ import 'package:mission_book/application/notifications/app_notification_service.
 import 'package:mission_book/data/notifications/notification_dispatcher.dart';
 import 'package:mission_book/data/notifications/reminder_store.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
+import 'package:mission_book/domain/entities/mission_phase.dart';
+import 'package:mission_book/presentation/goals/list/goals_page.dart';
+import 'package:mission_book/presentation/missions/shared/mission_phase_icon.dart';
 import 'package:mission_book/domain/notifications/reminder_request.dart';
 import '../support/me_fakes.dart';
 
@@ -234,6 +237,180 @@ void main() {
       expect(find.text('替换目标'), findsNothing);
       expect(controller.entries, hasLength(2));
     }
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('宽屏结束后不退出右栏，今天立即显示已结束并移除当前任务', (tester) async {
+    await open(tester, width: 1280);
+    await tapKey(tester, 'mission-$missionId');
+    await tapKey(tester, 'execution-start');
+    now = now.add(const Duration(minutes: 3));
+    await tapKey(tester, 'execution-end');
+    await tapKey(tester, 'report-completed');
+    await tapKey(tester, 'report-confirm');
+    final row = find.byKey(Key('mission-$missionId'));
+    expect(
+      find.descendant(of: row, matching: find.textContaining('已结束')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<MissionPhaseIcon>(
+            find.descendant(of: row, matching: find.byType(MissionPhaseIcon)),
+          )
+          .phase,
+      MissionPhase.closed,
+    );
+    expect(find.byKey(const Key('active-mission')), findsNothing);
+    expect(
+      (await missions.findDetail(missionId: missionId))!.phase,
+      MissionPhase.closed,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('宽屏点击主导航会关闭旧面板，目标立即出现在可见工作区', (tester) async {
+    await open(tester, width: 1280);
+    await tapKey(tester, 'mission-$missionId');
+    await tester.tap(find.byTooltip('目标'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GoalsPage), findsOneWidget);
+    expect(find.byType(MissionDetailPage), findsNothing);
+    expect(
+      tester
+          .widget<DetailPaneHost>(find.byType(DetailPaneHost))
+          .controller
+          .hasContent,
+      isFalse,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('主导航切换先确认草稿，取消不偷换底层页面', (tester) async {
+    await open(tester, width: 1280);
+    await tapKey(tester, 'mission-$missionId');
+    await tapKey(tester, 'edit-mission');
+    await tester.enterText(find.byKey(const Key('mission-title')), '导航草稿');
+    await tester.tap(find.byTooltip('目标'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('继续填写'));
+    await tester.pumpAndSettle();
+    expect(find.text('导航草稿'), findsOneWidget);
+    expect(find.byType(GoalsPage), findsNothing);
+    await tester.tap(find.byTooltip('目标'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('放弃修改'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GoalsPage), findsOneWidget);
+    expect(
+      (await missions.findDetail(missionId: missionId))!.mission.title,
+      '验收任务',
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('左侧选择另一任务替换右栏，返回不再翻出旧任务', (tester) async {
+    await missions.create(
+      title: '第二任务',
+      scheduledDate: '2026-10-25',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 20,
+    );
+    final second = (await missions.findScheduledOn(
+      scheduledDate: '2026-10-25',
+    )).firstWhere((item) => item.mission.id != missionId);
+    await open(tester, width: 1280);
+    await tapKey(tester, 'mission-$missionId');
+    await tapKey(tester, 'mission-${second.mission.id}');
+    final detail = tester.widget<MissionDetailPage>(
+      find.byType(MissionDetailPage),
+    );
+    expect(detail.missionId, second.mission.id);
+    final controller = tester
+        .widget<DetailPaneHost>(find.byType(DetailPaneHost))
+        .controller;
+    expect(controller.entries, hasLength(1));
+    final background = tester.widget<ColoredBox>(
+      find.byKey(const Key('workspace-background')),
+    );
+    expect(background.color, AppTheme.light.scaffoldBackgroundColor);
+    await tapBack(tester);
+    expect(find.byType(MissionDetailPage), findsNothing);
+    expect(controller.entries, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('当前任务固定在底部，多个暂停任务只在点开后展示，小窗大字体仍可滚动', (tester) async {
+    final first = (await missions.findDetail(missionId: missionId))!;
+    await missions.execute(
+      missions.prepareExecution(detail: first, type: ExecutionEventType.start),
+    );
+    final running = (await missions.findDetail(missionId: missionId))!;
+    await missions.execute(
+      missions.prepareExecution(
+        detail: running,
+        type: ExecutionEventType.pause,
+      ),
+    );
+    await missions.create(
+      title: '正在专注的第二项',
+      scheduledDate: '2026-10-25',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 20,
+    );
+    final second = (await missions.findScheduledOn(
+      scheduledDate: '2026-10-25',
+    )).firstWhere((item) => item.mission.id != missionId);
+    final next = (await missions.findDetail(missionId: second.mission.id))!;
+    await missions.execute(
+      missions.prepareExecution(detail: next, type: ExecutionEventType.start),
+    );
+    for (final width in [320.0, 390.0, 768.0, 1280.0]) {
+      tester.platformDispatcher.textScaleFactorTestValue = width == 320 ? 2 : 1;
+      await open(tester, width: width);
+      final bar = tester.getRect(find.byKey(const Key('active-mission')));
+      final list = tester.getRect(find.byKey(const Key('today-list')));
+      expect(bar.top, greaterThan(list.top + list.height * .5));
+      expect(bar.height, lessThan(120));
+      expect(find.byType(ExpansionTile), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.tap(find.byKey(const Key('active-missions-picker')));
+    await tester.pumpAndSettle();
+    expect(find.text('当前任务'), findsOneWidget);
+    final paused = find.widgetWithText(ListTile, '验收任务');
+    expect(paused, findsOneWidget);
+    await tester.tap(paused);
+    await tester.pumpAndSettle();
+    expect(find.byType(MissionExecutionPage), findsOneWidget);
+    expect(
+      (await missions.findDetail(missionId: missionId))!.phase,
+      MissionPhase.paused,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('切换主导航不能丢失结束报告草稿', (tester) async {
+    await open(tester, width: 1280);
+    await tapKey(tester, 'mission-$missionId');
+    await tapKey(tester, 'execution-start');
+    await tapKey(tester, 'execution-end');
+    await tapKey(tester, 'report-not-completed');
+    await tester.enterText(find.byKey(const Key('report-reason')), '报告草稿');
+    await tester.tap(find.byTooltip('目标'));
+    await tester.pumpAndSettle();
+    expect(find.text('放弃本次报告？'), findsOneWidget);
+    await tester.tap(find.text('继续填写'));
+    await tester.pumpAndSettle();
+    expect(find.text('报告草稿'), findsOneWidget);
+    expect(find.byType(GoalsPage), findsNothing);
+    expect(
+      (await missions.findDetail(missionId: missionId))!.phase,
+      MissionPhase.paused,
+    );
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

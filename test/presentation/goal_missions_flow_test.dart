@@ -463,4 +463,8 @@ Future<void> save(WidgetTester tester, {String label = '创建任务'}) async {
   await tester.pumpAndSettle();
   await tester.tap(target);
   await tester.pumpAndSettle();
+  if (find.text('返回原页面').evaluate().isNotEmpty) {
+    await tester.tap(find.text('返回原页面'));
+    await tester.pumpAndSettle();
+  }
 }

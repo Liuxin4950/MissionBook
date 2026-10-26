@@ -47,20 +47,20 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   late final AppDatabase _database; // 定义数据库连接器
   late final MissionService _missionService; // 业务操作对象
   late final GoalService _goalService; // 目标服务，与任务服务共用数据库。
-  late final BackupExporter _backupService;
-  late final AppDevice _device;
+  late final BackupExporter _backupService; // 备份服务，负责导出数据。
+  late final AppDevice _device; // 设备服务，负责平台能力。
   // 系统提醒编排：装配层只负责创建与生命周期；业务规则在应用服务里。
   AppNotificationService? _notifications;
-  bool _notificationsReady = false;
-  PlannedMissionScheduler? _plannedMissions;
-  PlannedAlarmBridge? _plannedBridge;
-  AndroidNotificationDispatcher? _androidDispatcher;
-  final _pendingNotificationResponses = <NotificationResponse>[];
-  StreamSubscription<void>? _deadlineChanges;
-  Timer? _deadlineTimer;
-  bool _checkingDeadlines = false;
-  bool _checkAgain = false;
-  bool _foreground = true;
+  bool _notificationsReady = false; // 通知服务是否初始化完成。
+  PlannedMissionScheduler? _plannedMissions; // 计划任务编排器，负责协调系统唤醒与任务执行。
+  PlannedAlarmBridge? _plannedBridge; // 计划任务桥接，负责协调系统唤醒与任务执行。
+  AndroidNotificationDispatcher? _androidDispatcher; // Android 通知分发器，负责发送通知。
+  final _pendingNotificationResponses = <NotificationResponse>[]; // 待处理的通知响应队列。
+  StreamSubscription<void>? _deadlineChanges; // 计划任务截止时间变化订阅。
+  Timer? _deadlineTimer; // 计划任务截止时间定时器，负责检查任务是否过期。
+  bool _checkingDeadlines = false; // 是否正在检查任务是否过期。
+  bool _checkAgain = false; // 是否需要再次检查任务是否过期。
+  bool _foreground = true; // 是否在前台运行。
 
   @override
   void initState() {
@@ -198,7 +198,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('ic_notification'),
+        android: AndroidInitializationSettings('ic_stat_mission'),
         windows: WindowsInitializationSettings(
           appName: 'Mission Book',
           appUserModelId: 'chat.liuxin.mission_book',
