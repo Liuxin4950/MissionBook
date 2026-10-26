@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'execution_reminder.dart';
 
 import '../../data/notifications/notification_dispatcher.dart';
 import '../../data/notifications/reminder_store.dart';
@@ -62,6 +63,20 @@ class AppNotificationService {
   Future<void>? _refreshing;
   bool _refreshAgain = false;
   Future<void> _actions = Future<void>.value();
+  final _settingsChanges = StreamController<void>.broadcast();
+  Stream<void> get settingsChanges => _settingsChanges.stream;
+  int get reminderLeadMinutes => _store.reminderLeadMinutes;
+
+  Future<void> setReminderLeadMinutes(int minutes) async {
+    await _store.setReminderLeadMinutes(minutes);
+    _settingsChanges.add(null);
+    try {
+      await refresh();
+    } catch (error) {
+      reportFailure('提醒设置已保存，但系统提醒更新失败，请刷新重试：$error');
+    }
+  }
+
   final _pendingUiActions = <NotificationUiAction>[];
 
   // UI 意图广播：事实动作在服务里完成，需要界面接手的部分交回外壳。
@@ -83,6 +98,7 @@ class AppNotificationService {
   /// 挂接变更流并做一次启动对账；App 启动/回前台都调用它。
   Future<void> start() async {
     await _store.load();
+    _settingsChanges.add(null);
     _changes ??= _missions.changes.listen((_) {
       unawaited(
         refresh().catchError((Object error) {
@@ -103,8 +119,11 @@ class AppNotificationService {
     do {
       _refreshAgain = false;
       final missions = await _missions.findAllDetails();
+      final hasRunning = missions.any(
+        (item) => item.phase == MissionPhase.running,
+      );
       for (final detail in missions) {
-        await _syncOne(detail);
+        await _syncOne(detail, hasRunning: hasRunning);
       }
     } while (_refreshAgain);
   }
@@ -131,18 +150,36 @@ class AppNotificationService {
     }
   }
 
-  Future<void> _syncOne(MissionDetail detail) async {
+  Future<void> _syncOne(
+    MissionDetail detail, {
+    required bool hasRunning,
+  }) async {
     final missionId = detail.mission.id;
     final started = detail.events.isNotEmpty;
     final ended = started && detail.events.last.type == ExecutionEventType.end;
     final cancelled = detail.phase == MissionPhase.cancelled;
     final scheduled = detail.schedule.fixedStartAt;
-    await _cancelStartReminders(
-      missionId,
-      keepKey: !started && !cancelled && scheduled != null
-          ? _key(missionId, detail.schedule.id)
-          : null,
+    final minutes = _store.reminderLeadMinutes;
+    final remindAt = scheduled?.subtract(
+      Duration(minutes: minutes < 0 ? 0 : minutes),
     );
+    final waiting =
+        !started &&
+        !cancelled &&
+        scheduled != null &&
+        !scheduled.isAfter(_now()) &&
+        scheduled
+            .add(Duration(minutes: detail.schedule.plannedDurationMinutes))
+            .isAfter(_now()) &&
+        hasRunning;
+    final waitingKey = '${_key(missionId, detail.schedule.id)}-waiting';
+    String? keepReminderKey;
+    if (waiting) {
+      keepReminderKey = waitingKey;
+    } else if (!started && !cancelled && scheduled != null && minutes >= 0) {
+      keepReminderKey = _key(missionId, detail.schedule.id);
+    }
+    await _cancelStartReminders(missionId, keepKey: keepReminderKey);
     if (cancelled || ended) {
       // 已结束/已取消：开始提醒与执行通知一并清理（§7.2：END 后清理执行通知）。
       await _store.discard(missionId);
@@ -157,6 +194,10 @@ class AppNotificationService {
       await _dispatcher.show(await _executionNotification(detail));
       return;
     }
+    if (scheduled != null && !cancelled) {
+      await _store.notificationIdOf(_executionKey(missionId));
+      await _store.notificationIdOf(waitingKey);
+    }
     // FLEXIBLE 不安排开始提醒（§7.1）。
     if (scheduled == null) {
       await _store.discard(missionId);
@@ -168,8 +209,29 @@ class AppNotificationService {
       scheduleRevisionId: detail.schedule.id,
     );
     final pref = _store.preferenceOf(missionId);
-    // 有有效 snoozedUntil 时保留它，不用原 fixedStartAt 覆盖（§7.1）。
-    final effective = pref?.snoozedUntil ?? scheduled;
+    if (waiting) {
+      if (pref?.waitingDelivered != true) {
+        await _dispatcher.show(
+          ReminderRequest(
+            idempotencyKey: waitingKey,
+            notificationId: await _store.notificationIdOf(waitingKey),
+            missionId: missionId,
+            scheduleRevisionId: detail.schedule.id,
+            kind: ReminderKind.upcomingReminder,
+            title: '计划任务等待开始：${detail.mission.title}',
+            body: '另一个任务正在执行，点击查看并处理',
+            expectedSequence: detail.lastSequence,
+            candidateEventIds: const {},
+          ),
+        );
+        await _store.markWaitingDelivered(missionId);
+      }
+      return;
+    }
+    if (minutes < 0) return;
+
+    // 提前提醒与自动开始独立；历史延后偏好不再覆盖任务计划。
+    final effective = remindAt!;
     final request = await _startReminder(detail, effective);
     if (effective.isAfter(_now())) {
       // 未来提醒：同幂等键覆盖调度；送达标记只影响补发，不影响重排。
@@ -183,22 +245,6 @@ class AppNotificationService {
       await _dispatcher.show(request);
       await _store.markDelivered(missionId);
     }
-  }
-
-  /// 延后 15 分钟（§7.2）：纯提醒偏好操作，不是改期、不是执行事件。
-  Future<NotificationActionResult> snooze(MissionDetail detail) async {
-    final until = _now().add(const Duration(minutes: 15));
-    try {
-      await _store.snooze(
-        missionId: detail.mission.id,
-        scheduleRevisionId: detail.schedule.id,
-        until: until,
-      );
-    } on Object {
-      return NotificationActionResult.preferenceSaveFailed;
-    }
-    await _dispatcher.schedule(await _startReminder(detail, until));
-    return NotificationActionResult.handled;
   }
 
   /// 通知按钮与前台按钮走同一工作流（§7.2）。
@@ -262,6 +308,7 @@ class AppNotificationService {
     final action =
         actionId ??
         switch (request.kind) {
+          ReminderKind.upcomingReminder => '',
           ReminderKind.startReminder => 'start',
           ReminderKind.executionRunning => 'stop',
           ReminderKind.executionPaused => 'resume',
@@ -294,11 +341,8 @@ class AppNotificationService {
     }
     switch (action) {
       case 'snooze':
-        if (request.kind != ReminderKind.startReminder ||
-            detail.events.isNotEmpty) {
-          return NotificationActionResult.stale;
-        }
-        return snooze(detail);
+        // 旧版本通知中的延后只改提醒，容易与自动开始冲突；新版本统一改排期。
+        return NotificationActionResult.stale;
       case 'start':
         if (request.kind != ReminderKind.startReminder ||
             detail.phase != MissionPhase.notStarted) {
@@ -353,17 +397,18 @@ class AppNotificationService {
   ) async {
     final missionId = detail.mission.id;
     final key = _key(missionId, detail.schedule.id);
-    final local = at.toLocal();
+    final local = detail.schedule.fixedStartAt!.toLocal();
     return ReminderRequest(
       idempotencyKey: key,
       notificationId: await _store.notificationIdOf(key),
       missionId: missionId,
       scheduleRevisionId: detail.schedule.id,
-      kind: ReminderKind.startReminder,
-      title: '任务时间到了：${detail.mission.title}',
+      kind: ReminderKind.upcomingReminder,
+      title:
+          '${detail.schedule.fixedStartAt!.isAfter(_now()) ? '计划任务即将开始' : '计划任务待处理'}：${detail.mission.title}',
       body:
           '计划 ${local.hour.toString().padLeft(2, '0')}:'
-          '${local.minute.toString().padLeft(2, '0')} 开始',
+          '${local.minute.toString().padLeft(2, '0')} 自动开始，点击可查看或调整',
       expectedSequence: detail.lastSequence,
       candidateEventIds: {
         'start': 'notif-start-$missionId-${detail.schedule.id}',
@@ -375,24 +420,9 @@ class AppNotificationService {
   /// 执行通知：RUNNING 显示「停止」、PAUSED 显示「继续」（§7.2）。
   /// 稳定候选事件 id 绑定当前 sequence：重复回调幂等，旧按钮被拒绝。
   Future<ReminderRequest> _executionNotification(MissionDetail detail) async {
-    final missionId = detail.mission.id;
-    final running = detail.phase == MissionPhase.running;
-    final sequence = detail.lastSequence;
-    return ReminderRequest(
-      idempotencyKey: _executionKey(missionId),
-      notificationId: await _store.notificationIdOf(_executionKey(missionId)),
-      missionId: missionId,
-      scheduleRevisionId: detail.schedule.id,
-      kind: running
-          ? ReminderKind.executionRunning
-          : ReminderKind.executionPaused,
-      title: detail.mission.title,
-      body: running ? '执行中，可点「停止」暂停并确认结束' : '已暂停，可点「继续」恢复执行',
-      expectedSequence: sequence,
-      candidateEventIds: {
-        'pause': 'notif-pause-$missionId-$sequence',
-        'resume': 'notif-resume-$missionId-$sequence',
-      },
+    return executionReminder(
+      detail,
+      await _store.notificationIdOf(_executionKey(detail.mission.id)),
     );
   }
 
@@ -406,6 +436,7 @@ class AppNotificationService {
     _changes = null;
     await _actions;
     await _refreshing;
+    await _settingsChanges.close();
     await _uiActions.close();
   }
 }

@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'application/missions/planned_mission_scheduler.dart';
+import 'data/notifications/planned_alarm_bridge.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -38,7 +40,7 @@ class App extends StatefulWidget {
 }
 
 class _AppState extends State<App> with WidgetsBindingObserver {
-  bool _launchComplete = false;
+  bool _launchComplete = false; // 应用启动完成标志
   Timer? _launchTimer;
   // late 表示这些属性稍后初始化。
   // final 表示初始化后不再换成另一个对象。
@@ -50,6 +52,9 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   // 系统提醒编排：装配层只负责创建与生命周期；业务规则在应用服务里。
   AppNotificationService? _notifications;
   bool _notificationsReady = false;
+  PlannedMissionScheduler? _plannedMissions;
+  PlannedAlarmBridge? _plannedBridge;
+  AndroidNotificationDispatcher? _androidDispatcher;
   final _pendingNotificationResponses = <NotificationResponse>[];
   StreamSubscription<void>? _deadlineChanges;
   Timer? _deadlineTimer;
@@ -86,6 +91,27 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       readAttachment: _missionService.readEvidenceImage,
     );
     _device = createAppDevice();
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      _plannedBridge = PlannedAlarmBridge()
+        ..listenForCommits(_missionService.refreshAfterExternalCommit);
+    }
+    _plannedMissions = PlannedMissionScheduler(
+      missions: _missionService,
+      now: DateTime.now,
+      beforeRefresh: () async {
+        await _plannedBridge?.beginSync();
+      },
+      scheduleInSystem: (next) async {
+        // 后台复用的通知编号先持久化，再允许系统唤醒。
+        // 通知失败单独提示，仍安排系统自动开始；编号缺失只影响通知呈现。
+        await _refreshNotifications();
+        await _plannedBridge?.schedule(next);
+      },
+      onError: (error) {
+        debugPrint('计划任务自动开始失败：$error');
+        _notifications?.reportFailure('计划任务自动开始失败，请刷新重试：$error');
+      },
+    );
     unawaited(_initNotifications());
     // 首帧先呈现品牌页；短暂过渡后才装载四个主页面。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -108,6 +134,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       unawaited(_scheduleDeadlineCheck());
       // 回到前台对账一次提醒调度（§7.1：只整理提醒，不写业务事实）。
       unawaited(_refreshNotifications());
+      unawaited(_plannedMissions?.refreshSafely());
     } else {
       _deadlineTimer?.cancel();
     }
@@ -119,12 +146,24 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       await _configureNotifications();
     } catch (error, stack) {
       debugPrint('通知初始化失败：$error\n$stack');
-      _notifications?.reportFailure('提醒暂不可用，延后偏好可能未恢复，请稍后重试');
+      _notifications?.reportFailure('提醒暂不可用，请稍后重试');
+    } finally {
+      if (mounted) {
+        await _plannedMissions?.start().catchError((Object error) {
+          debugPrint('计划任务调度初始化失败：$error');
+          unawaited(_plannedMissions?.refreshSafely());
+        });
+      }
     }
   }
 
   Future<void> _refreshNotifications() async {
     try {
+      if (_androidDispatcher != null) {
+        _androidDispatcher!.updateExactAlarmPermission(
+          (await _device.capabilities()).exactAlarms ?? false,
+        );
+      }
       await _notifications?.refresh();
     } catch (error) {
       _notifications?.reportFailure('提醒更新失败，请稍后重试：$error');
@@ -159,7 +198,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('app_icon'),
+        android: AndroidInitializationSettings('ic_notification'),
         windows: WindowsInitializationSettings(
           appName: 'Mission Book',
           appUserModelId: 'chat.liuxin.mission_book',
@@ -170,7 +209,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     );
     final NotificationDispatcher dispatcher;
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      dispatcher = AndroidNotificationDispatcher(
+      dispatcher = _androidDispatcher = AndroidNotificationDispatcher(
         plugin: plugin,
         // 精确提醒权限按 capabilities.exactAlarms 定档（N3.1 实测补全）。
         exactAlarmsAllowed: (await _device.capabilities()).exactAlarms ?? false,
@@ -289,6 +328,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     _deadlineTimer?.cancel();
     _launchTimer?.cancel();
     unawaited(_deadlineChanges?.cancel());
+    _plannedBridge?.dispose();
+    unawaited(_plannedMissions?.dispose());
     unawaited(_notifications?.dispose());
     // Flutter 移除这个 State 时调用 dispose。
     // close 返回 Future，但 dispose 不能等待异步完成；

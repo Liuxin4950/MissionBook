@@ -32,6 +32,9 @@ class RecordingMissionRepository
     with _UnusedEvidenceMethods
     implements MissionRepository {
   @override
+  Future<List<String>> startDueScheduledMissions() async => <String>[];
+
+  @override
   Future<List<MissionGoalChoices>> findGoalChoices() async => [];
   @override
   Future<MissionOwnershipInfo?> findOwnershipInfo(
@@ -104,6 +107,9 @@ class RecordingMissionRepository
 class FailingMissionRepository
     with _UnusedEvidenceMethods
     implements MissionRepository {
+  @override
+  Future<List<String>> startDueScheduledMissions() async => <String>[];
+
   @override
   Future<List<MissionGoalChoices>> findGoalChoices() async => [];
   @override

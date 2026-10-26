@@ -247,7 +247,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
           ),
           const SizedBox(height: 12),
           Text(
-            '按所选日期的排期时区安排，保存后仍需手动开始。',
+            '到点自动开始，开始前可修改排期；提前提醒可在“我的”中设置。',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ] else

@@ -153,6 +153,16 @@ class MissionService {
 
   Future<List<MissionDetail>> findCancelled() => repository.findCancelled();
 
+  /// 自动执行也从本服务进入仓储；提交后通知各页面重读。
+  Future<List<String>> startDueScheduledMissions() async {
+    final changed = await repository.startDueScheduledMissions();
+    if (changed.isNotEmpty) _notify();
+    return changed;
+  }
+
+  /// Android 后台引擎已提交事实后，让当前界面重新查询数据库。
+  void refreshAfterExternalCommit() => _notify();
+
   /// “全部任务”复用详情事实及截止补算，不建立第二套阶段判断。
   Future<List<MissionDetail>> findAllDetails() async {
     await reconcileEvidenceDeadlines();

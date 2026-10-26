@@ -158,6 +158,8 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
               ),
               Expanded(
                 child: FutureBuilder<List<MissionDetail>>(
+                  // 两个筛选各有自己的读取结果，切换时不复用另一类的旧快照。
+                  key: ValueKey(_cancelled),
                   future: _records,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState != ConnectionState.done &&
@@ -181,13 +183,27 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                     return RefreshIndicator(
                       onRefresh: () async {
                         _refresh();
-                        await _records;
+                        try {
+                          await _records;
+                        } on Object {
+                          // 读取失败由 FutureBuilder 在原页提示；结束下拉动画即可。
+                        }
                       },
                       child: ListView.builder(
                         padding: AppLayout.pagePadding(context),
                         physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount: records.isEmpty ? 1 : records.length,
+                        itemCount:
+                            (records.isEmpty ? 1 : records.length) +
+                            (snapshot.hasError ? 1 : 0),
                         itemBuilder: (context, index) {
+                          if (snapshot.hasError && index == 0) {
+                            return TextButton(
+                              onPressed: _refresh,
+                              child: const Text('刷新失败，当前保留上次读取的记录，点击重试'),
+                            );
+                          }
+                          final recordIndex =
+                              index - (snapshot.hasError ? 1 : 0);
                           if (records.isEmpty) {
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 32),
@@ -199,22 +215,22 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              if (index == 0 ||
-                                  _day(records[index - 1]) !=
-                                      _day(records[index]))
+                              if (recordIndex == 0 ||
+                                  _day(records[recordIndex - 1]) !=
+                                      _day(records[recordIndex]))
                                 Padding(
                                   padding: EdgeInsets.only(
-                                    top: index == 0 ? 0 : 16,
+                                    top: recordIndex == 0 ? 0 : 16,
                                     bottom: 10,
                                   ),
                                   child: Text(
-                                    _day(records[index]),
+                                    _day(records[recordIndex]),
                                     style: Theme.of(
                                       context,
                                     ).textTheme.titleMedium,
                                   ),
                                 ),
-                              _recordCard(records[index]),
+                              _recordCard(records[recordIndex]),
                             ],
                           );
                         },
@@ -230,21 +246,24 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
     ),
   );
 
-  String _day(MissionDetail detail) => missionLocalTime(
-    _cancelled ? detail.mission.cancelledAt! : detail.events.last.occurredAt,
-    detail.schedule.timeZone,
-  ).split(' ').first;
+  /// 历史按实际发生时刻在设备上的日期回看；排期时区只解释原计划。
+  DateTime _localRecordTime(MissionDetail detail) {
+    final instant = _cancelled
+        ? detail.mission.cancelledAt!
+        : detail.events.last.occurredAt;
+    return instant.toLocal();
+  }
+
+  String _day(MissionDetail detail) {
+    final local = _localRecordTime(detail);
+    return '${local.year}年${local.month}月${local.day}日';
+  }
 
   Widget _recordCard(MissionDetail detail) {
     final theme = Theme.of(context);
-    final endedAt = _cancelled
-        ? detail.mission.cancelledAt!
-        : detail.events.last.occurredAt;
-    final clock = missionLocalTime(
-      endedAt,
-      detail.schedule.timeZone,
-      includeDate: false,
-    ).substring(0, 5);
+    final local = _localRecordTime(detail);
+    final clock =
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
     // 是否报告完成的判定口径统一走 MissionDetail 的派生属性。
     final completed = !_cancelled && detail.endReportedCompleted;
     final images = _cancelled

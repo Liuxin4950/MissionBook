@@ -33,6 +33,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        PlannedAlarm.attach(flutterEngine, applicationContext)
         fileCopyExecutor.execute { fileSelectorCacheRoot().deleteRecursively() }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mission_book/device")
             .setMethodCallHandler { call, result ->
@@ -88,6 +89,11 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             FILE_SELECTOR_CHANNEL,
         ).setMethodCallHandler(::handleFileSelectorCall)
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        PlannedAlarm.detachPrimary()
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     private fun handleFileSelectorCall(call: MethodCall, result: MethodChannel.Result) {

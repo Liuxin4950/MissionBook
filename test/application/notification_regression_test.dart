@@ -120,7 +120,7 @@ void main() {
     final oldRequest = dispatcher.scheduled.values.single;
     await reschedule(id);
     expect(
-      await service.handleAction(oldRequest),
+      await service.handleAction(oldRequest, actionId: 'start'),
       NotificationActionResult.stale,
     );
     expect((await missions.findDetail(missionId: id))!.events, isEmpty);
@@ -157,19 +157,16 @@ void main() {
     },
   );
   test(
-    'snooze action changes reminder only and keeps task unstarted',
+    'legacy snooze action is stale and does not postpone automatic start',
     () async {
       final id = await create();
       await service.refresh();
       final request = dispatcher.scheduled.values.single;
       expect(
         await service.handleAction(request, actionId: 'snooze'),
-        NotificationActionResult.handled,
+        NotificationActionResult.stale,
       );
-      expect(
-        store.preferenceOf(id)!.snoozedUntil,
-        now.add(const Duration(minutes: 15)),
-      );
+      expect(store.preferenceOf(id)!.snoozedUntil, isNull);
       expect((await missions.findDetail(missionId: id))!.events, isEmpty);
     },
   );
@@ -178,10 +175,8 @@ void main() {
     () async {
       final id = await create();
       await service.refresh();
-      await service.handleAction(
-        dispatcher.scheduled.values.single,
-        actionId: 'start',
-      );
+      now = DateTime.utc(2026, 10, 25, 1);
+      await missions.startDueScheduledMissions();
       await service.refresh();
       final request = dispatcher.visible.values.single;
       final results = await Future.wait([

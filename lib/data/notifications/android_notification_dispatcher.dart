@@ -17,9 +17,11 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
        _exactAlarmsAllowed = exactAlarmsAllowed;
 
   final FlutterLocalNotificationsPlugin _plugin;
-  final bool _exactAlarmsAllowed;
+  bool _exactAlarmsAllowed;
+  void updateExactAlarmPermission(bool allowed) =>
+      _exactAlarmsAllowed = allowed;
 
-  // 按通知种类提供动作按钮（§7.2）：开始提醒「开始/延后」，
+  // 提前预告点击正文打开详情；旧版开始通知仅保留开始动作，
   // 执行中「停止」、暂停中「继续」；事实类按钮拉起应用走同一工作流。
   NotificationDetails _detailsFor(ReminderKind kind) => NotificationDetails(
     android: AndroidNotificationDetails(
@@ -29,13 +31,9 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
       importance: Importance.high,
       priority: Priority.high,
       actions: switch (kind) {
+        ReminderKind.upcomingReminder => [],
         ReminderKind.startReminder => [
           AndroidNotificationAction('start', '开始', showsUserInterface: true),
-          AndroidNotificationAction(
-            'snooze',
-            '延后 15 分钟',
-            showsUserInterface: true,
-          ),
         ],
         ReminderKind.executionRunning => [
           AndroidNotificationAction('stop', '停止', showsUserInterface: true),

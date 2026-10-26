@@ -156,7 +156,11 @@ class _AppShellState extends State<AppShell> {
         missionService: widget.missionService,
       ),
       MissionHistoryPage(service: widget.missionService),
-      MePage(device: widget.device, backup: widget.backupService),
+      MePage(
+        device: widget.device,
+        backup: widget.backupService,
+        notifications: widget.notifications,
+      ),
     ];
     final body = KeyedSubtree(
       key: _pageStackKey,

@@ -90,7 +90,7 @@ void main() {
     );
     return (await missions.findScheduledOn(
       scheduledDate: '2026-10-25',
-    )).last.mission.id;
+    )).singleWhere((detail) => detail.mission.title == title).mission.id;
   }
 
   test('FIXED 未来任务调度开始提醒；同幂等键重复对账不重复安排', () async {
@@ -102,8 +102,8 @@ void main() {
     await service.refresh();
     expect(dispatcher.scheduled.length, 1);
     final request = dispatcher.scheduled.values.single;
-    expect(request.kind, ReminderKind.startReminder);
-    expect(request.scheduledFor, DateTime.utc(2026, 10, 25, 2));
+    expect(request.kind, ReminderKind.upcomingReminder);
+    expect(request.scheduledFor, DateTime.utc(2026, 10, 25, 1, 50));
     // 幂等键绑定排期版本：改期后是新键，不会沿用旧延后。
     expect(
       request.idempotencyKey,
@@ -132,26 +132,23 @@ void main() {
     expect(dispatcher.scheduled, isEmpty);
   });
 
-  test('延后 15 分钟写偏好并重置送达；有效延后优先于原 fixedStartAt', () async {
+  test('修改提前提醒立即重排且不改变排期；关闭后撤销提醒', () async {
     final id = await createFixed(
-      title: '延后任务',
+      title: '提醒设置',
       fixedStartAt: DateTime.utc(2026, 10, 25, 1),
     );
     await service.refresh();
-    await store.markDelivered(id); // 已送达过
-    final detail = (await missions.findDetail(missionId: id))!;
-    final result = await service.snooze(detail);
-    expect(result, NotificationActionResult.handled);
-    final pref = store.preferenceOf(id)!;
-    expect(pref.snoozedUntil, DateTime.utc(2026, 10, 25, 0, 15));
-    expect(pref.delivered, isFalse, reason: '延后必须重置送达标记（§7.1）');
-    // 对账用延后时刻，不用原 fixedStartAt 覆盖。
-    now = DateTime.utc(2026, 10, 25, 0, 5);
-    await service.refresh();
+    await service.setReminderLeadMinutes(30);
     expect(
       dispatcher.scheduled.values.single.scheduledFor,
-      DateTime.utc(2026, 10, 25, 0, 15),
+      DateTime.utc(2026, 10, 25, 0, 30),
     );
+    expect(
+      (await missions.findDetail(missionId: id))!.schedule.fixedStartAt,
+      DateTime.utc(2026, 10, 25, 1),
+    );
+    await service.setReminderLeadMinutes(-1);
+    expect(dispatcher.scheduled, isEmpty);
   });
 
   test('过期未送达补发一次并标记；已送达不反复弹出', () async {
@@ -174,7 +171,11 @@ void main() {
     );
     await service.refresh();
     final detail = (await missions.findDetail(missionId: id))!;
-    await service.snooze(detail); // 旧版本留下延后偏好
+    await store.snooze(
+      missionId: id,
+      scheduleRevisionId: detail.schedule.id,
+      until: now.add(const Duration(minutes: 15)),
+    ); // 兼容历史设置文件
     // 改期：固定开始时刻变化 → 追加排期版本。
     final before = (await missions.findDetail(missionId: id))!;
     await missions.edit(
@@ -192,7 +193,8 @@ void main() {
     // 新版本按新时刻重排；旧幂等键的调度已撤销，不再生效。
     final rescheduled = dispatcher.scheduled.values
         .where(
-          (request) => request.scheduledFor == DateTime.utc(2026, 10, 25, 5),
+          (request) =>
+              request.scheduledFor == DateTime.utc(2026, 10, 25, 4, 50),
         )
         .toList();
     expect(rescheduled, hasLength(1));
@@ -203,6 +205,7 @@ void main() {
     );
     // 开始执行后提醒与偏好一并清理。
     final started = (await missions.findDetail(missionId: id))!;
+    now = DateTime.utc(2026, 10, 25, 5);
     await missions.execute(
       missions.prepareExecution(
         detail: started,
@@ -221,17 +224,24 @@ void main() {
     );
     await service.refresh();
     final request = dispatcher.scheduled.values.single;
-    // 「开始」动作：与前台按钮同一工作流写 START 事实。
+    // 提前提醒只打开详情，不能提前写 START。到点使用统一自动执行入口。
     expect(
       await service.handleAction(request),
-      NotificationActionResult.handled,
+      NotificationActionResult.openMission,
+    );
+    now = DateTime.utc(2026, 10, 25, 1);
+    await missions.startDueScheduledMissions();
+    // 原来的预告点击仍只是打开任务。
+    expect(
+      await service.handleAction(request),
+      NotificationActionResult.openMission,
     );
     final afterStart = (await missions.findDetail(missionId: id))!;
     expect(afterStart.events, hasLength(1));
     // 已处理的同一候选动作静默幂等，不写事实也不重复提示。
     expect(
       await service.handleAction(request),
-      NotificationActionResult.handled,
+      NotificationActionResult.openMission,
     );
     expect(
       (await missions.findDetail(missionId: id))!.events,
@@ -261,17 +271,61 @@ void main() {
   });
 
   test('偏好持久化：延后与送达状态关闭重开仍在', () async {
-    final id = await createFixed(
+    await createFixed(
       title: '持久任务',
       fixedStartAt: DateTime.utc(2026, 10, 25, 1),
     );
     await service.refresh();
-    final detail = (await missions.findDetail(missionId: id))!;
-    await service.snooze(detail);
+    await service.setReminderLeadMinutes(15);
     // 重新打开：同一文件读回，延后保持。
     final reopened = ReminderStore(File('${tempDir.path}/reminders.json'));
     await reopened.load();
-    expect(reopened.preferenceOf(id)!.snoozedUntil, isNotNull);
+    expect(reopened.reminderLeadMinutes, 15);
     expect(await reopened.notificationIdOf('any-key'), isPositive);
+  });
+  test('关闭提前提醒也保留到点冲突提醒，不自动暂停当前任务且反复刷新不重复弹出', () async {
+    await missions.create(
+      title: '当前任务',
+      scheduledDate: '2026-10-25',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 30,
+    );
+    final current = (await missions.findAllDetails()).single;
+    await missions.execute(
+      missions.prepareExecution(
+        detail: current,
+        type: ExecutionEventType.start,
+      ),
+    );
+    final id = await createFixed(
+      title: '到点任务',
+      fixedStartAt: DateTime.utc(2026, 10, 25, 1),
+    );
+    await service.setReminderLeadMinutes(-1);
+    now = DateTime.utc(2026, 10, 25, 1);
+    await missions.startDueScheduledMissions();
+    await service.refresh();
+    final waiting = dispatcher.visible.values.where(
+      (request) => request.title.startsWith('计划任务等待开始'),
+    );
+    expect(waiting, hasLength(1));
+    final shownCount = dispatcher.shown.length;
+    await service.refresh();
+    expect(
+      dispatcher.shown.where((key) => key.endsWith('-waiting')),
+      hasLength(1),
+    );
+    expect(
+      dispatcher.visible.values.where(
+        (request) => request.title.startsWith('计划任务等待开始'),
+      ),
+      hasLength(1),
+    );
+    expect((await missions.findDetail(missionId: id))!.events, isEmpty);
+    expect(
+      (await missions.findDetail(missionId: current.mission.id))!.events,
+      hasLength(1),
+    );
+    expect(dispatcher.shown.length, greaterThanOrEqualTo(shownCount));
   });
 }

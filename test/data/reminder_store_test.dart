@@ -115,4 +115,38 @@ void main() {
     expect(await reopened.notificationIdOf('key-a'), 1);
     expect(reopened.preferenceOf('m1')!.snoozedUntil, until);
   });
+  test('旧设置文件默认提前10分钟，新选择持久化且非法值不覆盖', () async {
+    await file.writeAsString(
+      jsonEncode({
+        'preferences': {},
+        'notificationIds': {},
+        'nextNotificationId': 1,
+      }),
+    );
+    final store = ReminderStore(file);
+    await store.load();
+    expect(store.reminderLeadMinutes, 10);
+    await store.setReminderLeadMinutes(15);
+    final reopened = ReminderStore(file);
+    await reopened.load();
+    expect(reopened.reminderLeadMinutes, 15);
+    expect(() => reopened.setReminderLeadMinutes(123), throwsArgumentError);
+    expect(reopened.reminderLeadMinutes, 15);
+  });
+
+  test('提醒设置保存失败保留原值，可以修复路径后重试', () async {
+    final blocker = File('${tempDir.path}/settings-blocker');
+    await blocker.writeAsString('blocked');
+    final store = ReminderStore(File('${blocker.path}/reminders.json'));
+    await expectLater(
+      store.setReminderLeadMinutes(-1),
+      throwsA(isA<FileSystemException>()),
+    );
+    expect(store.reminderLeadMinutes, 10);
+    await blocker.delete();
+    await store.setReminderLeadMinutes(-1);
+    final reopened = ReminderStore(store.file);
+    await reopened.load();
+    expect(reopened.reminderLeadMinutes, -1);
+  });
 }

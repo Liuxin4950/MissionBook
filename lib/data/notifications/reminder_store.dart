@@ -8,6 +8,7 @@ class ReminderPreference {
     required this.scheduleRevisionId,
     this.snoozedUntil,
     this.delivered = false,
+    this.waitingDelivered = false,
   });
 
   final String missionId;
@@ -20,12 +21,14 @@ class ReminderPreference {
 
   /// 该版本是否已实际送达。每次延后重置为未送达；“调度成功”≠已送达。
   bool delivered;
+  bool waitingDelivered; // 到点执行冲突提醒与提前提醒分别去重。
 
   Map<String, Object?> toJson() => {
     'missionId': missionId,
     'scheduleRevisionId': scheduleRevisionId,
     'snoozedUntil': snoozedUntil?.toIso8601String(),
     'delivered': delivered,
+    'waitingDelivered': waitingDelivered,
   };
 
   static ReminderPreference fromJson(Map<String, dynamic> json) =>
@@ -36,6 +39,7 @@ class ReminderPreference {
             ? null
             : DateTime.parse(json['snoozedUntil'] as String),
         delivered: json['delivered'] as bool? ?? false,
+        waitingDelivered: json['waitingDelivered'] as bool? ?? false,
       );
 }
 
@@ -50,6 +54,9 @@ class ReminderStore {
   final Map<String, ReminderPreference> _preferences = {};
   final Map<String, int> _notificationIds = {};
   int _nextNotificationId = 1;
+  int reminderLeadMinutes = 10; // 全局提前提醒分钟数，-1 表示关闭。
+
+  static const reminderLeadOptions = [-1, 0, 5, 10, 15, 30, 60];
 
   /// 写操作串行链：上一笔结束（成功或失败）后才开始下一笔，
   /// 串行链吸收失败以允许后续重试，调用方仍收到原始错误。
@@ -60,6 +67,11 @@ class ReminderStore {
   Future<void> load() async {
     if (!await file.exists()) return;
     final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    final minutes = json['reminderLeadMinutes'] as int? ?? 10;
+    if (!reminderLeadOptions.contains(minutes)) {
+      throw const FormatException('计划任务提醒设置无效');
+    }
+    reminderLeadMinutes = minutes;
     _preferences.clear();
     _notificationIds.clear();
     for (final entry
@@ -82,6 +94,7 @@ class ReminderStore {
     final temp = File('${file.path}.tmp');
     await temp.writeAsString(
       jsonEncode({
+        'reminderLeadMinutes': reminderLeadMinutes,
         'preferences': {
           for (final entry in _preferences.entries)
             entry.key: entry.value.toJson(),
@@ -105,6 +118,7 @@ class ReminderStore {
       };
       final previousIds = Map<String, int>.of(_notificationIds);
       final previousNextId = _nextNotificationId;
+      final previousLead = reminderLeadMinutes;
       try {
         final value = mutate();
         await _save();
@@ -117,11 +131,26 @@ class ReminderStore {
           ..clear()
           ..addAll(previousIds);
         _nextNotificationId = previousNextId;
+        reminderLeadMinutes = previousLead;
         rethrow;
       }
     });
     _writeQueue = result.then<void>((_) {}, onError: (Object _) {});
     return result;
+  }
+
+  /// 保存全局提醒选择；落盘失败时回滚，界面不得显示保存成功。
+  Future<void> setReminderLeadMinutes(int minutes) {
+    if (!reminderLeadOptions.contains(minutes)) {
+      throw ArgumentError('不支持的提前提醒时间');
+    }
+    return _write<void>(() {
+      reminderLeadMinutes = minutes;
+      for (final preference in _preferences.values) {
+        preference.delivered = false;
+        preference.snoozedUntil = null;
+      }
+    });
   }
 
   ReminderPreference? preferenceOf(String missionId) => _preferences[missionId];
@@ -174,6 +203,10 @@ class ReminderStore {
     });
   }
 
+  Future<void> markWaitingDelivered(String missionId) => _write<void>(() {
+    _preferences[missionId]?.waitingDelivered = true;
+  });
+
   /// 对账时登记/更新当前版本偏好（不含延后与送达，各自独立维护）。
   Future<void> register({
     required String missionId,
@@ -198,7 +231,8 @@ class ReminderStore {
       current
         ..scheduleRevisionId = scheduleRevisionId
         ..snoozedUntil = null
-        ..delivered = false;
+        ..delivered = false
+        ..waitingDelivered = false;
     });
   }
 

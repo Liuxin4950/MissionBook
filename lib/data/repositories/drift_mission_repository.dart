@@ -569,7 +569,69 @@ class DriftMissionRepository implements MissionRepository {
   }
 
   @override
-  Future<ExecutionEvent> execute(ExecutionCommand command) async {
+  Future<List<String>> startDueScheduledMissions() => database.transaction(
+    () async {
+      // 与手动执行、改期和取消共用全局 SQLite 写锁；不能先读后抢锁。
+      await _acquireGlobalWrite();
+      final now = _now();
+      final details = await findAllDetails();
+      final due = details.where((detail) {
+        final start = detail.schedule.fixedStartAt;
+        return detail.phase == MissionPhase.notStarted &&
+            start != null &&
+            !start.isAfter(now) &&
+            start
+                .add(Duration(minutes: detail.schedule.plannedDurationMinutes))
+                .isAfter(now);
+      }).toList();
+      due.sort((a, b) {
+        final order = a.schedule.fixedStartAt!.compareTo(
+          b.schedule.fixedStartAt!,
+        );
+        return order == 0 ? a.mission.id.compareTo(b.mission.id) : order;
+      });
+      if (due.isEmpty) return <String>[];
+      // 多项同时到点时稳定选择第一项；已有 RUNNING 则保留当前任务。
+      final changed = <String>[];
+      for (final detail in due) {
+        final running = (await findActive()).where(
+          (item) => item.phase == MissionPhase.running,
+        );
+        if (running.isNotEmpty) break;
+        // 查询耗时可能跨过结束边界；同一次写事务内捕获时刻并用于后续 START，
+        // 避免用过期筛选结果开始任务，或在校验后换用另一个发生时刻。
+        final startedAt = _now();
+        final end = detail.schedule.fixedStartAt!.add(
+          Duration(minutes: detail.schedule.plannedDurationMinutes),
+        );
+        if (startedAt.isBefore(detail.schedule.fixedStartAt!) ||
+            !startedAt.isBefore(end)) {
+          continue;
+        }
+        await _execute(
+          ExecutionCommand(
+            id: 'scheduled-start-${detail.schedule.id}',
+            missionId: detail.mission.id,
+            expectedSequence: 0,
+            type: ExecutionEventType.start,
+            scheduleRevisionId: detail.schedule.id,
+          ),
+          occurredAt: startedAt,
+        );
+        changed.add(detail.mission.id);
+      }
+      return changed;
+    },
+  );
+
+  @override
+  Future<ExecutionEvent> execute(ExecutionCommand command) => _execute(command);
+
+  // 自动开始已持有外层事务写锁，可复用其边界校验时刻；普通操作仍在下方捕获。
+  Future<ExecutionEvent> _execute(
+    ExecutionCommand command, {
+    DateTime? occurredAt,
+  }) async {
     String? clean(String? text) {
       final value = text?.trim();
       return value == null || value.isEmpty ? null : value;
@@ -649,10 +711,12 @@ class DriftMissionRepository implements MissionRepository {
         }
       }
       // 已取得写锁、重读事实后才捕获时间，精度与持久化统一到毫秒。
-      final now = DateTime.fromMillisecondsSinceEpoch(
-        clock().toUtc().millisecondsSinceEpoch,
-        isUtc: true,
-      );
+      final now = occurredAt ?? _now();
+      if (command.type == ExecutionEventType.start &&
+          detail.schedule.fixedStartAt != null &&
+          now.isBefore(detail.schedule.fixedStartAt!)) {
+        throw const ExecutionConflict('计划任务尚未到开始时间，可以先修改排期');
+      }
       if (detail.events.isNotEmpty &&
           now.isBefore(detail.events.last.occurredAt)) {
         throw const ExecutionConflict('系统时间早于上一条记录，请校正系统时间后重试');

@@ -10,7 +10,7 @@
 
 | Phase | 唯一事实来源 | 注意事项 |
 | --- | --- | --- |
-| NOT_STARTED | 未取消、无 START | 可有多个排期版本；过去日期也不会自动开始 |
+| NOT_STARTED | 未取消、无 START | 可有多个排期版本；FIXED 到点且仍在计划时段内自动开始，错过整个时段不补造历史 |
 | RUNNING | 有 START，无 END，忽略 EXTEND 后最后切换为 START/RESUME | 全局最多一个 RUNNING |
 | PAUSED | 有 START，无 END，忽略 EXTEND 后最后切换为 PAUSE | 可以有多个 PAUSED；不累计 Focus |
 | EVIDENCE_PENDING | END=COMPLETED，策略要求后续材料且首批未提交、未跳过、未超时 | 不等于任务仍在运行 |
@@ -23,7 +23,7 @@
 
 | Command | 允许前置 Phase | 事实改变 | 禁止的隐含效果 |
 | --- | --- | --- | --- |
-| StartMission | NOT_STARTED | START + 绑定最新排期 revision | 不能提前自动 START；不能挤走另一 RUNNING |
+| StartMission | NOT_STARTED | START + 绑定最新排期 revision | FIXED 不能提前 START，到点由同一事务自动开始；不能挤走另一 RUNNING |
 | PauseMission | RUNNING | PAUSE | 不产生 END |
 | ResumeMission | PAUSED 且无其他 RUNNING | RESUME | 不修改原 START |
 | ExtendMission | RUNNING 或 PAUSED | EXTEND(正整数分钟) | **不**恢复运行、不改原 plannedDuration |

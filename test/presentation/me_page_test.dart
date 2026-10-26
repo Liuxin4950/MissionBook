@@ -22,15 +22,25 @@ class _Backup implements BackupExporter {
 
 class _Device extends TestAppDevice {
   String? saved;
-  bool notifications = false;
+  bool? notifications = false;
+  bool? exactAlarms = true;
+  bool failCapabilities = false;
+  int capabilityQueries = 0;
+  Completer<DeviceCapabilities>? pendingCapabilities;
   final settings = <bool>[];
   @override
-  Future<DeviceCapabilities> capabilities() async => DeviceCapabilities(
-    version: '0.2.2 (4)',
-    android: true,
-    notifications: notifications,
-    exactAlarms: true,
-  );
+  Future<DeviceCapabilities> capabilities() async {
+    capabilityQueries++;
+    if (failCapabilities) throw StateError('测试：权限查询失败');
+    return pendingCapabilities?.future ??
+        DeviceCapabilities(
+          version: '0.2.2 (4)',
+          android: true,
+          notifications: notifications,
+          exactAlarms: exactAlarms,
+        );
+  }
+
   @override
   Future<void> openSettings({required bool exactAlarms}) async =>
       settings.add(exactAlarms);
@@ -93,26 +103,92 @@ void main() {
     expect(backup.calls, 3);
   });
 
-  testWidgets('两项权限独立打开，回前台重读，关于显示实际查询的版本', (tester) async {
+  testWidgets('仅缺失权限显示入口，回前台授权后收起，关于显示实际版本', (tester) async {
+    device.exactAlarms = false;
     await open(tester);
-    expect(find.text('系统未允许'), findsOneWidget);
-    expect(find.text('系统已允许'), findsOneWidget);
-    await tester.tap(find.text('去设置').first);
+    expect(find.text('开启系统通知'), findsOneWidget);
+    expect(find.text('系统未允许'), findsNWidgets(2));
+    await tester.tap(find.byKey(const Key('grant-notifications')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('去设置').last);
+    await tester.tap(find.byKey(const Key('grant-exact-alarms')));
     await tester.pumpAndSettle();
     expect(device.settings, [false, true]);
     device.notifications = true;
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
-    expect(find.text('系统已允许'), findsNWidgets(2));
+    expect(find.byKey(const Key('grant-notifications')), findsNothing);
+    expect(find.text('准时提醒权限待开启'), findsOneWidget);
+    expect(find.byKey(const Key('grant-exact-alarms')), findsOneWidget);
+    device.exactAlarms = true;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.text('提醒权限已就绪'), findsOneWidget);
+    expect(find.text('去设置'), findsNothing);
     final about = find.byKey(const Key('about-toggle'));
     await tester.ensureVisible(about);
     await tester.tap(about);
     await tester.pumpAndSettle();
     expect(find.textContaining('0.2.2 (4)'), findsOneWidget);
-    expect(find.textContaining('系统提醒尚未接通'), findsOneWidget);
+    expect(find.textContaining('系统提醒尚未接通'), findsNothing);
+    expect(find.textContaining('授权后也不会自动发送提醒'), findsNothing);
+  });
+
+  testWidgets('已授权打开页面不显示授权入口，撤销通知权限后恢复对应入口', (tester) async {
+    device.notifications = true;
+    await open(tester);
+    expect(find.text('提醒权限已就绪'), findsOneWidget);
+    expect(find.text('去设置'), findsNothing);
+    device.notifications = false;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.text('开启系统通知'), findsOneWidget);
+    expect(find.byKey(const Key('grant-notifications')), findsOneWidget);
+    expect(find.byKey(const Key('grant-exact-alarms')), findsNothing);
+  });
+
+  testWidgets('权限未知或读取失败不显示就绪，可重试恢复', (tester) async {
+    device.notifications = null;
+    device.exactAlarms = null;
+    await open(tester);
+    expect(find.text('部分提醒权限无法查询'), findsOneWidget);
+    expect(find.text('提醒权限已就绪'), findsNothing);
+    expect(find.text('去设置'), findsNothing);
+    device.failCapabilities = true;
+    await tester.tap(find.byKey(const Key('refresh-permissions')));
+    await tester.pumpAndSettle();
+    expect(find.text('暂时无法确认提醒权限'), findsOneWidget);
+    device.failCapabilities = false;
+    device.notifications = true;
+    device.exactAlarms = true;
+    await tester.tap(find.byKey(const Key('refresh-permissions')));
+    await tester.pumpAndSettle();
+    expect(find.text('提醒权限已就绪'), findsOneWidget);
+    expect(find.byKey(const Key('refresh-permissions')), findsNothing);
+  });
+
+  testWidgets('首次权限查询未完成时回前台，会重读并丢弃返回前的旧结果', (tester) async {
+    final pending = Completer<DeviceCapabilities>();
+    device.pendingCapabilities = pending;
+    await open(tester);
+    expect(find.text('正在读取提醒权限'), findsOneWidget);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    device.pendingCapabilities = null;
+    device.notifications = true;
+    pending.complete(
+      const DeviceCapabilities(
+        version: '旧结果',
+        android: true,
+        notifications: false,
+        exactAlarms: false,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(device.capabilityQueries, 2);
+    expect(find.text('提醒权限已就绪'), findsOneWidget);
+    expect(find.text('去设置'), findsNothing);
   });
 }
-

@@ -23,6 +23,10 @@ abstract interface class MissionRepository {
   Future<List<MissionDetail>> findPendingEvidence();
   Future<Set<String>> referencedAttachmentKeys();
 
+  /// 重读到期固定任务，在同一写事务内开始；已有 RUNNING 时保留当前执行。
+  /// 返回发生变化的任务编号。重复唤醒不重复写事件，不倒填计划时刻。
+  Future<List<String>> startDueScheduledMissions();
+
   /// 固定身份的动作意图；取得写权限后重读、校验并原子追加必要事实。
   Future<ExecutionEvent> execute(ExecutionCommand command);
 

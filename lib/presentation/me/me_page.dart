@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../application/notifications/app_notification_service.dart';
 import 'package:flutter/material.dart';
 
 import '../../application/backup/backup_service.dart';
@@ -9,9 +10,15 @@ import '../widgets/app_page_header.dart';
 
 /// 本地能力与数据出口；不创建账号、云同步或尚未提供的设置开关。
 class MePage extends StatefulWidget {
-  const MePage({super.key, required this.device, required this.backup});
+  const MePage({
+    super.key,
+    required this.device,
+    required this.backup,
+    this.notifications,
+  });
   final AppDevice device;
   final BackupExporter backup;
+  final AppNotificationService? notifications;
   @override
   State<MePage> createState() => _MePageState();
 }
@@ -19,12 +26,15 @@ class MePage extends StatefulWidget {
 class _MePageState extends State<MePage> with WidgetsBindingObserver {
   DeviceCapabilities? _capabilities;
   bool _querying = false;
+  bool _refreshAgain = false;
   bool _openingSettings = false;
   bool _exporting = false;
   bool _backupFailed = false;
   String? _capabilityError;
   String? _backupMessage;
   bool _about = false;
+  bool _savingScheduleSettings = false;
+  String? _scheduleSettingsError;
 
   @override
   void initState() {
@@ -39,14 +49,22 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
   }
 
   Future<void> _refresh() async {
+    if (!mounted) return;
+    // 查询期间从系统设置返回时，再查一次，避免丢掉刚变更的权限。
+    _refreshAgain = true;
     if (_querying) return;
     setState(() {
       _querying = true;
       _capabilityError = null;
     });
     try {
-      final result = await widget.device.capabilities();
-      if (mounted) setState(() => _capabilities = result);
+      do {
+        _refreshAgain = false;
+        final result = await widget.device.capabilities();
+        if (!mounted) return;
+        // 有更新的查询意图时，不先展示返回前捕获的旧权限。
+        if (!_refreshAgain) setState(() => _capabilities = result);
+      } while (_refreshAgain && mounted);
     } catch (error, stack) {
       debugPrint('系统权限读取失败：$error\n$stack');
       if (mounted) setState(() => _capabilityError = '暂时无法读取系统权限，请重试');
@@ -107,10 +125,102 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  Future<void> _chooseReminder() async {
+    final service = widget.notifications;
+    if (service == null || _savingScheduleSettings) return;
+    final minutes = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('计划任务提醒时间'),
+              ),
+              for (final value in [-1, 0, 5, 10, 15, 30, 60])
+                ListTile(
+                  key: Key('reminder-minutes-$value'),
+                  title: Text(_reminderLabel(value)),
+                  selected: service.reminderLeadMinutes == value,
+                  trailing: service.reminderLeadMinutes == value
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, value),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (minutes == null || !mounted) return;
+    await _saveScheduleSetting(() => service.setReminderLeadMinutes(minutes));
+  }
+
+  String _reminderLabel(int minutes) {
+    if (minutes < 0) return '关闭提前提醒';
+    if (minutes == 0) return '开始时提醒';
+    return '提前 $minutes 分钟提醒';
+  }
+
+  Future<void> _saveScheduleSetting(Future<void> Function() save) async {
+    if (_savingScheduleSettings) return;
+    setState(() {
+      _savingScheduleSettings = true;
+      _scheduleSettingsError = null;
+    });
+    try {
+      await save();
+    } catch (error) {
+      if (mounted) {
+        setState(() => _scheduleSettingsError = '设置操作未完成，请重试：$error');
+      }
+    } finally {
+      if (mounted) setState(() => _savingScheduleSettings = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final capabilities = _capabilities;
+    final needsNotifications = capabilities?.notifications == false;
+    final needsExactAlarms =
+        capabilities?.android == true && capabilities?.exactAlarms == false;
+    final needsPermission = needsNotifications || needsExactAlarms;
+    final unknownPermission =
+        capabilities?.notifications == null ||
+        (capabilities?.android == true && capabilities?.exactAlarms == null);
+    String reminderTitle;
+    String reminderDescription;
+    IconData reminderIcon;
+    if (_capabilityError != null) {
+      reminderTitle = '暂时无法确认提醒权限';
+      reminderDescription = '请重新读取权限状态。任务仍可手动管理与执行。';
+      reminderIcon = Icons.info_outline;
+    } else if (capabilities == null) {
+      reminderTitle = '正在读取提醒权限';
+      reminderDescription = '正在查询这台设备的系统通知与提醒权限。';
+      reminderIcon = Icons.notifications_outlined;
+    } else if (needsNotifications) {
+      reminderTitle = '开启系统通知';
+      reminderDescription = '允许通知后，可在系统通知栏查看任务提醒与执行状态。';
+      reminderIcon = Icons.notifications_off_outlined;
+    } else if (unknownPermission) {
+      reminderTitle = '部分提醒权限无法查询';
+      reminderDescription = '当前平台无法确认全部提醒权限，可在系统设置中查看。';
+      reminderIcon = Icons.info_outline;
+    } else if (needsExactAlarms) {
+      reminderTitle = '准时提醒权限待开启';
+      reminderDescription = '系统通知已允许；开启准时提醒权限后，固定任务可按设定时刻提醒。';
+      reminderIcon = Icons.alarm_outlined;
+    } else {
+      reminderTitle = '提醒权限已就绪';
+      reminderDescription = '可在系统通知栏查看固定任务提醒与执行状态。';
+      reminderIcon = Icons.notifications_active_outlined;
+    }
     return SafeArea(
       child: Center(
         child: ConstrainedBox(
@@ -128,17 +238,19 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: .78),
+                  color: needsPermission
+                      ? AppColors.accent.withValues(alpha: .78)
+                      : AppColors.primarySoft,
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const CircleAvatar(
+                    CircleAvatar(
                       radius: 26,
                       backgroundColor: AppColors.card,
                       child: Icon(
-                        Icons.notifications_off_outlined,
+                        reminderIcon,
                         size: 26,
                         color: AppColors.primary,
                       ),
@@ -149,7 +261,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '系统提醒尚未接通',
+                            reminderTitle,
                             style: text.bodyLarge?.copyWith(
                               fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary,
@@ -157,7 +269,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            '任务仍可手动管理与执行。授权后也不会自动发送提醒。',
+                            reminderDescription,
                             style: text.bodyMedium?.copyWith(
                               color: AppColors.textPrimary,
                             ),
@@ -178,20 +290,64 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                   ),
                 ),
               ],
-              if (capabilities == null)
+              if (capabilities == null ||
+                  unknownPermission ||
+                  _capabilityError != null)
                 TextButton(
+                  key: const Key('refresh-permissions'),
                   onPressed: _querying ? null : _refresh,
                   child: Text(_querying ? '正在读取权限…' : '重新读取权限'),
-                )
-              else ...[
+                ),
+              if (needsPermission && _capabilityError == null) ...[
                 const SizedBox(height: 8),
-                _permission('系统通知', capabilities.notifications, false),
-                if (capabilities.android) ...[
+                if (needsNotifications) _permission('系统通知', false),
+                if (needsNotifications && needsExactAlarms)
                   const Divider(height: 1),
-                  _permission('准时提醒权限', capabilities.exactAlarms, true),
-                ],
+                if (needsExactAlarms) _permission('准时提醒权限', true),
               ],
               const SizedBox(height: 16),
+              if (widget.notifications != null) ...[
+                Text('计划任务', style: text.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                  '固定任务到点自动开始，开始前可修改。若已有任务在执行，会保留当前计时并提醒处理；错过整个计划时段后可手动开始或重新安排。',
+                  style: text.bodySmall,
+                ),
+                StreamBuilder<void>(
+                  stream: widget.notifications!.settingsChanges,
+                  builder: (context, _) => Column(
+                    children: [
+                      ListTile(
+                        key: const Key('planned-reminder-setting'),
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.notifications_active_outlined,
+                        ),
+                        title: Text(
+                          _reminderLabel(
+                            widget.notifications!.reminderLeadMinutes,
+                          ),
+                        ),
+                        subtitle: const Text('应用于所有尚未开始的固定任务'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: _savingScheduleSettings ? null : _chooseReminder,
+                      ),
+                    ],
+                  ),
+                ),
+                if (_scheduleSettingsError != null)
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _scheduleSettingsError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                const Divider(),
+                const SizedBox(height: 16),
+              ],
               Text('数据', style: text.titleMedium),
               const SizedBox(height: 12),
               Container(
@@ -339,7 +495,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(68, 0, 12, 8),
                   child: Text(
-                    '把目标落到行动，让记录忠于事实。数据保存在当前设备。强行停止或省电限制可能影响未来的后台提醒。',
+                    '把目标落到行动，让记录忠于事实。数据保存在当前设备。强行停止或省电限制可能影响后台提醒。',
                     style: text.bodyMedium,
                   ),
                 ),
@@ -350,7 +506,8 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _permission(String title, bool? allowed, bool exact) {
+  /// 只为明确缺少的权限提供授权入口；已允许项在摘要中体现。
+  Widget _permission(String title, bool exact) {
     final text = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -371,15 +528,13 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: text.titleSmall),
-                Text(
-                  allowed == null ? '当前平台无法查询' : (allowed ? '系统已允许' : '系统未允许'),
-                  style: text.bodySmall,
-                ),
+                Text('系统未允许', style: text.bodySmall),
               ],
             ),
           ),
           const SizedBox(width: 8),
           OutlinedButton(
+            key: Key(exact ? 'grant-exact-alarms' : 'grant-notifications'),
             onPressed: _openingSettings ? null : () => _settings(exact),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(48, 44),

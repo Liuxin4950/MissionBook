@@ -492,7 +492,12 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                           ),
                           FilledButton.icon(
                             key: const Key('execution-start'),
-                            onPressed: disabled
+                            onPressed:
+                                disabled ||
+                                    (detail.schedule.fixedStartAt?.isAfter(
+                                          DateTime.now(),
+                                        ) ??
+                                        false)
                                 ? null
                                 : () => _submit(
                                     action.prepare(ExecutionEventType.start),
@@ -502,7 +507,14 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                               shape: const StadiumBorder(),
                             ),
                             icon: const Icon(Icons.play_arrow_rounded),
-                            label: const Text('开始任务'),
+                            label: Text(
+                              (detail.schedule.fixedStartAt?.isAfter(
+                                        DateTime.now(),
+                                      ) ??
+                                      false)
+                                  ? '到点自动开始'
+                                  : '开始任务',
+                            ),
                           ),
                         ],
                       )
