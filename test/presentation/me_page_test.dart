@@ -65,7 +65,7 @@ void main() {
     device = _Device();
   });
 
-  Future<void> open(WidgetTester tester) async {
+  Future<void> open(WidgetTester tester, {bool reduceMotion = false}) async {
     tester.view.physicalSize = const Size(390, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -73,6 +73,12 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(disableAnimations: reduceMotion),
+          child: child!,
+        ),
         home: Scaffold(
           body: SettingsPage(device: device, backup: backup),
         ),
@@ -210,5 +216,23 @@ void main() {
     expect(device.capabilityQueries, 2);
     expect(find.text('提醒权限已就绪'), findsOneWidget);
     expect(find.text('去设置'), findsNothing);
+  });
+  testWidgets('备份范围准确，关于的展开状态可访问且支持减少动画', (tester) async {
+    final semantics = tester.ensureSemantics();
+
+    await open(tester, reduceMotion: true);
+    final scope = find.textContaining('不含草稿、本机资料和提醒偏好');
+    await tester.ensureVisible(scope);
+    expect(scope, findsOneWidget);
+    expect(find.textContaining('暂不支持恢复导入'), findsOneWidget);
+    final about = find.byKey(const Key('about-toggle'));
+    await tester.ensureVisible(about);
+    await tester.pumpAndSettle();
+    await tester.tap(about);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('强行停止或省电限制'), findsOneWidget);
+    expect(find.byType(AnimatedSize), findsNothing);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
   });
 }

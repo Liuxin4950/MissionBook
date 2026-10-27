@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
@@ -13,11 +14,19 @@ import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/goal.dart';
 import 'package:mission_book/presentation/me/me_page.dart';
+import 'package:mission_book/presentation/widgets/app_illustration.dart';
 import '../support/me_fakes.dart';
 import '../data/repositories/mission_cancellation_test.dart' show seedMission;
 
 class _Device extends TestAppDevice {
   bool fail = false;
+  bool failRead = false;
+  @override
+  Future<LocalProfile> readProfile() async {
+    if (failRead) throw StateError('读取失败');
+    return super.readProfile();
+  }
+
   int saves = 0;
   Completer<void>? pending;
   @override
@@ -50,8 +59,13 @@ void main() {
     await db.close();
   });
 
-  Future<void> open(WidgetTester tester, {double scale = 1}) async {
-    tester.view.physicalSize = const Size(390, 1000);
+  Future<void> open(
+    WidgetTester tester, {
+    double scale = 1,
+    Size size = const Size(390, 1000),
+    bool reduceMotion = false,
+  }) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -59,9 +73,10 @@ void main() {
       MaterialApp(
         theme: AppTheme.light,
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: TextScaler.linear(scale)),
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(scale),
+            disableAnimations: reduceMotion,
+          ),
           child: child!,
         ),
         home: Scaffold(
@@ -211,5 +226,80 @@ void main() {
     final goalStat = find.byKey(const ValueKey('profile-stat-进行中目标'));
     await tester.ensureVisible(goalStat);
     expect(tester.widget<Text>(goalStat).data, '0 个');
+  });
+  testWidgets('空态使用真实零值，插画尊重减少动画且不重复播报', (tester) async {
+    final semantics = tester.ensureSemantics();
+
+    await open(tester, reduceMotion: true);
+    expect(find.text('行动会在这里留下记录'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('profile-stat-进行中目标')))
+          .data,
+      '0 个',
+    );
+    expect(
+      tester.getSemantics(find.byTooltip('设置')).getSemanticsData().tooltip,
+      '设置',
+    );
+    final illustration = find.descendant(
+      of: find.byKey(const Key('activity-overview')),
+      matching: find.byType(AppIllustration),
+    );
+    expect(illustration, findsOneWidget);
+    final image = tester.widget<Image>(
+      find.descendant(of: illustration, matching: find.byType(Image)),
+    );
+    expect(image.excludeFromSemantics, isTrue);
+    final opacity = tester.widget<Opacity>(
+      find.descendant(of: illustration, matching: find.byType(Opacity)),
+    );
+    expect(opacity.opacity, 1);
+    semantics.dispose();
+  });
+
+  testWidgets('个人资料与概览按内容宽度和字体大小重排', (tester) async {
+    await open(tester, size: const Size(1200, 1000));
+    final profile = find.byKey(const Key('profile-card'));
+    final overview = find.byKey(const Key('activity-overview'));
+    expect(
+      tester.getRect(overview).left,
+      greaterThan(tester.getRect(profile).right),
+    );
+    await open(tester, size: const Size(390, 1000), scale: 2);
+    expect(
+      tester.getRect(overview).top,
+      greaterThan(tester.getRect(profile).bottom),
+    );
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('资料读取失败不冒充默认资料，重试成功后可编辑', (tester) async {
+    device.failRead = true;
+    await open(tester);
+    expect(find.text('本机资料暂时无法读取，请重试'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('profile-edit')))
+          .onPressed,
+      isNull,
+    );
+    device.failRead = false;
+    await tester.tap(find.text('重新读取资料'));
+    await tester.pumpAndSettle();
+    expect(find.text('本机使用者'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('profile-edit')))
+          .onPressed,
+      isNotNull,
+    );
+  });
+  testWidgets('设置入口可通过键盘焦点与回车打开', (tester) async {
+    await open(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(find.text('提醒与权限'), findsOneWidget);
   });
 }
