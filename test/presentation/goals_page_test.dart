@@ -172,6 +172,19 @@ void main() {
     expect(find.text('从一个目标开始'), findsOneWidget);
   });
 
+  testWidgets('分类空态可直接导入或创建目标', (tester) async {
+    await open(tester);
+    await tap(tester, 'goal-filter-paused');
+    await tap(tester, 'goal-empty-import');
+    expect(find.byKey(const Key('goal-import-input')), findsOneWidget);
+    await tester.tap(find.text('收起导入区'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('goal-import-input')), findsNothing);
+    await tap(tester, 'goal-create');
+    expect(find.byKey(const Key('goal-title-input')), findsOneWidget);
+    expect(await service.findAll(), isEmpty);
+  });
+
   testWidgets('系统返回保留或放弃草稿，放弃不写入', (tester) async {
     await open(tester);
     await tap(tester, 'goal-create');

@@ -279,8 +279,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                           ),
                           if (waiting ||
                               snapshot.hasError ||
-                              visible.isNotEmpty ||
-                              _selectedStatus != GoalStatus.active)
+                              visible.isNotEmpty)
                             IconButton.filled(
                               key: const Key('goal-create'),
                               tooltip: '新建目标',
@@ -316,7 +315,8 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 20),
                     ],
-                    if (_selectedStatus == GoalStatus.dropped)
+                    if (_selectedStatus == GoalStatus.dropped &&
+                        (waiting || snapshot.hasError || visible.isNotEmpty))
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton.icon(
@@ -343,7 +343,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                     else if (emptyActive)
                       _emptyWorkspace(context)
                     else if (visible.isEmpty)
-                      _empty(context),
+                      _emptyStatusWorkspace(context, goals),
                     if (visible.isNotEmpty) _goalWorkspace(context, visible),
                   ],
                 ),
@@ -500,6 +500,84 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     },
   );
 
+  // 非进行中分类使用同一幅空态和相同双栏结构；右栏只展示真实的进行中目标。
+  Widget _emptyStatusWorkspace(BuildContext context, List<Goal> goals) =>
+      LayoutBuilder(
+        builder: (context, box) {
+          final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+          final split = box.maxWidth >= 900 * scale;
+          final width = split ? (box.maxWidth - 24) / 2 : box.maxWidth;
+          final activeGoals = goals
+              .where((goal) => goal.status == GoalStatus.active)
+              .take(3)
+              .toList();
+          // 已放弃分类的查询只包含已放弃目标，不能据此推断进行中列表为空。
+          final canShowActive = _selectedStatus != GoalStatus.dropped;
+          return Wrap(
+            key: const Key('goal-empty-workspace'),
+            spacing: 24,
+            runSpacing: 24,
+            children: [
+              SizedBox(width: width, child: _empty(context)),
+              SizedBox(
+                key: const Key('goal-empty-next-pane'),
+                width: width,
+                child: AppSectionCard(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        canShowActive && activeGoals.isNotEmpty
+                            ? '进行中的目标'
+                            : '继续探索',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (canShowActive && activeGoals.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        for (final goal in activeGoals)
+                          ListTile(
+                            key: Key('goal-empty-active-${goal.id}'),
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.flag_outlined),
+                            title: Text(
+                              goal.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => _open(goal),
+                          ),
+                      ],
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            key: const Key('goal-create'),
+                            onPressed: _create,
+                            icon: const Icon(Icons.add),
+                            label: const Text('创建目标'),
+                          ),
+                          if (!_importOpen)
+                            TextButton.icon(
+                              key: const Key('goal-empty-import'),
+                              onPressed: _openImport,
+                              icon: const Icon(Icons.file_upload_outlined),
+                              label: const Text('导入大纲'),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+
   Widget _statusTabs(BuildContext context) => AppSegmentedControl<GoalStatus>(
     options: {
       GoalStatus.active: '进行中',
@@ -542,20 +620,14 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
               final horizontal =
                   box.maxWidth >= 600 &&
                   MediaQuery.textScalerOf(context).scale(16) <= 20;
-              final illustration = active
-                  ? AppIllustration(
-                      asset: 'assets/illustrations/goal-path.png',
-                      key: const Key('goal-empty-illustration'),
-                      width: horizontal ? 224 : 192,
-                      height: horizontal ? 168 : 128,
-                    )
-                  : Icon(
-                      _selectedStatus == GoalStatus.dropped
-                          ? Icons.archive_outlined
-                          : Icons.flag_outlined,
-                      size: 32,
-                      color: AppColors.textSecondary,
-                    );
+              final illustration = AppIllustration(
+                asset: 'assets/illustrations/goal-path.png',
+                key: ValueKey(
+                  'goal-empty-illustration-${_selectedStatus.name}',
+                ),
+                width: horizontal ? 224 : 192,
+                height: horizontal ? 168 : 128,
+              );
               final copy = Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -571,8 +643,8 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                           : '可在详情中调整状态',
                       style: theme.textTheme.bodyMedium,
                     ),
+                  const SizedBox(height: 24),
                   if (active) ...[
-                    const SizedBox(height: 24),
                     Wrap(
                       spacing: 12,
                       runSpacing: 8,
@@ -592,7 +664,13 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                           ),
                       ],
                     ),
-                  ],
+                  ] else
+                    TextButton.icon(
+                      key: const Key('goal-empty-back-active'),
+                      onPressed: () => _selectStatus(GoalStatus.active),
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('查看进行中'),
+                    ),
                 ],
               );
               if (horizontal) {

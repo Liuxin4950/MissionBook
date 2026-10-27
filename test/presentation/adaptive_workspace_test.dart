@@ -285,6 +285,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('goal-create')), findsOneWidget);
       await _capture(tester, 'goals-empty-${width.toInt()}');
+      if (width == 1280) {
+        for (final status in ['paused', 'achieved']) {
+          await tester.tap(find.byKey(Key('goal-filter-$status')));
+          await tester.pumpAndSettle();
+          await _capture(tester, 'goals-empty-$status-no-active-1280');
+        }
+        await tester.tap(find.byKey(const Key('goal-filter-active')));
+        await tester.pumpAndSettle();
+      }
       final create = find.byKey(const Key('goal-create'));
       await tester.ensureVisible(create);
       await tester.pumpAndSettle();
@@ -314,6 +323,62 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('目标各状态空态共用结构，真实目标入口随宽度调整', (tester) async {
+    for (final (width, scale) in [
+      (320.0, 2.0),
+      (390.0, 1.0),
+      (768.0, 1.0),
+      (1280.0, 1.0),
+      (1920.0, 1.0),
+    ]) {
+      await open(tester, Size(width, 900), scale: scale);
+      await tester.tap(find.byTooltip('目标'));
+      await tester.pumpAndSettle();
+      for (final (status, title) in [
+        ('paused', '没有已搁置的目标'),
+        ('achieved', '没有已达成的目标'),
+      ]) {
+        await tester.tap(find.byKey(Key('goal-filter-$status')));
+        await tester.pumpAndSettle();
+        expect(find.text(title), findsOneWidget);
+        expect(
+          find.byKey(Key('goal-empty-illustration-$status')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('goal-empty-next-pane')), findsOneWidget);
+        expect(find.byKey(Key('goal-empty-active-$goalId')), findsOneWidget);
+        expect(find.byKey(const Key('goal-create')), findsOneWidget);
+        if (width == 1280) {
+          final hero = tester.getRect(
+            find.byKey(const Key('goal-empty-state')),
+          );
+          final next = tester.getRect(
+            find.byKey(const Key('goal-empty-next-pane')),
+          );
+          expect(next.left, greaterThan(hero.right));
+          await _capture(tester, 'goals-empty-$status-1280');
+        }
+        expect(tester.takeException(), isNull);
+      }
+      final activeGoal = find.byKey(Key('goal-empty-active-$goalId'));
+      await tester.ensureVisible(activeGoal);
+      await tester.pumpAndSettle();
+      await tester.tap(activeGoal);
+      await tester.pumpAndSettle();
+      expect(find.text('目标详情'), findsOneWidget);
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      final back = find.byKey(const Key('goal-empty-back-active'));
+      await tester.ensureVisible(back);
+      await tester.pumpAndSettle();
+      await tester.tap(back);
+      await tester.pumpAndSettle();
+      expect(find.byKey(Key('goal-$goalId')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+  });
+
   testWidgets('宽屏导入与创建并排，缩成窄窗再展开保留同一份导入草稿', (tester) async {
     for (final goal in await goals.findAll()) {
       await goals.setGoalStatus(goal, GoalStatus.dropped);
@@ -331,6 +396,12 @@ void main() {
     const draft = '{"尚未保存的目标草稿":true}';
     final input = find.byKey(const Key('goal-import-input'));
     await tester.enterText(input, draft);
+    await tester.tap(find.byKey(const Key('goal-filter-paused')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(input).controller!.text, draft);
+    await tester.tap(find.byKey(const Key('goal-filter-active')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(input).controller!.text, draft);
     for (final width in [390.0, 768.0, 1536.0]) {
       tester.view.physicalSize = Size(width, 900);
       await tester.pumpAndSettle();
