@@ -1,0 +1,250 @@
+// 研究探针：复制到 test/ 下运行；只使用新建临时数据库，不访问用户库。
+// 验证现有表的批量承载能力，不是完整导入器或暂存实现。
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:drift/drift.dart' show Value, Variable;
+import 'package:drift/native.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mission_book/application/goals/goal_outline_parser.dart';
+import 'package:mission_book/data/local/app_database.dart';
+import 'package:mission_book/data/repositories/drift_mission_repository.dart';
+import 'package:mission_book/domain/entities/mission_phase.dart';
+
+const _researchDir = 'docs/设计/目标计划导入';
+const _nodeCount = 500;
+const _missionCount = 10000;
+
+Future<void> _seed(AppDatabase db, String prefix, {int? failAfter}) async {
+  final created = DateTime.utc(2026, 10, 27).millisecondsSinceEpoch;
+  final start = DateTime.utc(2030, 1, 1);
+  await db.transaction(() async {
+    await db
+        .into(db.goals)
+        .insert(
+          GoalsCompanion.insert(
+            id: prefix,
+            title: '隔离研究目标',
+            createdAt: created,
+            updatedAt: created,
+          ),
+        );
+    await db.batch((batch) {
+      batch.insertAll(db.goalNodes, [
+        for (var i = 0; i < _nodeCount; i++)
+          GoalNodesCompanion.insert(
+            id: prefix + '-n-' + i.toString(),
+            goalId: prefix,
+            title: '知识点 ' + i.toString(),
+            orderIndex: i,
+            createdAt: created,
+            updatedAt: created,
+          ),
+      ]);
+    });
+    for (var offset = 0; offset < _missionCount; offset += 100) {
+      final end = offset + 100;
+      await db.batch((batch) {
+        batch.insertAll(db.missions, [
+          for (var i = offset; i < end; i++)
+            MissionsCompanion.insert(
+              id: prefix + '-m-' + i.toString(),
+              title: '课标任务 ' + i.toString(),
+              goalId: Value(prefix),
+              goalNodeId: Value(prefix + '-n-' + (i % _nodeCount).toString()),
+              createdAt: created,
+              updatedAt: created,
+            ),
+        ]);
+        batch.insertAll(db.executionPlans, [
+          for (var i = offset; i < end; i++)
+            ExecutionPlansCompanion.insert(
+              id: prefix + '-p-' + i.toString(),
+              missionId: prefix + '-m-' + i.toString(),
+              objective: '完成一次具体练习',
+              steps: const Value('["阅读要求","实现练习","运行","核对","记录"]'),
+              notes: const Value('批量存储研究，不代表真实学习或执行记录'),
+              createdAt: created,
+              updatedAt: created,
+            ),
+        ]);
+        batch.insertAll(db.missionScheduleRevisions, [
+          for (var i = offset; i < end; i++)
+            MissionScheduleRevisionsCompanion.insert(
+              id: prefix + '-s-' + i.toString(),
+              missionId: prefix + '-m-' + i.toString(),
+              revisionNumber: 1,
+              scheduledDate: start
+                  .add(Duration(hours: i))
+                  .toIso8601String()
+                  .substring(0, 10),
+              timeZone: 'UTC',
+              timePolicy: const Value('FIXED'),
+              fixedStartAt: Value(
+                start.add(Duration(hours: i)).millisecondsSinceEpoch,
+              ),
+              plannedDurationMinutes: 45,
+              changedAt: created,
+            ),
+        ]);
+      });
+      if (failAfter != null && end >= failAfter) {
+        throw StateError('研究：提交中途失败');
+      }
+    }
+    await db.customStatement(
+      'INSERT INTO research_receipts(package_id, goal_id) VALUES (?, ?)',
+      [prefix, prefix],
+    );
+  });
+}
+
+Future<Map<String, int>> _counts(AppDatabase db) async {
+  final result = <String, int>{};
+  for (final table in [
+    'goals',
+    'goal_nodes',
+    'missions',
+    'execution_plans',
+    'mission_schedule_revisions',
+    'execution_events',
+    'evidence_records',
+    'failure_records',
+    'research_receipts',
+  ]) {
+    final row = await db
+        .customSelect('SELECT COUNT(*) AS c FROM ' + table)
+        .getSingle();
+    result[table] = row.read<int>('c');
+  }
+  return result;
+}
+
+void main() {
+  test('现有解析器接受大纲对照，拒绝新目标包', () async {
+    final oldFile = File(_researchDir + '/examples/仅大纲.goal-outline.v1.json');
+    final outline = GoalOutlineParser.parseBytes(await oldFile.readAsBytes());
+    expect(outline.nodeCount, 6);
+    final newBytes = await File(
+      _researchDir + '/examples/课标试运行.goal-package.v1.json',
+    ).readAsBytes();
+    expect(() => GoalOutlineParser.parseBytes(newBytes), throwsFormatException);
+    print('CONTRACT_EXISTING: outline accepted; goal-package rejected');
+  });
+
+  test('文件 SQLite 一万任务批写、候选查询、回滚和重开', () async {
+    final dir = await Directory.systemTemp.createTemp(
+      'missionbook-goal-10k-research-',
+    );
+    final file = File(dir.path + '/research.sqlite');
+    AppDatabase? active;
+    try {
+      final db = AppDatabase(executor: NativeDatabase(file));
+      active = db;
+      await db.customStatement(
+        'CREATE TABLE research_receipts ('
+        'package_id TEXT PRIMARY KEY, '
+        'goal_id TEXT NOT NULL REFERENCES goals(id))',
+      );
+      final write = Stopwatch()..start();
+      await _seed(db, 'bulk');
+      write.stop();
+      final expected = {
+        'goals': 1,
+        'goal_nodes': 500,
+        'missions': 10000,
+        'execution_plans': 10000,
+        'mission_schedule_revisions': 10000,
+        'execution_events': 0,
+        'evidence_records': 0,
+        'failure_records': 0,
+        'research_receipts': 1,
+      };
+      expect(await _counts(db), expected);
+      expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);
+      final repository = DriftMissionRepository(db);
+      for (final id in ['bulk-m-0', 'bulk-m-9999']) {
+        final detail = await repository.findDetail(id);
+        expect(detail, isNotNull);
+        expect(detail!.phase, MissionPhase.notStarted);
+        expect(detail.executionPlan.steps.length, 5);
+        expect(detail.executionPlan.notes, isNotEmpty);
+      }
+
+      // 只在本研究临时库增加候选索引，正式仓库迁移没有修改。
+      await db.customStatement(
+        'CREATE INDEX research_due_start ON mission_schedule_revisions '
+        '(time_policy, fixed_start_at, mission_id, revision_number)',
+      );
+      const sql = '''
+SELECT m.id, r.fixed_start_at
+FROM mission_schedule_revisions r
+JOIN missions m ON m.id = r.mission_id
+WHERE r.time_policy = 'FIXED'
+  AND r.fixed_start_at >= ? AND r.fixed_start_at < ?
+  AND m.cancelled_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM mission_schedule_revisions newer
+    WHERE newer.mission_id = r.mission_id
+      AND newer.revision_number > r.revision_number
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM execution_events e
+    WHERE e.mission_id = m.id AND e.type = 'START'
+  )
+ORDER BY r.fixed_start_at, m.id
+LIMIT 100
+''';
+      final day = DateTime.utc(2030, 4, 11);
+      final variables = [
+        Variable<int>(day.millisecondsSinceEpoch),
+        Variable<int>(day.add(const Duration(days: 1)).millisecondsSinceEpoch),
+      ];
+      final query = Stopwatch()..start();
+      final candidates = await db.customSelect(sql, variables: variables).get();
+      query.stop();
+      expect(candidates.length, 24);
+      final plan = await db
+          .customSelect('EXPLAIN QUERY PLAN ' + sql, variables: variables)
+          .get();
+      final planText = [for (final row in plan) row.read<String>('detail')];
+      expect(planText.join(' '), contains('research_due_start'));
+
+      final rollback = Stopwatch()..start();
+      await expectLater(
+        _seed(db, 'rollback', failAfter: 5000),
+        throwsStateError,
+      );
+      rollback.stop();
+      expect(await _counts(db), expected);
+      expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);
+      await db.close();
+      active = null;
+      final size = await file.length();
+      final reopened = AppDatabase(executor: NativeDatabase(file));
+      active = reopened;
+      expect(await _counts(reopened), expected);
+      expect(
+        await reopened.customSelect('PRAGMA foreign_key_check').get(),
+        isEmpty,
+      );
+      print(
+        'GOAL_10K_PROBE ' +
+            jsonEncode({
+              'counts': expected,
+              'batchWriteMs': write.elapsedMilliseconds,
+              'candidateQueryMs': query.elapsedMilliseconds,
+              'candidateRows': candidates.length,
+              'rollbackAt5000Ms': rollback.elapsedMilliseconds,
+              'fileBytesBeforeReopen': size,
+              'queryPlan': planText,
+              'reopen': 'passed',
+              'scope': 'synthetic host file SQLite; not app import or device',
+            }),
+      );
+    } finally {
+      await active?.close();
+      await dir.delete(recursive: true);
+    }
+  }, timeout: const Timeout(Duration(minutes: 3)));
+}

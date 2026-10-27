@@ -1,0 +1,338 @@
+{
+  "scope": "research contract; host full JSON validation, not App streaming import",
+  "schemaValid": true,
+  "cases": [
+    {
+      "case": "完整样例与默认截止",
+      "expectedAccepted": true,
+      "accepted": true,
+      "matched": true,
+      "reason": "ACCEPTED"
+    },
+    {
+      "case": "未知根字段",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "错误协议",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "版本字符串",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "版本浮点写法",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "INTEGER_TYPE"
+    },
+    {
+      "case": "版本布尔",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "节点引用不存在",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "UNKNOWN_NODE_KEY"
+    },
+    {
+      "case": "重复任务键",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "DUPLICATE_MISSION_KEY"
+    },
+    {
+      "case": "节点键非法",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "零时长",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "浮点时长",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "INTEGER_TYPE"
+    },
+    {
+      "case": "不存在日期",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "无效时区",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "UNKNOWN_TIME_ZONE"
+    },
+    {
+      "case": "无偏移开始",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "负零未知偏移",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "偏移与上海不符",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "OFFSET_ZONE_MISMATCH"
+    },
+    {
+      "case": "开始日期不符",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "START_DATE_MISMATCH"
+    },
+    {
+      "case": "自选带固定时间",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "自报带截止",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "UNEXPECTED_DEADLINE"
+    },
+    {
+      "case": "强制标准空白",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "截止早于开始",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "INVALID_DEADLINE"
+    },
+    {
+      "case": "默认继承强制但缺标准",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "REQUIRED_CRITERIA"
+    },
+    {
+      "case": "显式null",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "伪造阶段",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "固定缺开始",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "重复对象键",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "DUPLICATE_FIELD"
+    },
+    {
+      "case": "非法UTF8",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "'utf-8' codec can't decode byte 0xff in position 0: invalid start byte"
+    },
+    {
+      "case": "BOM",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "BOM"
+    },
+    {
+      "case": "截断JSON",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "Expecting ',' delimiter: line 1 column 2365 (char 2364)"
+    },
+    {
+      "case": "原始嵌套超限",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "LIMIT_JSON_STRUCTURE"
+    },
+    {
+      "case": "字节超限先拒绝",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "LIMIT_BYTES"
+    },
+    {
+      "case": "全树重复节点键",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "DUPLICATE_NODE_KEY"
+    },
+    {
+      "case": "节点深度13",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "LIMIT_NODE_TREE"
+    },
+    {
+      "case": "全树501节点",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "LIMIT_NODE_TREE"
+    },
+    {
+      "case": "明确UTC开始",
+      "expectedAccepted": true,
+      "accepted": true,
+      "matched": true,
+      "reason": "ACCEPTED"
+    },
+    {
+      "case": "Unicode标题200码点",
+      "expectedAccepted": true,
+      "accepted": true,
+      "matched": true,
+      "reason": "ACCEPTED"
+    },
+    {
+      "case": "Unicode标题201码点",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    },
+    {
+      "case": "可选标准省略",
+      "expectedAccepted": true,
+      "accepted": true,
+      "matched": true,
+      "reason": "ACCEPTED"
+    },
+    {
+      "case": "空目标无节点无任务",
+      "expectedAccepted": true,
+      "accepted": true,
+      "matched": true,
+      "reason": "ACCEPTED"
+    },
+    {
+      "case": "单Goal一万任务500节点",
+      "expectedAccepted": true,
+      "accepted": true,
+      "matched": true,
+      "reason": "ACCEPTED"
+    },
+    {
+      "case": "10001任务拒绝",
+      "expectedAccepted": false,
+      "accepted": false,
+      "matched": true,
+      "reason": "SCHEMA"
+    }
+  ],
+  "matched": 41,
+  "total": 41,
+  "sample": {
+    "nodes": 6,
+    "missions": 5,
+    "totalMinutes": 255,
+    "resolved": [
+      {
+        "key": "s01-dart-20261102",
+        "duration": 45,
+        "policy": "SELF_REPORT",
+        "deadline": null
+      },
+      {
+        "key": "s02-widget-20261103",
+        "duration": 45,
+        "policy": "OPTIONAL_EVIDENCE",
+        "deadline": null
+      },
+      {
+        "key": "s03-layout-20261104",
+        "duration": 45,
+        "policy": "REQUIRED_EVIDENCE",
+        "deadline": "2026-11-04T15:00:00Z"
+      },
+      {
+        "key": "s04-project-20261105",
+        "duration": 90,
+        "policy": "REQUIRED_EVIDENCE",
+        "deadline": "2026-11-05T16:00:00Z"
+      },
+      {
+        "key": "s05-review-20261106",
+        "duration": 30,
+        "policy": "SELF_REPORT",
+        "deadline": null
+      }
+    ]
+  },
+  "large": {
+    "nodes": 500,
+    "missions": 10000,
+    "utf8Bytes": 3305594,
+    "hostValidationMs": 1942
+  }
+}

@@ -1,0 +1,275 @@
+"""研究协议的样例与反例检查；完整载入仅用于宿主核验，不是 App 流式导入器。
+
+依赖 jsonschema 4.23.0；使用 PYTHONPATH 指向隔离安装目录运行本文件。
+不连接任何应用数据库，不保存一万任务的完整样本到仓库。
+"""
+import copy
+import json
+import sys
+import time
+from datetime import date, datetime, time as walltime, timedelta, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from jsonschema import Draft202012Validator, FormatChecker
+
+ROOT = Path(__file__).resolve().parents[1]
+SCHEMA = json.loads((ROOT / "mission-book.goal-package.v1.schema.json").read_text())
+Draft202012Validator.check_schema(SCHEMA)
+VALIDATOR = Draft202012Validator(SCHEMA, format_checker=FormatChecker())
+NOW = datetime(2026, 10, 27, 4, tzinfo=timezone.utc)
+MAX_BYTES = 32 * 1024 * 1024
+
+
+class Invalid(ValueError):
+    pass
+
+
+def pairs(items):
+    result = {}
+    for key, value in items:
+        if key in result:
+            raise Invalid("DUPLICATE_FIELD")
+        result[key] = value
+    return result
+
+
+def encode(value):
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
+
+
+def location(name):
+    try:
+        return ZoneInfo(name)
+    except (KeyError, ValueError) as error:
+        raise Invalid("UNKNOWN_TIME_ZONE") from error
+
+
+def instant(text, zone):
+    try:
+        value = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise Invalid("INVALID_DATE") from error
+    local = value.astimezone(zone)
+    if not text.endswith("Z"):
+        if (value.replace(tzinfo=None) != local.replace(tzinfo=None)
+                or value.utcoffset() != local.utcoffset()):
+            raise Invalid("OFFSET_ZONE_MISMATCH")
+    return value.astimezone(timezone.utc)
+
+
+def midnight(day, zone):
+    naive = datetime.combine(day, walltime())
+    early = naive.replace(tzinfo=zone, fold=0)
+    late = naive.replace(tzinfo=zone, fold=1)
+    if early.astimezone(timezone.utc).astimezone(zone).replace(tzinfo=None) != naive:
+        raise Invalid("NONEXISTENT_MIDNIGHT")
+    if early.utcoffset() != late.utcoffset():
+        raise Invalid("AMBIGUOUS_MIDNIGHT")
+    return early.astimezone(timezone.utc)
+
+
+def check(raw):
+    if len(raw) > MAX_BYTES:
+        raise Invalid("LIMIT_BYTES")
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raise Invalid("BOM")
+    value = json.loads(raw.decode("utf-8"), object_pairs_hook=pairs)
+    stack = [(value, 1)]
+    values = 0
+    while stack:
+        item, depth = stack.pop()
+        values += 1
+        if depth > 64 or values > 1000000:
+            raise Invalid("LIMIT_JSON_STRUCTURE")
+        if isinstance(item, dict):
+            stack.extend((part, depth + 1) for part in item.values())
+        elif isinstance(item, list):
+            stack.extend((part, depth + 1) for part in item)
+    if next(VALIDATOR.iter_errors(value), None) is not None:
+        raise Invalid("SCHEMA")
+    if type(value["version"]) is not int:
+        raise Invalid("INTEGER_TYPE")
+    defaults = value["defaults"]
+    if type(defaults["plannedDurationMinutes"]) is not int:
+        raise Invalid("INTEGER_TYPE")
+    location(defaults["timeZone"])
+    keys = set()
+    node_count = 0
+    stack = [(node, 1) for node in value["nodes"]]
+    while stack:
+        node, depth = stack.pop()
+        node_count += 1
+        if depth > 12 or node_count > 500:
+            raise Invalid("LIMIT_NODE_TREE")
+        if node["key"] in keys:
+            raise Invalid("DUPLICATE_NODE_KEY")
+        keys.add(node["key"])
+        stack.extend((child, depth + 1) for child in node.get("children", []))
+    mission_keys = set()
+    steps_count = 0
+    resolved = []
+    for mission in value["missions"]:
+        if len(encode(mission)) > 256 * 1024:
+            raise Invalid("LIMIT_MISSION_BYTES")
+        if mission["key"] in mission_keys:
+            raise Invalid("DUPLICATE_MISSION_KEY")
+        mission_keys.add(mission["key"])
+        if "nodeKey" in mission and mission["nodeKey"] not in keys:
+            raise Invalid("UNKNOWN_NODE_KEY")
+        plan = mission.get("executionPlan", {})
+        steps_count += len(plan.get("steps", []))
+        if steps_count > 100000:
+            raise Invalid("LIMIT_TOTAL_STEPS")
+        schedule = mission["schedule"]
+        zone = location(schedule.get("timeZone", defaults["timeZone"]))
+        day = date.fromisoformat(schedule["scheduledDate"])
+        duration = schedule.get("plannedDurationMinutes", defaults["plannedDurationMinutes"])
+        if type(duration) is not int:
+            raise Invalid("INTEGER_TYPE")
+        start = None
+        if schedule["timePolicy"] == "FIXED":
+            start = instant(schedule["fixedStartAt"], zone)
+            if start.astimezone(zone).date() != day:
+                raise Invalid("START_DATE_MISMATCH")
+        policy = mission.get("verificationPolicy", defaults["verificationPolicy"])
+        deadline = None
+        if policy == "REQUIRED_EVIDENCE":
+            if not plan.get("verificationCriteria", "").strip():
+                raise Invalid("REQUIRED_CRITERIA")
+            deadline = (instant(schedule["evidenceDeadlineAt"], zone)
+                        if "evidenceDeadlineAt" in schedule
+                        else midnight(day + timedelta(days=1), zone))
+            lower = start if start is not None else midnight(day, zone)
+            if deadline <= NOW or deadline <= lower:
+                raise Invalid("INVALID_DEADLINE")
+        elif "evidenceDeadlineAt" in schedule:
+            raise Invalid("UNEXPECTED_DEADLINE")
+        resolved.append({
+            "key": mission["key"],
+            "duration": duration,
+            "policy": policy,
+            "deadline": deadline.isoformat().replace("+00:00", "Z") if deadline else None,
+        })
+    return {"nodes": node_count, "missions": len(resolved),
+            "totalMinutes": sum(row["duration"] for row in resolved), "resolved": resolved}
+
+
+SAMPLE = json.loads((ROOT / "examples/课标试运行.goal-package.v1.json").read_text())
+results = []
+
+
+def case(name, value, allowed, raw=False):
+    try:
+        result = check(value if raw else encode(value))
+        accepted, reason = True, "ACCEPTED"
+    except (ValueError, UnicodeError) as error:
+        accepted, reason = False, str(error).splitlines()[0][:150]
+        result = None
+    results.append({"case": name, "expectedAccepted": allowed,
+                    "accepted": accepted, "matched": accepted == allowed, "reason": reason})
+    return result
+
+
+def change(path, value, delete=False):
+    item = copy.deepcopy(SAMPLE)
+    target = item
+    for part in path[:-1]:
+        target = target[part]
+    if delete:
+        del target[path[-1]]
+    else:
+        target[path[-1]] = value
+    return item
+
+
+small = case("完整样例与默认截止", SAMPLE, True)
+assert small["nodes"] == 6 and small["missions"] == 5 and small["totalMinutes"] == 255
+assert small["resolved"][3]["deadline"] == "2026-11-05T16:00:00Z"
+for name, path, value in [
+    ("未知根字段", ["extra"], True),
+    ("错误协议", ["schema"], "mission-book.goal-outline"),
+    ("版本字符串", ["version"], "1"),
+    ("版本浮点写法", ["version"], 1.0),
+    ("版本布尔", ["version"], True),
+    ("节点引用不存在", ["missions", 0, "nodeKey"], "unknown"),
+    ("重复任务键", ["missions", 1, "key"], SAMPLE["missions"][0]["key"]),
+    ("节点键非法", ["nodes", 0, "key"], " bad key "),
+    ("零时长", ["defaults", "plannedDurationMinutes"], 0),
+    ("浮点时长", ["defaults", "plannedDurationMinutes"], 45.0),
+    ("不存在日期", ["missions", 0, "schedule", "scheduledDate"], "2026-02-30"),
+    ("无效时区", ["defaults", "timeZone"], "Invalid/Zone"),
+    ("无偏移开始", ["missions", 0, "schedule", "fixedStartAt"], "2026-11-02T19:00:00"),
+    ("负零未知偏移", ["missions", 0, "schedule", "fixedStartAt"], "2026-11-02T19:00:00-00:00"),
+    ("偏移与上海不符", ["missions", 0, "schedule", "fixedStartAt"], "2026-11-02T19:00:00+09:00"),
+    ("开始日期不符", ["missions", 0, "schedule", "fixedStartAt"], "2026-11-03T19:00:00+08:00"),
+    ("自选带固定时间", ["missions", 1, "schedule", "fixedStartAt"], "2026-11-03T19:00:00+08:00"),
+    ("自报带截止", ["missions", 0, "schedule", "evidenceDeadlineAt"], "2026-11-03T00:00:00+08:00"),
+    ("强制标准空白", ["missions", 2, "executionPlan", "verificationCriteria"], "   "),
+    ("截止早于开始", ["missions", 2, "schedule", "evidenceDeadlineAt"], "2026-11-04T18:00:00+08:00"),
+    ("默认继承强制但缺标准", ["defaults", "verificationPolicy"], "REQUIRED_EVIDENCE"),
+    ("显式null", ["goal", "why"], None),
+    ("伪造阶段", ["missions", 0, "phase"], "CLOSED"),
+]:
+    case(name, change(path, value), False)
+case("固定缺开始", change(["missions", 0, "schedule", "fixedStartAt"], None, True), False)
+case("重复对象键", b'{"schema":"a","schema":"b"}', False, True)
+case("非法UTF8", b"\xff", False, True)
+case("BOM", b"\xef\xbb\xbf" + encode(SAMPLE), False, True)
+case("截断JSON", encode(SAMPLE)[:-2], False, True)
+case("原始嵌套超限", b"[" * 70 + b"0" + b"]" * 70, False, True)
+case("字节超限先拒绝", b" " * (MAX_BYTES + 1), False, True)
+same = copy.deepcopy(SAMPLE)
+same["nodes"][1]["key"] = same["nodes"][0]["key"]
+case("全树重复节点键", same, False)
+deep = {"key": "deep-12", "title": "末级"}
+for index in range(12):
+    deep = {"key": "deep-" + str(index), "title": "层级", "children": [deep]}
+case("节点深度13", change(["nodes"], [deep]), False)
+case("全树501节点", change(["nodes"], [{
+    "key": "root", "title": "根",
+    "children": [{"key": "n-" + str(i), "title": "节点"} for i in range(500)]
+}]), False)
+case("明确UTC开始", change(["missions", 0, "schedule", "fixedStartAt"], "2026-11-02T11:00:00Z"), True)
+case("Unicode标题200码点", change(["goal", "title"], "🌱" * 200), True)
+case("Unicode标题201码点", change(["goal", "title"], "🌱" * 201), False)
+case("可选标准省略", change(["missions", 1, "executionPlan", "verificationCriteria"], None, True), True)
+case("空目标无节点无任务", {**SAMPLE, "nodes": [], "missions": []}, True)
+
+large = {
+    "schema": "mission-book.goal-package", "version": 1,
+    "packageId": "synthetic-10000", "goal": {"title": "隔离万级课标"},
+    "defaults": {"timeZone": "UTC", "plannedDurationMinutes": 45,
+                 "verificationPolicy": "SELF_REPORT"},
+    "nodes": [{"key": "n-" + str(i), "title": "知识点 " + str(i)} for i in range(500)],
+    "missions": [],
+}
+start = datetime(2030, 1, 1, tzinfo=timezone.utc)
+for i in range(10000):
+    at = start + timedelta(hours=i)
+    large["missions"].append({
+        "key": "m-" + str(i), "nodeKey": "n-" + str(i % 500),
+        "title": "具体课标任务 " + str(i),
+        "schedule": {"scheduledDate": at.date().isoformat(), "timePolicy": "FIXED",
+                     "fixedStartAt": at.isoformat().replace("+00:00", "Z")},
+        "executionPlan": {"objective": "完成本次具体练习",
+                          "steps": ["读要求", "实现", "运行", "核对", "记录"],
+                          "notes": "仅用于宿主协议规模研究"},
+    })
+large_raw = encode(large)
+clock = time.perf_counter()
+large_result = case("单Goal一万任务500节点", large_raw, True, True)
+elapsed = round((time.perf_counter() - clock) * 1000)
+case("10001任务拒绝", {**large, "missions": large["missions"] + [large["missions"][0]]}, False)
+report = {
+    "scope": "research contract; host full JSON validation, not App streaming import",
+    "schemaValid": True, "cases": results,
+    "matched": sum(row["matched"] for row in results), "total": len(results),
+    "sample": small, "large": {"nodes": large_result["nodes"], "missions": large_result["missions"],
+                               "utf8Bytes": len(large_raw), "hostValidationMs": elapsed},
+}
+out = ROOT / "验证/协议核验结果.json"
+out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+print(json.dumps({key: report[key] for key in ["schemaValid", "matched", "total", "large"]},
+                 ensure_ascii=False))
+assert all(row["matched"] for row in results), "存在不符合预期的协议用例"

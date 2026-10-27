@@ -1,0 +1,26 @@
+{
+  "schema": "mission-book.goal-outline",
+  "version": 1,
+  "goal": {
+    "title": "Dart 与 Flutter 课标试运行（仅大纲）",
+    "description": "兼容当前软件的对照样例，只创建目标与节点，不创建任务。"
+  },
+  "nodes": [
+    {
+      "key": "foundations",
+      "title": "基础知识",
+      "children": [
+        {"key": "dart-values", "title": "Dart 值与参数"},
+        {"key": "widget-tree", "title": "Widget 组合"}
+      ]
+    },
+    {
+      "key": "practice",
+      "title": "综合实践",
+      "children": [
+        {"key": "adaptive-layout", "title": "自适应布局"},
+        {"key": "mini-project", "title": "小型项目"}
+      ]
+    }
+  ]
+}
