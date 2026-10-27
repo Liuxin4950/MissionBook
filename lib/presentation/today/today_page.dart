@@ -64,6 +64,8 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       const display.TodayMissionGroups.empty();
   bool _isLoading = false;
   String? _errorText;
+  // 成功读到空列表也有有效快照；不能用任务数量判断是否需要整块加载。
+  String? _loadedDate;
 
   // 快速切换日期时，请求可能乱序返回；只接收最后一次请求的结果。
   int _loadRequest = 0;
@@ -112,6 +114,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   void didUpdateWidget(covariant TodayPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.missionService != widget.missionService) {
+      _loadedDate = null;
       unawaited(_changes?.cancel());
       _changes = widget.missionService.changes.listen((_) {
         unawaited(_loadMissions());
@@ -151,6 +154,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
         _missions = missions;
         _scheduled = result;
         _pendingEvidence = pending;
+        _loadedDate = date;
         _isLoading = false;
       });
     } catch (error, stackTrace) {
@@ -191,6 +195,8 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     if (DateUtils.isSameDay(date, _selectedDate)) return;
     _selectedDate = DateUtils.dateOnly(date);
     _missions = const display.TodayMissionGroups.empty();
+    _scheduled = const [];
+    _loadedDate = null;
     await _loadMissions();
   }
 
@@ -400,14 +406,15 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
 
   // build 调用此方法，按状态选择加载/失败/内容；这里不发起任何异步工作。
   Widget _buildContent() {
-    // 首次进入或清空重查时还没有任何分区结果，仍整块显示等待或错误提示。
-    if (_isLoading && _missions.isEmpty) {
+    // 仅首次读取当前日期时替换整块内容；同日刷新保留卡片、空态和组件状态。
+    final hasSnapshot = _loadedDate == display.scheduleDateKey(_selectedDate);
+    if (_isLoading && !hasSnapshot) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 48),
         child: Center(child: CircularProgressIndicator()),
       );
     }
-    if (_errorText != null && _missions.isEmpty) {
+    if (_errorText != null && !hasSnapshot) {
       return Column(
         children: [
           Text(_errorText!),

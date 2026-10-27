@@ -1,0 +1,219 @@
+   Woah! You appear to be trying to run flutter as root.
+   We strongly recommend running the flutter tool without superuser privileges.
+  /
+📎
+Flutter assets will be downloaded from https://storage.flutter-io.cn. Make sure you trust this source!
+00:00 +0: loading /root/Working/MissionBook/test/lib_audit_probe_test.dart
+00:00 +0: AUDIT-01 通知停止直达的报告应能确认保存 END
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: MissionPhase:<MissionPhase.closed>
+  Actual: MissionPhase:<MissionPhase.paused>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///root/Working/MissionBook/test/lib_audit_probe_test.dart:155:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///root/Working/MissionBook/test/lib_audit_probe_test.dart line 155
+The test description was:
+  AUDIT-01 通知停止直达的报告应能确认保存 END
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +0 -1: AUDIT-01 通知停止直达的报告应能确认保存 END [E]
+  Test failed. See exception logs above.
+  The test description was: AUDIT-01 通知停止直达的报告应能确认保存 END
+
+00:01 +0 -1: AUDIT-02 目标新建右栏打开期间应可选择左侧已有目标
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: <1>
+  Actual: <0>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///root/Working/MissionBook/test/lib_audit_probe_test.dart:179:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///root/Working/MissionBook/test/lib_audit_probe_test.dart line 179
+The test description was:
+  AUDIT-02 目标新建右栏打开期间应可选择左侧已有目标
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +0 -2: AUDIT-02 目标新建右栏打开期间应可选择左侧已有目标 [E]
+  Test failed. See exception logs above.
+  The test description was: AUDIT-02 目标新建右栏打开期间应可选择左侧已有目标
+
+00:02 +0 -2: AUDIT-03 第二个业务服务初始化不应删除第一个服务的活跃附件草稿
+00:02 +0 -3: AUDIT-03 第二个业务服务初始化不应删除第一个服务的活跃附件草稿 [E]
+  Expected: true
+    Actual: <false>
+
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/lib_audit_probe_test.dart 196:5                main.<fn>
+
+00:02 +0 -3: AUDIT-04 单纯父级重建不应重查目标统计
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: <0>
+  Actual: <3>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///root/Working/MissionBook/test/lib_audit_probe_test.dart:223:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///root/Working/MissionBook/test/lib_audit_probe_test.dart line 223
+The test description was:
+  AUDIT-04 单纯父级重建不应重查目标统计
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +0 -4: AUDIT-04 单纯父级重建不应重查目标统计 [E]
+  Test failed. See exception logs above.
+  The test description was: AUDIT-04 单纯父级重建不应重查目标统计
+
+00:02 +0 -4: AUDIT-05 实测全部详情的 SQL 查询规模
+AUDIT SQL tasks=10 selects=41 elapsedMs=22
+AUDIT SQL tasks=100 selects=401 elapsedMs=144
+00:03 +1 -4: AUDIT-10 查看材料查询的实际索引计划
+AUDIT EVIDENCE PLAN [{id: 3, parent: 0, notused: 216, detail: SCAN evidence_records}, {id: 22, parent: 0, notused: 0, detail: USE TEMP B-TREE FOR ORDER BY}]
+00:03 +2 -4: AUDIT-06 目标详情刷新期间应保留已挂载的节点工作区
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: true
+  Actual: <false>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///root/Working/MissionBook/test/lib_audit_probe_test.dart:273:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///root/Working/MissionBook/test/lib_audit_probe_test.dart line 273
+The test description was:
+  AUDIT-06 目标详情刷新期间应保留已挂载的节点工作区
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:03 +2 -5: AUDIT-06 目标详情刷新期间应保留已挂载的节点工作区 [E]
+  Test failed. See exception logs above.
+  The test description was: AUDIT-06 目标详情刷新期间应保留已挂载的节点工作区
+
+00:03 +2 -5: AUDIT-07 今天待补材料列表应可连续切换两个记录
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: '5629f437-3377-41c0-aab6-aa5e76c3f44c'
+  Actual: '2d6508d0-76b0-466e-a18d-bd81dad2ac64'
+   Which: is different.
+          Expected: 5629f437-3 ...
+            Actual: 2d6508d0-7 ...
+                    ^
+           Differ at offset 0
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///root/Working/MissionBook/test/lib_audit_probe_test.dart:340:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///root/Working/MissionBook/test/lib_audit_probe_test.dart line 340
+The test description was:
+  AUDIT-07 今天待补材料列表应可连续切换两个记录
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:03 +2 -6: AUDIT-07 今天待补材料列表应可连续切换两个记录 [E]
+  Test failed. See exception logs above.
+  The test description was: AUDIT-07 今天待补材料列表应可连续切换两个记录
+
+00:03 +2 -6: AUDIT-08 回前台不能自动接受结束报告打开后的新执行序号
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: MissionPhase:<MissionPhase.paused>
+  Actual: MissionPhase:<MissionPhase.closed>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///root/Working/MissionBook/test/lib_audit_probe_test.dart:390:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///root/Working/MissionBook/test/lib_audit_probe_test.dart line 390
+The test description was:
+  AUDIT-08 回前台不能自动接受结束报告打开后的新执行序号
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:04 +2 -7: AUDIT-08 回前台不能自动接受结束报告打开后的新执行序号 [E]
+  Test failed. See exception logs above.
+  The test description was: AUDIT-08 回前台不能自动接受结束报告打开后的新执行序号
+
+00:04 +2 -7: AUDIT-09 备份等待附件 IO 期间不应占用数据库操作队列
+AUDIT BACKUP cancelFinishedWhileReading=false after=MissionPhase.cancelled
+00:04 +2 -8: AUDIT-09 备份等待附件 IO 期间不应占用数据库操作队列 [E]
+  Expected: true
+    Actual: <false>
+
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/lib_audit_probe_test.dart 460:5                main.<fn>
+
+00:04 +2 -8: AUDIT-11 尚未打开历史页面时不应读取全部历史原图
+AUDIT HIDDEN HISTORY imageReads=20 total=20 selected=today
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: <0>
+  Actual: <20>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///root/Working/MissionBook/test/lib_audit_probe_test.dart:539:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///root/Working/MissionBook/test/lib_audit_probe_test.dart line 539
+The test description was:
+  AUDIT-11 尚未打开历史页面时不应读取全部历史原图
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:05 +2 -9: AUDIT-11 尚未打开历史页面时不应读取全部历史原图 [E]
+  Test failed. See exception logs above.
+  The test description was: AUDIT-11 尚未打开历史页面时不应读取全部历史原图
+
+00:05 +2 -9: Some tests failed.
+
+Failing tests:
+  /root/Working/MissionBook/test/lib_audit_probe_test.dart: AUDIT-01 通知停止直达的报告应能确认保存 END
+  /root/Working/MissionBook/test/lib_audit_probe_test.dart: AUDIT-02 目标新建右栏打开期间应可选择左侧已有目标
+  /root/Working/MissionBook/test/lib_audit_probe_test.dart: AUDIT-03 第二个业务服务初始化不应删除第一个服务的活跃附件草稿
+  /root/Working/MissionBook/test/lib_audit_probe_test.dart: AUDIT-04 单纯父级重建不应重查目标统计
+  ... and 5 more

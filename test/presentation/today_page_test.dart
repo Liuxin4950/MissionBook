@@ -27,6 +27,7 @@ import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
+import 'package:mission_book/presentation/widgets/app_illustration.dart';
 import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
 import 'package:timezone/timezone.dart' as tz;
 
@@ -522,6 +523,51 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  for (final width in [390.0, 1280.0]) {
+    testWidgets('空日程下拉刷新保留卡片与插画，失败重试不重播入场：$width', (tester) async {
+      tester.view.physicalSize = Size(width, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = ControlledQueryRepository();
+      await tester.pumpWidget(testApp(repository));
+      repository.requests.single.complete([]);
+      await tester.pumpAndSettle();
+      final illustration = find.byType(AppIllustration);
+      expect(illustration, findsOneWidget);
+      final originalState = tester.state(illustration);
+      final schedule = find.text('这一天还没有固定任务');
+      final originalElement = tester.element(schedule);
+      await tester.drag(
+        find.byKey(const Key('today-list')),
+        const Offset(0, 400),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      expect(repository.requests, hasLength(2));
+      expect(schedule, findsOneWidget);
+      expect(tester.element(schedule), same(originalElement));
+      expect(tester.state(illustration), same(originalState));
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      repository.requests.last.completeError(StateError('模拟刷新失败'));
+      await tester.pumpAndSettle();
+      expect(find.text('刷新失败，当前显示上次加载的任务'), findsOneWidget);
+      expect(tester.element(schedule), same(originalElement));
+      expect(tester.state(illustration), same(originalState));
+      await tester.tap(find.text('重试'));
+      await tester.pump();
+      expect(tester.state(illustration), same(originalState));
+      repository.requests.last.complete([]);
+      await tester.pumpAndSettle();
+      expect(tester.state(illustration), same(originalState));
+      expect(tester.element(schedule), same(originalElement));
+      expect(find.text('刷新失败，当前显示上次加载的任务'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
   testWidgets('刷新失败保留任务和展开状态，重试成功替换为新快照', (tester) async {
     final repository = ControlledQueryRepository();
     await tester.pumpWidget(testApp(repository));
@@ -797,6 +843,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('仅有的自选任务 3'), findsOneWidget);
     expect(find.byKey(const Key('flexible-missions-toggle')), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('已加载的日期切换后清除旧卡片，返回原日期也必须等待本次结果', (tester) async {
+    final repository = ControlledQueryRepository();
+    await tester.pumpWidget(testApp(repository));
+    repository.requests.single.complete([example('旧日期的任务')]);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('22'));
+    await tester.pump();
+    expect(find.text('旧日期的任务'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.tap(find.text('21'));
+    await tester.pump();
+    expect(find.text('旧日期的任务'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    repository.requests.last.complete([]);
+    await tester.pumpAndSettle();
+    repository.requests[1].complete([example('另一日期的迟到任务')]);
+    await tester.pumpAndSettle();
+    expect(find.text('另一日期的迟到任务'), findsNothing);
+    expect(find.text('这一天还没有固定任务'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

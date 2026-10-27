@@ -55,8 +55,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
   StreamSubscription<void>? _goalChanges;
   int _statsGeneration = 0;
   bool _editing = false;
-  bool _openingSettings = false;
-  bool _openingDetail = false;
+  bool _openingStandalonePage = false;
 
   @override
   void initState() {
@@ -149,58 +148,45 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _settings() async {
-    if (_openingSettings) return;
-    _openingSettings = true;
+  /// 右栏控制器负责切换时的防重入和草稿守卫；独立页面才锁到返回。
+  Future<void> _openPage({
+    required String label,
+    required WidgetBuilder builder,
+  }) async {
+    final standalone = DetailPaneScope.maybeOf(context) == null;
+    if (standalone && _openingStandalonePage) return;
+    if (standalone) _openingStandalonePage = true;
     try {
-      await openDetailPane<void>(
-        context,
-        label: '设置',
-        builder: (_) => SettingsPage(
-          device: widget.device,
-          backup: widget.backup,
-          notifications: widget.notifications,
-        ),
-      );
+      await openDetailPane<void>(context, label: label, builder: builder);
     } finally {
-      _openingSettings = false;
-    }
-  }
-
-  Future<void> _openGoal(Goal goal) async {
-    if (_openingDetail) return;
-    _openingDetail = true;
-    try {
-      await openDetailPane<void>(
-        context,
-        label: '目标详情',
-        builder: (_) => GoalDetailPage(
-          service: widget.goals,
-          goalId: goal.id,
-          missionService: widget.missions,
-        ),
-      );
-    } finally {
-      _openingDetail = false;
+      // 上面的 await 等待页面关闭，不能用它锁住仍可操作的左栏入口。
+      if (standalone) _openingStandalonePage = false;
       if (mounted) unawaited(_refreshStats());
     }
   }
 
-  Future<void> _openRecord(MissionDetail detail) async {
-    if (_openingDetail) return;
-    _openingDetail = true;
-    try {
-      await openDetailPane<void>(
-        context,
-        label: '执行记录',
-        builder: (_) =>
-            MissionRecordPage(detail: detail, service: widget.missions),
-      );
-    } finally {
-      _openingDetail = false;
-      if (mounted) unawaited(_refreshStats());
-    }
-  }
+  Future<void> _settings() => _openPage(
+    label: '设置',
+    builder: (_) => SettingsPage(
+      device: widget.device,
+      backup: widget.backup,
+      notifications: widget.notifications,
+    ),
+  );
+
+  Future<void> _openGoal(Goal goal) => _openPage(
+    label: '目标详情',
+    builder: (_) => GoalDetailPage(
+      service: widget.goals,
+      goalId: goal.id,
+      missionService: widget.missions,
+    ),
+  );
+
+  Future<void> _openRecord(MissionDetail detail) => _openPage(
+    label: '执行记录',
+    builder: (_) => MissionRecordPage(detail: detail, service: widget.missions),
+  );
 
   @override
   void dispose() {

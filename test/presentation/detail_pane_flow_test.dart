@@ -22,6 +22,11 @@ import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/goals/list/goals_page.dart';
 import 'package:mission_book/presentation/missions/shared/mission_phase_icon.dart';
+import 'package:mission_book/presentation/missions/record/mission_record_page.dart';
+import 'package:mission_book/presentation/goals/detail/goal_detail_page.dart';
+import 'package:mission_book/presentation/me/settings_page.dart';
+import 'package:mission_book/presentation/me/me_page.dart';
+import 'package:mission_book/presentation/goals/form/goal_form_page.dart';
 import 'package:mission_book/domain/notifications/reminder_request.dart';
 import '../support/me_fakes.dart';
 
@@ -99,6 +104,182 @@ void main() {
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
   }
+
+  Future<String> finishRecentMissions() async {
+    Future<void> finish(String id) async {
+      var detail = (await missions.findDetail(missionId: id))!;
+      await missions.execute(
+        missions.prepareExecution(
+          detail: detail,
+          type: ExecutionEventType.start,
+        ),
+      );
+      now = now.add(const Duration(minutes: 5));
+      detail = (await missions.findDetail(missionId: id))!;
+      await missions.execute(
+        missions.prepareExecution(
+          detail: detail,
+          type: ExecutionEventType.end,
+          report: UserReportedResult.completed,
+        ),
+      );
+    }
+
+    await finish(missionId);
+    await missions.create(
+      title: '另一条最近行动',
+      scheduledDate: '2026-10-25',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 20,
+    );
+    final second = (await missions.findScheduledOn(
+      scheduledDate: '2026-10-25',
+    )).firstWhere((item) => item.mission.id != missionId).mission.id;
+    await finish(second);
+    return second;
+  }
+
+  testWidgets('我的最近行动可连续互切，右栏整条返回链替换且连点不叠页', (tester) async {
+    final secondId = await finishRecentMissions();
+    await open(tester, width: 1280);
+    await tester.tap(find.byTooltip('我的'));
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'profile-record-$missionId');
+    final controller = tester
+        .widget<DetailPaneHost>(find.byType(DetailPaneHost))
+        .controller;
+
+    for (final id in [secondId, missionId]) {
+      await tapKey(tester, 'profile-record-$id');
+      expect(
+        tester
+            .widget<MissionRecordPage>(find.byType(MissionRecordPage))
+            .detail
+            .mission
+            .id,
+        id,
+      );
+      expect(controller.entries, hasLength(1));
+    }
+    // 右栏内部再打开详情后，左栏仍应能切换整条链。
+    await tester.tap(find.byTooltip('任务详情'));
+    await tester.pumpAndSettle();
+    expect(controller.entries, hasLength(2));
+    final other = find.byKey(ValueKey('profile-record-$secondId'));
+    await tester.ensureVisible(other);
+    await tester.pumpAndSettle();
+    await tester.tap(other);
+    await tester.tap(other);
+    await tester.pumpAndSettle();
+    expect(controller.entries, hasLength(1));
+    expect(find.byType(MissionDetailPage), findsNothing);
+    expect(
+      tester
+          .widget<MissionRecordPage>(find.byType(MissionRecordPage))
+          .detail
+          .mission
+          .id,
+      secondId,
+    );
+    // 缩到单列仍保留同一记录实例，返回后可以打开另一条。
+    final recordState = tester.state(find.byType(MissionRecordPage));
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+    expect(tester.state(find.byType(MissionRecordPage)), same(recordState));
+    await tapBack(tester);
+    await tapKey(tester, 'profile-record-$missionId');
+    expect(
+      tester
+          .widget<MissionRecordPage>(find.byType(MissionRecordPage))
+          .detail
+          .mission
+          .id,
+      missionId,
+    );
+    await tapBack(tester);
+    expect(controller.entries, isEmpty);
+    expect(find.byType(MissionRecordPage), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('我的目标、记录和设置可交替切换，设置不因旧页面关闭而锁住', (tester) async {
+    await finishRecentMissions();
+    final firstGoal = goals.prepareCreation(title: '第一个真实目标');
+    final secondGoal = goals.prepareCreation(title: '第二个真实目标');
+    await goals.create(firstGoal);
+    await goals.create(secondGoal);
+    await open(tester, width: 1280);
+    await tester.tap(find.byTooltip('我的'));
+    await tester.pumpAndSettle();
+    final controller = tester
+        .widget<DetailPaneHost>(find.byType(DetailPaneHost))
+        .controller;
+    for (final goal in [firstGoal, secondGoal]) {
+      await tapKey(tester, 'profile-goal-${goal.id}');
+      expect(
+        tester.widget<GoalDetailPage>(find.byType(GoalDetailPage)).goalId,
+        goal.id,
+      );
+      await tapKey(tester, 'profile-record-$missionId');
+      expect(find.byType(MissionRecordPage), findsOneWidget);
+      tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(MePage),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position
+          .jumpTo(0);
+      await tester.pumpAndSettle();
+      await tapKey(tester, 'me-settings');
+      expect(find.byType(SettingsPage), findsOneWidget);
+      expect(controller.entries, hasLength(1));
+    }
+    await tapBack(tester);
+    expect(controller.entries, isEmpty);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('我的右栏切换仍保护目标编辑草稿，取消后可再次选择记录', (tester) async {
+    await finishRecentMissions();
+    final goal = goals.prepareCreation(title: '有草稿的目标');
+    await goals.create(goal);
+    await open(tester, width: 1280);
+    await tester.tap(find.byTooltip('我的'));
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'profile-goal-${goal.id}');
+    await tapKey(tester, 'goal-edit');
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const Key('goal-title-input')),
+        matching: find.byType(TextFormField),
+      ),
+      '还没有保存的修改',
+    );
+    await tester.pumpAndSettle();
+    await tapKey(tester, 'profile-record-$missionId');
+    expect(find.text('放弃这次修改？'), findsOneWidget);
+    await tester.tap(find.text('继续填写'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GoalFormPage), findsOneWidget);
+    expect(find.text('还没有保存的修改'), findsOneWidget);
+    await tapKey(tester, 'profile-record-$missionId');
+    await tester.tap(find.text('离开'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MissionRecordPage), findsOneWidget);
+    expect((await goals.findById(goal.id))!.title, '有草稿的目标');
+    final controller = tester
+        .widget<DetailPaneHost>(find.byType(DetailPaneHost))
+        .controller;
+    expect(controller.entries, hasLength(1));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets('宽屏右栏：列表→详情→编辑→保存→返回，结果与 push 载体一致', (tester) async {
     await open(tester, width: 1280);
