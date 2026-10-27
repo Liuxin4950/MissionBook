@@ -229,17 +229,14 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                   children: [
                     AppPageHeader(
                       title: '目标',
-                      subtitle:
-                          waiting || snapshot.hasError || visible.isNotEmpty
-                          ? Text(
-                              waiting
-                                  ? '读取中…'
-                                  : snapshot.hasError
-                                  ? '读取失败'
-                                  : '${visible.length} 个目标',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            )
-                          : null,
+                      subtitle: Text(
+                        waiting
+                            ? '读取中…'
+                            : snapshot.hasError
+                            ? '读取失败'
+                            : '${visible.length} 个目标',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                       action: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -544,6 +541,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                               goal.title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () => _open(goal),
@@ -614,25 +612,25 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
             border: Border.all(color: AppColors.hairline),
             borderRadius: BorderRadius.circular(24),
           ),
-          child: LayoutBuilder(
-            builder: (context, box) {
-              // 面板自身宽度与字号共同决定排法；窄屏/大字体仍能完整读完和操作。
-              final horizontal =
-                  box.maxWidth >= 600 &&
-                  MediaQuery.textScalerOf(context).scale(16) <= 20;
+          child: Builder(
+            builder: (context) {
               final illustration = AppIllustration(
                 asset: 'assets/illustrations/goal-path.png',
                 key: ValueKey(
                   'goal-empty-illustration-${_selectedStatus.name}',
                 ),
-                width: horizontal ? 224 : 192,
-                height: horizontal ? 168 : 128,
+                width: 224,
+                height: 150,
               );
               final copy = Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(title, style: theme.textTheme.titleLarge),
+                  Text(
+                    title,
+                    style: theme.textTheme.titleLarge,
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: 16),
                   if (active)
                     const _GoalJourneyHint()
@@ -642,12 +640,14 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                           ? '可在详情中恢复'
                           : '可在详情中调整状态',
                       style: theme.textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
                     ),
                   const SizedBox(height: 24),
                   if (active) ...[
                     Wrap(
                       spacing: 12,
                       runSpacing: 8,
+                      alignment: WrapAlignment.center,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         FilledButton.icon(
@@ -673,23 +673,14 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                     ),
                 ],
               );
-              if (horizontal) {
-                return Row(
-                  children: [
-                    Expanded(child: copy),
-                    const SizedBox(width: 32),
-                    illustration,
-                  ],
-                );
-              }
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Align(alignment: Alignment.center, child: illustration),
-                  const SizedBox(height: 20),
-                  copy,
-                ],
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [illustration, const SizedBox(height: 20), copy],
+                  ),
+                ),
               );
             },
           ),
@@ -854,7 +845,7 @@ class _GoalCard extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               goalStatusLabel(goal.status),
-                              style: theme.textTheme.bodySmall,
+                              style: theme.textTheme.bodyMedium,
                             ),
                           ],
                         ),

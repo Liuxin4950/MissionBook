@@ -308,9 +308,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 6),
-                    const Text(
+                    Text(
                       '先添加一个节点，需要时再细分。',
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: theme.textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -593,7 +593,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                         padding: const EdgeInsets.only(left: 40),
                         child: Text(
                           annotation,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ),
                   ],

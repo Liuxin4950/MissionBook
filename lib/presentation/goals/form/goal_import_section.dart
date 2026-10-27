@@ -182,7 +182,7 @@ class GoalImportSectionState extends State<GoalImportSection> {
             readOnly: _saving || _unknown || _saved,
             minLines: 4,
             maxLines: 8,
-            style: theme.textTheme.bodyMedium,
+            style: theme.textTheme.bodyLarge,
             decoration: InputDecoration(
               hintText: '粘贴目标大纲 JSON',
               filled: true,
@@ -236,12 +236,7 @@ class GoalImportSectionState extends State<GoalImportSection> {
             const SizedBox(height: 20),
             const Divider(height: 1),
             const SizedBox(height: 16),
-            Text(
-              preview.title,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(preview.title, style: theme.textTheme.titleMedium),
             if (preview.description != null)
               Text(preview.description!, style: theme.textTheme.bodyMedium),
             if (preview.why != null)
@@ -285,7 +280,10 @@ class GoalImportSectionState extends State<GoalImportSection> {
           ).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),
         ),
         if (node.description != null)
-          Text(node.description!, style: Theme.of(context).textTheme.bodySmall),
+          Text(
+            node.description!,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         for (final child in node.children) _node(context, child, depth + 1),
       ],
     ),

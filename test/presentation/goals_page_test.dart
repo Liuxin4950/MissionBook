@@ -172,11 +172,40 @@ void main() {
     expect(find.text('从一个目标开始'), findsOneWidget);
   });
 
+  testWidgets('目标分类切换保持标题角色、居中和分类栏位置', (tester) async {
+    await open(tester);
+    final filter = find.byKey(const Key('goal-filter-active'));
+    final top = tester.getTopLeft(filter).dy;
+    for (final (status, title) in [
+      ('active', '从一个目标开始'),
+      ('paused', '没有已搁置的目标'),
+      ('achieved', '没有已达成的目标'),
+    ]) {
+      await tap(tester, 'goal-filter-$status');
+      final heading = tester.widget<Text>(find.text(title));
+      expect(
+        heading.style,
+        Theme.of(tester.element(find.text(title))).textTheme.titleLarge,
+      );
+      expect(heading.textAlign, TextAlign.center);
+      expect(tester.getTopLeft(filter).dy, top);
+      expect(find.text('0 个目标'), findsOneWidget);
+    }
+  });
+
   testWidgets('分类空态可直接导入或创建目标', (tester) async {
     await open(tester);
     await tap(tester, 'goal-filter-paused');
     await tap(tester, 'goal-empty-import');
-    expect(find.byKey(const Key('goal-import-input')), findsOneWidget);
+    final input = tester.widget<TextField>(
+      find.byKey(const Key('goal-import-input')),
+    );
+    expect(
+      input.style,
+      Theme.of(
+        tester.element(find.byKey(const Key('goal-import-input'))),
+      ).textTheme.bodyLarge,
+    );
     await tester.tap(find.text('收起导入区'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('goal-import-input')), findsNothing);
