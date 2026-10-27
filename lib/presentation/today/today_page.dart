@@ -1,7 +1,7 @@
 import '../widgets/app_date_picker.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../widgets/app_illustration.dart';
+import '../widgets/app_empty_state.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../application/missions/mission_service.dart';
@@ -377,6 +377,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                     ),
                   )
                 else ...[
+                  const SizedBox(height: 16),
                   _WeekStrip(
                     selectedDate: _selectedDate,
                     today: _today,
@@ -470,6 +471,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
         if (wide) {
           schedule = AppSectionCard(
             key: const Key('today-timetable-panel'),
+            paperBackground: _missions.isEmpty,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -490,28 +492,15 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                   ],
                 ),
                 if (_missions.fixed.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48),
-                    child: Center(
-                      child: Column(
-                        children: [
-                          if (_missions.isEmpty) ...[
-                            AppIllustration(
-                              asset: 'assets/illustrations/day-plan.png',
-                              width: 192,
-                              height: 128,
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                          const Text('这一天还没有固定任务'),
-                          const SizedBox(height: 16),
-                          FilledButton.icon(
-                            onPressed: _openCreate,
-                            icon: const Icon(Icons.add),
-                            label: const Text('新建任务'),
-                          ),
-                        ],
-                      ),
+                  AppEmptyState(
+                    title: '这一天还没有固定任务',
+                    asset: _missions.isEmpty
+                        ? 'assets/illustrations/day-plan.png'
+                        : null,
+                    actions: FilledButton.icon(
+                      onPressed: _openCreate,
+                      icon: const Icon(Icons.add),
+                      label: const Text('新建任务'),
                     ),
                   )
                 else

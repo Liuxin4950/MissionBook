@@ -14,33 +14,46 @@ class AppPageHeader extends StatelessWidget {
   final Widget? action;
 
   @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Row(
           children: [
-            Semantics(
-              header: true,
-              child: Text(
-                title,
-                key: ValueKey('page-heading-$title'),
-                style: Theme.of(context).textTheme.headlineSmall,
+            Expanded(
+              child: Semantics(
+                container: true,
+                header: true,
+                child: Text(
+                  title,
+                  key: ValueKey('page-heading-$title'),
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
               ),
             ),
-            if (subtitle != null)
-              ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 40),
-                child: Align(alignment: Alignment.centerLeft, child: subtitle),
+            if (action != null) ...[
+              const SizedBox(width: 12),
+              IconButtonTheme(
+                data: IconButtonThemeData(
+                  style: IconButton.styleFrom(
+                    fixedSize: const Size(48, 48),
+                    shape: const CircleBorder(),
+                  ),
+                ),
+                child: action!,
               ),
+            ],
           ],
         ),
       ),
-      if (action != null) ...[
-        const SizedBox(width: 16),
-        Padding(padding: const EdgeInsets.only(top: 4), child: action),
-      ],
+      // 说明行使用完整宽度，窄屏日期不会被右侧操作挤成多行。
+      if (subtitle != null)
+        ConstrainedBox(
+          key: ValueKey('page-subtitle-$title'),
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Align(alignment: Alignment.centerLeft, child: subtitle),
+        ),
     ],
   );
 }

@@ -13,6 +13,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.onBack,
     this.canGoBack = true,
     this.actions,
+    this.maxContentWidth = AppLayout.maxPageWidth,
   });
 
   /// 页面提供的标题，例如“新建任务”或“任务详情”。
@@ -25,6 +26,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   final bool canGoBack;
   // 详情页可提供“更多”菜单；未提供时保持原有顶栏。
   final List<Widget>? actions;
+  final double maxContentWidth; // 与所在页面的正文外框限宽一致。
 
   // Scaffold.appBar 要求 PreferredSizeWidget，以便在布局前取得顶栏高度。
   // 64 只包含工具栏，系统状态栏的安全区域仍由内部 AppBar 处理。
@@ -42,37 +44,45 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
           Navigator.of(context).maybePop();
         };
 
-    return AppBar(
-      toolbarHeight: preferredSize.height,
-      centerTitle: false,
-      titleSpacing: 12,
-      title: Text(title),
-      titleTextStyle: theme.textTheme.titleMedium,
-      actions: actions,
-      // 返回按钮与正文共用左右边距；标准24、窄屏16，加上48触控宽度。
-      leadingWidth: AppLayout.horizontalPadding(context) + 48,
-      leading: Padding(
-        padding: EdgeInsets.only(left: AppLayout.horizontalPadding(context)),
-        child: Center(
-          child: IconButton(
-            onPressed: canGoBack ? handleBack : null,
-            tooltip: '返回',
-            style: IconButton.styleFrom(
-              fixedSize: const Size(48, 48),
-              padding: EdgeInsets.zero,
-              shape: const CircleBorder(),
-              backgroundColor: colors.primaryContainer,
-              disabledBackgroundColor: colors.primaryContainer,
-            ),
-            // 浅色返回面使用深色图标，与正文标题保持同一颜色层级。
-            icon: Icon(
-              Icons.arrow_back,
-              size: 24,
-              color: canGoBack ? colors.primary : colors.onSurfaceVariant,
+    return LayoutBuilder(
+      builder: (context, box) {
+        final inset =
+            AppLayout.horizontalPadding(context) +
+            ((box.maxWidth - maxContentWidth) / 2).clamp(0.0, double.infinity);
+        return AppBar(
+          toolbarHeight: preferredSize.height,
+          centerTitle: false,
+          titleSpacing: 12,
+          title: Text(title),
+          titleTextStyle: theme.textTheme.titleMedium,
+          actions: actions,
+          actionsPadding: EdgeInsets.only(right: inset),
+          // 返回按钮与正文共用左右边距；标准24、窄屏16，加上48触控宽度。
+          leadingWidth: inset + 48,
+          leading: Padding(
+            padding: EdgeInsets.only(left: inset),
+            child: Center(
+              child: IconButton(
+                onPressed: canGoBack ? handleBack : null,
+                tooltip: '返回',
+                style: IconButton.styleFrom(
+                  fixedSize: const Size(48, 48),
+                  padding: EdgeInsets.zero,
+                  shape: const CircleBorder(),
+                  backgroundColor: colors.primaryContainer,
+                  disabledBackgroundColor: colors.primaryContainer,
+                ),
+                // 浅色返回面使用深色图标，与正文标题保持同一颜色层级。
+                icon: Icon(
+                  Icons.arrow_back,
+                  size: 24,
+                  color: canGoBack ? colors.primary : colors.onSurfaceVariant,
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

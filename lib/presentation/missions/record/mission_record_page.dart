@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../widgets/app_section_card.dart';
 import '../../widgets/detail_pane.dart';
 
 import '../../../application/missions/mission_service.dart';
@@ -213,13 +214,9 @@ class _MissionRecordPageState extends State<MissionRecordPage>
             ),
           ),
           const SizedBox(height: AppLayout.sectionGap),
-          Container(
+          AppSectionCard(
             key: const Key('execution-summary'),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(24),
-            ),
+            paperBackground: true,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

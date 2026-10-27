@@ -234,9 +234,8 @@ class _AppShellState extends State<AppShell> {
           return LayoutBuilder(
             builder: (context, constraints) {
               // 双栏判定用内容区宽度（§2.0）：侧栏占宽后凑不齐左右最小宽就单列。
-              final expanded =
-                  AppLayout.windowClassOf(context) == WindowClass.expanded;
-              final railWidth = compact ? 0.0 : (expanded ? 193.0 : 89.0);
+              final extended = AppLayout.useExtendedRail(context);
+              final railWidth = compact ? 0.0 : (extended ? 193.0 : 89.0);
               final contentWidth = constraints.maxWidth - railWidth;
               final split =
                   AppLayout.canSplitPane(contentWidth) &&
@@ -287,10 +286,10 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  // 左侧导航栏：medium 图标在上、expanded 图标与文字并排加宽。
+  // 平板保留紧凑侧栏，足够宽时才把图标与文字并排。
   // 语义与底部胶囊完全一致（标签/按钮/选中态/Tooltip），读屏行为不分平台。
   Widget _buildSideRail() {
-    final expanded = AppLayout.windowClassOf(context) == WindowClass.expanded;
+    final expanded = AppLayout.useExtendedRail(context);
     Widget item(
       int index,
       String label,
@@ -310,6 +309,7 @@ class _AppShellState extends State<AppShell> {
       ),
     );
     return SizedBox(
+      key: const Key('navigation-rail-width'),
       width: expanded ? 192 : 88,
       child: SafeArea(
         child: DecoratedBox(

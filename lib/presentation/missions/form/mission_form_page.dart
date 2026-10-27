@@ -683,6 +683,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
         },
         child: Scaffold(
           appBar: AppTopBar(
+            maxContentWidth: AppLayout.formMaxWidth,
             title: _isEditing ? '编辑任务' : (_isRetry ? '再次尝试' : '新建任务'),
             // 公共组件只负责点击分发，丢弃确认仍使用本页原来的方法。
             onBack: _requestClose,
@@ -915,6 +916,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
           bottomNavigationBar: SafeArea(
             top: false,
             child: PageFooterBar(
+              maxContentWidth: AppLayout.formMaxWidth,
               topPadding: 12,
               bottomPadding: 16 + MediaQuery.viewInsetsOf(context).bottom,
               child: Column(

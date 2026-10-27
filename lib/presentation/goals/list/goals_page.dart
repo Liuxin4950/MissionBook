@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../widgets/app_illustration.dart';
+import '../../widgets/app_empty_state.dart';
+import '../../widgets/app_section_card.dart';
 import '../../widgets/detail_pane.dart';
 
 import '../../../application/goals/goal_service.dart';
@@ -9,7 +10,6 @@ import '../../../core/theme/app_layout.dart';
 import '../../widgets/app_page_header.dart';
 import '../../widgets/app_segmented_control.dart';
 import '../../widgets/adaptive_columns.dart';
-import '../../widgets/app_section_card.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal.dart';
 import '../detail/goal_detail_page.dart';
@@ -537,7 +537,6 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
 
   Widget _empty(BuildContext context, {bool showImportAction = true}) {
     final active = _selectedStatus == GoalStatus.active;
-    final theme = Theme.of(context);
     final title = active
         ? '从一个目标开始'
         : _selectedStatus == GoalStatus.paused
@@ -551,70 +550,39 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
         constraints: const BoxConstraints(
           maxWidth: AppLayout.dashboardMaxWidth,
         ),
-        child: Container(
+        child: AppSectionCard(
           key: const Key('goal-empty-state'),
           padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: AppColors.card,
-            border: Border.all(color: AppColors.hairline),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Builder(
-            builder: (context) {
-              final illustration = AppIllustration(
-                asset: 'assets/illustrations/goal-path.png',
-                key: ValueKey(
-                  'goal-empty-illustration-${_selectedStatus.name}',
-                ),
-                width: 224,
-                height: 150,
-              );
-              final copy = Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    title,
-                    style: theme.textTheme.titleLarge,
-                    textAlign: TextAlign.center,
-                  ),
-                  if (active) ...[
-                    const SizedBox(height: 16),
-                    const _GoalJourneyHint(),
-                    const SizedBox(height: 24),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.center,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        FilledButton.icon(
-                          key: const Key('goal-create'),
-                          onPressed: _create,
-                          icon: const Icon(Icons.add),
-                          label: const Text('创建目标'),
+          paperBackground: true,
+          child: AppEmptyState(
+            title: title,
+            asset: 'assets/illustrations/goal-path.png',
+            illustrationKey: ValueKey(
+              'goal-empty-illustration-${_selectedStatus.name}',
+            ),
+            details: active ? const _GoalJourneyHint() : null,
+            actions: active
+                ? Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      FilledButton.icon(
+                        key: const Key('goal-create'),
+                        onPressed: _create,
+                        icon: const Icon(Icons.add),
+                        label: const Text('创建目标'),
+                      ),
+                      if (showImportAction)
+                        TextButton(
+                          key: const Key('goal-create-import'),
+                          onPressed: _openImport,
+                          child: const Text('导入大纲'),
                         ),
-                        if (showImportAction)
-                          TextButton(
-                            key: const Key('goal-create-import'),
-                            onPressed: _openImport,
-                            child: const Text('导入大纲'),
-                          ),
-                      ],
-                    ),
-                  ],
-                ],
-              );
-              return Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [illustration, const SizedBox(height: 20), copy],
-                  ),
-                ),
-              );
-            },
+                    ],
+                  )
+                : null,
           ),
         ),
       ),

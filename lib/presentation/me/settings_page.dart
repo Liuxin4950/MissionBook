@@ -215,7 +215,10 @@ class _SettingsPageState extends State<SettingsPage>
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: const AppTopBar(title: '设置'),
+      appBar: const AppTopBar(
+        title: '设置',
+        maxContentWidth: AppLayout.dashboardMaxWidth,
+      ),
       body: SafeArea(
         top: false,
         child: Center(

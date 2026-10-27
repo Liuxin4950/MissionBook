@@ -10,6 +10,7 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/presentation/goals/detail/goal_detail_page.dart';
+import 'package:mission_book/presentation/widgets/app_page_header.dart';
 import '../support/me_fakes.dart';
 
 void main() {
@@ -38,6 +39,8 @@ void main() {
   for (final scenario in [
     (390.0, 844.0, 1.0),
     (320.0, 568.0, 2.0),
+    (768.0, 1024.0, 1.0),
+    (1024.0, 768.0, 1.0),
     (1200.0, 900.0, 1.0),
   ]) {
     testWidgets('四页标题坐标一致且无溢出 $scenario', (tester) async {
@@ -71,6 +74,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       Offset? first;
+      double? headerBottom;
       for (final title in ['今天', '目标', '历史', '我的']) {
         await tester.tap(find.byTooltip(title));
         await tester.pumpAndSettle();
@@ -80,6 +84,11 @@ void main() {
         expect(point, first, reason: '$title 应与今天页标题对齐');
         final text = tester.widget<Text>(finder);
         expect(text.style!.fontSize, 28);
+        if (scenario.$3 == 1) {
+          final bottom = tester.getBottomLeft(find.byType(AppPageHeader)).dy;
+          headerBottom ??= bottom;
+          expect(bottom, headerBottom, reason: '$title 的说明行与操作不应改变顶部高度');
+        }
         expect(tester.takeException(), isNull);
       }
       await tester.pumpWidget(const SizedBox.shrink());

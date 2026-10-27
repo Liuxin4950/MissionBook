@@ -176,6 +176,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppTopBar(
+      maxContentWidth: AppLayout.dashboardMaxWidth,
       title: '全部任务',
       actions: [
         Tooltip(

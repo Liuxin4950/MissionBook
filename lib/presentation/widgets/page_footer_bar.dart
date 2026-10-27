@@ -11,6 +11,7 @@ class PageFooterBar extends StatelessWidget {
     required this.child,
     this.topPadding = 8,
     this.bottomPadding = 16,
+    this.maxContentWidth = AppLayout.maxPageWidth,
   });
 
   /// 页面传入的主操作区（单按钮、双按钮行或按钮+提示列）。
@@ -19,6 +20,7 @@ class PageFooterBar extends StatelessWidget {
   // 上下留白可按容器微调；默认值与既有页面 footer 一致。
   final double topPadding;
   final double bottomPadding;
+  final double maxContentWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +28,7 @@ class PageFooterBar extends StatelessWidget {
       // 高度按内容收缩：footer 既可放在 Column 末尾，也可放进底部操作条。
       heightFactor: 1,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
+        constraints: BoxConstraints(maxWidth: maxContentWidth),
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             AppLayout.horizontalPadding(context),

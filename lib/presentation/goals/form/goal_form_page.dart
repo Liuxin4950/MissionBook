@@ -7,6 +7,8 @@ import '../../../domain/entities/goal.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_section_card.dart';
+import '../../widgets/page_footer_bar.dart';
 import '../../widgets/detail_pane.dart';
 
 /// 收集一个目标的输入，保存成功后把真实编号交回列表页。
@@ -221,89 +223,95 @@ class _GoalFormPageState extends State<GoalFormPage> {
                 padding: AppLayout.pagePadding(context),
                 child: Form(
                   key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        widget.goal == null ? '你希望做到什么？' : '调整目标内容',
-                        style: theme.textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 28),
-                      AppTextField(
-                        key: const Key('goal-title-input'),
-                        controller: _title,
-                        readOnly: !editable,
-                        label: '目标名称（必填）',
-                        hint: '例如：能独立开发 Flutter 应用',
-                        textInputAction: TextInputAction.next,
-                        minLines: 1,
-                        maxLines: 3,
-                        validator: (value) =>
-                            value == null || value.trim().isEmpty
-                            ? '请填写目标名称'
-                            : null,
-                      ),
-                      const SizedBox(height: 20),
-                      AppTextField(
-                        key: const Key('goal-description-input'),
-                        controller: _description,
-                        readOnly: !editable,
-                        label: '目标说明（选填）',
-                        hint: '你希望达到什么程度？',
-                        minLines: 3,
-                        maxLines: 8,
-                      ),
-                      const SizedBox(height: 20),
-                      AppTextField(
-                        key: const Key('goal-why-input'),
-                        controller: _why,
-                        readOnly: !editable,
-                        label: '为什么想实现（选填）',
-                        hint: '写给自己的一点提醒',
-                        minLines: 2,
-                        maxLines: 6,
-                      ),
-                      const SizedBox(height: 28),
-                      if (_error != null) ...[
-                        Semantics(
-                          liveRegion: true,
-                          child: Text(
-                            _error!,
-                            style: const TextStyle(color: AppColors.error),
+                  child: AppSectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          widget.goal == null ? '你希望做到什么？' : '调整目标内容',
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 24),
+                        AppTextField(
+                          key: const Key('goal-title-input'),
+                          controller: _title,
+                          readOnly: !editable,
+                          label: '目标名称（必填）',
+                          hint: '例如：能独立开发 Flutter 应用',
+                          textInputAction: TextInputAction.next,
+                          minLines: 1,
+                          maxLines: 3,
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                              ? '请填写目标名称'
+                              : null,
+                        ),
+                        const SizedBox(height: 20),
+                        AppTextField(
+                          key: const Key('goal-description-input'),
+                          controller: _description,
+                          readOnly: !editable,
+                          label: '目标说明（选填）',
+                          hint: '你希望达到什么程度？',
+                          minLines: 3,
+                          maxLines: 8,
+                        ),
+                        const SizedBox(height: 20),
+                        AppTextField(
+                          key: const Key('goal-why-input'),
+                          controller: _why,
+                          readOnly: !editable,
+                          label: '为什么想实现（选填）',
+                          hint: '写给自己的一点提醒',
+                          minLines: 2,
+                          maxLines: 6,
+                        ),
+                        const SizedBox(height: 28),
+                        if (_error != null) ...[
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              _error!,
+                              style: const TextStyle(color: AppColors.error),
+                            ),
                           ),
-                        ),
-                        TextButton(
-                          onPressed: _saving ? null : _resumeEditing,
-                          child: const Text('确认结果并继续编辑'),
-                        ),
-                        if (_latestConflict != null)
                           TextButton(
-                            onPressed: _saving ? null : _adoptLatest,
-                            child: const Text('放弃本次修改并读取最新内容'),
+                            onPressed: _saving ? null : _resumeEditing,
+                            child: const Text('确认结果并继续编辑'),
                           ),
-                        const SizedBox(height: 12),
+                          if (_latestConflict != null)
+                            TextButton(
+                              onPressed: _saving ? null : _adoptLatest,
+                              child: const Text('放弃本次修改并读取最新内容'),
+                            ),
+                          const SizedBox(height: 12),
+                        ],
                       ],
-                      FilledButton.icon(
-                        key: const Key('goal-save'),
-                        onPressed: _saving ? null : _save,
-                        icon: Icon(_saving ? Icons.hourglass_top : Icons.check),
-                        label: Text(
-                          _saving
-                              ? '正在保存…'
-                              : (_pending != null || _editResultUnknown
-                                    ? '重试保存'
-                                    : widget.goal == null
-                                    ? '创建目标'
-                                    : '保存修改'),
-                        ),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 52),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
+            ),
+          ),
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: PageFooterBar(
+            bottomPadding: 16 + MediaQuery.viewInsetsOf(context).bottom,
+            child: FilledButton.icon(
+              key: const Key('goal-save'),
+              onPressed: _saving ? null : _save,
+              icon: Icon(_saving ? Icons.hourglass_top : Icons.check),
+              label: Text(
+                _saving
+                    ? '正在保存…'
+                    : (_pending != null || _editResultUnknown
+                          ? '重试保存'
+                          : widget.goal == null
+                          ? '创建目标'
+                          : '保存修改'),
+              ),
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
             ),
           ),
         ),

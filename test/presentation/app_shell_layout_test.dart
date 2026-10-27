@@ -94,4 +94,31 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('平板横屏为正文保留双栏空间，缩放后仍保留当前页面', (tester) async {
+    await open(tester, width: 1024);
+    final rail = find.byKey(const Key('navigation-rail-width'));
+    expect(tester.getSize(rail).width, 88);
+    expect(find.byKey(const Key('today-dashboard-columns')), findsOneWidget);
+    await tester.tap(find.byTooltip('我的'));
+    await tester.pumpAndSettle();
+    final profile = find.byKey(const Key('profile-card'));
+    final overview = find.byKey(const Key('activity-overview'));
+    expect(tester.getTopLeft(profile).dy, tester.getTopLeft(overview).dy);
+
+    tester.view.physicalSize = const Size(840, 1000);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(rail).width, 88);
+    expect(
+      tester.getTopLeft(overview).dy,
+      greaterThan(tester.getBottomLeft(profile).dy),
+    );
+
+    tester.view.physicalSize = const Size(1200, 900);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(rail).width, 192);
+    expect(find.byKey(const ValueKey('page-heading-我的')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }

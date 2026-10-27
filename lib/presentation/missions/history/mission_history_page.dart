@@ -4,7 +4,8 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import '../../widgets/app_illustration.dart';
+import '../../widgets/app_empty_state.dart';
+import '../../widgets/app_section_card.dart';
 import '../../widgets/detail_pane.dart';
 
 import '../../../application/missions/mission_service.dart';
@@ -118,130 +119,115 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
           constraints: const BoxConstraints(
             maxWidth: AppLayout.dashboardMaxWidth,
           ),
-          child: Column(
-            children: [
-              Padding(
-                padding: AppLayout.pagePadding(context).copyWith(bottom: 10),
-                child: const AppPageHeader(title: '历史'),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppLayout.horizontalPadding(context),
-                ),
-                child: AppSegmentedControl<bool>(
-                  options: const {false: '执行记录', true: '已取消'},
-                  selected: _cancelled,
-                  optionKey: (value) => value
-                      ? const Key('history-cancelled')
-                      : const Key('history-finished'),
-                  onSelected: _selectCancelled,
-                ),
-              ),
-              Expanded(
-                child: FutureBuilder<List<MissionDetail>>(
-                  // 两个筛选各有自己的读取结果，切换时不复用另一类的旧快照。
-                  key: ValueKey(_cancelled),
-                  future: _records,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState != ConnectionState.done &&
-                        !snapshot.hasData &&
-                        _lastRecords == null) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError && _lastRecords == null) {
-                      return Center(
-                        child: TextButton(
-                          onPressed: _refresh,
-                          child: const Text('记录读取失败，点击重试'),
-                        ),
-                      );
-                    }
-                    final records =
-                        snapshot.data ??
-                        _lastRecords ??
-                        const <MissionDetail>[];
-                    if (snapshot.hasData) _lastRecords = snapshot.data;
-                    return RefreshIndicator(
-                      onRefresh: () async {
-                        _refresh();
-                        try {
-                          await _records;
-                        } on Object {
-                          // 读取失败由 FutureBuilder 在原页提示；结束下拉动画即可。
-                        }
-                      },
-                      child: ListView(
-                        padding: AppLayout.pagePadding(context),
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          if (snapshot.hasError)
-                            TextButton(
-                              onPressed: _refresh,
-                              child: const Text('刷新失败，当前保留上次读取的记录，点击重试'),
-                            ),
-                          if (records.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 32),
-                              child: Column(
-                                children: [
-                                  if (!_cancelled) ...[
-                                    AppIllustration(
-                                      asset:
-                                          'assets/illustrations/history-pages.png',
-                                      width: 192,
-                                      height: 144,
-                                    ),
-                                    const SizedBox(height: 20),
-                                  ],
-                                  Text(
-                                    _cancelled ? '还没有取消的任务' : '还没有执行结束的记录',
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
-                                  if (!_cancelled) ...[
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      '报告 · 专注 · 材料',
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          for (final day in {
-                            for (final record in records) _day(record),
-                          }) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                top: 12,
-                                bottom: 12,
-                              ),
-                              child: Text(
-                                day,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ),
-                            AdaptiveColumns(
-                              minColumnWidth: 360,
-                              children: [
-                                for (final record in records.where(
-                                  (record) => _day(record) == day,
-                                ))
-                                  KeyedSubtree(
-                                    key: ValueKey(record.mission.id),
-                                    child: _recordCard(record),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ],
+          child: FutureBuilder<List<MissionDetail>>(
+            // 切换分类时不复用另一类的旧快照；同类刷新保留已读记录。
+            key: ValueKey(_cancelled),
+            future: _records,
+            builder: (context, snapshot) {
+              final waiting =
+                  snapshot.connectionState != ConnectionState.done &&
+                  !snapshot.hasData &&
+                  _lastRecords == null;
+              final failed = snapshot.hasError && _lastRecords == null;
+              final records =
+                  snapshot.data ?? _lastRecords ?? const <MissionDetail>[];
+              if (snapshot.hasData) _lastRecords = snapshot.data;
+              return RefreshIndicator(
+                onRefresh: () async {
+                  _refresh();
+                  try {
+                    await _records;
+                  } on Object {
+                    // 错误在原页提示；结束下拉动画即可。
+                  }
+                },
+                child: ListView(
+                  padding: AppLayout.pagePadding(context),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    AppPageHeader(
+                      title: '历史',
+                      subtitle: Text(
+                        '执行报告、专注时间与材料',
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 16),
+                    AppSegmentedControl<bool>(
+                      options: const {false: '执行记录', true: '已取消'},
+                      selected: _cancelled,
+                      optionKey: (value) => value
+                          ? const Key('history-cancelled')
+                          : const Key('history-finished'),
+                      onSelected: _selectCancelled,
+                    ),
+                    const SizedBox(height: 20),
+                    if (waiting)
+                      const Padding(
+                        padding: EdgeInsets.all(40),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (failed)
+                      TextButton(
+                        onPressed: _refresh,
+                        child: const Text('记录读取失败，点击重试'),
+                      )
+                    else ...[
+                      if (snapshot.hasError)
+                        TextButton(
+                          onPressed: _refresh,
+                          child: const Text('刷新失败，当前保留上次读取的记录，点击重试'),
+                        ),
+                      if (records.isEmpty)
+                        Align(
+                          alignment: Alignment.topCenter,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxWidth: AppLayout.maxPageWidth,
+                            ),
+                            child: AppSectionCard(
+                              key: const Key('history-empty-state'),
+                              paperBackground: true,
+                              child: AppEmptyState(
+                                title: _cancelled ? '还没有取消的任务' : '还没有执行结束的记录',
+                                asset: 'assets/illustrations/history-pages.png',
+                                details: Text(
+                                  _cancelled
+                                      ? '取消的任务会保留在这里，方便回看。'
+                                      : '每次结束后，在这里回看报告、专注与材料。',
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      for (final day in {
+                        for (final record in records) _day(record),
+                      }) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            day,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        AdaptiveColumns(
+                          minColumnWidth: 360,
+                          children: [
+                            for (final record in records.where(
+                              (record) => _day(record) == day,
+                            ))
+                              KeyedSubtree(
+                                key: ValueKey(record.mission.id),
+                                child: _recordCard(record),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ],
                 ),
-              ),
-            ],
+              );
+            },
           ),
         ),
       ),

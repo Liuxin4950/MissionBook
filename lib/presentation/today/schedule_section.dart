@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import '../widgets/app_illustration.dart';
+import '../widgets/app_empty_state.dart';
+import '../widgets/app_section_card.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import 'today_display.dart' as display;
@@ -125,12 +126,10 @@ class _ScheduleSectionState extends State<ScheduleSection>
         : display.schedulePreview(widget.items, _now, limit: limit);
     final items = preview;
     final hidden = widget.fullList ? 0 : widget.items.length - items.length;
-    return Material(
-      color: theme.colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
+    return AppSectionCard(
+      paperBackground: widget.illustrateEmpty && items.isEmpty,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -183,29 +182,18 @@ class _ScheduleSectionState extends State<ScheduleSection>
                 ),
               ),
             if (items.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Column(
-                  children: [
-                    if (widget.illustrateEmpty) ...[
-                      AppIllustration(
-                        asset: 'assets/illustrations/day-plan.png',
-                        width: 156,
-                        height: 104,
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    Text('这一天还没有固定任务', style: theme.textTheme.bodyMedium),
-                    if (widget.onCreate != null) ...[
-                      const SizedBox(height: 12),
-                      FilledButton.tonalIcon(
+              AppEmptyState(
+                title: '这一天还没有固定任务',
+                asset: widget.illustrateEmpty
+                    ? 'assets/illustrations/day-plan.png'
+                    : null,
+                actions: widget.onCreate == null
+                    ? null
+                    : FilledButton.icon(
                         onPressed: widget.onCreate,
                         icon: const Icon(Icons.add),
                         label: const Text('新建任务'),
                       ),
-                    ],
-                  ],
-                ),
               )
             else
               AnimatedSize(

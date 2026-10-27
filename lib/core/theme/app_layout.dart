@@ -25,6 +25,10 @@ abstract final class AppLayout {
   // 断点（语义化常量）：compact < mediumBreakpoint ≤ medium < expandedBreakpoint。
   static const mediumBreakpoint = 600.0;
   static const expandedBreakpoint = 840.0;
+  static const extendedRailBreakpoint = 1200.0; // 平板优先把空间留给正文。
+
+  static bool useExtendedRail(BuildContext context) =>
+      MediaQuery.sizeOf(context).width >= extendedRailBreakpoint;
 
   // 双栏三要素：左栏最小宽 + 栏间距 + 右栏最小宽。
   // 只有内容区宽度凑齐三者才分栏，否则自动落回单列（宽窗口也可能因侧栏落回）。

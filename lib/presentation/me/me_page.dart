@@ -208,6 +208,10 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
           children: [
             AppPageHeader(
               title: '我的',
+              subtitle: Text(
+                '个人资料与行动概览',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
               action: IconButton.filledTonal(
                 key: const Key('me-settings'),
                 tooltip: '设置',
@@ -272,24 +276,9 @@ class _ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    return Container(
+    return AppSectionCard(
       key: const Key('profile-card'),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(20),
-        image: const DecorationImage(
-          image: AssetImage(
-            'assets/illustrations/profile-paper-background.png',
-          ),
-          fit: BoxFit.cover,
-          // 纸纹保持低对比，深浅文字在背景变化时依然清晰。
-          colorFilter: ColorFilter.mode(
-            Color.fromRGBO(255, 255, 255, .85),
-            BlendMode.srcOver,
-          ),
-        ),
-      ),
+      paperBackground: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

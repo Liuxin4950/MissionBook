@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/app_section_card.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
@@ -405,13 +406,9 @@ class _ScheduleCard extends StatelessWidget {
       value: '${schedule.plannedDurationMinutes} 分',
     );
 
-    return Container(
+    return AppSectionCard(
       key: const Key('mission-schedule-card'),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(24),
-      ),
+      paperBackground: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
           // constraints 是卡内可用宽度；系统放大文字后也需要更多横向空间。
