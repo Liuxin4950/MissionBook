@@ -221,6 +221,16 @@ void main() {
     final focus = find.byKey(const ValueKey('profile-stat-累计专注'));
     await tester.ensureVisible(focus);
     expect(tester.widget<Text>(focus).data, '5 分钟');
+    final record = find.byKey(const ValueKey('profile-record-done'));
+    expect(record, findsOneWidget);
+    expect(find.byKey(const ValueKey('profile-record-ongoing')), findsNothing);
+    await tester.ensureVisible(record);
+    await tester.pumpAndSettle();
+    await tester.tap(record);
+    await tester.pumpAndSettle();
+    expect(find.text('执行记录'), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
     await goals.setGoalStatus(goal, GoalStatus.paused);
     await tester.pumpAndSettle();
     final goalStat = find.byKey(const ValueKey('profile-stat-进行中目标'));
@@ -301,5 +311,23 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(find.text('提醒与权限'), findsOneWidget);
+  });
+  testWidgets('行动概览列出真实进行中目标，可打开详情并随状态变更刷新', (tester) async {
+    final goal = goals.prepareCreation(title: '真正的目标');
+    await goals.create(goal);
+    await open(tester, size: const Size(1200, 1000));
+    final shortcut = find.byKey(ValueKey('profile-goal-${goal.id}'));
+    expect(shortcut, findsOneWidget);
+    await tester.ensureVisible(shortcut);
+    await tester.pumpAndSettle();
+    await tester.tap(shortcut);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('goal-edit')), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    await goals.setGoalStatus(goal, GoalStatus.paused);
+    await tester.pumpAndSettle();
+    expect(shortcut, findsNothing);
+    expect(find.text('行动会在这里留下记录'), findsOneWidget);
   });
 }

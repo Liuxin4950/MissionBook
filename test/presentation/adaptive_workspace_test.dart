@@ -35,6 +35,7 @@ Future<void> _capture(WidgetTester tester, String name) async {
       'assets/illustrations/goal-path.png',
       'assets/illustrations/day-plan.png',
       'assets/illustrations/history-pages.png',
+      'assets/illustrations/profile-paper-background.png',
       'assets/illustrations/profile-notebook.png',
       'assets/illustrations/settings-notebook.png',
       'assets/illustrations/focus-hourglass.png',
@@ -43,7 +44,7 @@ Future<void> _capture(WidgetTester tester, String name) async {
     }
     // 页面按实际展示尺寸缓存，截图需预解码同一 ResizeImage，而不仅是原图。
     for (final (asset, width) in [
-      ('assets/illustrations/profile-notebook.png', 468),
+      ('assets/illustrations/profile-notebook.png', 630),
       ('assets/illustrations/settings-notebook.png', 300),
       ('assets/illustrations/focus-hourglass.png', 240),
       ('assets/illustrations/goal-path.png', 240),

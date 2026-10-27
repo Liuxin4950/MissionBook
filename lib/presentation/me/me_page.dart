@@ -11,7 +11,10 @@ import '../../core/theme/app_layout.dart';
 import '../../core/theme/colors.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/goal.dart';
+import '../../domain/entities/mission_detail.dart';
 import '../../domain/rules/execution_time_rules.dart';
+import '../goals/detail/goal_detail_page.dart';
+import '../missions/record/mission_record_page.dart';
 import '../widgets/adaptive_columns.dart';
 import '../widgets/app_confirm_dialog.dart';
 import '../widgets/app_illustration.dart';
@@ -46,11 +49,14 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
   String? _profileError;
   String? _statsError;
   ({int goals, int ended, int minutes})? _stats;
+  List<Goal> _activeGoals = const [];
+  List<MissionDetail> _recentRecords = const [];
   StreamSubscription<void>? _missionChanges;
   StreamSubscription<void>? _goalChanges;
   int _statsGeneration = 0;
   bool _editing = false;
   bool _openingSettings = false;
+  bool _openingDetail = false;
 
   @override
   void initState() {
@@ -100,9 +106,21 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
         }
       }
       if (!mounted || generation != _statsGeneration) return;
+      final activeGoals = goals
+          .where((goal) => goal.status == GoalStatus.active)
+          .toList();
       setState(() {
+        _activeGoals = activeGoals.take(3).toList();
+        _recentRecords = missions
+            .where(
+              (mission) =>
+                  mission.events.isNotEmpty &&
+                  mission.events.last.type == ExecutionEventType.end,
+            )
+            .take(2)
+            .toList();
         _stats = (
-          goals: goals.where((goal) => goal.status == GoalStatus.active).length,
+          goals: activeGoals.length,
           ended: ended,
           minutes: focus.inMinutes,
         );
@@ -149,6 +167,41 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _openGoal(Goal goal) async {
+    if (_openingDetail) return;
+    _openingDetail = true;
+    try {
+      await openDetailPane<void>(
+        context,
+        label: '目标详情',
+        builder: (_) => GoalDetailPage(
+          service: widget.goals,
+          goalId: goal.id,
+          missionService: widget.missions,
+        ),
+      );
+    } finally {
+      _openingDetail = false;
+      if (mounted) unawaited(_refreshStats());
+    }
+  }
+
+  Future<void> _openRecord(MissionDetail detail) async {
+    if (_openingDetail) return;
+    _openingDetail = true;
+    try {
+      await openDetailPane<void>(
+        context,
+        label: '执行记录',
+        builder: (_) =>
+            MissionRecordPage(detail: detail, service: widget.missions),
+      );
+    } finally {
+      _openingDetail = false;
+      if (mounted) unawaited(_refreshStats());
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -183,14 +236,28 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
               maxColumns: 2,
               spacing: 24,
               children: [
-                _ProfileCard(
-                  profile: _profile,
-                  error: _profileError,
-                  onEdit: _profile == null ? null : _editProfile,
-                  onRetry: _loadProfile,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ProfileCard(
+                      profile: _profile,
+                      error: _profileError,
+                      onEdit: _profile == null ? null : _editProfile,
+                      onRetry: _loadProfile,
+                    ),
+                    if (_statsError == null && _recentRecords.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _RecentRecords(
+                        records: _recentRecords,
+                        onOpen: _openRecord,
+                      ),
+                    ],
+                  ],
                 ),
                 _ActivityOverview(
                   stats: _statsError == null ? _stats : null,
+                  goals: _statsError == null ? _activeGoals : const [],
+                  onOpenGoal: _openGoal,
                   error: _statsError,
                   onRetry: _refreshStats,
                 ),
@@ -219,15 +286,31 @@ class _ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    return AppSectionCard(
+    return Container(
       key: const Key('profile-card'),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(20),
+        image: const DecorationImage(
+          image: AssetImage(
+            'assets/illustrations/profile-paper-background.png',
+          ),
+          fit: BoxFit.cover,
+          // 纸纹保持低对比，深浅文字在背景变化时依然清晰。
+          colorFilter: ColorFilter.mode(
+            Color.fromRGBO(255, 255, 255, .85),
+            BlendMode.srcOver,
+          ),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const AppIllustration(
             asset: 'assets/illustrations/profile-notebook.png',
-            width: 156,
-            height: 106,
+            width: 210,
+            height: 140,
           ),
           const SizedBox(height: 20),
           Text(
@@ -274,14 +357,51 @@ class _ProfileCard extends StatelessWidget {
   }
 }
 
+/// 最近记录使用现有历史查询结果，点击复用正式执行记录页面。
+class _RecentRecords extends StatelessWidget {
+  const _RecentRecords({required this.records, required this.onOpen});
+  final List<MissionDetail> records;
+  final ValueChanged<MissionDetail> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return AppSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            container: true,
+            header: true,
+            child: Text('最近的行动', style: text.titleMedium),
+          ),
+          const SizedBox(height: 8),
+          for (final record in records)
+            ListTile(
+              key: ValueKey('profile-record-${record.mission.id}'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(record.mission.title, style: text.bodyLarge),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => onOpen(record),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 数字只接收页面查询出的事实，空态不能将读取失败当作零。
 class _ActivityOverview extends StatelessWidget {
   const _ActivityOverview({
     required this.stats,
+    required this.goals,
+    required this.onOpenGoal,
     required this.error,
     required this.onRetry,
   });
   final ({int goals, int ended, int minutes})? stats;
+  final List<Goal> goals;
+  final ValueChanged<Goal> onOpenGoal;
   final String? error;
   final VoidCallback onRetry;
 
@@ -347,6 +467,25 @@ class _ActivityOverview extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text('累计专注仅统计已结束任务。', style: text.bodyMedium),
+          if (goals.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Divider(height: 1),
+            const SizedBox(height: 16),
+            Semantics(
+              container: true,
+              header: true,
+              child: Text('进行中的目标', style: text.titleMedium),
+            ),
+            const SizedBox(height: 8),
+            for (final goal in goals)
+              ListTile(
+                key: ValueKey('profile-goal-${goal.id}'),
+                contentPadding: EdgeInsets.zero,
+                title: Text(goal.title, style: text.bodyLarge),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => onOpenGoal(goal),
+              ),
+          ],
           if (error != null) ...[
             Semantics(
               liveRegion: true,
