@@ -3,6 +3,24 @@ import 'mission_schedule_revision.dart';
 import 'mission_phase.dart';
 import 'execution_event.dart';
 
+class PlannedMissionPoint {
+  const PlannedMissionPoint({required this.start, required this.end});
+  final DateTime start;
+  final DateTime end;
+}
+
+/// 调度只读取最邻近候选窗口及真实运行占用，不装配所有未来任务的方案和材料。
+class PlannedMissionSnapshot {
+  const PlannedMissionSnapshot({
+    required this.hasRunning,
+    required this.candidates,
+    this.refreshAfterExpiredCandidate = false,
+  });
+  final bool hasRunning;
+  final List<PlannedMissionPoint> candidates;
+  final bool refreshAfterExpiredCandidate;
+}
+
 /// 【查询组合】任务、当前排期及执行投影，供日期列表和实时标签读取。
 ///
 /// 仓储查询 missions 与 mission_schedule_revisions 后，组合两个已有业务实体。

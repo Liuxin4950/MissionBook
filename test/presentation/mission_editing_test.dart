@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'dart:async';
 
@@ -30,6 +31,7 @@ class EditingRepository extends PendingRepository {
     required String title,
     required String objective,
     required MissionScheduleRevision schedule,
+    ExecutionPlanContent? content,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
     MissionOwnership? ownership,

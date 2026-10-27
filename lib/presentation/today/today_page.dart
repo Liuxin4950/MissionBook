@@ -744,6 +744,7 @@ class _FlexibleMissionSection extends StatefulWidget {
 class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
   static const _previewCount = 3;
   bool _expanded = false;
+  int _page = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -751,7 +752,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
     // 折叠只影响排版，完整数据仍由 widget.items 提供，不再查询或转换。
     final hasMore = widget.items.length > _previewCount;
     final visibleItems = _expanded
-        ? widget.items
+        ? widget.items.skip(_page * 50).take(50)
         : widget.items.take(_previewCount);
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
@@ -792,6 +793,26 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                       clock: widget.clock,
                       item: item,
                       onTap: () => widget.onOpenMission(item.id),
+                    ),
+                  ],
+                ),
+              if (_expanded && widget.items.length > 50)
+                Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: _page == 0
+                          ? null
+                          : () => setState(() => _page--),
+                      child: const Text('上一页自选任务'),
+                    ),
+                    Text('每页 50 项，共 ${widget.items.length} 项'),
+                    TextButton(
+                      onPressed: (_page + 1) * 50 >= widget.items.length
+                          ? null
+                          : () => setState(() => _page++),
+                      child: const Text('下一页自选任务'),
                     ),
                   ],
                 ),

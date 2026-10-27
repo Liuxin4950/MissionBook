@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
-import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../domain/entities/mission.dart';
@@ -10,12 +10,17 @@ import '../../domain/entities/mission_creation.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/execution_plan.dart';
 import '../../domain/repositories/mission_repository.dart';
+import '../../domain/repositories/mission_query_repository.dart';
+import '../../domain/entities/goal_node.dart';
+import '../../domain/entities/mission_phase.dart';
+import '../../domain/rules/goal_node_record_rules.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/execution_command.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/evidence.dart';
 import '../../domain/rules/evidence_rules.dart';
+import '../../domain/rules/mission_creation_rules.dart';
 import '../evidence/evidence_image_service.dart';
 
 /// 任务的应用业务入口：组织创建、查询、编辑、取消和执行。
@@ -167,6 +172,48 @@ class MissionService {
   Future<List<MissionDetail>> findAllDetails() async {
     await reconcileEvidenceDeadlines();
     return repository.findAllDetails();
+  }
+
+  Future<PlannedMissionSnapshot> findPlannedSnapshot() async {
+    final Object source = repository;
+    if (source is MissionQueryRepository) return source.findPlannedSnapshot();
+    final all = await findAllDetails();
+    return PlannedMissionSnapshot(
+      hasRunning: all.any((detail) => detail.phase == MissionPhase.running),
+      candidates: [
+        for (final detail in all)
+          if (detail.phase == MissionPhase.notStarted &&
+              detail.schedule.fixedStartAt != null)
+            PlannedMissionPoint(
+              start: detail.schedule.fixedStartAt!,
+              end: detail.schedule.fixedStartAt!.add(
+                Duration(minutes: detail.schedule.plannedDurationMinutes),
+              ),
+            ),
+      ],
+    );
+  }
+
+  Future<List<MissionDetail>> findReminderCandidates() async {
+    final Object source = repository;
+    if (source is MissionQueryRepository) {
+      return source.findReminderCandidates();
+    }
+    return findAllDetails();
+  }
+
+  Future<({int total, int completed})> findGoalCoverage(
+    String goalId,
+    List<GoalNode> nodes,
+  ) async {
+    final Object source = repository;
+    if (source is MissionQueryRepository) {
+      return goalNodeCoverageFromIds(
+        nodes,
+        await source.findCompletedGoalNodeIds(goalId),
+      );
+    }
+    return goalNodeCoverage(nodes, await findForGoal(goalId));
   }
 
   /// 查询前/恢复前台补算，不在纯阶段函数或 Focus 重绘中写事实。
@@ -381,6 +428,7 @@ class MissionService {
     required String scheduledDate,
     required int plannedDurationMinutes,
     required TimePolicy timePolicy,
+    ExecutionPlanContent? content,
     DateTime? fixedStartAt,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
@@ -421,11 +469,16 @@ class MissionService {
       // 编辑时刻取服务注入时钟；执行事件时刻由仓储时钟在事务内提供。
       changedAt: _clock().toUtc(),
     );
+    validateMissionSchedule(proposedSchedule);
+    if (content != null) {
+      validateExecutionPlanContent(content.steps, content.notes);
+    }
     await repository.edit(
       original: original,
       title: cleanTitle,
       objective: cleanObjective,
       schedule: proposedSchedule,
+      content: content,
       verificationPolicy: verificationPolicy,
       verificationCriteria: _clean(verificationCriteria),
       ownership: ownership,
@@ -495,6 +548,8 @@ class MissionService {
     DateTime? fixedStartAt,
     MissionDetail? retrySource,
     String? objective,
+    List<String>? steps,
+    String? notes,
     VerificationPolicy verificationPolicy = VerificationPolicy.selfReport,
     String? verificationCriteria,
     DateTime? evidenceDeadlineAt,
@@ -511,6 +566,8 @@ class MissionService {
       fixedStartAt: fixedStartAt,
       retrySource: retrySource,
       objective: objective,
+      steps: steps,
+      notes: notes,
       verificationPolicy: verificationPolicy,
       verificationCriteria: verificationCriteria,
       evidenceDeadlineAt: evidenceDeadlineAt,
@@ -531,6 +588,8 @@ class MissionService {
     DateTime? fixedStartAt,
     MissionDetail? retrySource,
     String? objective,
+    List<String>? steps,
+    String? notes,
     VerificationPolicy verificationPolicy = VerificationPolicy.selfReport,
     String? verificationCriteria,
     DateTime? evidenceDeadlineAt,
@@ -595,9 +654,11 @@ class MissionService {
       id: uuid.v4(), // 方案也有自己的编号。
       missionId: missionId,
       objective: cleanObjective, // 普通创建默认标题；再次尝试允许调整具体目标。
-      steps: retrySource?.executionPlan.steps ?? const [],
+      steps: (steps ?? retrySource?.executionPlan.steps ?? const [])
+          .map((step) => step.trim())
+          .toList(),
       verificationCriteria: _clean(verificationCriteria),
-      notes: retrySource?.executionPlan.notes,
+      notes: _clean(notes ?? retrySource?.executionPlan.notes),
       createdAt: now,
       updatedAt: now,
     );
@@ -608,11 +669,18 @@ class MissionService {
       criteria: plan.verificationCriteria,
       schedule: schedule,
     );
-    return MissionCreation(mission: mission, schedule: schedule, plan: plan);
+    final request = MissionCreation(
+      mission: mission,
+      schedule: schedule,
+      plan: plan,
+    );
+    validateMissionCreation(request);
+    return request;
   }
 
   /// 使用表单保留的请求保存；重复提交同一请求由仓储识别，成功后通知页面重读。
   Future<void> createPrepared(MissionCreation request) async {
+    validateMissionCreation(request);
     await repository.create(
       mission: request.mission,
       initialSchedule: request.schedule,

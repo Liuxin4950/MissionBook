@@ -253,7 +253,7 @@ class MainActivity : FlutterActivity() {
                         if (count < 0) break
                         totalBytes += count
                         check(totalBytes <= maxBytes) {
-                            if (maxBytes == MAX_GOAL_JSON_BYTES) "目标 JSON 不能超过 2 MiB。" else "每个附件不能超过 20 MiB。"
+                            if (maxBytes == MAX_GOAL_JSON_BYTES) "目标 JSON 不能超过 32 MiB。" else "每个附件不能超过 20 MiB。"
                         }
                         output.write(buffer, 0, count)
                     }
@@ -299,7 +299,7 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val MAX_ATTACHMENT_BYTES = 20L * 1024L * 1024L
-        const val MAX_GOAL_JSON_BYTES = 2L * 1024L * 1024L
+        const val MAX_GOAL_JSON_BYTES = 32L * 1024L * 1024L
         const val FILE_SELECTOR_CHANNEL = "plugins.flutter.io/file_selector"
         const val OPEN_FILE_REQUEST_CODE = 43021
         const val SAVE_BACKUP_REQUEST_CODE = 43022

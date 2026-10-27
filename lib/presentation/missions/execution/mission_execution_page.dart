@@ -77,6 +77,15 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
       detail: widget.detail,
       service: widget.service,
     );
+    if (_report && _action.detail.phase == MissionPhase.paused) {
+      _reportSequence = _action.detail.lastSequence;
+      _reportFocus = calculateExecutionTimes(
+        _action.detail.events,
+        widget.clock().toUtc(),
+      ).focus;
+    } else {
+      _report = false;
+    }
     _action.addListener(_changed);
     _changes = widget.service.changes.listen((_) {
       // 自己提交时由 _run 重读；其它入口的变更同步界面，但不替旧报告换序号。
@@ -194,7 +203,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
     }
   }
 
-  Future<void> _refresh({bool acceptReportSequence = true}) async {
+  Future<void> _refresh({bool acceptReportSequence = false}) async {
     final ownPendingEnd = _action.pending?.type == ExecutionEventType.end
         ? _action.pending?.id
         : null;
@@ -221,7 +230,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
         _action.stale = true;
         _action.error = _action.detail.phase == MissionPhase.running
             ? '执行记录已变化，任务已继续执行。请取消本次报告后按最新状态操作，输入已保留。'
-            : '执行记录已变化，请先刷新状态再确认报告，输入已保留。';
+            : '执行记录已变化。请取消本次报告后按最新状态操作，当前输入已保留。';
       }
       setState(() {});
     }

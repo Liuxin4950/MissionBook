@@ -3,10 +3,12 @@ import '../../domain/entities/mission_ownership.dart';
 import 'drift_goal_repository.dart';
 
 import 'package:drift/drift.dart';
-import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/data/latest_all.dart' as tzdata;
 
 import '../../domain/entities/execution_plan.dart';
 import '../../domain/entities/mission.dart';
+import '../../domain/entities/mission_creation.dart';
+import '../../domain/rules/mission_creation_rules.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../../domain/entities/mission_detail.dart';
@@ -22,6 +24,7 @@ import 'evidence_mapping.dart';
 import '../../domain/rules/execution_event_rules.dart';
 
 import '../../domain/repositories/mission_repository.dart';
+import '../../domain/repositories/mission_query_repository.dart';
 
 /// 将任务转换为插入参数；枚举保存为稳定文本，绝对时刻保存为毫秒时间戳。
 // Companion 只是写入参数；实际执行和提交由下方仓储负责。
@@ -213,7 +216,8 @@ ExecutionPlan executionPlanFromRow(ExecutionPlanRow row) {
 }
 
 /// 使用同一数据库连接完成原子创建、列表查询与详情读取。
-class DriftMissionRepository implements MissionRepository {
+class DriftMissionRepository
+    implements MissionRepository, MissionQueryRepository {
   /// 接收应用持有的连接；本仓储不自行创建或关闭数据库。
   DriftMissionRepository(this.database, {this.clock = DateTime.now}) {
     tzdata.initializeTimeZones();
@@ -221,8 +225,208 @@ class DriftMissionRepository implements MissionRepository {
 
   /// 创建与查询共用的数据库连接。
   final AppDatabase database;
+
+  /// 在一个一致快照内分块读取关联事实；归属按目标复用，避免逐任务查库。
+  Future<List<MissionDetail>> _detailsForRows(List<MissionRow> rows) async {
+    final result = <MissionDetail>[];
+    final ownership = <String, MissionGoalChoices>{};
+    final paths = <MissionOwnership, MissionOwnershipInfo>{};
+    final goals = DriftGoalRepository(database);
+    for (var offset = 0; offset < rows.length; offset += 200) {
+      final page = rows.sublist(offset, (offset + 200).clamp(0, rows.length));
+      final ids = page.map((row) => row.id).toList();
+      final schedules = database.missionScheduleRevisions;
+      final history = database.alias(schedules, 'batch_schedule_history');
+      final latest = database.selectOnly(history)
+        ..addColumns([history.revisionNumber.max()])
+        ..where(history.missionId.equalsExp(schedules.missionId));
+      final scheduleRows =
+          await (database.select(schedules)..where(
+                (row) =>
+                    row.missionId.isIn(ids) &
+                    row.revisionNumber.equalsExp(
+                      subqueryExpression<int>(latest),
+                    ),
+              ))
+              .get();
+      final planRows = await (database.select(
+        database.executionPlans,
+      )..where((row) => row.missionId.isIn(ids))).get();
+      final eventRows =
+          await (database.select(database.executionEvents)
+                ..where((row) => row.missionId.isIn(ids))
+                ..orderBy([(row) => OrderingTerm.asc(row.sequence)]))
+              .get();
+      final failureRows = await (database.select(
+        database.failureRecords,
+      )..where((row) => row.missionId.isIn(ids))).get();
+      final evidenceRows =
+          await (database.select(database.evidenceRecords)
+                ..where((row) => row.missionId.isIn(ids))
+                ..orderBy([
+                  (row) => OrderingTerm.asc(row.submittedAt),
+                  (row) => OrderingTerm.asc(row.id),
+                ]))
+              .get();
+      final scheduleByMission = {
+        for (final row in scheduleRows) row.missionId: row,
+      };
+      final planByMission = {for (final row in planRows) row.missionId: row};
+      final events = <String, List<ExecutionEvent>>{};
+      final failures = <String, List<FailureRecord>>{};
+      final evidence = <String, List<Evidence>>{};
+      for (final row in eventRows) {
+        (events[row.missionId] ??= []).add(eventFromRow(row));
+      }
+      for (final row in failureRows) {
+        (failures[row.missionId] ??= []).add(failureFromRow(row));
+      }
+      for (final row in evidenceRows) {
+        (evidence[row.missionId] ??= []).add(evidenceFromRow(row));
+      }
+      for (final row in page) {
+        final goalId = row.goalId;
+        if (goalId != null && !ownership.containsKey(goalId)) {
+          final goal = await goals.findById(goalId);
+          if (goal == null) throw const FormatException('任务所属目标缺失');
+          ownership[goalId] = MissionGoalChoices(
+            goal: goal,
+            nodes: await goals.findNodes(goalId),
+          );
+        }
+        final scheduleRow = scheduleByMission[row.id];
+        final planRow = planByMission[row.id];
+        if (scheduleRow == null || planRow == null) {
+          throw const FormatException('任务缺少排期或执行方案');
+        }
+        final mission = missionFromRow(row);
+        final schedule = scheduleFromRow(scheduleRow);
+        final plan = executionPlanFromRow(planRow);
+        final eventList = events[row.id] ?? const <ExecutionEvent>[];
+        final failureList = failures[row.id] ?? const <FailureRecord>[];
+        final evidenceList = evidence[row.id] ?? const <Evidence>[];
+        validateEvidenceRequirement(
+          policy: mission.verificationPolicy,
+          criteria: plan.verificationCriteria,
+          schedule: schedule,
+        );
+        deriveMissionPhase(
+          mission,
+          eventList,
+          failureList,
+          evidenceList,
+          schedule,
+        );
+        result.add(
+          MissionDetail(
+            mission: mission,
+            schedule: schedule,
+            executionPlan: plan,
+            events: List.unmodifiable(eventList),
+            failures: List.unmodifiable(failureList),
+            evidence: List.unmodifiable(evidenceList),
+            ownershipInfo: goalId == null
+                ? null
+                : paths.putIfAbsent(
+                    mission.ownership,
+                    () => ownership[goalId]!.resolve(mission.ownership),
+                  ),
+          ),
+        );
+      }
+    }
+    return result;
+  }
+
   // 只用于捕获实际操作时刻；测试注入可控时钟，不允许命令指定 occurredAt。
   final DateTime Function() clock;
+
+  static const _unstartedFixed = '''
+FROM missions m JOIN mission_schedule_revisions r ON r.mission_id=m.id
+WHERE m.cancelled_at IS NULL AND r.time_policy='FIXED'
+ AND NOT EXISTS(SELECT 1 FROM execution_events e WHERE e.mission_id=m.id AND e.type='START')
+ AND NOT EXISTS(SELECT 1 FROM mission_schedule_revisions newer
+   WHERE newer.mission_id=m.id AND newer.revision_number>r.revision_number)
+''';
+
+  @override
+  Future<PlannedMissionSnapshot> findPlannedSnapshot() =>
+      database.transaction(() async {
+        final checkedAt = _now().millisecondsSinceEpoch;
+        final hasRunning = (await findActive()).any(
+          (detail) => detail.phase == MissionPhase.running,
+        );
+        final row = await database
+            .customSelect(
+              '''
+SELECT r.fixed_start_at, r.planned_duration_minutes
+$_unstartedFixed
+ AND (r.fixed_start_at > ? OR r.fixed_start_at + r.planned_duration_minutes*60000 > ?)
+ORDER BY r.fixed_start_at,m.id LIMIT 1
+''',
+              variables: [Variable<int>(checkedAt), Variable<int>(checkedAt)],
+            )
+            .getSingleOrNull();
+        return PlannedMissionSnapshot(
+          hasRunning: hasRunning,
+          refreshAfterExpiredCandidate: true,
+          candidates: row == null
+              ? []
+              : [
+                  PlannedMissionPoint(
+                    start: DateTime.fromMillisecondsSinceEpoch(
+                      row.read<int>('fixed_start_at'),
+                      isUtc: true,
+                    ),
+                    end: DateTime.fromMillisecondsSinceEpoch(
+                      row.read<int>('fixed_start_at') +
+                          row.read<int>('planned_duration_minutes') * 60000,
+                      isUtc: true,
+                    ),
+                  ),
+                ],
+        );
+      });
+
+  @override
+  Future<List<MissionDetail>> findReminderCandidates() =>
+      database.transaction(() async {
+        final checkedAt = _now().millisecondsSinceEpoch;
+        final active = await findActive();
+        final rows = await database
+            .customSelect(
+              '''
+SELECT m.* $_unstartedFixed
+ORDER BY CASE WHEN r.fixed_start_at+r.planned_duration_minutes*60000 > ? THEN 0 ELSE 1 END,
+ CASE WHEN r.fixed_start_at+r.planned_duration_minutes*60000 > ?
+   THEN r.fixed_start_at ELSE -r.fixed_start_at END, m.id
+LIMIT 64
+''',
+              variables: [Variable<int>(checkedAt), Variable<int>(checkedAt)],
+            )
+            .get();
+        return [
+          ...active,
+          ...await _detailsForRows([
+            for (final row in rows) database.missions.map(row.data),
+          ]),
+        ];
+      });
+
+  @override
+  Future<Set<String>> findCompletedGoalNodeIds(String goalId) async {
+    final rows = await database
+        .customSelect(
+          '''
+SELECT DISTINCT m.goal_node_id FROM missions m
+JOIN execution_events e ON e.mission_id=m.id AND e.type='END' AND e.user_reported_result='COMPLETED'
+WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
+''',
+          variables: [Variable<String>(goalId)],
+        )
+        .get();
+    return {for (final row in rows) row.read<String>('goal_node_id')};
+  }
 
   @override
   Future<List<MissionGoalChoices>> findGoalChoices() =>
@@ -281,11 +485,7 @@ class DriftMissionRepository implements MissionRepository {
                     (table) => OrderingTerm.asc(table.id),
                   ]))
                 .get();
-        final result = <MissionDetail>[];
-        for (final row in rows) {
-          result.add((await findDetail(row.id))!); // 复用唯一的阶段、材料和执行时间线查询。
-        }
-        return result;
+        return _detailsForRows(rows);
       });
 
   Future<void> _acquireWrite(String missionId) async {
@@ -569,60 +769,51 @@ class DriftMissionRepository implements MissionRepository {
   }
 
   @override
-  Future<List<String>> startDueScheduledMissions() => database.transaction(
-    () async {
-      // 与手动执行、改期和取消共用全局 SQLite 写锁；不能先读后抢锁。
-      await _acquireGlobalWrite();
-      final now = _now();
-      final details = await findAllDetails();
-      final due = details.where((detail) {
-        final start = detail.schedule.fixedStartAt;
-        return detail.phase == MissionPhase.notStarted &&
-            start != null &&
-            !start.isAfter(now) &&
-            start
-                .add(Duration(minutes: detail.schedule.plannedDurationMinutes))
-                .isAfter(now);
-      }).toList();
-      due.sort((a, b) {
-        final order = a.schedule.fixedStartAt!.compareTo(
-          b.schedule.fixedStartAt!,
-        );
-        return order == 0 ? a.mission.id.compareTo(b.mission.id) : order;
-      });
-      if (due.isEmpty) return <String>[];
-      // 多项同时到点时稳定选择第一项；已有 RUNNING 则保留当前任务。
-      final changed = <String>[];
-      for (final detail in due) {
-        final running = (await findActive()).where(
-          (item) => item.phase == MissionPhase.running,
-        );
-        if (running.isNotEmpty) break;
-        // 查询耗时可能跨过结束边界；同一次写事务内捕获时刻并用于后续 START，
-        // 避免用过期筛选结果开始任务，或在校验后换用另一个发生时刻。
-        final startedAt = _now();
-        final end = detail.schedule.fixedStartAt!.add(
-          Duration(minutes: detail.schedule.plannedDurationMinutes),
-        );
-        if (startedAt.isBefore(detail.schedule.fixedStartAt!) ||
-            !startedAt.isBefore(end)) {
-          continue;
+  Future<List<String>> startDueScheduledMissions() =>
+      database.transaction(() async {
+        await _acquireGlobalWrite();
+        if ((await findActive()).any(
+          (detail) => detail.phase == MissionPhase.running,
+        )) {
+          return <String>[];
         }
-        await _execute(
-          ExecutionCommand(
-            id: 'scheduled-start-${detail.schedule.id}',
-            missionId: detail.mission.id,
-            expectedSequence: 0,
-            type: ExecutionEventType.start,
-            scheduleRevisionId: detail.schedule.id,
-          ),
-          occurredAt: startedAt,
-        );
-        changed.add(detail.mission.id);
-      }
-      return changed;
-    },
-  );
+        for (var attempt = 0; attempt < 64; attempt++) {
+          final checkedAt = _now().millisecondsSinceEpoch;
+          final row = await database
+              .customSelect(
+                '''
+SELECT m.id $_unstartedFixed
+ AND r.fixed_start_at <= ? AND r.fixed_start_at+r.planned_duration_minutes*60000 > ?
+ORDER BY r.fixed_start_at,m.id LIMIT 1
+''',
+                variables: [Variable<int>(checkedAt), Variable<int>(checkedAt)],
+              )
+              .getSingleOrNull();
+          if (row == null) return <String>[];
+          final detail = await findDetail(row.read<String>('id'));
+          if (detail == null) throw const FormatException('到点任务缺失');
+          final startedAt = _now();
+          final end = detail.schedule.fixedStartAt!.add(
+            Duration(minutes: detail.schedule.plannedDurationMinutes),
+          );
+          if (startedAt.isBefore(detail.schedule.fixedStartAt!) ||
+              !startedAt.isBefore(end)) {
+            continue;
+          }
+          await _execute(
+            ExecutionCommand(
+              id: 'scheduled-start-${detail.schedule.id}',
+              missionId: detail.mission.id,
+              expectedSequence: 0,
+              type: ExecutionEventType.start,
+              scheduleRevisionId: detail.schedule.id,
+            ),
+            occurredAt: startedAt,
+          );
+          return [detail.mission.id];
+        }
+        return <String>[];
+      });
 
   @override
   Future<ExecutionEvent> execute(ExecutionCommand command) => _execute(command);
@@ -782,13 +973,7 @@ class DriftMissionRepository implements MissionRepository {
                 (row) => OrderingTerm.asc(row.id),
               ]))
             .get();
-    final result = <MissionDetail>[];
-    for (final row in rows) {
-      final detail = await findDetail(row.id);
-      if (detail == null) throw const FormatException('取消记录所属任务缺失');
-      result.add(detail);
-    }
-    return result;
+    return _detailsForRows(rows);
   });
 
   @override
@@ -800,13 +985,7 @@ class DriftMissionRepository implements MissionRepository {
                   (row) => OrderingTerm.asc(row.id),
                 ]))
                 .get();
-        final result = <MissionDetail>[];
-        for (final row in rows) {
-          final detail = await findDetail(row.id); // 每项仍经唯一事实组合与阶段校验。
-          if (detail == null) throw const FormatException('任务列表中存在无法读取的任务');
-          result.add(detail);
-        }
-        return result;
+        return _detailsForRows(rows);
       });
 
   Future<List<MissionDetail>> _findByExecution({required bool ended}) {
@@ -817,12 +996,20 @@ class DriftMissionRepository implements MissionRepository {
             readsFrom: {database.executionEvents},
           )
           .get();
-      final details = <MissionDetail>[];
-      for (final row in rows) {
-        final detail = await findDetail(row.read<String>('mission_id'));
-        if (detail == null) throw const FormatException('执行事件所属任务缺失');
-        details.add(detail);
+      final missionRows = <MissionRow>[];
+      final ids = rows.map((row) => row.read<String>('mission_id')).toList();
+      for (var offset = 0; offset < ids.length; offset += 200) {
+        final page = ids.sublist(offset, (offset + 200).clamp(0, ids.length));
+        missionRows.addAll(
+          await (database.select(
+            database.missions,
+          )..where((row) => row.id.isIn(page))).get(),
+        );
       }
+      if (missionRows.length != ids.length) {
+        throw const FormatException('执行事件所属任务缺失');
+      }
+      final details = await _detailsForRows(missionRows);
       details.sort((a, b) {
         if (!ended && a.phase != b.phase) {
           return a.phase == MissionPhase.running ? -1 : 1;
@@ -844,6 +1031,7 @@ class DriftMissionRepository implements MissionRepository {
     required String title,
     required String objective,
     required MissionScheduleRevision schedule,
+    ExecutionPlanContent? content,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
     MissionOwnership? ownership,
@@ -852,6 +1040,7 @@ class DriftMissionRepository implements MissionRepository {
     bool updateContext = false,
   }) async {
     final missionId = original.mission.id;
+    validateMissionSchedule(schedule);
     if (missionId.trim().isEmpty ||
         title.trim().isEmpty ||
         objective.trim().isEmpty ||
@@ -874,6 +1063,14 @@ class DriftMissionRepository implements MissionRepository {
       final scheduleChanged = !_sameSchedule(current.schedule, schedule);
       final titleChanged = current.mission.title != title;
       final objectiveChanged = current.executionPlan.objective != objective;
+      final newSteps = content?.steps ?? original.executionPlan.steps;
+      final newNotes = content == null
+          ? original.executionPlan.notes
+          : content.notes;
+      validateExecutionPlanContent(newSteps, newNotes);
+      final contentChanged =
+          jsonEncode(newSteps) != jsonEncode(current.executionPlan.steps) ||
+          newNotes != current.executionPlan.notes;
       final newPolicy =
           verificationPolicy ?? original.mission.verificationPolicy;
       final newCriteria = verificationPolicy == null
@@ -902,6 +1099,7 @@ class DriftMissionRepository implements MissionRepository {
       if (!scheduleChanged &&
           !titleChanged &&
           !objectiveChanged &&
+          !contentChanged &&
           !policyChanged &&
           !criteriaChanged &&
           !ownershipChanged &&
@@ -917,6 +1115,9 @@ class DriftMissionRepository implements MissionRepository {
           current.executionPlan.id != oldPlan.id ||
           current.executionPlan.updatedAt != oldPlan.updatedAt ||
           current.executionPlan.objective != oldPlan.objective ||
+          jsonEncode(current.executionPlan.steps) !=
+              jsonEncode(oldPlan.steps) ||
+          current.executionPlan.notes != oldPlan.notes ||
           current.mission.verificationPolicy != oldMission.verificationPolicy ||
           current.mission.ownership != oldMission.ownership ||
           current.mission.description != oldMission.description ||
@@ -959,12 +1160,14 @@ class DriftMissionRepository implements MissionRepository {
           }),
         ),
       );
-      if (objectiveChanged || criteriaChanged) {
+      if (objectiveChanged || criteriaChanged || contentChanged) {
         final planUpdate = database.update(database.executionPlans);
         planUpdate.where((table) => table.id.equals(current.executionPlan.id));
         await planUpdate.write(
           ExecutionPlansCompanion(
             objective: Value(objective),
+            steps: Value(jsonEncode(newSteps)),
+            notes: Value(newNotes),
             verificationCriteria: Value(newCriteria),
             updatedAt: Value(now),
           ),
@@ -1160,25 +1363,18 @@ class DriftMissionRepository implements MissionRepository {
       final rows = await query.get();
 
       // 5. 逐条转换：关联结果 → 两张表的行对象 → 两个业务对象 → 一项列表数据。
-      final result = <ScheduledMission>[];
-      for (final row in rows) {
-        final missionRow = row.readTable(missions); // MissionRow
-        final scheduleRow = row.readTable(
-          schedules,
-        ); // MissionScheduleRevisionRow
-
-        final mission = missionFromRow(missionRow); // 用户已有的反向转换函数
-        final schedule = scheduleFromRow(scheduleRow);
-        // 日期已经选好任务；再读取它的执行事实，用同一套规则计算列表阶段。
-        final detail = await findDetail(mission.id);
-        final item = ScheduledMission(
-          mission: mission,
-          schedule: schedule,
-          phase: detail!.phase,
-          events: detail.events,
-        );
-        result.add(item);
-      }
+      final details = await _detailsForRows([
+        for (final row in rows) row.readTable(missions),
+      ]);
+      final result = [
+        for (final detail in details)
+          ScheduledMission(
+            mission: detail.mission,
+            schedule: detail.schedule,
+            phase: detail.phase,
+            events: detail.events,
+          ),
+      ];
 
       // 6. 交回查询业务入口，再由它把同一份列表交给今天页。
       return result;
@@ -1191,6 +1387,13 @@ class DriftMissionRepository implements MissionRepository {
     required MissionScheduleRevision initialSchedule,
     required ExecutionPlan executionPlan,
   }) async {
+    validateMissionCreation(
+      MissionCreation(
+        mission: mission,
+        schedule: initialSchedule,
+        plan: executionPlan,
+      ),
+    );
     // 先检查关联关系：排期、方案必须属于传入的这个任务。
     // || 表示“或者”，任意一个编号不一致就报错并停止执行。
     if (initialSchedule.missionId != mission.id ||

@@ -8,13 +8,33 @@ import '../../domain/entities/goal_outline_import.dart';
 import '../../domain/repositories/goal_repository.dart';
 import 'goal_file_picker.dart';
 import 'goal_outline_parser.dart';
+import 'goal_package_import_service.dart';
+import '../../domain/entities/goal_package_import.dart';
 
 /// 组织目标的创建和查询；页面不直接调用数据库仓储。
 class GoalService {
-  GoalService(this.repository, {GoalFilePicker? filePicker})
+  GoalService(this.repository, {GoalFilePicker? filePicker, this.packages})
     : _filePicker = filePicker;
   final GoalRepository repository; // 只依赖接口，App 决定传入哪种存储实现。
   final GoalFilePicker? _filePicker;
+  final GoalPackageImportService? packages;
+  void refreshAfterExternalCommit() => _notify();
+
+  Future<GoalImportSource?> pickImportSource() async {
+    final picker = _filePicker;
+    if (picker == null) throw UnsupportedError('当前环境无法选取文件，请粘贴 JSON');
+    if (picker is GoalSourcePicker) return picker.pickSource();
+    final bytes = await picker.pickBytes();
+    if (bytes == null) return null;
+    return GoalImportSource(
+      name: '目标 JSON',
+      length: bytes.length,
+      openRead: () async* {
+        yield bytes;
+      },
+    );
+  }
+
   final _uuid = const Uuid();
   final _changes =
       StreamController<void>.broadcast(); // 创建允许多个页面同时监听的控制器，服务通过它发送事件。

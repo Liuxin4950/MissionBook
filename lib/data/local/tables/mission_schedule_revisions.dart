@@ -4,6 +4,9 @@ import 'missions.dart';
 
 // 查询得到的一条排期记录，生成类型名为 MissionScheduleRevisionRow。
 @DataClassName('MissionScheduleRevisionRow')
+@TableIndex.sql(
+  'CREATE INDEX mission_schedule_fixed ON mission_schedule_revisions(time_policy, fixed_start_at, mission_id, revision_number)',
+)
 class MissionScheduleRevisions extends Table {
   // 这条排期记录自身的唯一编号。
   TextColumn get id => text()();

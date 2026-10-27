@@ -17,8 +17,8 @@ class _SlowScheduledRead extends DriftMissionRepository {
   void Function()? afterRead;
 
   @override
-  Future<List<MissionDetail>> findAllDetails() async {
-    final result = await super.findAllDetails();
+  Future<MissionDetail?> findDetail(String missionId) async {
+    final result = await super.findDetail(missionId);
     afterRead?.call();
     return result;
   }

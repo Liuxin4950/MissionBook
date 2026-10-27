@@ -42,7 +42,8 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   List<GoalNode>? _lastNodes;
   StreamSubscription<void>? _subscription; // 保存 listen 返回的订阅，以便页面关闭时停止监听。
   StreamSubscription<void>? _missionSubscription;
-  Future<List<MissionDetail>>? _missions;
+  Future<Map<String?, List<MissionDetail>>>? _missionsByNode;
+  final _directMissions = <String?, Future<List<MissionDetail>>>{};
   final _taskSections = <String, GlobalKey<GoalMissionsSectionState>>{};
 
   Future<bool> prepareToCollapse({
@@ -73,8 +74,17 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   }
 
   void _loadMissions() {
-    _missions = widget.missionService?.findForGoal(widget.goalId);
-    _missions?.ignore();
+    _directMissions.clear();
+    _missionsByNode = widget.missionService?.findForGoal(widget.goalId).then((
+      records,
+    ) {
+      final groups = <String?, List<MissionDetail>>{};
+      for (final detail in records) {
+        (groups[detail.mission.goalNodeId] ??= []).add(detail);
+      }
+      return groups;
+    });
+    _missionsByNode?.ignore();
   }
 
   Future<List<GoalNode>> _load() {
@@ -619,7 +629,11 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     goal: widget.goal!,
     node: node,
     service: widget.missionService!,
-    missions: _missions!,
+    missions: _directMissions.putIfAbsent(
+      node?.id,
+      () => _missionsByNode!.then((groups) => groups[node?.id] ?? []),
+    ),
+    directOnly: true,
     onRefresh: _refresh,
   );
 

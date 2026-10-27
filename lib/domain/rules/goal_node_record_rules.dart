@@ -24,9 +24,7 @@ String nodeRecordLabel(List<MissionDetail> directMissions) {
   )) {
     return '执行中';
   }
-  if (directMissions.any(
-    (detail) => detail.phase == MissionPhase.notStarted,
-  )) {
+  if (directMissions.any((detail) => detail.phase == MissionPhase.notStarted)) {
     return '已安排';
   }
   return '暂无完成记录';
@@ -48,9 +46,19 @@ String nodeRecordLabel(List<MissionDetail> directMissions) {
       completedNodeIds.add(nodeId);
     }
   }
+  return goalNodeCoverageFromIds(nodes, completedNodeIds);
+}
+
+/// 完成节点编号来自直接关联任务的 END(COMPLETED)，可由批量查询提供。
+({int total, int completed}) goalNodeCoverageFromIds(
+  List<GoalNode> nodes,
+  Set<String> completedNodeIds,
+) {
   final active = nodes.where((node) => node.archivedAt == null).toList();
   return (
     total: active.length,
-    completed: active.where((node) => completedNodeIds.contains(node.id)).length,
+    completed: active
+        .where((node) => completedNodeIds.contains(node.id))
+        .length,
   );
 }

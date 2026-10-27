@@ -44,6 +44,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
   Timer? _timer;
   bool _visible = false;
   bool _appVisible = true;
+  int _page = 0;
 
   @override
   void initState() {
@@ -63,6 +64,11 @@ class _ScheduleSectionState extends State<ScheduleSection>
   @override
   void didUpdateWidget(covariant ScheduleSection oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final last = widget.items.isEmpty ? 0 : (widget.items.length - 1) ~/ 50;
+    if (_page > last ||
+        !DateUtils.isSameDay(oldWidget.selectedDate, widget.selectedDate)) {
+      _page = 0;
+    }
     _syncClock();
   }
 
@@ -115,10 +121,10 @@ class _ScheduleSectionState extends State<ScheduleSection>
         .floor()
         .clamp(2, 4);
     final preview = widget.fullList
-        ? widget.items
+        ? widget.items.skip(_page * 50).take(50).toList()
         : display.schedulePreview(widget.items, _now, limit: limit);
     final items = preview;
-    final hidden = widget.items.length - items.length;
+    final hidden = widget.fullList ? 0 : widget.items.length - items.length;
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
       borderRadius: BorderRadius.circular(20),
@@ -227,6 +233,26 @@ class _ScheduleSectionState extends State<ScheduleSection>
                       ),
                   ],
                 ),
+              ),
+            if (widget.fullList && widget.items.length > 50)
+              Wrap(
+                spacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: _page == 0
+                        ? null
+                        : () => setState(() => _page--),
+                    child: const Text('上一页日程'),
+                  ),
+                  Text('每页 50 项，共 ${widget.items.length} 项'),
+                  TextButton(
+                    onPressed: (_page + 1) * 50 >= widget.items.length
+                        ? null
+                        : () => setState(() => _page++),
+                    child: const Text('下一页日程'),
+                  ),
+                ],
               ),
             if (hidden > 0)
               TextButton(

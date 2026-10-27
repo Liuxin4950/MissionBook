@@ -1,0 +1,11 @@
+   Woah! You appear to be trying to run flutter as root.
+   We strongly recommend running the flutter tool without superuser privileges.
+  /
+📎
+Flutter assets will be downloaded from https://storage.flutter-io.cn. Make sure you trust this source!
+00:00 +0: loading /root/Working/MissionBook/test/_goal_10k_research_20261027_test.dart
+00:00 +0: 现有解析器接受大纲对照，拒绝新目标包
+CONTRACT_EXISTING: outline accepted; goal-package rejected
+00:00 +1: 文件 SQLite 一万任务批写、候选查询、回滚和重开
+GOAL_10K_PROBE {"counts":{"goals":1,"goal_nodes":500,"missions":10000,"execution_plans":10000,"mission_schedule_revisions":10000,"execution_events":0,"evidence_records":0,"failure_records":0,"research_receipts":1},"batchWriteMs":499,"candidateQueryMs":1,"candidateRows":24,"rollbackAt5000Ms":198,"fileBytesBeforeReopen":5332992,"queryPlan":["SEARCH r USING COVERING INDEX research_due_start (time_policy=? AND fixed_start_at>? AND fixed_start_at<?)","CORRELATED SCALAR SUBQUERY 1","SEARCH newer USING COVERING INDEX sqlite_autoindex_mission_schedule_revisions_2 (mission_id=? AND revision_number>?)","SEARCH m USING INDEX sqlite_autoindex_missions_1 (id=?)","CORRELATED SCALAR SUBQUERY 2","SEARCH e USING COVERING INDEX execution_events_one_start (mission_id=?)","USE TEMP B-TREE FOR LAST TERM OF ORDER BY"],"reopen":"passed","scope":"synthetic host file SQLite; not app import or device"}
+00:01 +2: All tests passed!

@@ -26,6 +26,7 @@ class GoalMissionsSection extends StatefulWidget {
     this.leading,
     this.trailing,
     this.annotation,
+    this.directOnly = false,
   });
   final Goal goal;
   final GoalNode? node; // null 时只显示“关联目标、没有关联节点”的任务。
@@ -35,6 +36,7 @@ class GoalMissionsSection extends StatefulWidget {
   final Widget? leading; // 节点树传入展开箭头；任务区负责把它与节点标题放在同一行。
   final Widget? trailing; // 节点维护菜单，由原来的树组件提供，操作逻辑不搬到这里。
   final String? annotation;
+  final bool directOnly;
   @override
   State<GoalMissionsSection> createState() => GoalMissionsSectionState();
 }
@@ -42,6 +44,7 @@ class GoalMissionsSection extends StatefulWidget {
 class GoalMissionsSectionState extends State<GoalMissionsSection> {
   bool _expanded = false;
   bool _opening = false;
+  int _pageIndex = 0;
   List<MissionDetail>? _lastMissions;
   Future<void> createMission() => _open(); // 节点菜单与行内按钮共用同一个建任务入口。
 
@@ -108,7 +111,9 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
         final direct =
             _lastMissions
                 ?.where(
-                  (detail) => detail.mission.goalNodeId == widget.node?.id,
+                  (detail) =>
+                      widget.directOnly ||
+                      detail.mission.goalNodeId == widget.node?.id,
                 )
                 .toList() ??
             [];
@@ -333,13 +338,41 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     onPressed: widget.onRefresh,
                     child: const Text('重试读取任务'),
                   ),
-                for (final detail in direct)
+                for (final detail
+                    in direct
+                        .skip(
+                          (_pageIndex * 50).clamp(
+                            0,
+                            direct.isEmpty ? 0 : (direct.length - 1) ~/ 50 * 50,
+                          ),
+                        )
+                        .take(50))
                   _taskTile(
                     context,
                     detail,
                     emphasized:
                         detail.phase == MissionPhase.running ||
                         detail.phase == MissionPhase.paused,
+                  ),
+                if (direct.length > 50)
+                  Wrap(
+                    spacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      TextButton(
+                        onPressed: _pageIndex == 0
+                            ? null
+                            : () => setState(() => _pageIndex--),
+                        child: const Text('上一页任务'),
+                      ),
+                      Text('每页 50 项，共 ${direct.length} 项'),
+                      TextButton(
+                        onPressed: (_pageIndex + 1) * 50 >= direct.length
+                            ? null
+                            : () => setState(() => _pageIndex++),
+                        child: const Text('下一页任务'),
+                      ),
+                    ],
                   ),
               ],
             ],

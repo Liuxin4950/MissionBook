@@ -68,6 +68,7 @@ class PendingRepository implements MissionRepository {
     required String title,
     required String objective,
     required MissionScheduleRevision schedule,
+    ExecutionPlanContent? content,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
     MissionOwnership? ownership,

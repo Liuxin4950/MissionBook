@@ -118,13 +118,21 @@ class AppNotificationService {
   Future<void> _runRefresh() async {
     do {
       _refreshAgain = false;
-      final missions = await _missions.findAllDetails();
+      final missions = await _missions.findReminderCandidates();
+      final current = missions.map((detail) => detail.mission.id).toSet();
+      for (final id in _store.synchronizedMissions.difference(current)) {
+        await _cancelStartReminders(id);
+        final execution = _store.notificationIds[_executionKey(id)];
+        if (execution != null) await _dispatcher.cancel(execution);
+        await _store.discard(id);
+      }
       final hasRunning = missions.any(
         (item) => item.phase == MissionPhase.running,
       );
       for (final detail in missions) {
         await _syncOne(detail, hasRunning: hasRunning);
       }
+      await _store.rememberSynchronizedMissions(current);
     } while (_refreshAgain);
   }
 

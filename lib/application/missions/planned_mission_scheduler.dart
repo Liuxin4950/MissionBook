@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import '../../domain/entities/mission_phase.dart';
 import 'mission_service.dart';
 
 /// 前台自动执行与系统唤醒共用的调度流程；Timer 只负责唤醒，事实由仓储写入。
@@ -59,22 +58,23 @@ class PlannedMissionScheduler {
       _retryTimer?.cancel();
       await beforeRefresh?.call();
       await missions.startDueScheduledMissions();
-      final details = await missions.findAllDetails();
+      final snapshot = await missions.findPlannedSnapshot();
       final checkedAt = now();
-      final hasRunning = details.any(
-        (detail) => detail.phase == MissionPhase.running,
-      );
+      final hasRunning = snapshot.hasRunning;
       DateTime? next;
-      for (final detail in details) {
-        final at = detail.schedule.fixedStartAt;
-        if (detail.phase != MissionPhase.notStarted || at == null) continue;
+      for (final candidate in snapshot.candidates) {
+        final at = candidate.start;
         // 已到点但被当前 RUNNING 阻塞时，等待下一次任务变化，避免零时长忙循环。
         if (!at.isAfter(checkedAt)) {
-          final end = at.add(
-            Duration(minutes: detail.schedule.plannedDurationMinutes),
-          );
+          final end = candidate.end;
           if (!hasRunning && end.isAfter(checkedAt)) {
             // 查询期间刚好跨过开始时刻时，再执行一次事务，不能漏掉这次唤醒。
+            _again = true;
+          }
+          if (!hasRunning &&
+              !end.isAfter(checkedAt) &&
+              snapshot.refreshAfterExpiredCandidate) {
+            // 查询过程中跨过整个时段：下一次候选查询会排除它，再寻找后续计划。
             _again = true;
           }
           continue;

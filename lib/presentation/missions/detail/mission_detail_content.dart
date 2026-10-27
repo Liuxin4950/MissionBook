@@ -169,10 +169,7 @@ class MissionDetailContent extends StatelessWidget {
               ),
               // 主按钮在滚动区外，始终可见；窄屏和系统字体放大时按内容增高。
               if (footer != null)
-                SafeArea(
-                  top: false,
-                  child: PageFooterBar(child: footer!),
-                ),
+                SafeArea(top: false, child: PageFooterBar(child: footer!)),
             ],
           ),
         ),

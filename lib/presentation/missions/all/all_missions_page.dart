@@ -220,6 +220,31 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                           detail.schedule.scheduledDate.compareTo(todayKey) <
                               0));
               // 保留计划日期入口，也补上实际区间覆盖日，跨日执行可在对应日阅读。
+              final dayKey = _day == null ? null : _dateKey(_day!);
+              final volume = dayKey == null
+                  ? all.length
+                  : all
+                        .where(
+                          (detail) => timetableDateKeys(
+                            detail,
+                            widget.clock(),
+                          ).contains(dayKey),
+                        )
+                        .length;
+              final large = volume > 250;
+              final pagedRecords = large
+                  ? all
+                        .where(
+                          (detail) =>
+                              matches(detail) &&
+                              (dayKey == null ||
+                                  timetableDateKeys(
+                                    detail,
+                                    widget.clock(),
+                                  ).contains(dayKey)),
+                        )
+                        .toList()
+                  : <MissionDetail>[];
               final dates = <String>{
                 for (final detail in all.where(matches))
                   ...timetableDateKeys(detail, widget.clock()),
@@ -261,7 +286,13 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                         ),
                       ),
                     const SizedBox(height: 20),
-                    if (_day != null)
+                    if (large)
+                      _PagedMissionRows(
+                        key: ValueKey('$_day|$_phase|$_goalId|$_pastUnstarted'),
+                        records: pagedRecords,
+                        buildRow: (detail) => _row(context, detail),
+                      )
+                    else if (_day != null)
                       _tasksForDay(context, all, _day!, matches)
                     else if (dates.isEmpty)
                       _empty(context)
@@ -741,6 +772,63 @@ class _AllMissionsPageState extends State<AllMissionsPage>
           Text('深色方格表示当天有完成报告；计划与完成分别计算。', style: theme.textTheme.bodySmall),
         ],
       ),
+    );
+  }
+}
+
+/// 大量任务时使用固定页容量，避免构建巨量时间轴交集和卡片。
+class _PagedMissionRows extends StatefulWidget {
+  const _PagedMissionRows({
+    super.key,
+    required this.records,
+    required this.buildRow,
+  });
+  final List<MissionDetail> records;
+  final Widget Function(MissionDetail) buildRow;
+  @override
+  State<_PagedMissionRows> createState() => _PagedMissionRowsState();
+}
+
+class _PagedMissionRowsState extends State<_PagedMissionRows> {
+  int _page = 0;
+  @override
+  void didUpdateWidget(covariant _PagedMissionRows oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final last = widget.records.isEmpty ? 0 : (widget.records.length - 1) ~/ 50;
+    if (_page > last) _page = last;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = widget.records.length;
+    final start = _page * 50;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('任务量较大，使用分页列表。共 $count 项，每页 50 项；本视图不绘制课表交集。'),
+        const SizedBox(height: 12),
+        for (final detail in widget.records.skip(start).take(50))
+          widget.buildRow(detail),
+        Wrap(
+          spacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            TextButton(
+              onPressed: _page == 0 ? null : () => setState(() => _page--),
+              child: const Text('上一页任务'),
+            ),
+            Text(
+              '第 ${count == 0 ? 0 : start + 1}–${(start + 50).clamp(0, count)} / $count',
+            ),
+            TextButton(
+              onPressed: start + 50 >= count
+                  ? null
+                  : () => setState(() => _page++),
+              child: const Text('下一页任务'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

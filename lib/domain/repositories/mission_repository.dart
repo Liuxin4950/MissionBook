@@ -49,6 +49,7 @@ abstract interface class MissionRepository {
     required String title,
     required String objective,
     required MissionScheduleRevision schedule,
+    ExecutionPlanContent? content,
     VerificationPolicy? verificationPolicy,
     String? verificationCriteria,
     MissionOwnership? ownership, // 省略保留原归属；显式传空选择表示改为独立任务。

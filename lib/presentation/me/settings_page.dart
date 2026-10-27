@@ -399,6 +399,10 @@ class _SettingsPageState extends State<SettingsPage>
               ),
               const SizedBox(height: 8),
               Text('到点自动开始；已有任务执行时保留当前计时并提醒处理。', style: text.bodyMedium),
+              Text(
+                '系统同时安排最近 64 个固定任务的提醒；后续提醒随计划推进更新。大量任务同时到点时，部分提醒可能无法提前安排。',
+                style: text.bodySmall,
+              ),
               if (_scheduleSettingsError != null)
                 Semantics(
                   liveRegion: true,

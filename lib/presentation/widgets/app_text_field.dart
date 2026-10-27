@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// 目标与节点表单沿用任务表单的外置标签、输入字号和柔和底色。
 class AppTextField extends StatelessWidget {
@@ -13,6 +14,7 @@ class AppTextField extends StatelessWidget {
     this.autofocus = false,
     this.textInputAction,
     this.validator,
+    this.inputFormatters,
   });
   final String label;
   final String hint;
@@ -23,6 +25,7 @@ class AppTextField extends StatelessWidget {
   final bool autofocus;
   final TextInputAction? textInputAction;
   final FormFieldValidator<String>? validator;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +45,7 @@ class AppTextField extends StatelessWidget {
             autofocus: autofocus,
             textInputAction: textInputAction,
             validator: validator,
+            inputFormatters: inputFormatters,
             style: theme.textTheme.bodyLarge,
             decoration: InputDecoration(hintText: hint),
           ),

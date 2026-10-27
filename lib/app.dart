@@ -15,6 +15,9 @@ import 'app_shell.dart';
 import 'application/evidence/evidence_image_service.dart';
 import 'data/attachments/evidence_image_platform.dart' as image_platform;
 import 'application/goals/goal_service.dart';
+import 'application/goals/goal_package_import_service.dart';
+import 'data/goal_import/goal_import_database.dart';
+import 'data/repositories/drift_goal_package_repository.dart';
 import 'data/repositories/drift_goal_repository.dart';
 import 'data/goal_import/goal_file_picker_platform.dart' as goal_file_platform;
 import 'application/backup/backup_service.dart';
@@ -68,10 +71,6 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // Flutter 创建这个 State 后调用一次 initState。
     // 不传 executor，由 AppDatabase 按平台选择原生文件或浏览器存储。
     _database = AppDatabase();
-    _goalService = GoalService(
-      DriftGoalRepository(_database),
-      filePicker: goal_file_platform.createGoalFilePicker(),
-    );
     // 将同一个数据库交给真实仓储。
     final repository = DriftMissionRepository(_database);
     // 这里只创建一个共享的任务业务对象，不执行创建或查询。
@@ -85,6 +84,19 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         picker: image_platform.createImagePicker(),
         filePicker: image_platform.createFilePicker(),
       ),
+    );
+    final packages = GoalPackageImportService(
+      stage: GoalImportDatabase(),
+      repository: DriftGoalPackageRepository(_database),
+      onCommitted: () {
+        _goalService.refreshAfterExternalCommit();
+        _missionService.refreshAfterExternalCommit();
+      },
+    );
+    _goalService = GoalService(
+      DriftGoalRepository(_database),
+      filePicker: goal_file_platform.createGoalFilePicker(),
+      packages: packages,
     );
     _backupService = DatabaseBackupService(
       database: _database,
@@ -336,6 +348,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // unawaited 明确表示在这里发起关闭，不等待它。
     unawaited(_missionService.dispose());
     unawaited(_goalService.dispose());
+    unawaited(_goalService.packages?.dispose());
     unawaited(_database.close());
     super.dispose();
   }

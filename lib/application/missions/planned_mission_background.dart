@@ -46,7 +46,7 @@ Future<void> runPlannedMissionBackground() async {
       plugin: plugin,
       exactAlarmsAllowed: false,
     );
-    final details = await missions.findAllDetails();
+    final details = await missions.findReminderCandidates();
     for (final detail in details) {
       final id = detail.mission.id;
       if (detail.events.isNotEmpty || detail.phase == MissionPhase.cancelled) {

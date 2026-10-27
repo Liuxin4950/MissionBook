@@ -20,6 +20,7 @@ import '../../../domain/entities/goal.dart';
 import '../../../domain/entities/goal_node.dart';
 import '../../../domain/entities/mission_ownership.dart';
 import '../../../domain/entities/mission_creation.dart';
+import '../../../domain/entities/execution_plan.dart';
 
 /// 创建、编辑或再次尝试任务，共用排期、材料要求及未保存输入保护。
 // Widget 描述页面配置；可变化的输入与资源交给下面的 State 管理。
@@ -117,6 +118,9 @@ class _MissionFormPageState extends State<MissionFormPage> {
   final _formScroll = ScrollController();
   final _titleController = TextEditingController();
   final _objectiveController = TextEditingController();
+  final _stepsController = TextEditingController();
+  final _notesController = TextEditingController();
+  late String _initialSteps, _initialNotes;
   bool _objectiveEdited = false; // 用户亲自改过具体目标后，不再用任务名称覆盖它。
   final _descriptionController = TextEditingController();
   final _whyController = TextEditingController();
@@ -147,6 +151,19 @@ class _MissionFormPageState extends State<MissionFormPage> {
     final month = _scheduledDate.month.toString().padLeft(2, '0');
     final day = _scheduledDate.day.toString().padLeft(2, '0');
     return '$year-$month-$day';
+  }
+
+  List<String> _planSteps() {
+    final original = widget.original ?? widget.retrySource;
+    // 多行步骤未编辑时保留原数组，不能因修改标题而把一个步骤拆成两条。
+    if (original != null && _stepsController.text == _initialSteps) {
+      return original.executionPlan.steps;
+    }
+    return _stepsController.text
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
   }
 
   bool get _canEdit =>
@@ -194,6 +211,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
       _criteriaController.text = seed.executionPlan.verificationCriteria ?? '';
       _titleController.text = seed.mission.title;
       _objectiveController.text = seed.executionPlan.objective;
+      _stepsController.text = seed.executionPlan.steps.join('\n');
+      _notesController.text = seed.executionPlan.notes ?? '';
       _durationController.text = seed.schedule.plannedDurationMinutes
           .toString();
       // 重试重新安排日期，自选时间起步，不沿用已经过去的固定开始时刻。
@@ -220,6 +239,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
     _initialDescription = _descriptionController.text;
     _initialWhy = _whyController.text;
     _initialObjective = _objectiveController.text;
+    _initialSteps = _stepsController.text;
+    _initialNotes = _notesController.text;
     _initialDuration = _durationController.text;
     _initialPolicy = _timePolicy;
     _initialHour = _hourController.text;
@@ -250,6 +271,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
       _whyController.text != _initialWhy ||
       _titleController.text != _initialTitle ||
       _objectiveController.text != _initialObjective ||
+      _stepsController.text != _initialSteps ||
+      _notesController.text != _initialNotes ||
       _durationController.text != _initialDuration ||
       _dateText != _initialDateText ||
       _timePolicy != _initialPolicy ||
@@ -279,6 +302,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
     _formScroll.dispose();
     _titleController.dispose();
     _objectiveController.dispose();
+    _stepsController.dispose();
+    _notesController.dispose();
     _descriptionController.dispose();
     _whyController.dispose();
     _durationController.dispose();
@@ -380,6 +405,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
           objective: _objectiveController.text.trim().isEmpty
               ? null
               : _objectiveController.text,
+          steps: _planSteps(),
+          notes: _notesController.text,
           ownership: _ownership,
           description: _descriptionController.text,
           why: _whyController.text,
@@ -393,6 +420,12 @@ class _MissionFormPageState extends State<MissionFormPage> {
           original: original,
           title: title,
           objective: _objectiveController.text,
+          content: ExecutionPlanContent(
+            steps: _planSteps(),
+            notes: _notesController.text.trim().isEmpty
+                ? null
+                : _notesController.text.trim(),
+          ),
           scheduledDate: date,
           plannedDurationMinutes: minutes,
           timePolicy: _timePolicy,
@@ -491,6 +524,9 @@ class _MissionFormPageState extends State<MissionFormPage> {
       _objectiveEdited = false;
       _titleController.clear();
       _objectiveController.clear();
+      _stepsController.clear();
+      _notesController.clear();
+      _initialSteps = _initialNotes = '';
       _descriptionController.clear();
       _whyController.clear();
       _durationController.clear();
@@ -794,6 +830,36 @@ class _MissionFormPageState extends State<MissionFormPage> {
                                     decoration: missionInputDecoration(
                                       context,
                                       hint: '默认使用任务名称，可以单独修改',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                MissionInputLabel(
+                                  label: '执行步骤',
+                                  child: TextField(
+                                    key: const Key('mission-steps'),
+                                    controller: _stepsController,
+                                    enabled: _canEdit,
+                                    minLines: 2,
+                                    maxLines: 8,
+                                    decoration: missionInputDecoration(
+                                      context,
+                                      hint: '每行一步，可留空',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                MissionInputLabel(
+                                  label: '方案备注',
+                                  child: TextField(
+                                    key: const Key('mission-notes'),
+                                    controller: _notesController,
+                                    enabled: _canEdit,
+                                    minLines: 1,
+                                    maxLines: 5,
+                                    decoration: missionInputDecoration(
+                                      context,
+                                      hint: '补充执行时需要注意的事项',
                                     ),
                                   ),
                                 ),

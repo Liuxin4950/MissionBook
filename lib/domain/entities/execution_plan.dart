@@ -2,6 +2,13 @@
 ///
 /// 每个任务恰好有一个方案；任务开始后不再直接修改。
 /// 本类的 steps 是文字列表，存储时才由仓储转换为 JSON；表结构在 data/local/tables/。
+class ExecutionPlanContent {
+  ExecutionPlanContent({required List<String> steps, this.notes})
+    : steps = List.unmodifiable(steps);
+  final List<String> steps;
+  final String? notes;
+}
+
 class ExecutionPlan {
   ExecutionPlan({
     required this.id,

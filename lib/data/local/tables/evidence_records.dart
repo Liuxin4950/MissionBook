@@ -3,6 +3,9 @@ import 'missions.dart';
 
 /// 正式材料追加保存；草稿不入表。批次身份解决“保存成功但响应丢失”的重试。
 @DataClassName('EvidenceRow')
+@TableIndex.sql(
+  'CREATE INDEX evidence_records_mission ON evidence_records(mission_id, submitted_at, id)',
+)
 class EvidenceRecords extends Table {
   TextColumn get id => text()();
   TextColumn get missionId => text().references(Missions, #id)();

@@ -5009,6 +5009,596 @@ class EvidenceRecordsCompanion extends UpdateCompanion<EvidenceRow> {
   }
 }
 
+class $ImportReceiptsTable extends ImportReceipts
+    with TableInfo<$ImportReceiptsTable, ImportReceipt> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ImportReceiptsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _schemaNameMeta = const VerificationMeta(
+    'schemaName',
+  );
+  @override
+  late final GeneratedColumn<String> schemaName = GeneratedColumn<String>(
+    'schema_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _packageIdMeta = const VerificationMeta(
+    'packageId',
+  );
+  @override
+  late final GeneratedColumn<String> packageId = GeneratedColumn<String>(
+    'package_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _schemaVersionMeta = const VerificationMeta(
+    'schemaVersion',
+  );
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+    'schema_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadSha256Meta = const VerificationMeta(
+    'payloadSha256',
+  );
+  @override
+  late final GeneratedColumn<String> payloadSha256 = GeneratedColumn<String>(
+    'payload_sha256',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentSha256Meta = const VerificationMeta(
+    'contentSha256',
+  );
+  @override
+  late final GeneratedColumn<String> contentSha256 = GeneratedColumn<String>(
+    'content_sha256',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _goalIdMeta = const VerificationMeta('goalId');
+  @override
+  late final GeneratedColumn<String> goalId = GeneratedColumn<String>(
+    'goal_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES goals (id)',
+    ),
+  );
+  static const VerificationMeta _importedAtMeta = const VerificationMeta(
+    'importedAt',
+  );
+  @override
+  late final GeneratedColumn<int> importedAt = GeneratedColumn<int>(
+    'imported_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nodeCountMeta = const VerificationMeta(
+    'nodeCount',
+  );
+  @override
+  late final GeneratedColumn<int> nodeCount = GeneratedColumn<int>(
+    'node_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _missionCountMeta = const VerificationMeta(
+    'missionCount',
+  );
+  @override
+  late final GeneratedColumn<int> missionCount = GeneratedColumn<int>(
+    'mission_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    schemaName,
+    packageId,
+    schemaVersion,
+    payloadSha256,
+    contentSha256,
+    goalId,
+    importedAt,
+    nodeCount,
+    missionCount,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'import_receipts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ImportReceipt> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('schema_name')) {
+      context.handle(
+        _schemaNameMeta,
+        schemaName.isAcceptableOrUnknown(data['schema_name']!, _schemaNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_schemaNameMeta);
+    }
+    if (data.containsKey('package_id')) {
+      context.handle(
+        _packageIdMeta,
+        packageId.isAcceptableOrUnknown(data['package_id']!, _packageIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_packageIdMeta);
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+        _schemaVersionMeta,
+        schemaVersion.isAcceptableOrUnknown(
+          data['schema_version']!,
+          _schemaVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_schemaVersionMeta);
+    }
+    if (data.containsKey('payload_sha256')) {
+      context.handle(
+        _payloadSha256Meta,
+        payloadSha256.isAcceptableOrUnknown(
+          data['payload_sha256']!,
+          _payloadSha256Meta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadSha256Meta);
+    }
+    if (data.containsKey('content_sha256')) {
+      context.handle(
+        _contentSha256Meta,
+        contentSha256.isAcceptableOrUnknown(
+          data['content_sha256']!,
+          _contentSha256Meta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_contentSha256Meta);
+    }
+    if (data.containsKey('goal_id')) {
+      context.handle(
+        _goalIdMeta,
+        goalId.isAcceptableOrUnknown(data['goal_id']!, _goalIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_goalIdMeta);
+    }
+    if (data.containsKey('imported_at')) {
+      context.handle(
+        _importedAtMeta,
+        importedAt.isAcceptableOrUnknown(data['imported_at']!, _importedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_importedAtMeta);
+    }
+    if (data.containsKey('node_count')) {
+      context.handle(
+        _nodeCountMeta,
+        nodeCount.isAcceptableOrUnknown(data['node_count']!, _nodeCountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nodeCountMeta);
+    }
+    if (data.containsKey('mission_count')) {
+      context.handle(
+        _missionCountMeta,
+        missionCount.isAcceptableOrUnknown(
+          data['mission_count']!,
+          _missionCountMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_missionCountMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {schemaName, packageId};
+  @override
+  ImportReceipt map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ImportReceipt(
+      schemaName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}schema_name'],
+      )!,
+      packageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}package_id'],
+      )!,
+      schemaVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}schema_version'],
+      )!,
+      payloadSha256: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload_sha256'],
+      )!,
+      contentSha256: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_sha256'],
+      )!,
+      goalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}goal_id'],
+      )!,
+      importedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}imported_at'],
+      )!,
+      nodeCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}node_count'],
+      )!,
+      missionCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}mission_count'],
+      )!,
+    );
+  }
+
+  @override
+  $ImportReceiptsTable createAlias(String alias) {
+    return $ImportReceiptsTable(attachedDatabase, alias);
+  }
+}
+
+class ImportReceipt extends DataClass implements Insertable<ImportReceipt> {
+  final String schemaName;
+  final String packageId;
+  final int schemaVersion;
+  final String payloadSha256;
+  final String contentSha256;
+  final String goalId;
+  final int importedAt;
+  final int nodeCount;
+  final int missionCount;
+  const ImportReceipt({
+    required this.schemaName,
+    required this.packageId,
+    required this.schemaVersion,
+    required this.payloadSha256,
+    required this.contentSha256,
+    required this.goalId,
+    required this.importedAt,
+    required this.nodeCount,
+    required this.missionCount,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['schema_name'] = Variable<String>(schemaName);
+    map['package_id'] = Variable<String>(packageId);
+    map['schema_version'] = Variable<int>(schemaVersion);
+    map['payload_sha256'] = Variable<String>(payloadSha256);
+    map['content_sha256'] = Variable<String>(contentSha256);
+    map['goal_id'] = Variable<String>(goalId);
+    map['imported_at'] = Variable<int>(importedAt);
+    map['node_count'] = Variable<int>(nodeCount);
+    map['mission_count'] = Variable<int>(missionCount);
+    return map;
+  }
+
+  ImportReceiptsCompanion toCompanion(bool nullToAbsent) {
+    return ImportReceiptsCompanion(
+      schemaName: Value(schemaName),
+      packageId: Value(packageId),
+      schemaVersion: Value(schemaVersion),
+      payloadSha256: Value(payloadSha256),
+      contentSha256: Value(contentSha256),
+      goalId: Value(goalId),
+      importedAt: Value(importedAt),
+      nodeCount: Value(nodeCount),
+      missionCount: Value(missionCount),
+    );
+  }
+
+  factory ImportReceipt.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ImportReceipt(
+      schemaName: serializer.fromJson<String>(json['schemaName']),
+      packageId: serializer.fromJson<String>(json['packageId']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+      payloadSha256: serializer.fromJson<String>(json['payloadSha256']),
+      contentSha256: serializer.fromJson<String>(json['contentSha256']),
+      goalId: serializer.fromJson<String>(json['goalId']),
+      importedAt: serializer.fromJson<int>(json['importedAt']),
+      nodeCount: serializer.fromJson<int>(json['nodeCount']),
+      missionCount: serializer.fromJson<int>(json['missionCount']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'schemaName': serializer.toJson<String>(schemaName),
+      'packageId': serializer.toJson<String>(packageId),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+      'payloadSha256': serializer.toJson<String>(payloadSha256),
+      'contentSha256': serializer.toJson<String>(contentSha256),
+      'goalId': serializer.toJson<String>(goalId),
+      'importedAt': serializer.toJson<int>(importedAt),
+      'nodeCount': serializer.toJson<int>(nodeCount),
+      'missionCount': serializer.toJson<int>(missionCount),
+    };
+  }
+
+  ImportReceipt copyWith({
+    String? schemaName,
+    String? packageId,
+    int? schemaVersion,
+    String? payloadSha256,
+    String? contentSha256,
+    String? goalId,
+    int? importedAt,
+    int? nodeCount,
+    int? missionCount,
+  }) => ImportReceipt(
+    schemaName: schemaName ?? this.schemaName,
+    packageId: packageId ?? this.packageId,
+    schemaVersion: schemaVersion ?? this.schemaVersion,
+    payloadSha256: payloadSha256 ?? this.payloadSha256,
+    contentSha256: contentSha256 ?? this.contentSha256,
+    goalId: goalId ?? this.goalId,
+    importedAt: importedAt ?? this.importedAt,
+    nodeCount: nodeCount ?? this.nodeCount,
+    missionCount: missionCount ?? this.missionCount,
+  );
+  ImportReceipt copyWithCompanion(ImportReceiptsCompanion data) {
+    return ImportReceipt(
+      schemaName: data.schemaName.present
+          ? data.schemaName.value
+          : this.schemaName,
+      packageId: data.packageId.present ? data.packageId.value : this.packageId,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+      payloadSha256: data.payloadSha256.present
+          ? data.payloadSha256.value
+          : this.payloadSha256,
+      contentSha256: data.contentSha256.present
+          ? data.contentSha256.value
+          : this.contentSha256,
+      goalId: data.goalId.present ? data.goalId.value : this.goalId,
+      importedAt: data.importedAt.present
+          ? data.importedAt.value
+          : this.importedAt,
+      nodeCount: data.nodeCount.present ? data.nodeCount.value : this.nodeCount,
+      missionCount: data.missionCount.present
+          ? data.missionCount.value
+          : this.missionCount,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImportReceipt(')
+          ..write('schemaName: $schemaName, ')
+          ..write('packageId: $packageId, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('payloadSha256: $payloadSha256, ')
+          ..write('contentSha256: $contentSha256, ')
+          ..write('goalId: $goalId, ')
+          ..write('importedAt: $importedAt, ')
+          ..write('nodeCount: $nodeCount, ')
+          ..write('missionCount: $missionCount')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    schemaName,
+    packageId,
+    schemaVersion,
+    payloadSha256,
+    contentSha256,
+    goalId,
+    importedAt,
+    nodeCount,
+    missionCount,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ImportReceipt &&
+          other.schemaName == this.schemaName &&
+          other.packageId == this.packageId &&
+          other.schemaVersion == this.schemaVersion &&
+          other.payloadSha256 == this.payloadSha256 &&
+          other.contentSha256 == this.contentSha256 &&
+          other.goalId == this.goalId &&
+          other.importedAt == this.importedAt &&
+          other.nodeCount == this.nodeCount &&
+          other.missionCount == this.missionCount);
+}
+
+class ImportReceiptsCompanion extends UpdateCompanion<ImportReceipt> {
+  final Value<String> schemaName;
+  final Value<String> packageId;
+  final Value<int> schemaVersion;
+  final Value<String> payloadSha256;
+  final Value<String> contentSha256;
+  final Value<String> goalId;
+  final Value<int> importedAt;
+  final Value<int> nodeCount;
+  final Value<int> missionCount;
+  final Value<int> rowid;
+  const ImportReceiptsCompanion({
+    this.schemaName = const Value.absent(),
+    this.packageId = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.payloadSha256 = const Value.absent(),
+    this.contentSha256 = const Value.absent(),
+    this.goalId = const Value.absent(),
+    this.importedAt = const Value.absent(),
+    this.nodeCount = const Value.absent(),
+    this.missionCount = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ImportReceiptsCompanion.insert({
+    required String schemaName,
+    required String packageId,
+    required int schemaVersion,
+    required String payloadSha256,
+    required String contentSha256,
+    required String goalId,
+    required int importedAt,
+    required int nodeCount,
+    required int missionCount,
+    this.rowid = const Value.absent(),
+  }) : schemaName = Value(schemaName),
+       packageId = Value(packageId),
+       schemaVersion = Value(schemaVersion),
+       payloadSha256 = Value(payloadSha256),
+       contentSha256 = Value(contentSha256),
+       goalId = Value(goalId),
+       importedAt = Value(importedAt),
+       nodeCount = Value(nodeCount),
+       missionCount = Value(missionCount);
+  static Insertable<ImportReceipt> custom({
+    Expression<String>? schemaName,
+    Expression<String>? packageId,
+    Expression<int>? schemaVersion,
+    Expression<String>? payloadSha256,
+    Expression<String>? contentSha256,
+    Expression<String>? goalId,
+    Expression<int>? importedAt,
+    Expression<int>? nodeCount,
+    Expression<int>? missionCount,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (schemaName != null) 'schema_name': schemaName,
+      if (packageId != null) 'package_id': packageId,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (payloadSha256 != null) 'payload_sha256': payloadSha256,
+      if (contentSha256 != null) 'content_sha256': contentSha256,
+      if (goalId != null) 'goal_id': goalId,
+      if (importedAt != null) 'imported_at': importedAt,
+      if (nodeCount != null) 'node_count': nodeCount,
+      if (missionCount != null) 'mission_count': missionCount,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ImportReceiptsCompanion copyWith({
+    Value<String>? schemaName,
+    Value<String>? packageId,
+    Value<int>? schemaVersion,
+    Value<String>? payloadSha256,
+    Value<String>? contentSha256,
+    Value<String>? goalId,
+    Value<int>? importedAt,
+    Value<int>? nodeCount,
+    Value<int>? missionCount,
+    Value<int>? rowid,
+  }) {
+    return ImportReceiptsCompanion(
+      schemaName: schemaName ?? this.schemaName,
+      packageId: packageId ?? this.packageId,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      payloadSha256: payloadSha256 ?? this.payloadSha256,
+      contentSha256: contentSha256 ?? this.contentSha256,
+      goalId: goalId ?? this.goalId,
+      importedAt: importedAt ?? this.importedAt,
+      nodeCount: nodeCount ?? this.nodeCount,
+      missionCount: missionCount ?? this.missionCount,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (schemaName.present) {
+      map['schema_name'] = Variable<String>(schemaName.value);
+    }
+    if (packageId.present) {
+      map['package_id'] = Variable<String>(packageId.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (payloadSha256.present) {
+      map['payload_sha256'] = Variable<String>(payloadSha256.value);
+    }
+    if (contentSha256.present) {
+      map['content_sha256'] = Variable<String>(contentSha256.value);
+    }
+    if (goalId.present) {
+      map['goal_id'] = Variable<String>(goalId.value);
+    }
+    if (importedAt.present) {
+      map['imported_at'] = Variable<int>(importedAt.value);
+    }
+    if (nodeCount.present) {
+      map['node_count'] = Variable<int>(nodeCount.value);
+    }
+    if (missionCount.present) {
+      map['mission_count'] = Variable<int>(missionCount.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImportReceiptsCompanion(')
+          ..write('schemaName: $schemaName, ')
+          ..write('packageId: $packageId, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('payloadSha256: $payloadSha256, ')
+          ..write('contentSha256: $contentSha256, ')
+          ..write('goalId: $goalId, ')
+          ..write('importedAt: $importedAt, ')
+          ..write('nodeCount: $nodeCount, ')
+          ..write('missionCount: $missionCount, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -5041,6 +5631,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $EvidenceRecordsTable evidenceRecords = $EvidenceRecordsTable(
     this,
   );
+  late final $ImportReceiptsTable importReceipts = $ImportReceiptsTable(this);
+  late final Index missionScheduleFixed = Index(
+    'mission_schedule_fixed',
+    'CREATE INDEX mission_schedule_fixed ON mission_schedule_revisions (time_policy, fixed_start_at, mission_id, revision_number)',
+  );
   late final Index executionEventsOneStart = Index(
     'execution_events_one_start',
     'CREATE UNIQUE INDEX execution_events_one_start ON execution_events (mission_id) WHERE type = \'START\'',
@@ -5048,6 +5643,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Index executionEventsOneEnd = Index(
     'execution_events_one_end',
     'CREATE UNIQUE INDEX execution_events_one_end ON execution_events (mission_id) WHERE type = \'END\'',
+  );
+  late final Index evidenceRecordsMission = Index(
+    'evidence_records_mission',
+    'CREATE INDEX evidence_records_mission ON evidence_records (mission_id, submitted_at, id)',
+  );
+  late final Index importReceiptsContent = Index(
+    'import_receipts_content',
+    'CREATE INDEX import_receipts_content ON import_receipts (schema_name, content_sha256)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -5066,8 +5669,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     executionEvents,
     failureRecords,
     evidenceRecords,
+    importReceipts,
+    missionScheduleFixed,
     executionEventsOneStart,
     executionEventsOneEnd,
+    evidenceRecordsMission,
+    importReceiptsContent,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -5146,6 +5753,24 @@ final class $$GoalsTableReferences
     ).filter((f) => f.goalId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_missionsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ImportReceiptsTable, List<ImportReceipt>>
+  _importReceiptsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.importReceipts,
+    aliasName: 'goals__id__import_receipts__goal_id',
+  );
+
+  $$ImportReceiptsTableProcessedTableManager get importReceiptsRefs {
+    final manager = $$ImportReceiptsTableTableManager(
+      $_db,
+      $_db.importReceipts,
+    ).filter((f) => f.goalId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_importReceiptsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -5236,6 +5861,31 @@ class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
           }) => $$MissionsTableFilterComposer(
             $db: $db,
             $table: $db.missions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> importReceiptsRefs(
+    Expression<bool> Function($$ImportReceiptsTableFilterComposer f) f,
+  ) {
+    final $$ImportReceiptsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.importReceipts,
+      getReferencedColumn: (t) => t.goalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImportReceiptsTableFilterComposer(
+            $db: $db,
+            $table: $db.importReceipts,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -5372,6 +6022,31 @@ class $$GoalsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> importReceiptsRefs<T extends Object>(
+    Expression<T> Function($$ImportReceiptsTableAnnotationComposer a) f,
+  ) {
+    final $$ImportReceiptsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.importReceipts,
+      getReferencedColumn: (t) => t.goalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImportReceiptsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.importReceipts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$GoalsTableTableManager
@@ -5387,7 +6062,11 @@ class $$GoalsTableTableManager
           $$GoalsTableUpdateCompanionBuilder,
           (GoalRow, $$GoalsTableReferences),
           GoalRow,
-          PrefetchHooks Function({bool goalNodesRefs, bool missionsRefs})
+          PrefetchHooks Function({
+            bool goalNodesRefs,
+            bool missionsRefs,
+            bool importReceiptsRefs,
+          })
         > {
   $$GoalsTableTableManager(_$AppDatabase db, $GoalsTable table)
     : super(
@@ -5447,12 +6126,17 @@ class $$GoalsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({goalNodesRefs = false, missionsRefs = false}) {
+              ({
+                goalNodesRefs = false,
+                missionsRefs = false,
+                importReceiptsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (goalNodesRefs) db.goalNodes,
                     if (missionsRefs) db.missions,
+                    if (importReceiptsRefs) db.importReceipts,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -5499,6 +6183,27 @@ class $$GoalsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (importReceiptsRefs)
+                        await $_getPrefetchedData<
+                          GoalRow,
+                          $GoalsTable,
+                          ImportReceipt
+                        >(
+                          currentTable: table,
+                          referencedTable: $$GoalsTableReferences
+                              ._importReceiptsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GoalsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).importReceiptsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.goalId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -5519,7 +6224,11 @@ typedef $$GoalsTableProcessedTableManager =
       $$GoalsTableUpdateCompanionBuilder,
       (GoalRow, $$GoalsTableReferences),
       GoalRow,
-      PrefetchHooks Function({bool goalNodesRefs, bool missionsRefs})
+      PrefetchHooks Function({
+        bool goalNodesRefs,
+        bool missionsRefs,
+        bool importReceiptsRefs,
+      })
     >;
 typedef $$GoalNodesTableCreateCompanionBuilder =
     GoalNodesCompanion Function({
@@ -9568,6 +10277,418 @@ typedef $$EvidenceRecordsTableProcessedTableManager =
       EvidenceRow,
       PrefetchHooks Function({bool missionId, bool supersedesEvidenceId})
     >;
+typedef $$ImportReceiptsTableCreateCompanionBuilder =
+    ImportReceiptsCompanion Function({
+      required String schemaName,
+      required String packageId,
+      required int schemaVersion,
+      required String payloadSha256,
+      required String contentSha256,
+      required String goalId,
+      required int importedAt,
+      required int nodeCount,
+      required int missionCount,
+      Value<int> rowid,
+    });
+typedef $$ImportReceiptsTableUpdateCompanionBuilder =
+    ImportReceiptsCompanion Function({
+      Value<String> schemaName,
+      Value<String> packageId,
+      Value<int> schemaVersion,
+      Value<String> payloadSha256,
+      Value<String> contentSha256,
+      Value<String> goalId,
+      Value<int> importedAt,
+      Value<int> nodeCount,
+      Value<int> missionCount,
+      Value<int> rowid,
+    });
+
+final class $$ImportReceiptsTableReferences
+    extends BaseReferences<_$AppDatabase, $ImportReceiptsTable, ImportReceipt> {
+  $$ImportReceiptsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $GoalsTable _goalIdTable(_$AppDatabase db) =>
+      db.goals.createAlias('import_receipts__goal_id__goals__id');
+
+  $$GoalsTableProcessedTableManager get goalId {
+    final $_column = $_itemColumn<String>('goal_id')!;
+
+    final manager = $$GoalsTableTableManager(
+      $_db,
+      $_db.goals,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_goalIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ImportReceiptsTableFilterComposer
+    extends Composer<_$AppDatabase, $ImportReceiptsTable> {
+  $$ImportReceiptsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get schemaName => $composableBuilder(
+    column: $table.schemaName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get packageId => $composableBuilder(
+    column: $table.packageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payloadSha256 => $composableBuilder(
+    column: $table.payloadSha256,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentSha256 => $composableBuilder(
+    column: $table.contentSha256,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get importedAt => $composableBuilder(
+    column: $table.importedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get nodeCount => $composableBuilder(
+    column: $table.nodeCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get missionCount => $composableBuilder(
+    column: $table.missionCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$GoalsTableFilterComposer get goalId {
+    final $$GoalsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableFilterComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ImportReceiptsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ImportReceiptsTable> {
+  $$ImportReceiptsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get schemaName => $composableBuilder(
+    column: $table.schemaName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get packageId => $composableBuilder(
+    column: $table.packageId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payloadSha256 => $composableBuilder(
+    column: $table.payloadSha256,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentSha256 => $composableBuilder(
+    column: $table.contentSha256,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get importedAt => $composableBuilder(
+    column: $table.importedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get nodeCount => $composableBuilder(
+    column: $table.nodeCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get missionCount => $composableBuilder(
+    column: $table.missionCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$GoalsTableOrderingComposer get goalId {
+    final $$GoalsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableOrderingComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ImportReceiptsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ImportReceiptsTable> {
+  $$ImportReceiptsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get schemaName => $composableBuilder(
+    column: $table.schemaName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get packageId =>
+      $composableBuilder(column: $table.packageId, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get payloadSha256 => $composableBuilder(
+    column: $table.payloadSha256,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contentSha256 => $composableBuilder(
+    column: $table.contentSha256,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get importedAt => $composableBuilder(
+    column: $table.importedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get nodeCount =>
+      $composableBuilder(column: $table.nodeCount, builder: (column) => column);
+
+  GeneratedColumn<int> get missionCount => $composableBuilder(
+    column: $table.missionCount,
+    builder: (column) => column,
+  );
+
+  $$GoalsTableAnnotationComposer get goalId {
+    final $$GoalsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ImportReceiptsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ImportReceiptsTable,
+          ImportReceipt,
+          $$ImportReceiptsTableFilterComposer,
+          $$ImportReceiptsTableOrderingComposer,
+          $$ImportReceiptsTableAnnotationComposer,
+          $$ImportReceiptsTableCreateCompanionBuilder,
+          $$ImportReceiptsTableUpdateCompanionBuilder,
+          (ImportReceipt, $$ImportReceiptsTableReferences),
+          ImportReceipt,
+          PrefetchHooks Function({bool goalId})
+        > {
+  $$ImportReceiptsTableTableManager(
+    _$AppDatabase db,
+    $ImportReceiptsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ImportReceiptsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ImportReceiptsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ImportReceiptsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> schemaName = const Value.absent(),
+                Value<String> packageId = const Value.absent(),
+                Value<int> schemaVersion = const Value.absent(),
+                Value<String> payloadSha256 = const Value.absent(),
+                Value<String> contentSha256 = const Value.absent(),
+                Value<String> goalId = const Value.absent(),
+                Value<int> importedAt = const Value.absent(),
+                Value<int> nodeCount = const Value.absent(),
+                Value<int> missionCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ImportReceiptsCompanion(
+                schemaName: schemaName,
+                packageId: packageId,
+                schemaVersion: schemaVersion,
+                payloadSha256: payloadSha256,
+                contentSha256: contentSha256,
+                goalId: goalId,
+                importedAt: importedAt,
+                nodeCount: nodeCount,
+                missionCount: missionCount,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String schemaName,
+                required String packageId,
+                required int schemaVersion,
+                required String payloadSha256,
+                required String contentSha256,
+                required String goalId,
+                required int importedAt,
+                required int nodeCount,
+                required int missionCount,
+                Value<int> rowid = const Value.absent(),
+              }) => ImportReceiptsCompanion.insert(
+                schemaName: schemaName,
+                packageId: packageId,
+                schemaVersion: schemaVersion,
+                payloadSha256: payloadSha256,
+                contentSha256: contentSha256,
+                goalId: goalId,
+                importedAt: importedAt,
+                nodeCount: nodeCount,
+                missionCount: missionCount,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ImportReceiptsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({goalId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (goalId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.goalId,
+                                referencedTable: $$ImportReceiptsTableReferences
+                                    ._goalIdTable(db),
+                                referencedColumn:
+                                    $$ImportReceiptsTableReferences
+                                        ._goalIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ImportReceiptsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ImportReceiptsTable,
+      ImportReceipt,
+      $$ImportReceiptsTableFilterComposer,
+      $$ImportReceiptsTableOrderingComposer,
+      $$ImportReceiptsTableAnnotationComposer,
+      $$ImportReceiptsTableCreateCompanionBuilder,
+      $$ImportReceiptsTableUpdateCompanionBuilder,
+      (ImportReceipt, $$ImportReceiptsTableReferences),
+      ImportReceipt,
+      PrefetchHooks Function({bool goalId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -9591,4 +10712,6 @@ class $AppDatabaseManager {
       $$FailureRecordsTableTableManager(_db, _db.failureRecords);
   $$EvidenceRecordsTableTableManager get evidenceRecords =>
       $$EvidenceRecordsTableTableManager(_db, _db.evidenceRecords);
+  $$ImportReceiptsTableTableManager get importReceipts =>
+      $$ImportReceiptsTableTableManager(_db, _db.importReceipts);
 }

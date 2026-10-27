@@ -5,6 +5,7 @@ import '../../../application/goals/goal_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal_outline_import.dart';
 import '../../widgets/app_confirm_dialog.dart';
+import 'goal_package_import_section.dart';
 
 /// 在目标页原位粘贴或读取 JSON、预览完整树，再由用户明确确认一次提交。
 class GoalImportSection extends StatefulWidget {
@@ -22,6 +23,7 @@ class GoalImportSection extends StatefulWidget {
 }
 
 class GoalImportSectionState extends State<GoalImportSection> {
+  final _packageKey = GlobalKey<GoalPackageImportSectionState>();
   final _input = TextEditingController();
   GoalOutlineImport? _preview;
   GoalOutlineCreation? _pending;
@@ -32,6 +34,9 @@ class GoalImportSectionState extends State<GoalImportSection> {
   String? _error;
 
   Future<bool> prepareToCollapse() async {
+    if (widget.service.packages != null) {
+      return _packageKey.currentState?.prepareToCollapse() ?? true;
+    }
     if (_saving || _picking) return false;
     if (_saved || _input.text.trim().isEmpty) return true;
     return await AppConfirmDialog.show(
@@ -161,6 +166,14 @@ class GoalImportSectionState extends State<GoalImportSection> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.service.packages != null) {
+      return GoalPackageImportSection(
+        key: _packageKey,
+        goals: widget.service,
+        onImported: widget.onImported,
+        onDraftChanged: widget.onDraftChanged,
+      );
+    }
     final theme = Theme.of(context);
     final preview = _preview;
     return Container(

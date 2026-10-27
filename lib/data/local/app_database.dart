@@ -12,6 +12,7 @@ import 'tables/missions.dart';
 import 'tables/evidence_records.dart';
 import 'tables/goals.dart';
 import 'tables/goal_nodes.dart';
+import 'tables/import_receipts.dart';
 
 part 'app_database.g.dart';
 
@@ -28,6 +29,7 @@ part 'app_database.g.dart';
     EvidenceRecords,
     Goals,
     GoalNodes,
+    ImportReceipts,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -62,7 +64,7 @@ class AppDatabase extends _$AppDatabase {
 
   // v9 扩展材料类型与不可变修正链，原有八张表和旧材料继续保留。
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -109,7 +111,7 @@ class AppDatabase extends _$AppDatabase {
         }
         // v5-v8 的 CHECK 仅允许 TEXT/IMAGE。重建同名表保留全部原始记录，
         // 同时让新安装与升级安装得到相同的五类材料约束和修正列。
-        if (from >= 5) {
+        if (from >= 5 && from < 9) {
           await customStatement(
             'ALTER TABLE evidence_records RENAME TO evidence_records_v8',
           );
@@ -126,6 +128,12 @@ class AppDatabase extends _$AppDatabase {
             FROM evidence_records_v8
           ''');
           await customStatement('DROP TABLE evidence_records_v8');
+        }
+        if (from < 10) {
+          await migrator.createTable(importReceipts);
+          await migrator.createIndex(importReceiptsContent);
+          await migrator.createIndex(evidenceRecordsMission);
+          await migrator.createIndex(missionScheduleFixed);
         }
         // Drift 默认在全部开库回调完成后才记版本。把标记与结构一起提交，
         // 避免结构已建好、后续开库中断后，重开仍按 v1 重复创建索引。

@@ -53,6 +53,7 @@ class ReminderStore {
   final File file;
   final Map<String, ReminderPreference> _preferences = {};
   final Map<String, int> _notificationIds = {};
+  final Set<String> _synchronizedMissions = {};
   int _nextNotificationId = 1;
   int reminderLeadMinutes = 10; // 全局提前提醒分钟数，-1 表示关闭。
 
@@ -74,6 +75,11 @@ class ReminderStore {
     reminderLeadMinutes = minutes;
     _preferences.clear();
     _notificationIds.clear();
+    _synchronizedMissions
+      ..clear()
+      ..addAll(
+        (json['synchronizedMissions'] as List? ?? const []).cast<String>(),
+      );
     for (final entry
         in (json['preferences'] as Map<String, dynamic>? ?? {}).entries) {
       _preferences[entry.key] = ReminderPreference.fromJson(
@@ -100,6 +106,7 @@ class ReminderStore {
             entry.key: entry.value.toJson(),
         },
         'notificationIds': _notificationIds,
+        'synchronizedMissions': _synchronizedMissions.toList(),
         'nextNotificationId': _nextNotificationId,
       }),
       flush: true,
@@ -119,6 +126,7 @@ class ReminderStore {
       final previousIds = Map<String, int>.of(_notificationIds);
       final previousNextId = _nextNotificationId;
       final previousLead = reminderLeadMinutes;
+      final previousSynchronized = Set<String>.of(_synchronizedMissions);
       try {
         final value = mutate();
         await _save();
@@ -132,6 +140,9 @@ class ReminderStore {
           ..addAll(previousIds);
         _nextNotificationId = previousNextId;
         reminderLeadMinutes = previousLead;
+        _synchronizedMissions
+          ..clear()
+          ..addAll(previousSynchronized);
         rethrow;
       }
     });
@@ -154,6 +165,21 @@ class ReminderStore {
   }
 
   ReminderPreference? preferenceOf(String missionId) => _preferences[missionId];
+  Set<String> get synchronizedMissions =>
+      Set.unmodifiable({..._synchronizedMissions, ..._preferences.keys});
+
+  Future<void> rememberSynchronizedMissions(Set<String> ids) async {
+    await _writeQueue;
+    if (ids.length == _synchronizedMissions.length &&
+        ids.containsAll(_synchronizedMissions)) {
+      return;
+    }
+    await _write<void>(() {
+      _synchronizedMissions
+        ..clear()
+        ..addAll(ids);
+    });
+  }
 
   /// 已分配通知 id 的只读快照，供调用方清理旧通知时读取。
   Map<String, int> get notificationIds => Map.unmodifiable(_notificationIds);
