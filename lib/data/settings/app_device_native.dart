@@ -40,8 +40,19 @@ class NativeAppDevice implements AppDevice {
 
   @override
   Future<DeviceCapabilities> capabilities() async {
+    final platform = Platform.isAndroid
+        ? DevicePlatform.android
+        : Platform.isWindows
+        ? DevicePlatform.windows
+        : Platform.isIOS
+        ? DevicePlatform.ios
+        : Platform.isMacOS
+        ? DevicePlatform.macos
+        : Platform.isLinux
+        ? DevicePlatform.linux
+        : DevicePlatform.other;
     if (!Platform.isAndroid && !Platform.isWindows) {
-      return const DeviceCapabilities(version: '当前平台无法读取版本');
+      return DeviceCapabilities(version: '当前平台无法读取版本', platform: platform);
     }
     final value = (await _channel.invokeMapMethod<String, dynamic>(
       'capabilities',
@@ -51,6 +62,7 @@ class NativeAppDevice implements AppDevice {
       notifications: value['notifications'] as bool?,
       exactAlarms: value['exactAlarms'] as bool?,
       android: Platform.isAndroid,
+      platform: platform,
       executionNotifications: value['executionNotifications'] as bool?,
       islandSupported: value['islandSupported'] as bool?,
       focusPermission: value['focusPermission'] as bool?,

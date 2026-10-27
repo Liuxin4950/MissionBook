@@ -60,6 +60,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
 
   // 导入是独立的次级入口；普通创建直接打开表单，不再先问一次创建方式。
   void _openImport() {
+    if (_selectedStatus != GoalStatus.active) return;
     if (!_importOpen) setState(() => _importOpen = true);
   }
 
@@ -117,16 +118,24 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
   Future<void> _selectStatus(GoalStatus value) async {
     if (_selectedStatus == value || _switchingOutline) return;
     _switchingOutline = true;
-    final canLeave =
-        await (_outlineKey.currentState?.prepareToCollapse() ??
-            Future.value(true));
-    _switchingOutline = false;
-    if (!mounted || !canLeave) return;
-    setState(() {
-      _outlineGoal = null;
-      _selectedStatus = value;
-      _goals = _load();
-    });
+    try {
+      final canLeaveOutline =
+          await (_outlineKey.currentState?.prepareToCollapse() ??
+              Future.value(true));
+      if (!mounted || !canLeaveOutline) return;
+      final canLeaveImport =
+          await (_importKey.currentState?.prepareToCollapse() ??
+              Future.value(true));
+      if (!mounted || !canLeaveImport) return;
+      setState(() {
+        _outlineGoal = null;
+        _importOpen = false;
+        _selectedStatus = value;
+        _goals = _load();
+      });
+    } finally {
+      _switchingOutline = false;
+    }
   }
 
   @override
@@ -249,19 +258,23 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                                 _selectStatus(GoalStatus.dropped);
                               }
                             },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                key: Key('goal-import-menu'),
-                                value: 'import',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.file_upload_outlined, size: 20),
-                                    SizedBox(width: 12),
-                                    Text('导入目标大纲'),
-                                  ],
+                            itemBuilder: (_) => [
+                              if (_selectedStatus == GoalStatus.active)
+                                const PopupMenuItem(
+                                  key: Key('goal-import-menu'),
+                                  value: 'import',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.file_upload_outlined,
+                                        size: 20,
+                                      ),
+                                      SizedBox(width: 12),
+                                      Text('导入目标大纲'),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              PopupMenuItem(
+                              const PopupMenuItem(
                                 value: 'dropped',
                                 child: Row(
                                   children: [
@@ -274,9 +287,10 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                             ],
                             icon: const Icon(Icons.more_horiz),
                           ),
-                          if (waiting ||
-                              snapshot.hasError ||
-                              visible.isNotEmpty)
+                          if (_selectedStatus == GoalStatus.active &&
+                              (waiting ||
+                                  snapshot.hasError ||
+                                  visible.isNotEmpty))
                             IconButton.filled(
                               key: const Key('goal-create'),
                               tooltip: '新建目标',
@@ -296,7 +310,9 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                     const SizedBox(height: 16),
                     _statusTabs(context),
                     const SizedBox(height: 20),
-                    if (_importOpen && !emptyActive) ...[
+                    if (_selectedStatus == GoalStatus.active &&
+                        _importOpen &&
+                        !emptyActive) ...[
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton.icon(
@@ -340,7 +356,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                     else if (emptyActive)
                       _emptyWorkspace(context)
                     else if (visible.isEmpty)
-                      _emptyStatusWorkspace(context, goals),
+                      _emptyStatusWorkspace(context),
                     if (visible.isNotEmpty) _goalWorkspace(context, visible),
                   ],
                 ),
@@ -497,84 +513,15 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     },
   );
 
-  // 非进行中分类使用同一幅空态和相同双栏结构；右栏只展示真实的进行中目标。
-  Widget _emptyStatusWorkspace(BuildContext context, List<Goal> goals) =>
-      LayoutBuilder(
-        builder: (context, box) {
-          final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-          final split = box.maxWidth >= 900 * scale;
-          final width = split ? (box.maxWidth - 24) / 2 : box.maxWidth;
-          final activeGoals = goals
-              .where((goal) => goal.status == GoalStatus.active)
-              .take(3)
-              .toList();
-          // 已放弃分类的查询只包含已放弃目标，不能据此推断进行中列表为空。
-          final canShowActive = _selectedStatus != GoalStatus.dropped;
-          return Wrap(
-            key: const Key('goal-empty-workspace'),
-            spacing: 24,
-            runSpacing: 24,
-            children: [
-              SizedBox(width: width, child: _empty(context)),
-              SizedBox(
-                key: const Key('goal-empty-next-pane'),
-                width: width,
-                child: AppSectionCard(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        canShowActive && activeGoals.isNotEmpty
-                            ? '进行中的目标'
-                            : '继续探索',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      if (canShowActive && activeGoals.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        for (final goal in activeGoals)
-                          ListTile(
-                            key: Key('goal-empty-active-${goal.id}'),
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.flag_outlined),
-                            title: Text(
-                              goal.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () => _open(goal),
-                          ),
-                      ],
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton.icon(
-                            key: const Key('goal-create'),
-                            onPressed: _create,
-                            icon: const Icon(Icons.add),
-                            label: const Text('创建目标'),
-                          ),
-                          if (!_importOpen)
-                            TextButton.icon(
-                              key: const Key('goal-empty-import'),
-                              onPressed: _openImport,
-                              icon: const Icon(Icons.file_upload_outlined),
-                              label: const Text('导入大纲'),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      );
+  // 状态分类只展示本分类内容，空列表不补放其他分类或创建工作区。
+  Widget _emptyStatusWorkspace(BuildContext context) => Align(
+    key: const Key('goal-empty-workspace'),
+    alignment: Alignment.topCenter,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
+      child: _empty(context),
+    ),
+  );
 
   Widget _statusTabs(BuildContext context) => AppSegmentedControl<GoalStatus>(
     options: {
@@ -631,19 +578,10 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                     style: theme.textTheme.titleLarge,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 16),
-                  if (active)
-                    const _GoalJourneyHint()
-                  else
-                    Text(
-                      _selectedStatus == GoalStatus.dropped
-                          ? '可在详情中恢复'
-                          : '可在详情中调整状态',
-                      style: theme.textTheme.bodyMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                  const SizedBox(height: 24),
                   if (active) ...[
+                    const SizedBox(height: 16),
+                    const _GoalJourneyHint(),
+                    const SizedBox(height: 24),
                     Wrap(
                       spacing: 12,
                       runSpacing: 8,
@@ -664,13 +602,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                           ),
                       ],
                     ),
-                  ] else
-                    TextButton.icon(
-                      key: const Key('goal-empty-back-active'),
-                      onPressed: () => _selectStatus(GoalStatus.active),
-                      icon: const Icon(Icons.arrow_back),
-                      label: const Text('查看进行中'),
-                    ),
+                  ],
                 ],
               );
               return Center(

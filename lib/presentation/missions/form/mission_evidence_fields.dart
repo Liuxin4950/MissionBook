@@ -1,3 +1,4 @@
+import '../../widgets/app_date_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -113,7 +114,7 @@ class _MissionEvidenceFieldsState extends State<MissionEvidenceFields> {
             ),
           ),
           if (_calendarExpanded)
-            CalendarDatePicker(
+            AppCalendar(
               key: ValueKey(
                 'evidence-calendar-${date ?? widget.suggestedDate}',
               ),

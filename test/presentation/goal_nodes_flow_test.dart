@@ -166,6 +166,78 @@ void main() {
     expect(find.byKey(Key('node-row-${child.id}')), findsOneWidget);
   });
 
+  testWidgets('目录按树序展示，长按编辑及左滑归档保留确认', (tester) async {
+    final parent = await seed('父节点');
+    final child = await seed('子节点', parent: parent.id);
+    final sibling = await seed('另一个根节点');
+    await open(tester, width: 1000);
+    expect(find.textContaining('层级'), findsNothing);
+    expect(
+      tester.getTopLeft(find.text('子节点')).dx,
+      greaterThan(tester.getTopLeft(find.text('父节点')).dx),
+    );
+    expect(
+      tester.getTopLeft(find.text('另一个根节点')).dx,
+      tester.getTopLeft(find.text('父节点')).dx,
+    );
+    expect(
+      tester.getTopLeft(find.byKey(Key('node-row-${child.id}'))).dy,
+      greaterThan(
+        tester.getTopLeft(find.byKey(Key('node-row-${parent.id}'))).dy,
+      ),
+    );
+    expect(
+      tester.getTopLeft(find.byKey(Key('node-row-${sibling.id}'))).dy,
+      greaterThan(
+        tester.getTopLeft(find.byKey(Key('node-row-${child.id}'))).dy,
+      ),
+    );
+    await tester.longPress(find.text('子节点'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('node-title-input')), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(Key('node-row-${child.id}')),
+      const Offset(-100, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('node-swipe-archive-${child.id}')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('已有任务和执行历史会保留'), findsOneWidget);
+    await tester.tap(find.text('保留节点'));
+    await tester.pumpAndSettle();
+    expect((await service.findNodeById(child.id))!.archivedAt, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('无任务服务时点击节点标题展开和收起子项', (tester) async {
+    final parent = await seed('父节点');
+    final child = await seed('子节点', parent: parent.id);
+    await open(tester);
+    await tester.tap(find.text('父节点'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(Key('node-row-${child.id}')), findsNothing);
+    await tester.tap(find.text('父节点'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(Key('node-row-${child.id}')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('窄屏左滑后仍可打开归档确认', (tester) async {
+    final node = await seed('移动端节点');
+    await open(tester, width: 320, scale: 1.2);
+    await tester.drag(
+      find.byKey(Key('node-row-${node.id}')),
+      const Offset(-100, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('node-swipe-archive-${node.id}')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('已有任务和执行历史会保留'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('系统返回保护草稿；关闭不保存，保存期间阻止重复点击及离开', (tester) async {
     await open(tester);
     await tapKey(tester, 'node-add-root-${goal.id}');

@@ -642,7 +642,10 @@ void main() {
     dateButton.onPressed!();
     dateButton.onPressed!();
     await tester.pumpAndSettle();
-    expect(find.byType(DatePickerDialog, skipOffstage: false), findsOneWidget);
+    expect(
+      find.byKey(const Key('app-date-confirm'), skipOffstage: false),
+      findsOneWidget,
+    );
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     expect(repository.requests, hasLength(2));
@@ -846,6 +849,36 @@ void main() {
     expect(find.byKey(const Key('flexible-missions-toggle')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('周日期栏标记今天，同周直接点今天，跨周保留紧凑入口', (tester) async {
+    final repository = ControlledQueryRepository();
+    await tester.pumpWidget(testApp(repository));
+    repository.requests.single.complete([]);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('22'));
+    repository.requests.last.complete([]);
+    await tester.pumpAndSettle();
+    expect(find.text('回到今天'), findsNothing);
+    expect(find.byKey(const Key('today-return-current-week')), findsNothing);
+    await tester.tap(find.byKey(const Key('today-week-day-2026-10-21')));
+    repository.requests.last.complete([]);
+    await tester.pumpAndSettle();
+    expect(repository.dates.last, '2026-10-21');
+    await tester.tap(find.byKey(const Key('today-date-picker')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1').last);
+    await tester.tap(find.byKey(const Key('app-date-confirm')));
+    await tester.pump();
+    repository.requests.last.complete([]);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('today-return-current-week')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('today-return-current-week')));
+    await tester.pump();
+    repository.requests.last.complete([]);
+    await tester.pumpAndSettle();
+    expect(repository.dates.last, '2026-10-21');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('已加载的日期切换后清除旧卡片，返回原日期也必须等待本次结果', (tester) async {

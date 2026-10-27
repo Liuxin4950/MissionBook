@@ -1,4 +1,3 @@
-import '../../widgets/adaptive_columns.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -12,6 +11,8 @@ import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/goal.dart';
 import '../../../domain/entities/mission_detail.dart';
 import 'goal_missions_section.dart';
+
+const _nodeRowPadding = 4.0;
 
 /// 目标卡和详情共用的节点工作区，独立管理查询、展开与节点编辑交互。
 class GoalOutlineSection extends StatefulWidget {
@@ -52,6 +53,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   }) => Future.value(true); // 执行草稿位于独立页面，折叠目录只影响这里的排版。
 
   final _collapsed = <String>{}; // 只保存界面折叠选择，不写入节点表。
+  final _treeScroll = ScrollController();
+  double _horizontalDrag = 0;
+  String? _swipedNodeId; // 一次只展开一个节点的归档快捷操作。
   bool _showArchived = false;
   bool _busy = false;
   String? _operationError;
@@ -196,6 +200,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_subscription?.cancel());
     unawaited(_missionSubscription?.cancel());
+    _treeScroll.dispose();
     super.dispose();
   }
 
@@ -255,7 +260,6 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
           ); // 这个父节点还没有孩子列表时先创建，再把当前节点加入。
         }
         final entries = _visibleEntries(roots, children);
-        final sizes = _subtreeSizes(shown, byId);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -326,37 +330,53 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                   ],
                 ),
               ),
-            // 每个根节点保留其完整子树；宽屏并排呈现行动分支，窄屏自然堆叠。
-            AnimatedSize(
-              alignment: Alignment.topLeft,
-              duration: MediaQuery.disableAnimationsOf(context)
-                  ? Duration.zero
-                  : const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-              child: AdaptiveColumns(
-                maxColumns: widget.embedded ? 3 : 1,
-                minColumnWidth: 320,
-                children: [
-                  for (final root in roots)
-                    Column(
-                      key: ValueKey(root.id),
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (final entry in entries.where(
-                          (entry) => _belongsToRoot(entry.node, root.id, byId),
-                        ))
-                          _nodeRow(
-                            entry,
-                            nodes,
-                            byId,
-                            children,
-                            sizes,
-                            entry.node.archivedAt != null,
-                          ),
-                      ],
+            // 所有分支按树的顺序纵向排列，避免并排时误认父子关系。
+            LayoutBuilder(
+              builder: (context, box) {
+                final depth = entries.fold<int>(
+                  0,
+                  (max, entry) => entry.depth > max ? entry.depth : max,
+                );
+                final step = depth == 0
+                    ? 24.0
+                    : ((box.maxWidth - 180) / depth).clamp(12.0, 24.0);
+                final width = (depth * step + 180).clamp(
+                  box.maxWidth,
+                  double.infinity,
+                );
+                return Scrollbar(
+                  controller: _treeScroll,
+                  thumbVisibility: width > box.maxWidth,
+                  child: SingleChildScrollView(
+                    controller: _treeScroll,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: width,
+                      child: AnimatedSize(
+                        alignment: Alignment.topLeft,
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 260),
+                        curve: Curves.easeOutCubic,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final entry in entries)
+                              _nodeRow(
+                                entry,
+                                nodes,
+                                byId,
+                                children,
+                                entry.node.archivedAt != null,
+                                step,
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                ],
-              ),
+                  ),
+                );
+              },
             ),
             if (widget.missionService != null && widget.goal != null)
               _missionsFor(null),
@@ -389,26 +409,13 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     ),
   );
 
-  bool _belongsToRoot(
-    GoalNode node,
-    String rootId,
-    Map<String, GoalNode> byId,
-  ) {
-    GoalNode? current = node;
-    while (current != null) {
-      if (current.id == rootId) return true;
-      current = byId[current.parentNodeId];
-    }
-    return false;
-  }
-
   Widget _nodeRow(
     _OutlineEntry entry,
     List<GoalNode> all,
     Map<String, GoalNode> byId,
     Map<String?, List<GoalNode>> children,
-    Map<String, int> sizes,
     bool archived,
+    double step,
   ) {
     final node = entry.node;
     final hasChildren = (children[node.id] ?? []).isNotEmpty;
@@ -420,9 +427,43 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
         .where((item) => item.archivedAt == null)
         .toList();
     final position = visibleSiblings.indexWhere((item) => item.id == node.id);
-    // 深层节点限制视觉缩进，给窄屏文字留空间；完整层级编号仍显示真实关系。
-    final indent = (entry.depth > 3 ? 3 : entry.depth) * 12.0;
+    // 每层缩进与连接线使用同一尺寸；深树可横向浏览，不压平真实层级。
+    final indent = entry.depth * step;
+    Widget menuLabel(
+      IconData icon,
+      String label, {
+      bool destructive = false,
+      bool enabled = true,
+    }) => Row(
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: !enabled
+              ? AppColors.onDisabled
+              : destructive
+              ? AppColors.error
+              : AppColors.textSecondary,
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: !enabled
+                  ? AppColors.onDisabled
+                  : destructive
+                  ? AppColors.error
+                  : AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
     final menu = PopupMenuButton<_NodeAction>(
+      color: AppColors.card,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       key: Key('node-menu-${node.id}'),
       tooltip: '节点操作：${node.title}',
       enabled: !_busy,
@@ -448,27 +489,43 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                 PopupMenuItem(
                   key: Key('node-create-mission-menu-${node.id}'),
                   value: _NodeAction.createMission,
-                  child: const Text('建任务'),
+                  child: menuLabel(Icons.add_task_outlined, '建任务'),
                 ),
-              const PopupMenuItem(value: _NodeAction.add, child: Text('添加子节点')),
-              const PopupMenuItem(
+              PopupMenuItem(
+                value: _NodeAction.add,
+                child: menuLabel(Icons.subdirectory_arrow_right, '添加子节点'),
+              ),
+              PopupMenuItem(
                 value: _NodeAction.edit,
-                child: Text('编辑名称与说明'),
+                child: menuLabel(Icons.edit_outlined, '编辑名称与说明'),
               ),
               PopupMenuItem(
                 value: _NodeAction.up,
                 enabled: position > 0,
-                child: const Text('上移'),
+                child: menuLabel(
+                  Icons.arrow_upward,
+                  '上移',
+                  enabled: position > 0,
+                ),
               ),
               PopupMenuItem(
                 value: _NodeAction.down,
                 enabled: position >= 0 && position < visibleSiblings.length - 1,
-                child: const Text('下移'),
+                child: menuLabel(
+                  Icons.arrow_downward,
+                  '下移',
+                  enabled:
+                      position >= 0 && position < visibleSiblings.length - 1,
+                ),
               ),
               const PopupMenuDivider(),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: _NodeAction.archive,
-                child: Text('归档节点及子节点'),
+                child: menuLabel(
+                  Icons.archive_outlined,
+                  '归档节点及子节点',
+                  destructive: true,
+                ),
               ),
             ],
       onSelected: (action) {
@@ -509,27 +566,26 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
         }
       },
     );
+    Future<void> toggleChildren() async {
+      if (!collapsed &&
+          !await prepareToCollapse(subtreeId: node.id, includeRoot: false)) {
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        if (collapsed) {
+          _collapsed.remove(node.id);
+        } else {
+          _collapsed.add(node.id);
+        }
+      });
+    }
+
     final treeToggle = hasChildren
         ? IconButton(
             key: Key('node-expand-${node.id}'),
             tooltip: '${collapsed ? '展开' : '收起'} ${node.title}',
-            onPressed: () async {
-              if (!collapsed &&
-                  !await prepareToCollapse(
-                    subtreeId: node.id,
-                    includeRoot: false,
-                  )) {
-                return;
-              }
-              if (!mounted) return;
-              setState(() {
-                if (collapsed) {
-                  _collapsed.remove(node.id);
-                } else {
-                  _collapsed.add(node.id);
-                }
-              });
-            },
+            onPressed: toggleChildren,
             icon: AnimatedRotation(
               turns: collapsed ? 0 : .25,
               duration: MediaQuery.disableAnimationsOf(context)
@@ -545,69 +601,152 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
           )
         : null;
     final annotation = [
-      if (hasChildren) '含本项 ${sizes[node.id]} 项',
-      if (entry.depth > 3) '第 ${entry.depth + 1} 层',
       if (archived && node.parentNodeId != null)
         '原位置 · ${byId[node.parentNodeId]?.title ?? widget.goalTitle}',
     ].join(' · ');
     return Padding(
       key: Key('node-row-${node.id}'),
-      padding: EdgeInsets.only(left: indent, top: 4, bottom: 8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: entry.depth == 0
-              ? null
-              : const Border(left: BorderSide(color: AppColors.hairline)),
+      padding: EdgeInsets.only(top: entry.depth == 0 ? 8 : 0),
+      child: CustomPaint(
+        foregroundPainter: _TreeGuidePainter(
+          entry.guides,
+          hasChildren && !collapsed,
+          step,
         ),
         child: Padding(
-          padding: EdgeInsets.only(left: entry.depth == 0 ? 0 : 8),
-          // 任务区放在整行下方，不再塞进标题旁的 Expanded 列，展开后能使用整块可用宽度。
-          child: widget.missionService != null && widget.goal != null
-              ? _missionsFor(
-                  node,
-                  leading: treeToggle,
-                  trailing: menu,
-                  annotation: annotation,
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        treeToggle ??
-                            const SizedBox(
-                              width: 40,
-                              height: 48,
-                              child: Icon(
-                                Icons.radio_button_unchecked,
-                                size: 18,
-                                color: AppColors.outline,
+          padding: EdgeInsets.only(left: indent),
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onLongPress: archived || _busy
+                ? null
+                : () => _edit(node: node, parent: byId[node.parentNodeId]),
+            onHorizontalDragStart: archived || _busy
+                ? null
+                : (_) => _horizontalDrag = 0,
+            onHorizontalDragUpdate: archived || _busy
+                ? null
+                : (details) => _horizontalDrag += details.delta.dx,
+            onHorizontalDragEnd: archived || _busy
+                ? null
+                : (details) {
+                    if (_horizontalDrag < -40) {
+                      setState(() => _swipedNodeId = node.id);
+                    } else if (_horizontalDrag > 40 &&
+                        _swipedNodeId == node.id) {
+                      setState(() => _swipedNodeId = null);
+                    }
+                  },
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: entry.depth == 0
+                          ? AppColors.surfaceMuted.withValues(alpha: .65)
+                          : null,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: _nodeRowPadding,
+                      ),
+                      // 任务区放在整行下方，不再塞进标题旁的 Expanded 列，展开后能使用整块可用宽度。
+                      child:
+                          widget.missionService != null && widget.goal != null
+                          ? _missionsFor(
+                              node,
+                              leading: treeToggle,
+                              trailing: menu,
+                              annotation: annotation,
+                              onNodeTap: hasChildren ? toggleChildren : null,
+                            )
+                          : GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: hasChildren ? toggleChildren : null,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      SizedBox.square(
+                                        dimension:
+                                            GoalMissionsSection.markerExtent,
+                                        child:
+                                            treeToggle ??
+                                            const Icon(
+                                              Icons.radio_button_unchecked,
+                                              size: 18,
+                                              color: AppColors.outline,
+                                            ),
+                                      ),
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                          ),
+                                          child: Text(
+                                            node.title,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                      menu,
+                                    ],
+                                  ),
+                                  if (annotation.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 48),
+                                      child: Text(
+                                        annotation,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              node.title,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ),
-                        menu,
-                      ],
                     ),
-                    if (annotation.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 40),
-                        child: Text(
-                          annotation,
-                          style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+                if (_swipedNodeId == node.id && !archived)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: TextButton.icon(
+                      key: Key('node-swipe-archive-${node.id}'),
+                      onPressed: _busy
+                          ? null
+                          : () {
+                              setState(() => _swipedNodeId = null);
+                              unawaited(
+                                _run(
+                                  () => widget.service.archiveNode(node.id),
+                                  archive: node,
+                                ),
+                              );
+                            },
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        backgroundColor: AppColors.errorSoft,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                  ],
-                ),
+                      icon: const Icon(Icons.archive_outlined, size: 18),
+                      label: const Text('归档'),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -618,7 +757,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     Widget? leading,
     Widget? trailing,
     String? annotation,
+    VoidCallback? onNodeTap,
   }) => GoalMissionsSection(
+    onNodeTap: onNodeTap,
     leading: leading,
     trailing: trailing,
     annotation: annotation,
@@ -649,7 +790,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   ) {
     final pending = <_OutlineEntry>[];
     for (var index = roots.length - 1; index >= 0; index--) {
-      pending.add(_OutlineEntry(roots[index], 0, '${index + 1}'));
+      pending.add(_OutlineEntry(roots[index], const []));
     }
     final result = <_OutlineEntry>[];
     while (pending.isNotEmpty) {
@@ -659,40 +800,69 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
       final group = children[entry.node.id] ?? const <GoalNode>[];
       for (var index = group.length - 1; index >= 0; index--) {
         pending.add(
-          _OutlineEntry(
-            group[index],
-            entry.depth + 1,
-            '${entry.path}.${index + 1}',
-          ),
+          _OutlineEntry(group[index], [
+            ...entry.guides,
+            index < group.length - 1,
+          ]),
         );
       }
     }
-    return result; // 例如父节点 1 的第二个子节点显示 1.2；这个编号不写回 orderIndex。
-  }
-
-  Map<String, int> _subtreeSizes(
-    List<GoalNode> shown,
-    Map<String, GoalNode> byId,
-  ) {
-    final shownIds = shown.map((node) => node.id).toSet();
-    final sizes = <String, int>{};
-    for (final node in shown) {
-      String? id = node.id;
-      while (id != null && shownIds.contains(id)) {
-        sizes[id] = (sizes[id] ?? 0) + 1;
-        id = byId[id]?.parentNodeId;
-      }
-    }
-    return sizes;
+    return result;
   }
 }
 
 enum _NodeAction { createMission, add, edit, up, down, archive, restore }
 
-/// 页面临时使用的节点位置：保存节点、显示深度及显示编号，不进入数据库。
+/// 页面临时位置；每条引导线记录该分支下方是否仍有同级节点。
 class _OutlineEntry {
-  const _OutlineEntry(this.node, this.depth, this.path);
+  const _OutlineEntry(this.node, this.guides);
   final GoalNode node;
-  final int depth;
-  final String path;
+  final List<bool> guides;
+  int get depth => guides.length;
+}
+
+class _TreeGuidePainter extends CustomPainter {
+  const _TreeGuidePainter(this.guides, this.expanded, this.step);
+  final List<bool> guides;
+  final bool expanded;
+  final double step;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final markerCenterX = GoalMissionsSection.markerExtent / 2;
+    final markerCenterY =
+        _nodeRowPadding + GoalMissionsSection.markerExtent / 2;
+    final paint = Paint()
+      ..color = AppColors.outline.withValues(alpha: .55)
+      ..strokeWidth = 1;
+    for (var level = 0; level < guides.length; level++) {
+      final x = markerCenterX + level * step;
+      final current = level == guides.length - 1;
+      if (current || guides[level]) {
+        canvas.drawLine(
+          Offset(x, 0),
+          Offset(x, current && !guides[level] ? markerCenterY : size.height),
+          paint,
+        );
+      }
+      if (current) {
+        canvas.drawLine(
+          Offset(x, markerCenterY),
+          Offset(x + step - 10, markerCenterY),
+          paint,
+        );
+      }
+    }
+    if (expanded) {
+      final x = markerCenterX + guides.length * step;
+      canvas.drawLine(
+        Offset(x, markerCenterY + 10),
+        Offset(x, size.height),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TreeGuidePainter oldDelegate) => true;
 }

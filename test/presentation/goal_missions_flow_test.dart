@@ -1,5 +1,8 @@
+import 'dart:ui' as ui;
+
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
@@ -18,6 +21,7 @@ import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/presentation/goals/list/goals_page.dart';
 import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
+import 'package:mission_book/presentation/missions/form/mission_ownership_field.dart';
 
 class _UncertainMissionRepository extends DriftMissionRepository {
   _UncertainMissionRepository(super.database);
@@ -125,6 +129,188 @@ void main() {
     await missions.createPrepared(request);
     return (await missions.findDetail(missionId: request.mission.id))!;
   }
+
+  testWidgets('归属搜索匹配目标和父路径，同名与归档节点不会误选，取消保留原值', (tester) async {
+    final other = goals.prepareCreation(title: '阅读计划');
+    await goals.create(other);
+    final duplicate = goals.prepareNodeCreation(goalId: other.id, title: '布局');
+    await goals.createNode(duplicate);
+    final archived = goals.prepareNodeCreation(goalId: goal.id, title: '旧布局');
+    await goals.createNode(archived);
+    await goals.archiveNode(archived.id);
+    var selected = const MissionOwnership();
+    await open(
+      tester,
+      width: 320,
+      scale: 1.5,
+      home: Scaffold(
+        body: StatefulBuilder(
+          builder: (context, setState) => MissionOwnershipField(
+            service: missions,
+            value: selected,
+            enabled: true,
+            onChanged: (value) => setState(() => selected = value),
+          ),
+        ),
+      ),
+    );
+    await tap(tester, 'mission-ownership');
+    await tester.enterText(
+      find.byKey(const Key('ownership-search')),
+      'flutter 布局',
+    );
+    tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    expect(find.byKey(Key('ownership-node-${node.id}')), findsOneWidget);
+    expect(find.byKey(Key('ownership-node-${duplicate.id}')), findsNothing);
+    expect(find.byKey(Key('ownership-node-${archived.id}')), findsNothing);
+    expect(find.text('学习 Flutter / 界面 / 布局'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.enterText(find.byKey(const Key('ownership-search')), '无匹配内容');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('没有匹配的目标或节点'), findsOneWidget);
+    await tester.tap(find.byTooltip('关闭归属选择'));
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    expect(selected, const MissionOwnership());
+    await tap(tester, 'mission-ownership');
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('ownership-search')))
+          .controller!
+          .text,
+      isEmpty,
+    );
+    await tester.enterText(find.byKey(const Key('ownership-search')), '独立');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('ownership-independent')), findsOneWidget);
+    expect(find.textContaining('没有匹配的目标或节点'), findsNothing);
+    await tester.enterText(find.byKey(const Key('ownership-search')), '界面 布局');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('ownership-node-${node.id}')));
+    await tester.pumpAndSettle();
+    expect(selected, MissionOwnership(goalId: goal.id, goalNodeId: node.id));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('树线在圆圈中心接入，宽屏、窄屏大字号与任务展开均保持对齐', (tester) async {
+    final long = goals.prepareNodeCreation(
+      goalId: goal.id,
+      parentNodeId: parent.id,
+      title: '需要换行显示的子节点名称',
+    );
+    await goals.createNode(long);
+    await create(title: '节点关联任务', nodeId: long.id);
+    const captureKey = Key('outline-alignment-capture');
+
+    Future<void> expectConnected() async {
+      final marker = find.byKey(Key('node-marker-${long.id}'));
+      await tester.ensureVisible(marker);
+      await tester.pumpAndSettle();
+      final circle = tester.getCenter(marker);
+      final trunk = tester.getCenter(
+        find.byKey(Key('node-marker-${parent.id}')),
+      );
+      final origin = tester.getTopLeft(find.byKey(captureKey));
+      // 直接取渲染像素：横线应经过圆圈中心高度，向下三像素则回到卡片底色。
+      // 这样能检出整行按文字居中、树线却使用另一套高度的回归。
+      final x = ((trunk.dx + circle.dx - 10) / 2 - origin.dx).floor();
+      final y = (circle.dy - origin.dy).floor();
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(captureKey),
+      );
+      final pixels = await tester.runAsync(() async {
+        final image = await boundary.toImage();
+        final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+        final result = (width: image.width, data: data!.buffer.asUint8List());
+        image.dispose();
+        return result;
+      });
+      final onLine = (y * pixels!.width + x) * 4;
+      final below = ((y + 3) * pixels.width + x) * 4;
+      var contrast = 0;
+      for (var channel = 0; channel < 3; channel++) {
+        contrast +=
+            (pixels.data[onLine + channel] - pixels.data[below + channel])
+                .abs();
+      }
+      expect(contrast, greaterThan(12), reason: '树线应落在圆圈的实际中心高度');
+    }
+
+    void expectActionsCentered() {
+      for (final id in [parent.id, long.id]) {
+        final createButton = find.byKey(Key('node-create-mission-$id'));
+        final label = find.descendant(
+          of: createButton,
+          matching: find.text('建任务'),
+        );
+        final menu = find.descendant(
+          of: find.byKey(Key('node-menu-$id')),
+          matching: find.byIcon(Icons.more_horiz),
+        );
+        final header = find.byKey(Key('node-header-$id'));
+        final actions = find.byKey(Key('node-actions-$id'));
+        expect(
+          tester.getCenter(label).dy,
+          closeTo(tester.getCenter(menu).dy, .01),
+        );
+        expect(
+          tester.getCenter(actions).dy,
+          closeTo(tester.getCenter(header).dy, .01),
+        );
+      }
+    }
+
+    for (final size in [
+      (width: 1000.0, scale: 1.0),
+      (width: 320.0, scale: 2.0),
+    ]) {
+      await open(
+        tester,
+        width: size.width,
+        scale: size.scale,
+        home: RepaintBoundary(
+          key: captureKey,
+          child: Scaffold(
+            body: GoalsPage(service: goals, missionService: missions),
+          ),
+        ),
+      );
+      await tap(tester, 'goal-outline-toggle-${goal.id}');
+      await expectConnected();
+      if (size.width >= 1000) expectActionsCentered();
+      await tap(tester, 'node-tasks-${long.id}');
+      await expectConnected();
+      if (size.width >= 1000) expectActionsCentered();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+  });
+
+  testWidgets('点击节点主体展开子项，任务记录和菜单保持独立', (tester) async {
+    await create(title: '父节点任务', nodeId: parent.id);
+    await open(tester);
+    expect(find.byKey(Key('node-row-${node.id}')), findsOneWidget);
+    await tester.tap(find.text('界面'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(Key('node-row-${node.id}')), findsNothing);
+    await tester.tap(find.text('界面'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(Key('node-row-${node.id}')), findsOneWidget);
+    await tap(tester, 'node-tasks-${parent.id}');
+    expect(find.text('父节点任务'), findsOneWidget);
+    expect(find.byKey(Key('node-row-${node.id}')), findsOneWidget);
+    await tap(tester, 'node-menu-${parent.id}');
+    expect(find.text('添加子节点'), findsOneWidget);
+    expect(find.byKey(Key('node-row-${node.id}')), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('界面'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('node-title-input')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('从节点直接建任务，预填名称说明原因，可以改成独立任务', (tester) async {
     await open(tester);

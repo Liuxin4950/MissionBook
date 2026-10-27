@@ -50,118 +50,10 @@ class _MissionOwnershipFieldState extends State<MissionOwnershipField> {
     if (_opening || !widget.enabled) return;
     setState(() => _opening = true);
     try {
-      final choices = widget.service
-          .findGoalChoices(); // 这次打开重新读取，避免使用之前缓存的归档状态。
-      choices.ignore();
       final selected = await showAdaptiveSheet<MissionOwnership>(
         context: context,
-        builder: (context) => FractionallySizedBox(
-          heightFactor: .85,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '任务归属',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      tooltip: '关闭归属选择',
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-              ),
-              ListTile(
-                key: const Key('ownership-independent'),
-                leading: const Icon(Icons.task_alt),
-                title: const Text('独立任务'),
-                subtitle: const Text('不关联目标或节点，直接创建'),
-                onTap: () => Navigator.pop(context, const MissionOwnership()),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: FutureBuilder<List<MissionGoalChoices>>(
-                  future: choices,
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return const Center(
-                        child: Text(
-                          '暂时无法读取目标，请关闭后重试\n仍可选择独立任务',
-                          textAlign: TextAlign.center,
-                        ),
-                      );
-                    }
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.data!.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          '暂无正在推进的目标\n可以直接创建独立任务',
-                          textAlign: TextAlign.center,
-                        ),
-                      );
-                    }
-                    return ListView(
-                      children: [
-                        for (final choice in snapshot.data!) ...[
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
-                            child: Text(
-                              choice.goal.title,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ),
-                          ListTile(
-                            key: Key('ownership-goal-${choice.goal.id}'),
-                            leading: const Icon(Icons.flag_outlined),
-                            title: const Text('只关联此目标'),
-                            onTap: () => Navigator.pop(
-                              context,
-                              MissionOwnership(goalId: choice.goal.id),
-                            ),
-                          ),
-                          for (final node in choice.nodes.where(
-                            (node) => node.archivedAt == null,
-                          ))
-                            ListTile(
-                              key: Key('ownership-node-${node.id}'),
-                              leading: const Icon(Icons.account_tree_outlined),
-                              title: Text(node.title),
-                              subtitle: Text(
-                                choice
-                                    .resolve(
-                                      MissionOwnership(
-                                        goalId: choice.goal.id,
-                                        goalNodeId: node.id,
-                                      ),
-                                    )
-                                    .label,
-                              ),
-                              onTap: () => Navigator.pop(
-                                context,
-                                MissionOwnership(
-                                  goalId: choice.goal.id,
-                                  goalNodeId: node.id,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+        builder: (context) =>
+            _OwnershipPicker(service: widget.service, value: widget.value),
       );
       if (selected != null && mounted) widget.onChanged(selected);
     } finally {
@@ -273,5 +165,229 @@ class _MissionOwnershipFieldState extends State<MissionOwnershipField> {
         ),
       );
     },
+  );
+}
+
+/// 搜索状态只在弹层内保留，关闭后不会改动表单已有归属。
+class _OwnershipPicker extends StatefulWidget {
+  const _OwnershipPicker({required this.service, required this.value});
+  final MissionService service;
+  final MissionOwnership value;
+  @override
+  State<_OwnershipPicker> createState() => _OwnershipPickerState();
+}
+
+class _OwnershipPickerState extends State<_OwnershipPicker> {
+  final _search = TextEditingController();
+  late Future<List<MissionGoalChoices>> _choices;
+
+  @override
+  void initState() {
+    super.initState();
+    _read();
+  }
+
+  void _read() => _choices = widget.service.findGoalChoices()..ignore();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+      final height = (MediaQuery.sizeOf(context).height * .82).clamp(
+        0.0,
+        (box.maxHeight - keyboard).clamp(0.0, double.infinity),
+      );
+      return Padding(
+        padding: EdgeInsets.only(bottom: keyboard),
+        child: SizedBox(
+          height: height,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '任务归属',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        tooltip: '关闭归属选择',
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  child: TextField(
+                    key: const Key('ownership-search'),
+                    controller: _search,
+                    onChanged: (_) => setState(() {}),
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                    decoration: InputDecoration(
+                      hintText: '搜索目标或节点',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _search.text.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: '清空搜索',
+                              onPressed: () => setState(_search.clear),
+                              icon: const Icon(Icons.close, size: 18),
+                            ),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: FutureBuilder<List<MissionGoalChoices>>(
+                    future: _choices,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return ListView(
+                          children: [
+                            _independent(context),
+                            const ListTile(title: Text('暂时无法读取目标，仍可选择独立任务')),
+                            TextButton(
+                              onPressed: () => setState(_read),
+                              child: const Text('重新读取目标'),
+                            ),
+                          ],
+                        );
+                      }
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final tokens = _search.text
+                          .trim()
+                          .toLowerCase()
+                          .split(RegExp(r'\s+'))
+                          .where((token) => token.isNotEmpty)
+                          .toList();
+                      bool matches(String label) =>
+                          tokens.every(label.toLowerCase().contains);
+                      final showIndependent = tokens.isEmpty || matches('独立任务');
+                      final options =
+                          <
+                            ({
+                              MissionOwnership value,
+                              String title,
+                              String path,
+                              bool goal,
+                            })
+                          >[];
+                      for (final choice in snapshot.data!) {
+                        if (matches(choice.goal.title)) {
+                          options.add((
+                            value: MissionOwnership(goalId: choice.goal.id),
+                            title: choice.goal.title,
+                            path: '只关联此目标',
+                            goal: true,
+                          ));
+                        }
+                        for (final node in choice.nodes) {
+                          final value = MissionOwnership(
+                            goalId: choice.goal.id,
+                            goalNodeId: node.id,
+                          );
+                          final info = choice.resolve(value);
+                          if (info.available && matches(info.label)) {
+                            options.add((
+                              value: value,
+                              title: node.title,
+                              path: info.label,
+                              goal: false,
+                            ));
+                          }
+                        }
+                      }
+                      return ListView(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.only(bottom: 12),
+                        children: [
+                          if (showIndependent) _independent(context),
+                          if (tokens.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                              child: Text(
+                                '找到 ${options.length + (showIndependent ? 1 : 0)} 项',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          if (options.isEmpty &&
+                              (tokens.isEmpty || !showIndependent))
+                            Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Text(
+                                tokens.isEmpty
+                                    ? '暂无正在推进的目标，可以创建独立任务'
+                                    : '没有匹配的目标或节点，试试其他关键词',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                          for (final option in options)
+                            ListTile(
+                              key: Key(
+                                option.goal
+                                    ? 'ownership-goal-${option.value.goalId}'
+                                    : 'ownership-node-${option.value.goalNodeId}',
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 4,
+                              ),
+                              leading: Icon(
+                                option.goal
+                                    ? Icons.flag_outlined
+                                    : Icons.subdirectory_arrow_right,
+                                color: AppColors.primary,
+                              ),
+                              title: Text(option.title),
+                              subtitle: Text(option.path),
+                              trailing: option.value == widget.value
+                                  ? const Icon(
+                                      Icons.check,
+                                      color: AppColors.primary,
+                                    )
+                                  : null,
+                              onTap: () => Navigator.pop(context, option.value),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  Widget _independent(BuildContext context) => ListTile(
+    key: const Key('ownership-independent'),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+    leading: const Icon(Icons.task_alt, color: AppColors.primary),
+    title: const Text('独立任务'),
+    subtitle: const Text('不关联目标或节点'),
+    trailing: widget.value.goalId == null
+        ? const Icon(Icons.check, color: AppColors.primary)
+        : null,
+    onTap: () => Navigator.pop(context, const MissionOwnership()),
   );
 }

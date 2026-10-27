@@ -24,7 +24,7 @@ class WebAppDevice implements AppDevice {
 
   @override
   Future<DeviceCapabilities> capabilities() async =>
-      const DeviceCapabilities(version: '浏览器预览版');
+      const DeviceCapabilities(version: '浏览器预览版', platform: DevicePlatform.web);
   @override
   Future<void> openSettings({required bool exactAlarms}) async =>
       throw UnsupportedError('请在浏览器网站设置中管理权限');

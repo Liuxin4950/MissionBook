@@ -7,6 +7,7 @@ import '../../../core/theme/colors.dart';
 import '../../../domain/entities/scheduled_mission.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../widgets/app_visibility.dart';
+import '../../widgets/app_section_card.dart';
 import '../../widgets/adaptive_sheet.dart';
 import '../shared/mission_phase_display.dart';
 import '../shared/mission_phase_icon.dart';
@@ -21,6 +22,7 @@ class MissionTimetable extends StatefulWidget {
     required this.onOpen,
     required this.clock,
     this.pixelsPerMinute = 2,
+    this.filtered = false,
   });
   final DateTime day;
   // 每次重绘按当前时刻重建布局，运行中的实际区间才会延伸。
@@ -28,6 +30,7 @@ class MissionTimetable extends StatefulWidget {
   final ValueChanged<String> onOpen;
   final DateTime Function() clock;
   final double pixelsPerMinute;
+  final bool filtered;
 
   @override
   State<MissionTimetable> createState() => _MissionTimetableState();
@@ -156,6 +159,12 @@ class _MissionTimetableState extends State<MissionTimetable>
     final window = timetableWindow(slots, nowMinute: nowMinute);
     final start = window.start;
     final end = window.end;
+    final ticks = <double>{
+      start,
+      for (var minute = (start / 60).ceil() * 60.0; minute < end; minute += 60)
+        minute,
+      end,
+    };
     final columns = slots.fold<int>(
       1,
       (count, slot) => math.max(count, slot.columns),
@@ -165,54 +174,66 @@ class _MissionTimetableState extends State<MissionTimetable>
         .toList();
     final actualCount = slots.where((slot) => slot.actual).length;
     final plannedCount = slots.length - actualCount;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          children: [
-            Text(
-              '固定日程 $plannedCount 项'
-              '${actualCount > 0 ? ' · 实际执行 $actualCount 项' : ''}'
-              ' · 北京时间',
-              style: theme.textTheme.bodyMedium,
-            ),
-            if (_layout.conflicts.isNotEmpty)
-              TextButton.icon(
-                key: const Key('timetable-conflicts'),
-                onPressed: _showConflicts,
-                icon: const Icon(Icons.warning_amber_rounded, size: 18),
-                label: const Text('查看时间冲突'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.error,
-                  textStyle: theme.textTheme.labelMedium,
+    return AppSectionCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            children: [
+              Text('时间安排', style: theme.textTheme.titleMedium),
+              if (_layout.conflicts.isNotEmpty)
+                TextButton.icon(
+                  key: const Key('timetable-conflicts'),
+                  onPressed: _showConflicts,
+                  icon: const Icon(Icons.warning_amber_rounded, size: 18),
+                  label: const Text('查看时间冲突'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    textStyle: theme.textTheme.labelMedium,
+                  ),
                 ),
-              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '固定日程 $plannedCount 项${actualCount > 0 ? ' · 实际执行 $actualCount 项' : ''} · 北京时间',
+            style: theme.textTheme.bodySmall,
+          ),
+          if (slots.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 16,
+              runSpacing: 4,
+              children: [
+                if (plannedCount > 0)
+                  _legend(context, '计划', AppColors.primary, '按任务的固定计划时段绘制'),
+                if (actualCount > 0)
+                  _legend(context, '实际', AppColors.warning, '按执行记录绘制，不占用计划时段'),
+              ],
+            ),
           ],
-        ),
-        const SizedBox(height: 12),
-        if (slots.isEmpty)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
+          const SizedBox(height: 12),
+          if (slots.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                '这一天没有符合筛选条件的固定日程。',
+                widget.filtered ? '这一天没有符合筛选条件的固定日程。' : '这一天没有固定日程。',
                 style: theme.textTheme.bodyMedium,
               ),
-            ),
-          )
-        else
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final gutter = 58.0 * scale;
                   final width = math.max(
                     constraints.maxWidth,
-                    gutter + columns * 128 * scale + 12,
+                    gutter + columns * 112 * scale + 12,
                   );
                   final height = (end - start) * pixelsPerMinute;
                   final chartWidth = width - gutter - 12;
@@ -234,11 +255,7 @@ class _MissionTimetableState extends State<MissionTimetable>
                           height: height + 24 * scale,
                           child: Stack(
                             children: [
-                              for (
-                                var minute = start;
-                                minute <= end;
-                                minute += 60
-                              )
+                              for (final minute in ticks)
                                 Positioned(
                                   top: (minute - start) * pixelsPerMinute,
                                   left: 0,
@@ -324,46 +341,70 @@ class _MissionTimetableState extends State<MissionTimetable>
                 },
               ),
             ),
-          ),
-        if (_layout.conflicts.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Text('斜纹标记重叠时段，状态标签表示实际执行情况。', style: theme.textTheme.bodySmall),
-        ],
-        if (actualCount > 0) ...[
-          const SizedBox(height: 8),
-          Text('“实际”色块按执行记录绘制，不占用计划时段。', style: theme.textTheme.bodySmall),
-        ],
-        if (shortSlots.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text('短时任务', style: theme.textTheme.titleMedium),
-          for (final slot in shortSlots)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: MissionPhaseIcon(phase: slot.detail.phase),
-              title: Text(
-                slot.detail.mission.title,
-                style: theme.textTheme.titleMedium,
-              ),
-              subtitle: Text(
-                '${slot.timeLabel} · ${phaseLabel(slot.detail.phase)}',
-                style: theme.textTheme.bodyMedium,
-              ),
-              trailing: slot.conflicts.isEmpty
-                  ? const Icon(Icons.chevron_right)
-                  : IconButton(
-                      tooltip: '查看时间冲突',
-                      onPressed: () => _showConflicts(slot),
-                      icon: const Icon(
-                        Icons.warning_amber_rounded,
-                        color: AppColors.error,
+          if (_layout.conflicts.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text('斜纹标记重叠时段，状态标签表示实际执行情况。', style: theme.textTheme.bodySmall),
+          ],
+          if (shortSlots.isNotEmpty) ...[
+            const Divider(height: 24),
+            Text('短时任务', style: theme.textTheme.titleSmall),
+            for (final slot in shortSlots)
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                leading: MissionPhaseIcon(phase: slot.detail.phase),
+                title: Text(
+                  slot.detail.mission.title,
+                  style: theme.textTheme.titleMedium,
+                ),
+                subtitle: Text(
+                  '${slot.timeLabel} · ${phaseLabel(slot.detail.phase)}',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                trailing: slot.conflicts.isEmpty
+                    ? const Icon(Icons.chevron_right)
+                    : IconButton(
+                        tooltip: '查看时间冲突',
+                        onPressed: () => _showConflicts(slot),
+                        icon: const Icon(
+                          Icons.warning_amber_rounded,
+                          color: AppColors.error,
+                        ),
                       ),
-                    ),
-              onTap: () => widget.onOpen(slot.id),
-            ),
+                onTap: () => widget.onOpen(slot.id),
+              ),
+          ],
         ],
-      ],
+      ),
     );
   }
+
+  Widget _legend(
+    BuildContext context,
+    String label,
+    Color color,
+    String description,
+  ) => Tooltip(
+    message: description,
+    child: Semantics(
+      label: '$label，$description',
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 3,
+            height: 12,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    ),
+  );
 
   Widget _slot(BuildContext context, TimetableSlot slot) {
     final theme = Theme.of(context);
@@ -396,7 +437,7 @@ class _MissionTimetableState extends State<MissionTimetable>
         message: '${slot.timeLabel} ${slot.detail.mission.title} · $status',
         child: Material(
           color: color,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(4),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             // 与列表行的 all-mission- key 分开：自选任务会同时出现在图和列表里。

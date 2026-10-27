@@ -1,3 +1,4 @@
+import '../widgets/app_date_picker.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/app_illustration.dart';
@@ -173,15 +174,13 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     _isPickingDate = true;
     DateTime? date;
     try {
-      date = await showDatePicker(
+      date = await showAppDatePicker(
         context: context,
         initialDate: _selectedDate,
         currentDate: _today,
         firstDate: DateTime(1),
         lastDate: DateTime(9999, 12, 31),
-        helpText: '选择计划日期',
-        cancelText: '取消',
-        confirmText: '确定',
+        title: '选择计划日期',
       );
     } finally {
       _isPickingDate = false;
@@ -190,7 +189,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     await _changeDate(date);
   }
 
-  // 日期选择器和“回到今天”共用：先换日期、清掉旧列表，再走同一次加载过程。
+  // 日历、周日期栏和今天快捷入口共用同一次加载过程。
   Future<void> _changeDate(DateTime date) async {
     if (DateUtils.isSameDay(date, _selectedDate)) return;
     _selectedDate = DateUtils.dateOnly(date);
@@ -331,6 +330,17 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   // build 不查询数据库；它只读取上面的状态，由 _buildContent 决定显示哪一种状态。
   @override
   Widget build(BuildContext context) {
+    final today = DateUtils.dateOnly(_today);
+    final selectedWeek = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day - _selectedDate.weekday + 1,
+    );
+    final currentWeek = DateTime(
+      today.year,
+      today.month,
+      today.day - today.weekday + 1,
+    );
     final content = SafeArea(
       child: Center(
         child: ConstrainedBox(
@@ -349,7 +359,10 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                 if (!widget.fullSchedule)
                   _TodayHeader(
                     dateLabel: display.scheduleDateLabel(_selectedDate),
-                    isToday: DateUtils.isSameDay(_selectedDate, _today),
+                    showTodayShortcut: !DateUtils.isSameDay(
+                      selectedWeek,
+                      currentWeek,
+                    ),
                     onPickDate: _pickDate,
                     onCreate: _openCreate,
                     onOpenAllMissions: _openAllMissions,
@@ -366,6 +379,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                 else ...[
                   _WeekStrip(
                     selectedDate: _selectedDate,
+                    today: _today,
                     onSelect: _changeDate,
                   ),
                   const SizedBox(height: 16),
@@ -559,7 +573,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
 class _TodayHeader extends StatelessWidget {
   const _TodayHeader({
     required this.dateLabel,
-    required this.isToday,
+    required this.showTodayShortcut,
     required this.onPickDate,
     required this.onCreate,
     required this.onOpenAllMissions,
@@ -567,7 +581,7 @@ class _TodayHeader extends StatelessWidget {
   });
 
   final String dateLabel;
-  final bool isToday;
+  final bool showTodayShortcut;
   final VoidCallback onPickDate;
   final VoidCallback onCreate;
   final VoidCallback onOpenAllMissions;
@@ -581,18 +595,34 @@ class _TodayHeader extends StatelessWidget {
       children: [
         AppPageHeader(
           title: '今天',
-          subtitle: TextButton.icon(
-            key: const Key('today-date-picker'),
-            onPressed: onPickDate,
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              foregroundColor: theme.colorScheme.onSurfaceVariant,
-              alignment: Alignment.centerLeft,
-              textStyle: theme.textTheme.bodyMedium,
-            ),
-            label: Text(dateLabel),
-            icon: const Icon(Icons.expand_more, size: 20),
-            iconAlignment: IconAlignment.end,
+          subtitle: Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TextButton.icon(
+                key: const Key('today-date-picker'),
+                onPressed: onPickDate,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  foregroundColor: theme.colorScheme.onSurfaceVariant,
+                  alignment: Alignment.centerLeft,
+                  textStyle: theme.textTheme.bodyMedium,
+                ),
+                label: Text(dateLabel),
+                icon: const Icon(Icons.expand_more, size: 20),
+                iconAlignment: IconAlignment.end,
+              ),
+              if (showTodayShortcut)
+                TextButton.icon(
+                  key: const Key('today-return-current-week'),
+                  onPressed: onReturnToday,
+                  icon: const Icon(Icons.today_outlined, size: 16),
+                  label: const Text('今天'),
+                  style: TextButton.styleFrom(
+                    textStyle: theme.textTheme.labelMedium,
+                  ),
+                ),
+            ],
           ),
           action: Row(
             mainAxisSize: MainAxisSize.min,
@@ -618,14 +648,6 @@ class _TodayHeader extends StatelessWidget {
             ],
           ),
         ),
-        if (!isToday)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: onReturnToday,
-              child: const Text('回到今天'),
-            ),
-          ),
       ],
     );
   }
@@ -633,8 +655,13 @@ class _TodayHeader extends StatelessWidget {
 
 /// 七天快捷选择与日历选择共用同一个查询入口，日期来自真正的日历运算。
 class _WeekStrip extends StatelessWidget {
-  const _WeekStrip({required this.selectedDate, required this.onSelect});
+  const _WeekStrip({
+    required this.selectedDate,
+    required this.today,
+    required this.onSelect,
+  });
   final DateTime selectedDate;
+  final DateTime today;
   final ValueChanged<DateTime> onSelect;
 
   @override
@@ -658,41 +685,75 @@ class _WeekStrip extends StatelessWidget {
                   monday.day + index,
                 );
                 final selected = DateUtils.isSameDay(date, selectedDate);
+                final isToday = DateUtils.isSameDay(date, today);
+                final foreground = selected
+                    ? AppColors.onPrimary
+                    : AppColors.textPrimary;
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: Semantics(
                     selected: selected,
-                    label: display.scheduleDateLabel(date),
+                    label:
+                        '${display.scheduleDateLabel(date)}${isToday ? '，今天' : ''}',
                     button: true,
                     onTap: () => onSelect(date),
                     excludeSemantics: true,
                     child: Material(
+                      key: ValueKey(
+                        'today-week-day-${display.scheduleDateKey(date)}',
+                      ),
                       color: selected
                           ? theme.colorScheme.primary
+                          : isToday
+                          ? AppColors.primarySoft
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(12),
                       child: InkWell(
                         onTap: () => onSelect(date),
                         borderRadius: BorderRadius.circular(12),
-                        child: Padding(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: isToday
+                                ? Border.all(
+                                    color: selected
+                                        ? AppColors.onPrimary.withValues(
+                                            alpha: .3,
+                                          )
+                                        : AppColors.primary.withValues(
+                                            alpha: .4,
+                                          ),
+                                  )
+                                : null,
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           child: Column(
                             children: [
-                              Text(
-                                weekdays[index],
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: selected
-                                      ? theme.colorScheme.onPrimary
-                                      : theme.colorScheme.onSurfaceVariant,
+                              FittedBox(
+                                child: Text(
+                                  isToday ? '今天' : weekdays[index],
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: isToday
+                                        ? foreground
+                                        : selected
+                                        ? AppColors.onPrimary
+                                        : AppColors.textSecondary,
+                                    fontWeight: isToday
+                                        ? FontWeight.w600
+                                        : null,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              Text(
-                                '${date.day}',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: selected
-                                      ? theme.colorScheme.onPrimary
-                                      : theme.colorScheme.onSurface,
+                              FittedBox(
+                                child: Text(
+                                  '${date.day}',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: foreground,
+                                    fontWeight: selected || isToday
+                                        ? FontWeight.w600
+                                        : null,
+                                  ),
                                 ),
                               ),
                             ],

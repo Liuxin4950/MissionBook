@@ -16,6 +16,9 @@ import '../../missions/shared/mission_live_status.dart';
 
 /// 目标或节点下的直接关联任务，操作转入独立任务页面。
 class GoalMissionsSection extends StatefulWidget {
+  // 节点标记与树线共用定位尺寸，文字换行只增加行高，不移动标记。
+  static const markerExtent = 48.0;
+
   const GoalMissionsSection({
     super.key,
     required this.goal,
@@ -26,6 +29,7 @@ class GoalMissionsSection extends StatefulWidget {
     this.leading,
     this.trailing,
     this.annotation,
+    this.onNodeTap,
     this.directOnly = false,
   });
   final Goal goal;
@@ -36,6 +40,7 @@ class GoalMissionsSection extends StatefulWidget {
   final Widget? leading; // 节点树传入展开箭头；任务区负责把它与节点标题放在同一行。
   final Widget? trailing; // 节点维护菜单，由原来的树组件提供，操作逻辑不搬到这里。
   final String? annotation;
+  final VoidCallback? onNodeTap; // 点击节点标题区域时展开或收起子节点。
   final bool directOnly;
   @override
   State<GoalMissionsSection> createState() => GoalMissionsSectionState();
@@ -213,12 +218,12 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                   ],
                 ),
               );
-        final leading =
-            widget.leading ??
-            SizedBox(
-              width: 36,
-              height: 48,
-              child: Icon(
+        final leading = SizedBox.square(
+          key: Key('node-marker-${widget.node?.id ?? widget.goal.id}'),
+          dimension: GoalMissionsSection.markerExtent,
+          child:
+              widget.leading ??
+              Icon(
                 widget.node == null
                     ? Icons.flag_outlined
                     : completed
@@ -227,86 +232,111 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                 size: 18,
                 color: completed ? AppColors.primary : AppColors.outline,
               ),
-            );
+        );
         return Padding(
           padding: EdgeInsets.only(top: widget.node == null ? 16 : 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              LayoutBuilder(
-                builder: (context, box) {
-                  final compact =
-                      box.maxWidth <
-                      270 * MediaQuery.textScalerOf(context).scale(1);
-                  final name = Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  );
-                  if (compact) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            leading,
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
+              GestureDetector(
+                key: Key('node-header-${widget.node?.id ?? widget.goal.id}'),
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.onNodeTap,
+                child: LayoutBuilder(
+                  builder: (context, box) {
+                    final compact =
+                        box.maxWidth <
+                        270 * MediaQuery.textScalerOf(context).scale(1);
+                    final name = Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    );
+                    if (compact) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              leading,
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                  child: name,
                                 ),
-                                child: name,
                               ),
+                              if (widget.trailing != null) widget.trailing!,
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 48),
+                            child: Wrap(
+                              spacing: 10,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [status, ?createButton],
                             ),
-                            if (widget.trailing != null) widget.trailing!,
-                          ],
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 36),
-                          child: Wrap(
-                            spacing: 10,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [status, ?createButton],
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        leading,
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [name, status],
+                                  ),
+                                ),
+                              ),
+                              Row(
+                                key: Key(
+                                  'node-actions-${widget.node?.id ?? widget.goal.id}',
+                                ),
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [?createButton, ?widget.trailing],
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     );
-                  }
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      leading,
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [name, status],
-                          ),
-                        ),
-                      ),
-                      ?createButton,
-                      if (widget.trailing != null) widget.trailing!,
-                    ],
-                  );
-                },
+                  },
+                ),
               ),
               if (widget.annotation?.isNotEmpty == true)
-                Padding(
-                  padding: const EdgeInsets.only(left: 40, bottom: 4),
-                  child: Text(
-                    widget.annotation!,
-                    style: theme.textTheme.bodySmall,
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.onNodeTap,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 48, bottom: 4),
+                    child: Text(
+                      widget.annotation!,
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ),
                 ),
               if (direct.any(
                 (detail) => detail.phase == MissionPhase.evidencePending,
               ))
                 Padding(
-                  padding: const EdgeInsets.only(left: 40, bottom: 6),
+                  padding: const EdgeInsets.only(left: 48, bottom: 6),
                   child: Text(
                     '待补材料',
                     style: theme.textTheme.bodyMedium?.copyWith(
@@ -316,7 +346,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                 ),
               if (!available)
                 Padding(
-                  padding: const EdgeInsets.only(left: 40, bottom: 8),
+                  padding: const EdgeInsets.only(left: 48, bottom: 8),
                   child: Text(
                     widget.node?.archivedAt != null
                         ? '已归档 · 恢复后可建任务，原任务仍可办理'
@@ -401,70 +431,93 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 3, right: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      date.substring(5).replaceFirst('-', '/'),
-                      style: theme.textTheme.bodyMedium?.copyWith(color: color),
-                    ),
-                    Text(
-                      date.substring(0, 4),
-                      style: theme.textTheme.bodySmall?.copyWith(color: color),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      detail.mission.title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+          LayoutBuilder(
+            builder: (context, box) {
+              final compact =
+                  box.maxWidth <
+                  260 * MediaQuery.textScalerOf(context).scale(1);
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!compact)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3, right: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            date.substring(5).replaceFirst('-', '/'),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: color,
+                            ),
+                          ),
+                          Text(
+                            date.substring(0, 4),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: color,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${phaseLabel(detail.phase)} · 计划 ${detail.schedule.plannedDurationMinutes} 分钟',
-                      style: theme.textTheme.bodyMedium?.copyWith(color: color),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (compact) ...[
+                          Text(
+                            date,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: color,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                        ],
+                        Text(
+                          detail.mission.title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${phaseLabel(detail.phase)} · 计划 ${detail.schedule.plannedDurationMinutes} 分钟',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: color,
+                          ),
+                        ),
+                        if (detail.events.isNotEmpty)
+                          MissionLiveStatus(
+                            phase: detail.phase,
+                            events: detail.events,
+                            includePhase: false,
+                          ),
+                      ],
                     ),
-                    if (detail.events.isNotEmpty)
-                      MissionLiveStatus(
-                        phase: detail.phase,
-                        events: detail.events,
-                        includePhase: false,
-                      ),
-                  ],
-                ),
-              ),
-              IconButton(
-                onPressed: _opening ? null : () => _open(detail: detail),
-                tooltip:
-                    detail.phase == MissionPhase.running ||
-                        detail.phase == MissionPhase.paused
-                    ? '返回执行'
-                    : detail.phase == MissionPhase.closed
-                    ? '查看执行记录'
-                    : detail.phase == MissionPhase.evidencePending
-                    ? '提交材料'
-                    : '任务详情',
-                icon: Icon(
-                  detail.phase == MissionPhase.closed
-                      ? Icons.history_rounded
-                      : Icons.open_in_new_rounded,
-                  size: 18,
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
+                  ),
+                  IconButton(
+                    onPressed: _opening ? null : () => _open(detail: detail),
+                    tooltip:
+                        detail.phase == MissionPhase.running ||
+                            detail.phase == MissionPhase.paused
+                        ? '返回执行'
+                        : detail.phase == MissionPhase.closed
+                        ? '查看执行记录'
+                        : detail.phase == MissionPhase.evidencePending
+                        ? '提交材料'
+                        : '任务详情',
+                    icon: Icon(
+                      detail.phase == MissionPhase.closed
+                          ? Icons.history_rounded
+                          : Icons.open_in_new_rounded,
+                      size: 18,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           if (detail.phase == MissionPhase.evidencePending)
             Align(

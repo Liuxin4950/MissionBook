@@ -79,13 +79,13 @@ class TimetableConflict {
 
 /// 时间轴的显示窗口（相对所选日期零点的分钟数）。
 ///
-/// 围绕占位和“现在”裁掉没有内容的时段：内容前后各留半小时，再向外取整到
-/// 整点（刻度按整点绘制），至少保留 [minWindow] 分钟上下文，不超出 00:00–24:00。
+/// 内容前后各留一刻钟，向外取整到半点；至少保留 [minWindow] 分钟上下文。
+/// 窗口始终覆盖所有可见时段，不压缩任务之间的真实时间距离。
 /// 没有任何占位时回退到默认的 8:00–18:00。
 ({double start, double end}) timetableWindow(
   Iterable<TimetableSlot> slots, {
   double? nowMinute,
-  double minWindow = 180,
+  double minWindow = 120,
 }) {
   double? lowest = nowMinute;
   double? highest = nowMinute;
@@ -96,12 +96,12 @@ class TimetableConflict {
   if (lowest == null || highest == null) {
     return (start: 8 * 60, end: 18 * 60);
   }
-  var start = math.max(0.0, ((lowest - 30) / 60).floor() * 60.0);
-  var end = math.min(1440.0, ((highest + 30) / 60).ceil() * 60.0);
-  // 内容太少时按整小时向两侧补齐最小窗口；贴近一天两端就只向另一侧扩。
+  var start = math.max(0.0, ((lowest - 15) / 30).floor() * 30.0);
+  var end = math.min(1440.0, ((highest + 15) / 30).ceil() * 30.0);
+  // 内容太少时按半小时向两侧补齐；贴近一天两端就只向另一侧扩。
   while (end - start < minWindow && (start > 0 || end < 1440)) {
-    if (start > 0) start -= 60;
-    if (end - start < minWindow && end < 1440) end += 60;
+    if (start > 0) start -= 30;
+    if (end - start < minWindow && end < 1440) end += 30;
   }
   return (start: start, end: end);
 }

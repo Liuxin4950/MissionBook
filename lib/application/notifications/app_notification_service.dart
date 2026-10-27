@@ -66,6 +66,7 @@ class AppNotificationService {
   final _settingsChanges = StreamController<void>.broadcast();
   Stream<void> get settingsChanges => _settingsChanges.stream;
   int get reminderLeadMinutes => _store.reminderLeadMinutes;
+  bool get supportsScheduling => _dispatcher.supportsScheduling;
 
   Future<void> setReminderLeadMinutes(int minutes) async {
     await _store.setReminderLeadMinutes(minutes);

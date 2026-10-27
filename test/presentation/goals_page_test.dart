@@ -42,8 +42,12 @@ void main() {
     await db.close();
   });
 
-  Future<void> open(WidgetTester tester, {double scale = 1}) async {
-    tester.view.physicalSize = const Size(390, 844);
+  Future<void> open(
+    WidgetTester tester, {
+    double scale = 1,
+    double width = 390,
+  }) async {
+    tester.view.physicalSize = Size(width, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -193,10 +197,9 @@ void main() {
     }
   });
 
-  testWidgets('分类空态可直接导入或创建目标', (tester) async {
+  testWidgets('进行中空态保留导入和创建入口', (tester) async {
     await open(tester);
-    await tap(tester, 'goal-filter-paused');
-    await tap(tester, 'goal-empty-import');
+    await tap(tester, 'goal-create-import');
     final input = tester.widget<TextField>(
       find.byKey(const Key('goal-import-input')),
     );
@@ -212,6 +215,78 @@ void main() {
     await tap(tester, 'goal-create');
     expect(find.byKey(const Key('goal-title-input')), findsOneWidget);
     expect(await service.findAll(), isEmpty);
+  });
+
+  testWidgets('搁置和达成空态仅显示本分类，手机和宽屏均不混入进行中目标或导入创建', (tester) async {
+    final active = service.prepareCreation(title: '现有进行中目标');
+    await service.create(active);
+    for (final width in [390.0, 1366.0]) {
+      await open(tester, width: width);
+      for (final (status, title) in [
+        ('paused', '没有已搁置的目标'),
+        ('achieved', '没有已达成的目标'),
+      ]) {
+        await tap(tester, 'goal-filter-$status');
+        expect(find.text(title), findsOneWidget);
+        expect(find.text('0 个目标'), findsOneWidget);
+        expect(find.text(active.title), findsNothing);
+        expect(find.text('进行中的目标'), findsNothing);
+        expect(find.text('继续探索'), findsNothing);
+        expect(find.byKey(const Key('goal-create')), findsNothing);
+        expect(find.byKey(const Key('goal-import-input')), findsNothing);
+        expect(find.text('导入大纲'), findsNothing);
+        await tap(tester, 'goal-more-filters');
+        expect(find.text('导入目标大纲'), findsNothing);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+      }
+      await tap(tester, 'goal-filter-active');
+      expect(find.byKey(Key('goal-${active.id}')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+  });
+
+  testWidgets('切换分类前保护导入草稿，放弃后才隐藏导入区，返回进行中可重新导入', (tester) async {
+    const draft = '{"尚未保存":"导入草稿"}';
+    for (final width in [390.0, 1366.0]) {
+      await open(tester, width: width);
+      if (find.byKey(const Key('goal-import-input')).evaluate().isEmpty) {
+        await tap(tester, 'goal-create-import');
+      }
+      await tester.enterText(find.byKey(const Key('goal-import-input')), draft);
+      await tap(tester, 'goal-filter-paused');
+      expect(find.text('离开目标导入？'), findsOneWidget);
+      await tester.tap(find.text('继续填写'));
+      await tester.pumpAndSettle();
+      expect(find.text('没有已搁置的目标'), findsNothing);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('goal-import-input')))
+            .controller!
+            .text,
+        draft,
+      );
+      await tap(tester, 'goal-filter-achieved');
+      await tester.tap(find.text('放弃草稿'));
+      await tester.pumpAndSettle();
+      expect(find.text('没有已达成的目标'), findsOneWidget);
+      expect(find.byKey(const Key('goal-import-input')), findsNothing);
+      await tap(tester, 'goal-filter-active');
+      if (find.byKey(const Key('goal-import-input')).evaluate().isEmpty) {
+        await tap(tester, 'goal-create-import');
+      }
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('goal-import-input')))
+            .controller!
+            .text,
+        isEmpty,
+      );
+      expect(await service.findAll(), isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
   });
 
   testWidgets('系统返回保留或放弃草稿，放弃不写入', (tester) async {

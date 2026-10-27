@@ -5,14 +5,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/notifications/app_notification_service.dart';
+import 'package:mission_book/application/settings/app_device.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/notifications/notification_dispatcher.dart';
 import 'package:mission_book/data/notifications/reminder_store.dart';
+import 'package:mission_book/domain/notifications/reminder_request.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/presentation/me/settings_page.dart';
 
 import '../support/me_fakes.dart';
+
+class _SchedulingDispatcher implements NotificationDispatcher {
+  @override
+  bool get supportsScheduling => true;
+  @override
+  Future<void> cancel(int notificationId) async {}
+  @override
+  Future<void> schedule(ReminderRequest request) async {}
+  @override
+  Future<void> show(ReminderRequest request) async {}
+}
+
+class _WindowsDevice extends TestAppDevice {
+  @override
+  Future<DeviceCapabilities> capabilities() async =>
+      const DeviceCapabilities(version: '测试', platform: DevicePlatform.windows);
+}
 
 class _SettingsStore extends ReminderStore {
   _SettingsStore(super.file);
@@ -41,7 +60,7 @@ void main() {
     notifications = AppNotificationService(
       missions: missions,
       store: store,
-      dispatcher: const UnsupportedNotificationDispatcher(),
+      dispatcher: _SchedulingDispatcher(),
       now: DateTime.now,
     );
     await notifications.start();
@@ -53,7 +72,11 @@ void main() {
     await dir.delete(recursive: true);
   });
 
-  Future<void> open(WidgetTester tester, {bool largeText = false}) async {
+  Future<void> open(
+    WidgetTester tester, {
+    bool largeText = false,
+    AppDevice? device,
+  }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(320, 900);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -68,7 +91,7 @@ void main() {
           ),
           child: Scaffold(
             body: SettingsPage(
-              device: TestAppDevice(),
+              device: device ?? TestAppDevice(),
               backup: TestBackup(),
               notifications: notifications,
             ),
@@ -105,6 +128,23 @@ void main() {
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
     expect(notifications.reminderLeadMinutes, 30);
+  });
+
+  testWidgets('Windows 支持设置提前提醒并说明旧通知限制', (tester) async {
+    await open(tester, device: _WindowsDevice());
+    final row = find.byKey(const Key('planned-reminder-setting'));
+    await tester.scrollUntilVisible(
+      row,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('提前 10 分钟提醒'), findsOneWidget);
+    expect(find.textContaining('无法撤销已安排的系统提醒'), findsOneWidget);
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('reminder-minutes-30')));
+    await tester.pumpAndSettle();
+    expect(store.reminderLeadMinutes, 30);
   });
 
   testWidgets('设置保存失败保留原选择并说明错误，可以重试', (tester) async {

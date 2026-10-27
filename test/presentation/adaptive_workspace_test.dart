@@ -340,7 +340,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('目标各状态空态共用结构，真实目标入口随宽度调整', (tester) async {
+  testWidgets('目标状态空态在各宽度保持分类隔离，进行中目标从对应分类进入', (tester) async {
     for (final (width, scale) in [
       (320.0, 2.0),
       (390.0, 1.0),
@@ -362,33 +362,31 @@ void main() {
           find.byKey(Key('goal-empty-illustration-$status')),
           findsOneWidget,
         );
-        expect(find.byKey(const Key('goal-empty-next-pane')), findsOneWidget);
-        expect(find.byKey(Key('goal-empty-active-$goalId')), findsOneWidget);
-        expect(find.byKey(const Key('goal-create')), findsOneWidget);
+        expect(find.byKey(const Key('goal-empty-next-pane')), findsNothing);
+        expect(find.byKey(Key('goal-$goalId')), findsNothing);
+        expect(find.byKey(const Key('goal-create')), findsNothing);
+        expect(find.byKey(const Key('goal-import-input')), findsNothing);
+        expect(find.text('进行中的目标'), findsNothing);
         if (width == 1280) {
           final hero = tester.getRect(
             find.byKey(const Key('goal-empty-state')),
           );
-          final next = tester.getRect(
-            find.byKey(const Key('goal-empty-next-pane')),
-          );
-          expect(next.left, greaterThan(hero.right));
+          expect(hero.width, lessThanOrEqualTo(792));
           await _capture(tester, 'goals-empty-$status-1280');
         }
         expect(tester.takeException(), isNull);
       }
-      final activeGoal = find.byKey(Key('goal-empty-active-$goalId'));
+      final activeFilter = find.byKey(const Key('goal-filter-active'));
+      await tester.ensureVisible(activeFilter);
+      await tester.tap(activeFilter);
+      await tester.pumpAndSettle();
+      final activeGoal = find.byKey(Key('goal-$goalId'));
       await tester.ensureVisible(activeGoal);
       await tester.pumpAndSettle();
       await tester.tap(activeGoal);
       await tester.pumpAndSettle();
       expect(find.text('目标详情'), findsOneWidget);
       await tester.tap(find.byTooltip('返回'));
-      await tester.pumpAndSettle();
-      final back = find.byKey(const Key('goal-empty-back-active'));
-      await tester.ensureVisible(back);
-      await tester.pumpAndSettle();
-      await tester.tap(back);
       await tester.pumpAndSettle();
       expect(find.byKey(Key('goal-$goalId')), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -415,10 +413,11 @@ void main() {
     await tester.enterText(input, draft);
     await tester.tap(find.byKey(const Key('goal-filter-paused')));
     await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(input).controller!.text, draft);
-    await tester.tap(find.byKey(const Key('goal-filter-active')));
+    expect(find.text('离开目标导入？'), findsOneWidget);
+    await tester.tap(find.text('继续填写'));
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(input).controller!.text, draft);
+    expect(find.text('没有已搁置的目标'), findsNothing);
     for (final width in [390.0, 768.0, 1536.0]) {
       tester.view.physicalSize = Size(width, 900);
       await tester.pumpAndSettle();

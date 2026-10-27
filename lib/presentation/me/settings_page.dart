@@ -231,6 +231,13 @@ class _SettingsPageState extends State<SettingsPage>
                   header: true,
                   child: Text('提醒与权限', style: text.titleMedium),
                 ),
+                if (_capabilities != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '当前平台：${_platformLabel(_capabilities!.effectivePlatform)}',
+                    style: text.bodyMedium,
+                  ),
+                ],
                 const SizedBox(height: 12),
                 _buildPermissionSection(context),
                 const SizedBox(height: 24),
@@ -240,8 +247,7 @@ class _SettingsPageState extends State<SettingsPage>
                   maxColumns: 2,
                   spacing: 24,
                   children: [
-                    if (widget.notifications != null)
-                      _buildScheduleSection(context),
+                    _buildScheduleSection(context),
                     _buildBackupSection(context),
                   ],
                 ),
@@ -255,9 +261,23 @@ class _SettingsPageState extends State<SettingsPage>
     );
   }
 
+  String _platformLabel(DevicePlatform platform) => switch (platform) {
+    DevicePlatform.android => 'Android',
+    DevicePlatform.windows => 'Windows',
+    DevicePlatform.ios => 'iOS',
+    DevicePlatform.macos => 'macOS',
+    DevicePlatform.linux => 'Linux',
+    DevicePlatform.web => '浏览器',
+    DevicePlatform.other => '其他设备',
+  };
+
   Widget _buildPermissionSection(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final capabilities = _capabilities;
+    final platform = capabilities?.effectivePlatform;
+    final supported =
+        platform == DevicePlatform.android ||
+        platform == DevicePlatform.windows;
     final needsNotifications = capabilities?.notifications == false;
     final needsExactAlarms =
         capabilities?.android == true && capabilities?.exactAlarms == false;
@@ -276,6 +296,14 @@ class _SettingsPageState extends State<SettingsPage>
       title = '正在读取提醒权限';
       description = '正在查询这台设备的系统通知与提醒权限。';
       icon = Icons.notifications_outlined;
+    } else if (!supported) {
+      title = '当前平台尚未接入系统提醒';
+      description = '任务仍可在应用内管理，系统通知与定时提醒暂不可用。';
+      icon = Icons.notifications_off_outlined;
+    } else if (platform == DevicePlatform.windows) {
+      title = 'Windows 通知设置';
+      description = '应用无法读取 Windows 通知权限，请在系统设置中检查通知开关。';
+      icon = Icons.notifications_outlined;
     } else if (needsNotifications) {
       title = '开启系统通知';
       description = '允许通知后，可在系统通知栏查看任务提醒与执行状态。';
@@ -290,7 +318,7 @@ class _SettingsPageState extends State<SettingsPage>
       icon = Icons.info_outline;
     } else if (needsExactAlarms) {
       title = '准时提醒权限待开启';
-      description = '系统通知已允许；开启准时提醒权限后，固定任务可按设定时刻提醒。';
+      description = '系统通知已允许；未开启准时提醒权限时，固定任务提醒可能延迟。';
       icon = Icons.alarm_outlined;
     } else {
       title = '提醒权限已就绪';
@@ -309,7 +337,7 @@ class _SettingsPageState extends State<SettingsPage>
               description: description,
               icon: icon,
             ),
-            if (_capabilityError == null) ...[
+            if (_capabilityError == null && supported) ...[
               if (needsNotifications || needsExecutionChannel)
                 _permission(needsNotifications ? '系统通知' : '执行状态通知', false),
               if (needsExactAlarms) _permission('准时提醒权限', true),
@@ -328,7 +356,7 @@ class _SettingsPageState extends State<SettingsPage>
             ),
           ),
         if (capabilities == null ||
-            unknownPermission ||
+            (platform == DevicePlatform.android && unknownPermission) ||
             _capabilityError != null)
           Align(
             alignment: Alignment.centerLeft,
@@ -338,37 +366,70 @@ class _SettingsPageState extends State<SettingsPage>
               child: Text(_querying ? '正在读取权限…' : '重新读取权限'),
             ),
           ),
-        const SizedBox(height: 12),
-        AppSectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('系统计时与超级岛', style: text.titleMedium),
-              const SizedBox(height: 8),
-              Text(
-                _islandDescription(capabilities),
-                key: const Key('island-capability-status'),
-                style: text.bodyMedium,
-              ),
-              if (widget.notifications != null)
-                TextButton.icon(
-                  key: const Key('notification-refresh'),
-                  onPressed: _querying || _refreshingNotifications
-                      ? null
-                      : _refreshNotifications,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('刷新执行通知'),
-                ),
-            ],
+        if (platform == DevicePlatform.windows) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              key: const Key('windows-notification-settings'),
+              onPressed: _openingSettings ? null : () => _settings(false),
+              icon: const Icon(Icons.open_in_new),
+              label: const Text('打开 Windows 通知设置'),
+            ),
           ),
-        ),
+        ],
+        if (platform == DevicePlatform.android ||
+            platform == DevicePlatform.windows) ...[
+          const SizedBox(height: 12),
+          AppSectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  platform == DevicePlatform.android ? '执行计时通知' : '执行状态通知',
+                  style: text.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  platform == DevicePlatform.android
+                      ? '执行时使用系统通知显示计时与操作，实际显示取决于系统权限。'
+                      : '执行状态通过 Windows 通知呈现，系统通知不提供持续计时显示。',
+                  style: text.bodyMedium,
+                ),
+                if (platform == DevicePlatform.android &&
+                    capabilities?.islandSupported == true) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _islandDescription(capabilities),
+                    key: const Key('island-capability-status'),
+                    style: text.bodyMedium,
+                  ),
+                ],
+                if (widget.notifications != null)
+                  TextButton.icon(
+                    key: const Key('notification-refresh'),
+                    onPressed: _querying || _refreshingNotifications
+                        ? null
+                        : _refreshNotifications,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('刷新执行通知'),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildScheduleSection(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final service = widget.notifications!;
+    final service = widget.notifications;
+    final platform = _capabilities?.effectivePlatform;
+    final canSchedule =
+        service?.supportsScheduling == true &&
+        (platform == DevicePlatform.android ||
+            platform == DevicePlatform.windows);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -382,27 +443,46 @@ class _SettingsPageState extends State<SettingsPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              StreamBuilder<void>(
-                stream: service.settingsChanges,
-                builder: (context, _) => ListTile(
-                  key: const Key('planned-reminder-setting'),
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.alarm_outlined),
-                  title: Text(
-                    _reminderLabel(service.reminderLeadMinutes),
-                    style: text.titleMedium,
+              if (canSchedule)
+                StreamBuilder<void>(
+                  stream: service!.settingsChanges,
+                  builder: (context, _) => ListTile(
+                    key: const Key('planned-reminder-setting'),
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.alarm_outlined),
+                    title: Text(
+                      _reminderLabel(service.reminderLeadMinutes),
+                      style: text.titleMedium,
+                    ),
+                    subtitle: const Text('应用于所有尚未开始的固定任务'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _savingScheduleSettings ? null : _chooseReminder,
                   ),
-                  subtitle: const Text('应用于所有尚未开始的固定任务'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _savingScheduleSettings ? null : _chooseReminder,
                 ),
-              ),
+              if (!canSchedule)
+                Text(
+                  service == null &&
+                          (platform == null ||
+                              platform == DevicePlatform.android ||
+                              platform == DevicePlatform.windows)
+                      ? '提醒服务尚未就绪，请稍后重试。'
+                      : '当前平台尚未接入系统定时提醒，无法配置提前提醒。',
+                  style: text.bodyMedium,
+                ),
               const SizedBox(height: 8),
-              Text('到点自动开始；已有任务执行时保留当前计时并提醒处理。', style: text.bodyMedium),
               Text(
-                '系统同时安排最近 64 个固定任务的提醒；后续提醒随计划推进更新。大量任务同时到点时，部分提醒可能无法提前安排。',
-                style: text.bodySmall,
+                platform == DevicePlatform.android
+                    ? '到点自动开始；系统可安排后台唤醒，受系统权限和省电影响。已有任务执行时保留当前计时。'
+                    : '应用运行时会处理到点任务；应用关闭期间不会自动开始，重新打开时再检查。',
+                style: text.bodyMedium,
               ),
+              if (canSchedule)
+                Text(
+                  platform == DevicePlatform.windows
+                      ? 'Windows 当前版本无法撤销已安排的系统提醒；调整或取消任务后，旧提醒仍可能出现。'
+                      : '系统同时安排最近 64 个固定任务的提醒；后续提醒随计划推进更新。',
+                  style: text.bodySmall,
+                ),
               if (_scheduleSettingsError != null)
                 Semantics(
                   liveRegion: true,

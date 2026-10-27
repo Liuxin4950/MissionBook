@@ -1,3 +1,4 @@
+import '../../widgets/app_segmented_control.dart';
 import '../../widgets/adaptive_columns.dart';
 import 'dart:async';
 import 'dart:typed_data';
@@ -127,25 +128,13 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                 padding: EdgeInsets.symmetric(
                   horizontal: AppLayout.horizontalPadding(context),
                 ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(
-                    spacing: 12,
-                    runSpacing: 8,
-                    children: [
-                      ChoiceChip(
-                        label: const Text('执行记录'),
-                        selected: !_cancelled,
-                        onSelected: (_) => _selectCancelled(false),
-                      ),
-                      ChoiceChip(
-                        key: const Key('history-cancelled'),
-                        label: const Text('已取消'),
-                        selected: _cancelled,
-                        onSelected: (_) => _selectCancelled(true),
-                      ),
-                    ],
-                  ),
+                child: AppSegmentedControl<bool>(
+                  options: const {false: '执行记录', true: '已取消'},
+                  selected: _cancelled,
+                  optionKey: (value) => value
+                      ? const Key('history-cancelled')
+                      : const Key('history-finished'),
+                  onSelected: _selectCancelled,
                 ),
               ),
               Expanded(

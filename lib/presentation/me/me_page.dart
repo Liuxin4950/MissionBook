@@ -310,22 +310,13 @@ class _ProfileCard extends StatelessWidget {
             style: text.bodyMedium,
           ),
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              const Chip(
-                avatar: Icon(Icons.phone_android_outlined, size: 18),
-                label: Text('本机资料'),
-              ),
-              TextButton.icon(
-                key: const Key('profile-edit'),
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                label: const Text('编辑资料'),
-              ),
-            ],
+          Text('资料仅保存在本机', style: text.bodySmall),
+          const SizedBox(height: 4),
+          TextButton.icon(
+            key: const Key('profile-edit'),
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            label: const Text('编辑资料'),
           ),
           if (error != null) ...[
             Semantics(

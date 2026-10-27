@@ -2,6 +2,8 @@ import 'dart:typed_data';
 import 'local_profile.dart';
 export 'local_profile.dart';
 
+enum DevicePlatform { android, windows, ios, macos, linux, web, other }
+
 /// 系统能力只描述查询结果，不把权限获准等同于提醒服务已经接通。
 class DeviceCapabilities {
   const DeviceCapabilities({
@@ -9,6 +11,7 @@ class DeviceCapabilities {
     this.notifications,
     this.exactAlarms,
     this.android = false,
+    this.platform,
     this.executionNotifications,
     this.islandSupported,
     this.focusPermission,
@@ -17,6 +20,9 @@ class DeviceCapabilities {
   final bool? notifications;
   final bool? exactAlarms;
   final bool android;
+  final DevicePlatform? platform;
+  DevicePlatform get effectivePlatform =>
+      platform ?? (android ? DevicePlatform.android : DevicePlatform.other);
   final bool? executionNotifications;
   final bool? islandSupported;
   final bool? focusPermission;

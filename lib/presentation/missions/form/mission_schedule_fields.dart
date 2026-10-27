@@ -1,3 +1,4 @@
+import '../../widgets/app_date_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../domain/entities/mission_schedule_revision.dart';
@@ -328,30 +329,15 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
         // 日历留在当前表单，选择后只更新日期；不会写库或额外增加页面往返。
         IgnorePointer(
           ignoring: !widget.enabled,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // 部分手机的逻辑宽度带小数；跨1至9999年的月份页累计宽度
-              // 会触发 Flutter 滚动精度断言。取整并居中，最多收窄不到1，
-              // 不缩小可选日期范围，也不修改 Flutter SDK。
-              return Align(
-                alignment: Alignment.topCenter,
-                child: SizedBox(
-                  width: constraints.maxWidth.floorToDouble(),
-                  child: CalendarDatePicker(
-                    initialDate: widget.selectedDate,
-                    firstDate: DateTime.utc(1),
-                    lastDate: DateTime.utc(9999, 12, 31),
-                    onDateChanged: (date) {
-                      if (!widget.enabled) return;
-                      setState(() {
-                        _calendarExpanded = false;
-                      });
-                      widget.onDateChanged(
-                        DateTime.utc(date.year, date.month, date.day),
-                      );
-                    },
-                  ),
-                ),
+          child: AppCalendar(
+            initialDate: widget.selectedDate,
+            firstDate: DateTime.utc(1),
+            lastDate: DateTime.utc(9999, 12, 31),
+            onDateChanged: (date) {
+              if (!widget.enabled) return;
+              setState(() => _calendarExpanded = false);
+              widget.onDateChanged(
+                DateTime.utc(date.year, date.month, date.day),
               );
             },
           ),

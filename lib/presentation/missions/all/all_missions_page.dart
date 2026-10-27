@@ -1,3 +1,4 @@
+import '../../widgets/app_date_picker.dart';
 import '../../widgets/adaptive_columns.dart';
 import '../../widgets/app_section_card.dart';
 import 'dart:async';
@@ -47,6 +48,10 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   String? _goalId; // null 全部；空字符串只看独立任务。
   bool _pastUnstarted = false;
   bool _opening = false;
+  int get _activeFilterCount =>
+      (_phase == null ? 0 : 1) +
+      (_goalId == null ? 0 : 1) +
+      (_pastUnstarted ? 1 : 0);
 
   @override
   void initState() {
@@ -109,14 +114,13 @@ class _AllMissionsPageState extends State<AllMissionsPage>
 
   Future<void> _pickDay() async {
     final today = timetableNow(widget.clock());
-    final selected = await showDatePicker(
+    final selected = await showAppDatePicker(
       context: context,
       initialDate: _day ?? today,
       firstDate: DateTime(1),
       lastDate: DateTime(9999, 12, 31),
-      helpText: '筛选计划日期',
-      cancelText: '取消',
-      confirmText: '确定',
+      currentDate: today,
+      title: '筛选计划日期',
     );
     if (mounted && selected != null) {
       setState(() {
@@ -174,12 +178,26 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     appBar: AppTopBar(
       title: '全部任务',
       actions: [
-        IconButton(
-          key: const Key('all-missions-filters'),
-          tooltip: _showFilters ? '收起筛选' : '筛选任务',
-          isSelected: _showFilters,
-          onPressed: () => setState(() => _showFilters = !_showFilters),
-          icon: const Icon(Icons.tune),
+        Tooltip(
+          message: _showFilters ? '收起筛选' : '筛选任务',
+          child: Semantics(
+            expanded: _showFilters,
+            child: TextButton.icon(
+              key: const Key('all-missions-filters'),
+              onPressed: () => setState(() => _showFilters = !_showFilters),
+              icon: Icon(
+                _showFilters ? Icons.tune_rounded : Icons.tune,
+                size: 20,
+              ),
+              label: Text(
+                _showFilters
+                    ? '收起筛选'
+                    : _activeFilterCount == 0
+                    ? '筛选'
+                    : '筛选 · $_activeFilterCount',
+              ),
+            ),
+          ),
         ),
         SizedBox(width: AppLayout.horizontalPadding(context) - 8),
       ],
@@ -306,9 +324,15 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                           showDate: true,
                         ),
                     const SizedBox(height: 24),
-                    Card(
+                    AppSectionCard(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
                       child: ExpansionTile(
                         key: const Key('all-missions-statistics'),
+                        tilePadding: EdgeInsets.zero,
+                        childrenPadding: const EdgeInsets.only(bottom: 12),
                         title: Text(
                           '完成统计',
                           style: Theme.of(context).textTheme.titleMedium,
@@ -387,30 +411,31 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                     all.firstWhere((detail) => detail.mission.id == id),
                   ),
                   clock: widget.clock,
+                  filtered: _phase != null || _goalId != null || _pastUnstarted,
                 ),
               if (other.isNotEmpty)
                 AppSectionCard(
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (other.any(
                         (detail) => detail.phase != MissionPhase.cancelled,
                       )) ...[
-                        const SizedBox(height: 16),
                         Text(
                           '自选任务',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '只安排日期，不占用固定时段；已开始的自选任务按实际执行区间画在图上。',
+                          '按日期安排，时间自由选择',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 12),
                         for (final detail in other.where(
                           (detail) => detail.phase != MissionPhase.cancelled,
                         ))
-                          _row(context, detail),
+                          _row(context, detail, embedded: true),
                       ],
                       if (other.any(
                         (detail) => detail.phase == MissionPhase.cancelled,
@@ -424,7 +449,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                         for (final detail in other.where(
                           (detail) => detail.phase == MissionPhase.cancelled,
                         ))
-                          _row(context, detail),
+                          _row(context, detail, embedded: true),
                       ],
                     ],
                   ),
@@ -439,71 +464,102 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   Widget _dateNavigation(BuildContext context, DateTime today) {
     const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
     final day = _day;
+    final theme = Theme.of(context);
     void move(int offset) => setState(() {
       _day = DateTime(day!.year, day.month, day.day + offset);
       _pastUnstarted = false;
     });
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final current = DateUtils.isSameDay(today, day);
+    final navigation = Row(
       children: [
-        Card(
-          child: Row(
-            children: [
-              IconButton(
-                key: const Key('timetable-previous-day'),
-                tooltip: '前一天',
-                onPressed:
-                    day == null ||
-                        day.year == 1 && day.month == 1 && day.day == 1
-                    ? null
-                    : () => move(-1),
-                icon: const Icon(Icons.chevron_left),
-              ),
-              Expanded(
-                child: TextButton(
-                  key: const Key('all-missions-date'),
-                  onPressed: _pickDay,
+        IconButton(
+          key: const Key('timetable-previous-day'),
+          tooltip: '前一天',
+          onPressed:
+              day == null || day.year == 1 && day.month == 1 && day.day == 1
+              ? null
+              : () => move(-1),
+          icon: const Icon(Icons.chevron_left),
+        ),
+        Expanded(
+          child: TextButton(
+            key: const Key('all-missions-date'),
+            onPressed: _pickDay,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
                   child: Text(
                     day == null
                         ? '全部日期'
-                        : '${day.month}月${day.day}日 · ${weekdays[day.weekday - 1]}',
+                        : '${day.year}年${day.month}月${day.day}日 · ${weekdays[day.weekday - 1]}',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: theme.textTheme.titleSmall,
                   ),
                 ),
-              ),
-              IconButton(
-                key: const Key('timetable-next-day'),
-                tooltip: '后一天',
-                onPressed:
-                    day == null ||
-                        day.year == 9999 && day.month == 12 && day.day == 31
-                    ? null
-                    : () => move(1),
-                icon: const Icon(Icons.chevron_right),
-              ),
-            ],
+                const SizedBox(width: 4),
+                const Icon(Icons.expand_more, size: 18),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Text(
-              day == null ? '按计划日期分组' : '${day.year}年',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const Spacer(),
-            if (!DateUtils.isSameDay(today, day))
-              TextButton(
-                onPressed: () => setState(() {
-                  _day = today;
-                  _pastUnstarted = false;
-                }),
-                child: const Text('回到今天'),
-              ),
-          ],
+        IconButton(
+          key: const Key('timetable-next-day'),
+          tooltip: '后一天',
+          onPressed:
+              day == null ||
+                  day.year == 9999 && day.month == 12 && day.day == 31
+              ? null
+              : () => move(1),
+          icon: const Icon(Icons.chevron_right),
         ),
       ],
+    );
+    final shortcuts = Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      alignment: WrapAlignment.center,
+      children: [
+        ChoiceChip(
+          key: const Key('all-missions-back-today'),
+          label: const Text('今天'),
+          selected: current,
+          showCheckmark: false,
+          onSelected: (_) => setState(() {
+            _day = today;
+            _pastUnstarted = false;
+          }),
+        ),
+        ChoiceChip(
+          key: const Key('all-missions-date-all-shortcut'),
+          label: const Text('全部日期'),
+          selected: day == null && !_pastUnstarted,
+          showCheckmark: false,
+          onSelected: (_) => setState(() {
+            _day = null;
+            _pastUnstarted = false;
+          }),
+        ),
+      ],
+    );
+    return AppSectionCard(
+      padding: const EdgeInsets.all(8),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          if (box.maxWidth >= 640 * MediaQuery.textScalerOf(context).scale(1)) {
+            return Row(
+              children: [
+                Expanded(child: navigation),
+                const SizedBox(width: 16),
+                shortcuts,
+              ],
+            );
+          }
+          return Column(
+            children: [navigation, const SizedBox(height: 4), shortcuts],
+          );
+        },
+      ),
     );
   }
 
@@ -520,152 +576,146 @@ class _AllMissionsPageState extends State<AllMissionsPage>
               item.schedule.scheduledDate.compareTo(todayKey) < 0,
         )
         .length;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            FilterChip(
-              key: const Key('all-missions-all-dates'),
-              label: const Text('全部日期'),
-              selected: _day == null && !_pastUnstarted,
-              onSelected: (_) => setState(() {
-                _day = null;
-                _pastUnstarted = false;
-              }),
-            ),
-            if (pastCount > 0)
-              TextButton.icon(
-                key: const Key('all-missions-past'),
-                onPressed: () => setState(() {
-                  _pastUnstarted = !_pastUnstarted;
-                  _day = null;
-                  _phase = null;
-                }),
-                icon: const Icon(Icons.history, size: 18),
-                label: Text(_pastUnstarted ? '显示全部' : '以前未开始 $pastCount'),
-              ),
-            if (_phase != null || _goalId != null || _pastUnstarted)
-              TextButton(
-                onPressed: () => setState(() {
-                  _phase = null;
-                  _goalId = null;
-                  _pastUnstarted = false;
-                }),
-                child: const Text('重置筛选'),
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text('阶段', style: theme.textTheme.titleSmall),
-        const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
+    return AppSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('筛选任务', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (pastCount > 0)
+                TextButton.icon(
+                  key: const Key('all-missions-past'),
+                  onPressed: () => setState(() {
+                    _pastUnstarted = !_pastUnstarted;
+                    _day = null;
+                    _phase = null;
+                  }),
+                  icon: const Icon(Icons.history, size: 18),
+                  label: Text(_pastUnstarted ? '显示全部' : '以前未开始 $pastCount'),
+                ),
+              if (_phase != null || _goalId != null || _pastUnstarted)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _phase = null;
+                    _goalId = null;
+                    _pastUnstarted = false;
+                  }),
+                  child: const Text('重置筛选'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text('阶段', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               _phaseChip(context, null, '全部'),
               for (final phase in MissionPhase.values)
                 _phaseChip(context, phase, phaseLabel(phase)),
             ],
           ),
-        ),
-        if (widget.goals != null) ...[
-          const SizedBox(height: 12),
-          FutureBuilder<List<Goal>>(
-            future: _goalChoices,
-            builder: (context, snapshot) {
-              final goals = snapshot.data ?? const <Goal>[];
-              return DropdownButtonFormField<String>(
-                key: ValueKey('all-missions-goal-${_goalId ?? 'all'}'),
-                initialValue:
-                    goals.any((goal) => goal.id == _goalId) || _goalId == ''
-                    ? _goalId
-                    : null,
-                isExpanded: true,
-                style: theme.textTheme.bodyMedium,
-                decoration: const InputDecoration(
-                  labelText: '目标归属',
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('全部目标与独立任务')),
-                  const DropdownMenuItem(value: '', child: Text('独立任务')),
-                  for (final goal in goals)
-                    DropdownMenuItem(
-                      value: goal.id,
-                      child: Text(goal.title, overflow: TextOverflow.ellipsis),
+          if (widget.goals != null) ...[
+            const SizedBox(height: 12),
+            FutureBuilder<List<Goal>>(
+              future: _goalChoices,
+              builder: (context, snapshot) {
+                final goals = snapshot.data ?? const <Goal>[];
+                return DropdownButtonFormField<String>(
+                  key: ValueKey('all-missions-goal-${_goalId ?? 'all'}'),
+                  initialValue:
+                      goals.any((goal) => goal.id == _goalId) || _goalId == ''
+                      ? _goalId
+                      : null,
+                  isExpanded: true,
+                  style: theme.textTheme.bodyMedium,
+                  decoration: const InputDecoration(
+                    labelText: '目标归属',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('全部目标与独立任务'),
                     ),
-                ],
-                onChanged: (value) => setState(() => _goalId = value),
-              );
-            },
-          ),
+                    const DropdownMenuItem(value: '', child: Text('独立任务')),
+                    for (final goal in goals)
+                      DropdownMenuItem(
+                        value: goal.id,
+                        child: Text(
+                          goal.title,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _goalId = value),
+                );
+              },
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
   Widget _phaseChip(BuildContext context, MissionPhase? value, String label) =>
-      Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: ChoiceChip(
-          key: Key('all-missions-phase-${value?.name ?? 'all'}'),
-          label: Text(label),
-          selected: _phase == value,
-          onSelected: (_) => setState(() {
-            _phase = value;
-            _pastUnstarted = false;
-          }),
-        ),
+      ChoiceChip(
+        key: Key('all-missions-phase-${value?.name ?? 'all'}'),
+        label: Text(label),
+        selected: _phase == value,
+        onSelected: (_) => setState(() {
+          _phase = value;
+          _pastUnstarted = false;
+        }),
       );
 
-  Widget _row(BuildContext context, MissionDetail detail) {
+  Widget _row(
+    BuildContext context,
+    MissionDetail detail, {
+    bool embedded = false,
+  }) {
     final theme = Theme.of(context);
     return Padding(
       key: Key('all-mission-${detail.mission.id}'),
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: embedded ? 0 : 8),
       child: Material(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(20),
+        color: embedded ? Colors.transparent : AppColors.card,
+        borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => _open(detail),
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(
-              children: [
-                MissionPhaseIcon(phase: detail.phase),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        detail.mission.title,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${detail.schedule.scheduledDate} · ${phaseLabel(detail.phase)}',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      if (detail.phase == MissionPhase.running ||
-                          detail.phase == MissionPhase.paused)
-                        MissionLiveStatus(
-                          phase: detail.phase,
-                          events: detail.events,
-                          includePhase: false,
-                          clock: widget.clock,
-                        ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right, color: AppColors.textSecondary),
-              ],
-            ),
+        child: ListTile(
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: embedded ? 0 : 16,
+            vertical: 6,
           ),
+          leading: MissionPhaseIcon(phase: detail.phase),
+          title: Text(detail.mission.title, style: theme.textTheme.titleMedium),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${detail.schedule.scheduledDate} · ${phaseLabel(detail.phase)}',
+                style: theme.textTheme.bodyMedium,
+              ),
+              if (detail.phase == MissionPhase.running ||
+                  detail.phase == MissionPhase.paused)
+                MissionLiveStatus(
+                  phase: detail.phase,
+                  events: detail.events,
+                  includePhase: false,
+                  clock: widget.clock,
+                ),
+            ],
+          ),
+          trailing: const Icon(
+            Icons.chevron_right,
+            color: AppColors.textSecondary,
+          ),
+          onTap: () => _open(detail),
         ),
       ),
     );
@@ -729,12 +779,8 @@ class _AllMissionsPageState extends State<AllMissionsPage>
       for (var offset = 29; offset >= 0; offset--)
         DateTime(today.year, today.month, today.day - offset),
     ];
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(24),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -747,26 +793,45 @@ class _AllMissionsPageState extends State<AllMissionsPage>
           const SizedBox(height: 20),
           Text('近 30 天完成记录', style: theme.textTheme.titleMedium),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 5,
-            runSpacing: 5,
-            children: [
-              for (final day in days)
-                Semantics(
-                  label:
-                      '${_dateKey(day)} 报告完成 ${completedDays[_dateKey(day)] ?? 0} 项',
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: (completedDays[_dateKey(day)] ?? 0) > 0
-                          ? AppColors.primary
-                          : AppColors.primarySoft,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+          LayoutBuilder(
+            builder: (context, box) {
+              final columns = box.maxWidth >= 420 ? 15 : 10;
+              final cell = ((box.maxWidth - (columns - 1) * 6) / columns).clamp(
+                8.0,
+                22.0,
+              );
+              return Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: columns * cell + (columns - 1) * 6,
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final day in days)
+                        Tooltip(
+                          message:
+                              '${_dateKey(day)} · 报告完成 ${completedDays[_dateKey(day)] ?? 0} 项',
+                          child: Semantics(
+                            label:
+                                '${_dateKey(day)} 报告完成 ${completedDays[_dateKey(day)] ?? 0} 项',
+                            child: Container(
+                              width: cell,
+                              height: cell,
+                              decoration: BoxDecoration(
+                                color: (completedDays[_dateKey(day)] ?? 0) > 0
+                                    ? AppColors.primary
+                                    : AppColors.primarySoft,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-            ],
+              );
+            },
           ),
           const SizedBox(height: 8),
           Text('深色方格表示当天有完成报告；计划与完成分别计算。', style: theme.textTheme.bodySmall),

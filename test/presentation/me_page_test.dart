@@ -22,6 +22,7 @@ class _Backup implements BackupExporter {
 
 class _Device extends TestAppDevice {
   String? saved;
+  DevicePlatform platform = DevicePlatform.android;
   bool? notifications = false;
   bool? exactAlarms = true;
   bool failCapabilities = false;
@@ -38,7 +39,8 @@ class _Device extends TestAppDevice {
     return pendingCapabilities?.future ??
         DeviceCapabilities(
           version: '0.2.2 (4)',
-          android: true,
+          android: platform == DevicePlatform.android,
+          platform: platform,
           notifications: notifications,
           exactAlarms: exactAlarms,
           executionNotifications: executionNotifications,
@@ -92,7 +94,10 @@ void main() {
     await open(tester);
     final export = find.byKey(const Key('backup-export'));
     await tester.ensureVisible(export);
+    await tester.pumpAndSettle();
     await tester.tap(export);
+    await tester.pump();
+    await tester.ensureVisible(export);
     await tester.pump();
     await tester.tap(export);
     await tester.pump();
@@ -103,6 +108,8 @@ void main() {
     expect(find.text('已取消保存，可以随时重新导出'), findsOneWidget);
     backup.pending = null;
     backup.fail = true;
+    await tester.ensureVisible(export);
+    await tester.pumpAndSettle();
     await tester.tap(export);
     await tester.pumpAndSettle();
     expect(find.textContaining('导出失败'), findsOneWidget);
@@ -139,6 +146,11 @@ void main() {
     expect(find.text('提醒权限已就绪'), findsOneWidget);
     expect(find.text('去设置'), findsNothing);
     final about = find.byKey(const Key('about-toggle'));
+    await tester.scrollUntilVisible(
+      about,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.ensureVisible(about);
     await tester.tap(about);
     await tester.pumpAndSettle();
@@ -195,6 +207,32 @@ void main() {
     expect(find.textContaining('本应用尚未获准焦点通知'), findsOneWidget);
   });
 
+  testWidgets('Windows 显示系统通知入口及后台限制，不展示 Android 专属能力', (tester) async {
+    device.platform = DevicePlatform.windows;
+    device.notifications = null;
+    await open(tester);
+    expect(find.text('Windows 通知设置'), findsOneWidget);
+    expect(find.textContaining('小米超级岛'), findsNothing);
+    expect(find.text('准时提醒权限'), findsNothing);
+    await tester.tap(find.byKey(const Key('windows-notification-settings')));
+    await tester.pumpAndSettle();
+    expect(device.settings, [false]);
+    expect(find.textContaining('应用关闭期间不会自动开始'), findsOneWidget);
+  });
+
+  testWidgets('未接入提醒的平台说明限制且不提供无效配置', (tester) async {
+    device.platform = DevicePlatform.web;
+    await open(tester);
+    expect(find.text('当前平台尚未接入系统提醒'), findsOneWidget);
+    expect(
+      find.byKey(const Key('windows-notification-settings')),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('grant-notifications')), findsNothing);
+    expect(find.byKey(const Key('planned-reminder-setting')), findsNothing);
+    expect(find.textContaining('无法配置提前提醒'), findsOneWidget);
+  });
+
   testWidgets('首次权限查询未完成时回前台，会重读并丢弃返回前的旧结果', (tester) async {
     final pending = Completer<DeviceCapabilities>();
     device.pendingCapabilities = pending;
@@ -222,10 +260,20 @@ void main() {
 
     await open(tester, reduceMotion: true);
     final scope = find.textContaining('不含草稿、本机资料和提醒偏好');
+    await tester.scrollUntilVisible(
+      scope,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.ensureVisible(scope);
     expect(scope, findsOneWidget);
     expect(find.textContaining('暂不支持恢复导入'), findsOneWidget);
     final about = find.byKey(const Key('about-toggle'));
+    await tester.scrollUntilVisible(
+      about,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.ensureVisible(about);
     await tester.pumpAndSettle();
     await tester.tap(about);

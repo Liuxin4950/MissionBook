@@ -220,21 +220,21 @@ void main() {
     expect(result.slots.every((slot) => slot.columns == 2), isTrue);
   });
 
-  test('时间窗口围绕内容与现在裁剪，整点对齐并保底 3 小时', () {
+  test('时间窗口覆盖内容与现在，半点对齐并保底 2 小时，减少首尾空白', () {
     final result = TimetableDay.build([planned('英语', at(21), 11)], day);
-    // 20:06 的现在 + 21:00–21:11 的占位：窗口 19:00–22:00，不再从 8:00 起。
+    // 首尾只补阅读上下文，时段之间的分钟比例保持不变。
     final window = timetableWindow(result.slots, nowMinute: 20 * 60 + 6);
-    expect([window.start, window.end], [19 * 60.0, 22 * 60.0]);
-    // 只有上午一小段：窗口向外补齐到 3 小时。
+    expect([window.start, window.end], [19 * 60.0 + 30, 21 * 60.0 + 30]);
+    // 只有上午一小段：窗口向外补齐到 2 小时。
     final morning = TimetableDay.build([planned('晨读', at(9), 30)], day);
     final morningWindow = timetableWindow(morning.slots);
-    expect(morningWindow.end - morningWindow.start, 180);
-    expect(morningWindow.start % 60, 0);
+    expect(morningWindow.end - morningWindow.start, 120);
+    expect(morningWindow.start % 30, 0);
     // 贴近一天两端时只向另一侧扩，不出界。
     final late = TimetableDay.build([planned('夜读', at(23, 50), 10)], day);
     final lateWindow = timetableWindow(late.slots);
     expect(lateWindow.end, 1440);
-    expect(lateWindow.start, 21 * 60.0);
+    expect(lateWindow.start, 22 * 60.0);
     // 没有任何占位时回退默认窗口。
     expect(timetableWindow(const []), (start: 8 * 60.0, end: 18 * 60.0));
   });
