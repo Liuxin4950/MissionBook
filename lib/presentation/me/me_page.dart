@@ -293,12 +293,6 @@ class _ProfileCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppIllustration(
-            asset: 'assets/illustrations/profile-notebook.png',
-            width: 210,
-            height: 140,
-          ),
-          const SizedBox(height: 20),
           Text(
             profile?.name ?? (error == null ? '正在读取资料…' : '本机资料'),
             key: const Key('profile-name'),

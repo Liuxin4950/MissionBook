@@ -121,7 +121,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
           child: Column(
             children: [
               Padding(
-                padding: AppLayout.pagePadding(context).copyWith(bottom: 0),
+                padding: AppLayout.pagePadding(context).copyWith(bottom: 10),
                 child: const AppPageHeader(title: '历史'),
               ),
               Padding(
