@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "defaultModelProfile": "deepseek",
+  "summaryModelProfile": "deepseek",
+  "maxSteps": 16,
+  "profiles": [
+    {
+      "id": "deepseek",
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "endpoint": "https://api.deepseek.com/anthropic/v1/messages",
+      "protocol": "messages",
+      "credentialEnvironment": "DEEPSEEK_API_KEY",
+      "contextWindowTokens": 64000,
+      "maxOutputTokens": 2048,
+      "streamResponses": true,
+      "reasoningEffort": "off",
+      "requestTimeoutMs": 120000,
+      "retry": { "maxRetries": 2, "initialDelayMs": 500, "maxDelayMs": 10000 }
+    },
+    {
+      "id": "deepseek-chat",
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "protocol": "chatCompletions",
+      "credentialEnvironment": "DEEPSEEK_API_KEY",
+      "contextWindowTokens": 64000,
+      "maxOutputTokens": 2048,
+      "streamResponses": true,
+      "reasoningEffort": "off",
+      "requestTimeoutMs": 120000,
+      "retry": { "maxRetries": 2, "initialDelayMs": 500, "maxDelayMs": 10000 }
+    }
+  ],
+  "context": {
+    "enabled": true,
+    "triggerRatio": 0.8,
+    "targetRatio": 0.5,
+    "headroomTokens": 512,
+    "keepRecentMessages": 6,
+    "summaryMaxTokens": 1024,
+    "maxSummaryCalls": 8
+  }
+}
