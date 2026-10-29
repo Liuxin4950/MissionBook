@@ -1,0 +1,439 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+
+import '../../application/assistant/assistant_controller.dart';
+import '../../core/theme/colors.dart';
+import '../widgets/app_section_card.dart';
+
+class AssistantOperationCard extends StatefulWidget {
+  const AssistantOperationCard({
+    super.key,
+    required this.controller,
+    required this.operation,
+    required this.onOpenReference,
+  });
+
+  final AssistantController controller;
+  final AssistantOperation operation;
+  final void Function(String type, String id) onOpenReference;
+
+  @override
+  State<AssistantOperationCard> createState() => _AssistantOperationCardState();
+}
+
+class _AssistantOperationCardState extends State<AssistantOperationCard> {
+  bool _editing = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final operation = widget.operation;
+    if (!operation.isWrite) return _ReadResultCard(operation: operation, onOpenReference: widget.onOpenReference);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: operation.status == AssistantOperationStatus.failed
+                ? AppColors.error
+                : AppColors.primary.withValues(alpha: .45),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Header(operation: operation),
+              const SizedBox(height: 12),
+              if (_editing && operation.status == AssistantOperationStatus.waitingConfirmation)
+                AssistantProposalEditor(
+                  operation: operation,
+                  onSave: (input) {
+                    final error = widget.controller.updateProposal(operation.callId, input);
+                    if (error == null && mounted) setState(() => _editing = false);
+                    return error;
+                  },
+                  onCancel: () => setState(() => _editing = false),
+                )
+              else ...[
+                ..._summaryRows(operation),
+                if (operation.status == AssistantOperationStatus.waitingConfirmation)
+                  _WaitingActions(
+                    onEdit: () => setState(() => _editing = true),
+                    onCancel: () => widget.controller.cancelProposal(operation.callId),
+                    onConfirm: () {
+                      final error = widget.controller.confirmProposal(operation.callId);
+                      if (error != null && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+                      }
+                    },
+                  ),
+              ],
+              if (operation.status == AssistantOperationStatus.unknown)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: FilledButton.icon(
+                    onPressed: () => widget.controller.resolveUnknownOutcome(operation.callId),
+                    icon: const Icon(Icons.fact_check_outlined),
+                    label: const Text('按真实记录核对结果'),
+                  ),
+                ),
+              if (operation.output != null &&
+                  operation.status != AssistantOperationStatus.waitingConfirmation)
+                _ResultDetails(operation: operation, onOpenReference: widget.onOpenReference),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _summaryRows(AssistantOperation operation) {
+    final rows = <(String, String)>[];
+    final before = operation.missionBefore;
+    if (before != null && operation.toolName == 'mission_reschedule') {
+      rows.add(('原安排', '${before.schedule.scheduledDate} · ${before.schedule.plannedDurationMinutes} 分钟'));
+    }
+    final labels = {
+      'title': '名称',
+      'scheduledDate': '新日期',
+      'plannedMinutes': '计划分钟',
+      'fixedStartLocal': '开始时间',
+      'objective': '具体目标',
+      'timePolicy': '时间方式',
+      'type': '执行动作',
+      'minutes': '增加分钟',
+      'reason': '原因',
+      'report': '用户报告',
+      'description': '说明',
+      'why': '为什么',
+    };
+    for (final entry in operation.input.entries) {
+      final label = labels[entry.key];
+      final value = entry.value;
+      if (label != null && value != null && value is! List) rows.add((label, '$value'));
+    }
+    final steps = operation.input['steps'];
+    if (steps is List && steps.isNotEmpty) rows.add(('行动步骤', steps.join(' → ')));
+    if (operation.toolName == 'mission_cancel') {
+      rows.add(('影响', '保留排期和方案；不新增执行或失败事实'));
+    }
+    return [
+      for (final row in rows)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 76, child: Text(row.$1, style: Theme.of(context).textTheme.bodySmall)),
+              Expanded(child: Text(row.$2, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary))),
+            ],
+          ),
+        ),
+    ];
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.operation});
+  final AssistantOperation operation;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = switch (operation.status) {
+      AssistantOperationStatus.waitingConfirmation => '待确认',
+      AssistantOperationStatus.running => '正在执行',
+      AssistantOperationStatus.succeeded => '已完成',
+      AssistantOperationStatus.failed => '未完成',
+      AssistantOperationStatus.cancelled => '已取消 · 零写入',
+      AssistantOperationStatus.unknown => '需要核对',
+    };
+    return Row(
+      children: [
+        Expanded(child: Text(_toolLabel(operation.toolName), style: Theme.of(context).textTheme.titleMedium)),
+        const SizedBox(width: 12),
+        Text(status, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.primary)),
+      ],
+    );
+  }
+}
+
+class _WaitingActions extends StatelessWidget {
+  const _WaitingActions({required this.onEdit, required this.onCancel, required this.onConfirm});
+  final VoidCallback onEdit;
+  final VoidCallback onCancel;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        TextButton(onPressed: onCancel, child: const Text('取消')),
+        OutlinedButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit_outlined, size: 18), label: const Text('修改')),
+        FilledButton(onPressed: onConfirm, child: const Text('确认执行')),
+      ],
+    ),
+  );
+}
+
+class _ReadResultCard extends StatelessWidget {
+  const _ReadResultCard({required this.operation, required this.onOpenReference});
+  final AssistantOperation operation;
+  final void Function(String, String) onOpenReference;
+
+  @override
+  Widget build(BuildContext context) {
+    if (operation.status == AssistantOperationStatus.running) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          children: [
+            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 8),
+            Text('正在${_toolLabel(operation.toolName)}', style: Theme.of(context).textTheme.bodyMedium),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppSectionCard(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('已${_toolLabel(operation.toolName)}', style: Theme.of(context).textTheme.titleSmall),
+            _ResultDetails(operation: operation, onOpenReference: onOpenReference),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ResultDetails extends StatelessWidget {
+  const _ResultDetails({required this.operation, required this.onOpenReference});
+  final AssistantOperation operation;
+  final void Function(String, String) onOpenReference;
+
+  @override
+  Widget build(BuildContext context) {
+    final decoded = _decode(operation.output);
+    final references = decoded?['references'];
+    final message = decoded?['message'] ?? operation.error;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (message != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('$message', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.error)),
+          ),
+        if (references is List)
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final reference in references)
+                if (reference is Map && reference['id'] is String)
+                  TextButton.icon(
+                    onPressed: () => onOpenReference('${reference['type'] ?? 'mission'}', '${reference['id']}'),
+                    icon: Icon(reference['type'] == 'goal' ? Icons.track_changes : Icons.task_outlined, size: 18),
+                    label: Text('打开${reference['title'] ?? '记录'}'),
+                  ),
+            ],
+          ),
+        if (decoded != null)
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            title: Text('查看返回数据', style: Theme.of(context).textTheme.bodySmall),
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(12)),
+                child: SelectableText(_pretty(decoded), style: Theme.of(context).textTheme.bodySmall),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  static Map<String, Object?>? _decode(String? output) {
+    if (output == null) return null;
+    try {
+      final value = jsonDecode(output);
+      return value is Map ? Map<String, Object?>.from(value) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _pretty(Map<String, Object?> value) {
+    final text = const JsonEncoder.withIndent('  ').convert(value);
+    return text.length > 6000 ? '${text.substring(0, 6000)}\n… 返回内容已截断' : text;
+  }
+}
+
+class AssistantProposalEditor extends StatefulWidget {
+  const AssistantProposalEditor({required this.operation, required this.onSave, required this.onCancel});
+  final AssistantOperation operation;
+  final String? Function(Map<String, Object?> input) onSave;
+  final VoidCallback onCancel;
+
+  @override
+  State<AssistantProposalEditor> createState() => _AssistantProposalEditorState();
+}
+
+class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
+  late Map<String, Object?> _draft;
+  late final Map<String, TextEditingController> _controllers;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _draft = Map<String, Object?>.of(widget.operation.input);
+    _controllers = {
+      for (final key in ['title', 'scheduledDate', 'plannedMinutes', 'fixedStartLocal', 'objective', 'steps', 'minutes', 'reason', 'description', 'why'])
+        key: TextEditingController(text: _textValue(_draft[key])),
+    };
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tool = widget.operation.toolName;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (tool == 'mission_create' || tool == 'goal_create' || tool == 'goal_node_create')
+          _field('title', '名称'),
+        if (tool == 'mission_create' || tool == 'mission_reschedule') ...[
+          _field('scheduledDate', '日期 YYYY-MM-DD'),
+          _field('plannedMinutes', '计划分钟数', keyboardType: TextInputType.number),
+          _field('fixedStartLocal', '固定开始 HH:mm（留空为自选）'),
+        ],
+        if (tool == 'mission_create') ...[
+          _field('objective', '具体目标'),
+          _field('steps', '行动步骤，每行一步', maxLines: 4),
+        ],
+        if (tool == 'mission_reschedule') _choice('timePolicy', '时间方式', const ['FLEXIBLE', 'FIXED']),
+        if (tool == 'mission_execute') ...[
+          _choice('type', '执行动作', const ['START', 'PAUSE', 'RESUME', 'EXTEND', 'END']),
+          if (_draft['type'] == 'EXTEND') _field('minutes', '增加分钟数', keyboardType: TextInputType.number),
+          if (_draft['type'] == 'PAUSE') _field('reason', '暂停原因（可留空）'),
+          if (_draft['type'] == 'END') ...[
+            _choice('report', '用户报告结果', const ['COMPLETED', 'NOT_COMPLETED']),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('稍后提交可选材料'),
+              value: _draft['submitOptionalEvidence'] == true,
+              onChanged: (value) => setState(() => _draft['submitOptionalEvidence'] = value),
+            ),
+          ],
+        ],
+        if (tool == 'goal_create' || tool == 'goal_node_create') _field('description', '说明（可留空）'),
+        if (tool == 'goal_create') _field('why', '为什么（可留空）'),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(_error!, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.error)),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            children: [
+              TextButton(onPressed: widget.onCancel, child: const Text('取消修改')),
+              FilledButton(onPressed: _save, child: const Text('保存提案')),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _field(String key, String label, {int maxLines = 1, TextInputType? keyboardType}) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: TextField(
+      controller: _controllers[key],
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(labelText: label),
+    ),
+  );
+
+  Widget _choice(String key, String label, List<String> values) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: DropdownButtonFormField<String>(
+      initialValue: values.contains(_draft[key]) ? _draft[key] as String : null,
+      decoration: InputDecoration(labelText: label),
+      items: [for (final value in values) DropdownMenuItem(value: value, child: Text(value))],
+      onChanged: (value) => setState(() => _draft[key] = value),
+    ),
+  );
+
+  void _save() {
+    for (final entry in _controllers.entries) {
+      final text = entry.value.text.trim();
+      if (['plannedMinutes', 'minutes'].contains(entry.key)) {
+        _draft[entry.key] = int.tryParse(text);
+        if (text.isNotEmpty && _draft[entry.key] == null) {
+          setState(() => _error = '分钟数必须是整数');
+          return;
+        }
+      } else if (entry.key == 'steps') {
+        final steps = text.split('\n').map((item) => item.trim()).where((item) => item.isNotEmpty).toList();
+        if (steps.isEmpty) {
+          _draft.remove('steps');
+        } else {
+          _draft['steps'] = steps;
+        }
+      } else if (text.isEmpty && !['title', 'scheduledDate', 'reason', 'description', 'why'].contains(entry.key)) {
+        _draft.remove(entry.key);
+      } else {
+        _draft[entry.key] = text;
+      }
+    }
+    final error = widget.onSave(_draft);
+    if (error != null) setState(() => _error = error);
+  }
+
+  static String _textValue(Object? value) {
+    if (value == null) return '';
+    if (value is List) return value.join('\n');
+    return '$value';
+  }
+}
+
+String _toolLabel(String name) => switch (name) {
+  'schedule_query' => '查看日期安排',
+  'mission_query' => '读取任务详情',
+  'goal_list' => '查看目标列表',
+  'goal_query' => '读取目标与节点',
+  'mission_create' => '创建任务',
+  'mission_reschedule' => '调整任务安排',
+  'mission_execute' => '提交执行动作',
+  'mission_cancel' => '取消任务',
+  'goal_create' => '创建目标',
+  'goal_node_create' => '创建目标节点',
+  _ => name,
+};

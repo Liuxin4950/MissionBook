@@ -1,6 +1,6 @@
 # 页面代码在哪里
 
-更新：2026-10-26。按功能找页面，进入页面文件后，再沿它使用的组件阅读。
+更新：2026-10-29。按功能找页面，进入页面文件后，再沿它使用的组件阅读。
 
 ## 先找到要修改的功能
 
@@ -37,6 +37,11 @@
 | 添加和编辑节点 | [goals/outline/goal_node_editor.dart](goals/outline/goal_node_editor.dart) | 原位底部填写框，固定创建请求、失败重试和草稿保护 |
 | 浏览已结束与已取消任务 | [missions/history/mission_history_page.dart](missions/history/mission_history_page.dart) | 查询历史列表，打开对应记录或详情 |
 | 我的：系统权限、本地备份、关于 | [me/me_page.dart](me/me_page.dart) | 查询设备能力，发起正式备份，展示保存反馈和安装版本 |
+| 助手主页面、对话、快捷本地查询与输入 | [assistant/assistant_page.dart](assistant/assistant_page.dart) | 读取控制器快照，组合会话、提案/回执与输入；**草稿，尚未接入 AppShell** |
+| 助手可编辑操作卡片与只读查询结果 | [assistant/assistant_operation_card.dart](assistant/assistant_operation_card.dart) | 按真实工具状态显示确认、取消、失败、未知结果和对象入口 |
+| 助手会话历史 | [assistant/assistant_history_page.dart](assistant/assistant_history_page.dart) | 切换、改名、删除会话；**草稿，当前静态检查未通过** |
+| 助手模型、凭据与操作权限 | [assistant/assistant_settings_page.dart](assistant/assistant_settings_page.dart) | 安全存储凭据、选择 DeepSeek 协议、连接测试与自动执行开关；**草稿，未接通设备验收** |
+| 任务/目标内问助手与对象跳转 | [assistant/assistant_scope.dart](assistant/assistant_scope.dart) | 提供控制器，复用 DetailPane 打开助手和真实任务/目标；**尚未装配** |
 
 `form` 是“表单”：创建、修改和重试新建共同使用，因此没有只叫 `create`。
 `detail` 是详情，`execution` 是执行，`record` 是一条记录，`history` 是历史列表。
@@ -102,6 +107,10 @@ goals/
 - [me/me_page.dart](me/me_page.dart)：本机资料、资料编辑草稿保护、真实目标与已结束任务概览；右上角设置入口。
 - [me/settings_page.dart](me/settings_page.dart)：按实际平台和提醒能力展示权限、执行通知与计划提醒，提供备份及关于；返回个人页。
 - [local_profile.dart](../application/settings/local_profile.dart)：本机资料值对象；[AppDevice](../application/settings/app_device.dart) 提供资料读写和系统能力，平台实现在 `data/settings`，不增加领域表。
+
+## Agent 页面当前边界
+
+`presentation/assistant/` 是 2026-10-29 分支草稿。页面颜色、字号、顶栏、卡片、按钮和详情导航都读取现有主题与公共组件，但 AppShell 仍是四个主页面，`AssistantScope` 尚未包入工作区，任务/目标详情也没有“问助手”入口。`flutter analyze --no-pub` 当前报告助手历史/设置引用不存在的函数与类型、主页面输入框使用了不支持的 `border` 参数等问题；因此这些文件不能作为已交付页面引用。先按[Agent 接入 App](../../docs/设计/Agent接入App.md#7-实施顺序与验收)完成装配和检查，再记录实际视觉与设备验收。
 
 ### 2026-10-26 图形引导与工作区
 

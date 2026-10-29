@@ -68,6 +68,7 @@ class RecordingMissionRepository
     String? description,
     String? why,
     bool updateContext = false,
+    String? operationId,
   }) => throw UnsupportedError('本测试不编辑任务');
 
   @override
@@ -145,6 +146,7 @@ class FailingMissionRepository
     String? description,
     String? why,
     bool updateContext = false,
+    String? operationId,
   }) => throw UnsupportedError('本测试不编辑任务');
 
   @override

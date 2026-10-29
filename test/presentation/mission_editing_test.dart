@@ -38,6 +38,7 @@ class EditingRepository extends PendingRepository {
     String? description,
     String? why,
     bool updateContext = false,
+    String? operationId,
   }) {
     edits.add(schedule);
     titles.add(title);

@@ -97,6 +97,6 @@ class DatabaseBackupService implements BackupExporter {
     for (final entry in files.entries) {
       archive.addFile(ArchiveFile(entry.key, entry.value.length, entry.value));
     }
-    return Uint8List.fromList(ZipEncoder().encode(archive)!);
+    return Uint8List.fromList(ZipEncoder().encode(archive));
   }
 }

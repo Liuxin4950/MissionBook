@@ -19,6 +19,7 @@ import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/execution_command.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/evidence.dart';
+import '../../domain/entities/operation_receipt.dart';
 import '../../domain/rules/evidence_rules.dart';
 import '../../domain/rules/mission_creation_rules.dart';
 import '../evidence/evidence_image_service.dart';
@@ -149,6 +150,21 @@ class MissionService {
   Future<List<MissionDetail>> findForGoal(String goalId) async {
     await reconcileEvidenceDeadlines();
     return repository.findForGoal(goalId);
+  }
+
+  /// Agent 快照只读取事实，不触发截止补算或其他维护写入。
+  Future<List<MissionDetail>> findForGoalSnapshot(String goalId) =>
+      repository.findForGoal(goalId);
+
+  Future<List<MissionDetail>> findFinishedSnapshot() =>
+      repository.findFinished();
+
+  Future<OperationReceiptInfo?> findOperationReceipt(String operationId) {
+    final Object source = repository;
+    if (source is MissionQueryRepository) {
+      return source.findOperationReceipt(operationId);
+    }
+    return Future.value(null);
   }
 
   Future<List<MissionDetail>> findFinished() async {
@@ -437,6 +453,7 @@ class MissionService {
     String? why,
     bool updateContext = false,
     DateTime? evidenceDeadlineAt,
+    String? operationId,
   }) async {
     final cleanTitle = title.trim();
     final cleanObjective = objective.trim();
@@ -485,6 +502,7 @@ class MissionService {
       description: _clean(description),
       why: _clean(why),
       updateContext: updateContext,
+      operationId: operationId,
     );
     _notify();
   }
@@ -596,6 +614,7 @@ class MissionService {
     MissionOwnership ownership = const MissionOwnership(),
     String? description,
     String? why,
+    String? requestId,
   }) {
     ownership.validate(); // 检查编号组合；目标是否有效由保存事务重新读取后判断。
     // trim 去掉标题首尾空白；全是空格也算没填写。
@@ -615,9 +634,17 @@ class MissionService {
       fixedStartAt: fixedStartAt,
     );
 
-    // 校验通过后再生成编号、取得当前时间。
+    // 外部固定请求用确定性编号核对未知结果；普通表单仍使用随机 UUID。
+    final missionId = requestId == null
+        ? uuid.v4()
+        : uuid.v5(Namespace.url.value, '$requestId:mission');
+    final scheduleId = requestId == null
+        ? uuid.v4()
+        : uuid.v5(Namespace.url.value, '$requestId:schedule');
+    final planId = requestId == null
+        ? uuid.v4()
+        : uuid.v5(Namespace.url.value, '$requestId:plan');
     // 同一次创建只取一次 now，让三个对象的创建时间一致；统一到毫秒精度。
-    final missionId = uuid.v4();
     final now = DateTime.fromMillisecondsSinceEpoch(
       _clock().toUtc().millisecondsSinceEpoch,
       isUtc: true,
@@ -638,7 +665,7 @@ class MissionService {
     );
 
     final schedule = MissionScheduleRevision(
-      id: uuid.v4(), // 排期有自己的编号。
+      id: scheduleId, // 固定请求可核对，普通创建保持随机编号。
       missionId: missionId, // 但所属任务编号与上面相同。
       revisionNumber: 1,
       scheduledDate: scheduledDate,
@@ -651,7 +678,7 @@ class MissionService {
     );
 
     final plan = ExecutionPlan(
-      id: uuid.v4(), // 方案也有自己的编号。
+      id: planId, // 同一创建请求的任务、排期和方案身份保持稳定。
       missionId: missionId,
       objective: cleanObjective, // 普通创建默认标题；再次尝试允许调整具体目标。
       steps: (steps ?? retrySource?.executionPlan.steps ?? const [])
@@ -703,6 +730,13 @@ class MissionService {
     return missions;
   }
 
+  Future<List<ScheduledMission>> findScheduledSnapshotOn({
+    required String scheduledDate,
+  }) {
+    validateScheduledDate(scheduledDate);
+    return repository.findScheduledOn(scheduledDate);
+  }
+
   /// 按编号读取任务详情；不存在返回 null，读取或转换失败通过 Future 传出错误。
   ///
   /// missionId 来自用户点击的那条任务，不用标题或列表位置代替唯一编号。
@@ -720,6 +754,13 @@ class MissionService {
       tz.getLocation(detail.schedule.timeZone);
     }
     return detail;
+  }
+
+  Future<MissionDetail?> findDetailSnapshot({required String missionId}) {
+    if (missionId.trim().isEmpty) {
+      throw ArgumentError('任务编号不能为空');
+    }
+    return repository.findDetail(missionId);
   }
 
   String? _clean(String? value) {

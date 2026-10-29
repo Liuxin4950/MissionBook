@@ -39,3 +39,11 @@ TZ=America/Los_Angeles flutter test --no-pub test/presentation/detail_pane_flow_
 设备测试需明确目标，例如 `flutter test integration_test/evidence_camera_test.dart -d <device-id>`。普通 `flutter test` 不等于完成相机、系统通知、原生升级或后台重启验收。
 
 交付记录分别写清静态分析、测试通过/失败数、运行范围与未验证的平台行为。历史提交中的“全部通过”只代表当时的运行结果，当前状态以本轮实际结果为准。
+
+## Agent 接入测试（分支部分落地）
+
+- 会话存储合同：[drift_session_store_test.dart](data/assistant/drift_session_store_test.dart) 使用隔离内存数据库，覆盖序号/分页、重开、导入、租约竞争和删除。当前 5/5 通过，不代表 v10→v11 迁移、备份或真实进程写锁通过。
+- 控制器与工具：[assistant_controller_test.dart](application/assistant/assistant_controller_test.dart) 使用真实 `MissionService`/`GoalService`、内存 SQLite 和脚本模型，覆盖真实日期查询、编辑后创建、取消零写入、完整权限、旧提案冲突、停止及重开会话恢复。当前 7/7 通过，不使用真实 API Key。
+- 测试替身：[assistant_fakes.dart](support/assistant_fakes.dart) 只实现凭据存储与脚本模型，不绕过业务服务或事务。
+- 当前不能运行全量门禁作为通过证据：助手页面草稿存在静态分析错误；`execution_events_migration_test.dart` 仍断言 v10/九表，尚未补 v11 新装与 v10→v11 迁移；`archive`/`sqlite3` 依赖升级后的备份、Web Worker 与全量回归也待复验。
+- 万任务研究探针不在仓库内，只作规模证据；正式测试必须按[上下文契约](../docs/设计/Agent接入App.md#68-代码语义与落地验收)覆盖数据库有界分页、每次请求预算、详情分段和长期记忆。

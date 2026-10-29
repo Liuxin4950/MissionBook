@@ -45,13 +45,16 @@ class GoalService {
     required String title,
     String? description,
     String? why,
+    String? requestId,
   }) {
     final now = DateTime.fromMillisecondsSinceEpoch(
       DateTime.now().millisecondsSinceEpoch,
       isUtc: true,
     ); // 与数据库一样保留到毫秒，失败重试时不会因精度不同误判为另一份内容。
     final goal = Goal(
-      id: _uuid.v4(),
+      id: requestId == null
+          ? _uuid.v4()
+          : _uuid.v5(Namespace.url.value, '$requestId:goal'),
       title: title.trim(),
       description: _optionalText(description),
       why: _optionalText(why),
@@ -166,9 +169,12 @@ class GoalService {
     required String title,
     String? parentNodeId,
     String? description,
+    String? requestId,
   }) {
     final request = GoalNodeCreation(
-      id: _uuid.v4(), // 同一次填写只生成一次，失败后用原请求重试。
+      id: requestId == null
+          ? _uuid.v4()
+          : _uuid.v5(Namespace.url.value, '$requestId:node'), // 固定请求可按编号核对。
       goalId: goalId,
       parentNodeId: parentNodeId,
       title: title.trim(),

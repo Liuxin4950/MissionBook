@@ -1,7 +1,9 @@
 import 'dart:convert';
 import '../../domain/entities/mission_ownership.dart';
+import '../../domain/entities/operation_receipt.dart';
 import 'drift_goal_repository.dart';
 
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 
@@ -1038,6 +1040,7 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
     String? description,
     String? why,
     bool updateContext = false,
+    String? operationId,
   }) async {
     final missionId = original.mission.id;
     validateMissionSchedule(schedule);
@@ -1047,8 +1050,34 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
         schedule.missionId != missionId) {
       throw ArgumentError('任务编号、名称、具体目标或排期关联无效');
     }
+    final fingerprint = operationId == null
+        ? null
+        : _editFingerprint(
+            original: original,
+            title: title,
+            objective: objective,
+            schedule: schedule,
+            content: content,
+            verificationPolicy: verificationPolicy,
+            verificationCriteria: verificationCriteria,
+            ownership: ownership,
+            description: description,
+            why: why,
+            updateContext: updateContext,
+          );
     await database.transaction(() async {
       await _acquireWrite(missionId);
+      if (operationId != null) {
+        final receipt = await findOperationReceipt(operationId);
+        if (receipt != null) {
+          if (receipt.kind != 'mission_edit' ||
+              receipt.entityId != missionId ||
+              receipt.fingerprint != fingerprint) {
+            throw StateError('同一编辑身份已用于其他内容，请重新核对任务');
+          }
+          return;
+        }
+      }
       // 重读的是事务内最新快照，不能依靠编辑页打开时的状态放行。
       final current = await findDetail(missionId);
       if (current == null) {
@@ -1104,6 +1133,11 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
           !criteriaChanged &&
           !ownershipChanged &&
           !contextChanged) {
+        await _writeOperationReceipt(
+          operationId: operationId,
+          missionId: missionId,
+          fingerprint: fingerprint,
+        );
         return;
       }
 
@@ -1179,7 +1213,51 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
             .into(database.missionScheduleRevisions)
             .insert(scheduleToCompanion(schedule));
       }
+      await _writeOperationReceipt(
+        operationId: operationId,
+        missionId: missionId,
+        fingerprint: fingerprint,
+      );
     });
+  }
+
+  @override
+  Future<OperationReceiptInfo?> findOperationReceipt(String operationId) async {
+    final query = database.select(database.operationReceipts)
+      ..where((table) => table.id.equals(operationId));
+    final row = await query.getSingleOrNull();
+    if (row == null) return null;
+    return OperationReceiptInfo(
+      id: row.id,
+      kind: row.kind,
+      fingerprint: row.fingerprint,
+      entityId: row.entityId,
+      resultJson: row.resultJson,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        row.createdAt,
+        isUtc: true,
+      ),
+    );
+  }
+
+  Future<void> _writeOperationReceipt({
+    required String? operationId,
+    required String missionId,
+    required String? fingerprint,
+  }) async {
+    if (operationId == null) return;
+    await database
+        .into(database.operationReceipts)
+        .insert(
+          OperationReceiptsCompanion.insert(
+            id: operationId,
+            kind: 'mission_edit',
+            fingerprint: fingerprint!,
+            entityId: missionId,
+            resultJson: jsonEncode({'missionId': missionId}),
+            createdAt: _now().millisecondsSinceEpoch,
+          ),
+        );
   }
 
   // 比较日期、时区、策略、时刻、时长与截止；身份和生成信息不代表内容变化。
@@ -1504,4 +1582,52 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
         sameTime(oldPlan.createdAt, plan.createdAt) &&
         sameTime(oldPlan.updatedAt, plan.updatedAt);
   }
+}
+
+String _editFingerprint({
+  required MissionDetail original,
+  required String title,
+  required String objective,
+  required MissionScheduleRevision schedule,
+  ExecutionPlanContent? content,
+  VerificationPolicy? verificationPolicy,
+  String? verificationCriteria,
+  MissionOwnership? ownership,
+  String? description,
+  String? why,
+  required bool updateContext,
+}) {
+  final input = {
+    'missionId': original.mission.id,
+    'originalScheduleId': original.schedule.id,
+    'originalMissionUpdatedAt': original.mission.updatedAt
+        .toUtc()
+        .toIso8601String(),
+    'originalPlanUpdatedAt': original.executionPlan.updatedAt
+        .toUtc()
+        .toIso8601String(),
+    'title': title,
+    'objective': objective,
+    'schedule': {
+      'date': schedule.scheduledDate,
+      'timeZone': schedule.timeZone,
+      'minutes': schedule.plannedDurationMinutes,
+      'timePolicy': schedule.timePolicy.name,
+      'fixedStartAt': schedule.fixedStartAt?.toUtc().toIso8601String(),
+      'evidenceDeadlineAt': schedule.evidenceDeadlineAt
+          ?.toUtc()
+          .toIso8601String(),
+    },
+    'steps': content?.steps ?? original.executionPlan.steps,
+    'notes': content == null ? original.executionPlan.notes : content.notes,
+    'verificationPolicy': verificationPolicy?.name,
+    'verificationCriteria': verificationCriteria,
+    'ownership': ownership == null
+        ? null
+        : {'goalId': ownership.goalId, 'goalNodeId': ownership.goalNodeId},
+    'description': description,
+    'why': why,
+    'updateContext': updateContext,
+  };
+  return sha256.convert(utf8.encode(jsonEncode(input))).toString();
 }

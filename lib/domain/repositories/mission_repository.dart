@@ -56,6 +56,7 @@ abstract interface class MissionRepository {
     String? description,
     String? why,
     bool updateContext = false, // true 时按表单值写说明和 Why，允许明确清空。
+    String? operationId, // 外部入口提供固定身份时，业务事实与回执同事务保存。
   });
 
   /// 在写事务中重读任务并取消，只修改 cancelledAt 和 updatedAt。

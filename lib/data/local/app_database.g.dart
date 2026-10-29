@@ -5599,6 +5599,1418 @@ class ImportReceiptsCompanion extends UpdateCompanion<ImportReceipt> {
   }
 }
 
+class $AssistantSessionsTable extends AssistantSessions
+    with TableInfo<$AssistantSessionsTable, AssistantSession> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantSessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _missionIdMeta = const VerificationMeta(
+    'missionId',
+  );
+  @override
+  late final GeneratedColumn<String> missionId = GeneratedColumn<String>(
+    'mission_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _goalIdMeta = const VerificationMeta('goalId');
+  @override
+  late final GeneratedColumn<String> goalId = GeneratedColumn<String>(
+    'goal_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _writerTokenMeta = const VerificationMeta(
+    'writerToken',
+  );
+  @override
+  late final GeneratedColumn<String> writerToken = GeneratedColumn<String>(
+    'writer_token',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _writerLeaseUntilMeta = const VerificationMeta(
+    'writerLeaseUntil',
+  );
+  @override
+  late final GeneratedColumn<int> writerLeaseUntil = GeneratedColumn<int>(
+    'writer_lease_until',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    title,
+    createdAt,
+    updatedAt,
+    missionId,
+    goalId,
+    writerToken,
+    writerLeaseUntil,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_sessions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantSession> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('mission_id')) {
+      context.handle(
+        _missionIdMeta,
+        missionId.isAcceptableOrUnknown(data['mission_id']!, _missionIdMeta),
+      );
+    }
+    if (data.containsKey('goal_id')) {
+      context.handle(
+        _goalIdMeta,
+        goalId.isAcceptableOrUnknown(data['goal_id']!, _goalIdMeta),
+      );
+    }
+    if (data.containsKey('writer_token')) {
+      context.handle(
+        _writerTokenMeta,
+        writerToken.isAcceptableOrUnknown(
+          data['writer_token']!,
+          _writerTokenMeta,
+        ),
+      );
+    }
+    if (data.containsKey('writer_lease_until')) {
+      context.handle(
+        _writerLeaseUntilMeta,
+        writerLeaseUntil.isAcceptableOrUnknown(
+          data['writer_lease_until']!,
+          _writerLeaseUntilMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AssistantSession map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantSession(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      missionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mission_id'],
+      ),
+      goalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}goal_id'],
+      ),
+      writerToken: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}writer_token'],
+      ),
+      writerLeaseUntil: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}writer_lease_until'],
+      ),
+    );
+  }
+
+  @override
+  $AssistantSessionsTable createAlias(String alias) {
+    return $AssistantSessionsTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantSession extends DataClass
+    implements Insertable<AssistantSession> {
+  final String id;
+  final String title;
+  final int createdAt;
+  final int updatedAt;
+  final String? missionId;
+  final String? goalId;
+  final String? writerToken;
+  final int? writerLeaseUntil;
+  const AssistantSession({
+    required this.id,
+    required this.title,
+    required this.createdAt,
+    required this.updatedAt,
+    this.missionId,
+    this.goalId,
+    this.writerToken,
+    this.writerLeaseUntil,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || missionId != null) {
+      map['mission_id'] = Variable<String>(missionId);
+    }
+    if (!nullToAbsent || goalId != null) {
+      map['goal_id'] = Variable<String>(goalId);
+    }
+    if (!nullToAbsent || writerToken != null) {
+      map['writer_token'] = Variable<String>(writerToken);
+    }
+    if (!nullToAbsent || writerLeaseUntil != null) {
+      map['writer_lease_until'] = Variable<int>(writerLeaseUntil);
+    }
+    return map;
+  }
+
+  AssistantSessionsCompanion toCompanion(bool nullToAbsent) {
+    return AssistantSessionsCompanion(
+      id: Value(id),
+      title: Value(title),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      missionId: missionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(missionId),
+      goalId: goalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(goalId),
+      writerToken: writerToken == null && nullToAbsent
+          ? const Value.absent()
+          : Value(writerToken),
+      writerLeaseUntil: writerLeaseUntil == null && nullToAbsent
+          ? const Value.absent()
+          : Value(writerLeaseUntil),
+    );
+  }
+
+  factory AssistantSession.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantSession(
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      missionId: serializer.fromJson<String?>(json['missionId']),
+      goalId: serializer.fromJson<String?>(json['goalId']),
+      writerToken: serializer.fromJson<String?>(json['writerToken']),
+      writerLeaseUntil: serializer.fromJson<int?>(json['writerLeaseUntil']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'missionId': serializer.toJson<String?>(missionId),
+      'goalId': serializer.toJson<String?>(goalId),
+      'writerToken': serializer.toJson<String?>(writerToken),
+      'writerLeaseUntil': serializer.toJson<int?>(writerLeaseUntil),
+    };
+  }
+
+  AssistantSession copyWith({
+    String? id,
+    String? title,
+    int? createdAt,
+    int? updatedAt,
+    Value<String?> missionId = const Value.absent(),
+    Value<String?> goalId = const Value.absent(),
+    Value<String?> writerToken = const Value.absent(),
+    Value<int?> writerLeaseUntil = const Value.absent(),
+  }) => AssistantSession(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    missionId: missionId.present ? missionId.value : this.missionId,
+    goalId: goalId.present ? goalId.value : this.goalId,
+    writerToken: writerToken.present ? writerToken.value : this.writerToken,
+    writerLeaseUntil: writerLeaseUntil.present
+        ? writerLeaseUntil.value
+        : this.writerLeaseUntil,
+  );
+  AssistantSession copyWithCompanion(AssistantSessionsCompanion data) {
+    return AssistantSession(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      missionId: data.missionId.present ? data.missionId.value : this.missionId,
+      goalId: data.goalId.present ? data.goalId.value : this.goalId,
+      writerToken: data.writerToken.present
+          ? data.writerToken.value
+          : this.writerToken,
+      writerLeaseUntil: data.writerLeaseUntil.present
+          ? data.writerLeaseUntil.value
+          : this.writerLeaseUntil,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantSession(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('missionId: $missionId, ')
+          ..write('goalId: $goalId, ')
+          ..write('writerToken: $writerToken, ')
+          ..write('writerLeaseUntil: $writerLeaseUntil')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    title,
+    createdAt,
+    updatedAt,
+    missionId,
+    goalId,
+    writerToken,
+    writerLeaseUntil,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantSession &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.missionId == this.missionId &&
+          other.goalId == this.goalId &&
+          other.writerToken == this.writerToken &&
+          other.writerLeaseUntil == this.writerLeaseUntil);
+}
+
+class AssistantSessionsCompanion extends UpdateCompanion<AssistantSession> {
+  final Value<String> id;
+  final Value<String> title;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<String?> missionId;
+  final Value<String?> goalId;
+  final Value<String?> writerToken;
+  final Value<int?> writerLeaseUntil;
+  final Value<int> rowid;
+  const AssistantSessionsCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.missionId = const Value.absent(),
+    this.goalId = const Value.absent(),
+    this.writerToken = const Value.absent(),
+    this.writerLeaseUntil = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantSessionsCompanion.insert({
+    required String id,
+    required String title,
+    required int createdAt,
+    required int updatedAt,
+    this.missionId = const Value.absent(),
+    this.goalId = const Value.absent(),
+    this.writerToken = const Value.absent(),
+    this.writerLeaseUntil = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       title = Value(title),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<AssistantSession> custom({
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<String>? missionId,
+    Expression<String>? goalId,
+    Expression<String>? writerToken,
+    Expression<int>? writerLeaseUntil,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (missionId != null) 'mission_id': missionId,
+      if (goalId != null) 'goal_id': goalId,
+      if (writerToken != null) 'writer_token': writerToken,
+      if (writerLeaseUntil != null) 'writer_lease_until': writerLeaseUntil,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantSessionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? title,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<String?>? missionId,
+    Value<String?>? goalId,
+    Value<String?>? writerToken,
+    Value<int?>? writerLeaseUntil,
+    Value<int>? rowid,
+  }) {
+    return AssistantSessionsCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      missionId: missionId ?? this.missionId,
+      goalId: goalId ?? this.goalId,
+      writerToken: writerToken ?? this.writerToken,
+      writerLeaseUntil: writerLeaseUntil ?? this.writerLeaseUntil,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (missionId.present) {
+      map['mission_id'] = Variable<String>(missionId.value);
+    }
+    if (goalId.present) {
+      map['goal_id'] = Variable<String>(goalId.value);
+    }
+    if (writerToken.present) {
+      map['writer_token'] = Variable<String>(writerToken.value);
+    }
+    if (writerLeaseUntil.present) {
+      map['writer_lease_until'] = Variable<int>(writerLeaseUntil.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('missionId: $missionId, ')
+          ..write('goalId: $goalId, ')
+          ..write('writerToken: $writerToken, ')
+          ..write('writerLeaseUntil: $writerLeaseUntil, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AssistantSessionRecordsTable extends AssistantSessionRecords
+    with TableInfo<$AssistantSessionRecordsTable, AssistantSessionRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantSessionRecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES assistant_sessions (id)',
+    ),
+  );
+  static const VerificationMeta _sequenceMeta = const VerificationMeta(
+    'sequence',
+  );
+  @override
+  late final GeneratedColumn<int> sequence = GeneratedColumn<int>(
+    'sequence',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _timestampMeta = const VerificationMeta(
+    'timestamp',
+  );
+  @override
+  late final GeneratedColumn<int> timestamp = GeneratedColumn<int>(
+    'timestamp',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dataMeta = const VerificationMeta('data');
+  @override
+  late final GeneratedColumn<String> data = GeneratedColumn<String>(
+    'data',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _ignorableMeta = const VerificationMeta(
+    'ignorable',
+  );
+  @override
+  late final GeneratedColumn<bool> ignorable = GeneratedColumn<bool>(
+    'ignorable',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("ignorable" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    sessionId,
+    sequence,
+    timestamp,
+    type,
+    data,
+    version,
+    ignorable,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_session_records';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantSessionRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('sequence')) {
+      context.handle(
+        _sequenceMeta,
+        sequence.isAcceptableOrUnknown(data['sequence']!, _sequenceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sequenceMeta);
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(
+        _timestampMeta,
+        timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_timestampMeta);
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('data')) {
+      context.handle(
+        _dataMeta,
+        this.data.isAcceptableOrUnknown(data['data']!, _dataMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dataMeta);
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    }
+    if (data.containsKey('ignorable')) {
+      context.handle(
+        _ignorableMeta,
+        ignorable.isAcceptableOrUnknown(data['ignorable']!, _ignorableMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {sessionId, sequence};
+  @override
+  AssistantSessionRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantSessionRecord(
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      )!,
+      sequence: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sequence'],
+      )!,
+      timestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}timestamp'],
+      )!,
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      data: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}data'],
+      )!,
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      ignorable: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}ignorable'],
+      )!,
+    );
+  }
+
+  @override
+  $AssistantSessionRecordsTable createAlias(String alias) {
+    return $AssistantSessionRecordsTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantSessionRecord extends DataClass
+    implements Insertable<AssistantSessionRecord> {
+  final String sessionId;
+  final int sequence;
+  final int timestamp;
+  final String type;
+  final String data;
+  final int version;
+  final bool ignorable;
+  const AssistantSessionRecord({
+    required this.sessionId,
+    required this.sequence,
+    required this.timestamp,
+    required this.type,
+    required this.data,
+    required this.version,
+    required this.ignorable,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['session_id'] = Variable<String>(sessionId);
+    map['sequence'] = Variable<int>(sequence);
+    map['timestamp'] = Variable<int>(timestamp);
+    map['type'] = Variable<String>(type);
+    map['data'] = Variable<String>(data);
+    map['version'] = Variable<int>(version);
+    map['ignorable'] = Variable<bool>(ignorable);
+    return map;
+  }
+
+  AssistantSessionRecordsCompanion toCompanion(bool nullToAbsent) {
+    return AssistantSessionRecordsCompanion(
+      sessionId: Value(sessionId),
+      sequence: Value(sequence),
+      timestamp: Value(timestamp),
+      type: Value(type),
+      data: Value(data),
+      version: Value(version),
+      ignorable: Value(ignorable),
+    );
+  }
+
+  factory AssistantSessionRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantSessionRecord(
+      sessionId: serializer.fromJson<String>(json['sessionId']),
+      sequence: serializer.fromJson<int>(json['sequence']),
+      timestamp: serializer.fromJson<int>(json['timestamp']),
+      type: serializer.fromJson<String>(json['type']),
+      data: serializer.fromJson<String>(json['data']),
+      version: serializer.fromJson<int>(json['version']),
+      ignorable: serializer.fromJson<bool>(json['ignorable']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'sessionId': serializer.toJson<String>(sessionId),
+      'sequence': serializer.toJson<int>(sequence),
+      'timestamp': serializer.toJson<int>(timestamp),
+      'type': serializer.toJson<String>(type),
+      'data': serializer.toJson<String>(data),
+      'version': serializer.toJson<int>(version),
+      'ignorable': serializer.toJson<bool>(ignorable),
+    };
+  }
+
+  AssistantSessionRecord copyWith({
+    String? sessionId,
+    int? sequence,
+    int? timestamp,
+    String? type,
+    String? data,
+    int? version,
+    bool? ignorable,
+  }) => AssistantSessionRecord(
+    sessionId: sessionId ?? this.sessionId,
+    sequence: sequence ?? this.sequence,
+    timestamp: timestamp ?? this.timestamp,
+    type: type ?? this.type,
+    data: data ?? this.data,
+    version: version ?? this.version,
+    ignorable: ignorable ?? this.ignorable,
+  );
+  AssistantSessionRecord copyWithCompanion(
+    AssistantSessionRecordsCompanion data,
+  ) {
+    return AssistantSessionRecord(
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      sequence: data.sequence.present ? data.sequence.value : this.sequence,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+      type: data.type.present ? data.type.value : this.type,
+      data: data.data.present ? data.data.value : this.data,
+      version: data.version.present ? data.version.value : this.version,
+      ignorable: data.ignorable.present ? data.ignorable.value : this.ignorable,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantSessionRecord(')
+          ..write('sessionId: $sessionId, ')
+          ..write('sequence: $sequence, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('type: $type, ')
+          ..write('data: $data, ')
+          ..write('version: $version, ')
+          ..write('ignorable: $ignorable')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    sessionId,
+    sequence,
+    timestamp,
+    type,
+    data,
+    version,
+    ignorable,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantSessionRecord &&
+          other.sessionId == this.sessionId &&
+          other.sequence == this.sequence &&
+          other.timestamp == this.timestamp &&
+          other.type == this.type &&
+          other.data == this.data &&
+          other.version == this.version &&
+          other.ignorable == this.ignorable);
+}
+
+class AssistantSessionRecordsCompanion
+    extends UpdateCompanion<AssistantSessionRecord> {
+  final Value<String> sessionId;
+  final Value<int> sequence;
+  final Value<int> timestamp;
+  final Value<String> type;
+  final Value<String> data;
+  final Value<int> version;
+  final Value<bool> ignorable;
+  final Value<int> rowid;
+  const AssistantSessionRecordsCompanion({
+    this.sessionId = const Value.absent(),
+    this.sequence = const Value.absent(),
+    this.timestamp = const Value.absent(),
+    this.type = const Value.absent(),
+    this.data = const Value.absent(),
+    this.version = const Value.absent(),
+    this.ignorable = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantSessionRecordsCompanion.insert({
+    required String sessionId,
+    required int sequence,
+    required int timestamp,
+    required String type,
+    required String data,
+    this.version = const Value.absent(),
+    this.ignorable = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : sessionId = Value(sessionId),
+       sequence = Value(sequence),
+       timestamp = Value(timestamp),
+       type = Value(type),
+       data = Value(data);
+  static Insertable<AssistantSessionRecord> custom({
+    Expression<String>? sessionId,
+    Expression<int>? sequence,
+    Expression<int>? timestamp,
+    Expression<String>? type,
+    Expression<String>? data,
+    Expression<int>? version,
+    Expression<bool>? ignorable,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (sessionId != null) 'session_id': sessionId,
+      if (sequence != null) 'sequence': sequence,
+      if (timestamp != null) 'timestamp': timestamp,
+      if (type != null) 'type': type,
+      if (data != null) 'data': data,
+      if (version != null) 'version': version,
+      if (ignorable != null) 'ignorable': ignorable,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantSessionRecordsCompanion copyWith({
+    Value<String>? sessionId,
+    Value<int>? sequence,
+    Value<int>? timestamp,
+    Value<String>? type,
+    Value<String>? data,
+    Value<int>? version,
+    Value<bool>? ignorable,
+    Value<int>? rowid,
+  }) {
+    return AssistantSessionRecordsCompanion(
+      sessionId: sessionId ?? this.sessionId,
+      sequence: sequence ?? this.sequence,
+      timestamp: timestamp ?? this.timestamp,
+      type: type ?? this.type,
+      data: data ?? this.data,
+      version: version ?? this.version,
+      ignorable: ignorable ?? this.ignorable,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (sequence.present) {
+      map['sequence'] = Variable<int>(sequence.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<int>(timestamp.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (data.present) {
+      map['data'] = Variable<String>(data.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (ignorable.present) {
+      map['ignorable'] = Variable<bool>(ignorable.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantSessionRecordsCompanion(')
+          ..write('sessionId: $sessionId, ')
+          ..write('sequence: $sequence, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('type: $type, ')
+          ..write('data: $data, ')
+          ..write('version: $version, ')
+          ..write('ignorable: $ignorable, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $OperationReceiptsTable extends OperationReceipts
+    with TableInfo<$OperationReceiptsTable, OperationReceipt> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $OperationReceiptsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fingerprintMeta = const VerificationMeta(
+    'fingerprint',
+  );
+  @override
+  late final GeneratedColumn<String> fingerprint = GeneratedColumn<String>(
+    'fingerprint',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _entityIdMeta = const VerificationMeta(
+    'entityId',
+  );
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+    'entity_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _resultJsonMeta = const VerificationMeta(
+    'resultJson',
+  );
+  @override
+  late final GeneratedColumn<String> resultJson = GeneratedColumn<String>(
+    'result_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    kind,
+    fingerprint,
+    entityId,
+    resultJson,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'operation_receipts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<OperationReceipt> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('fingerprint')) {
+      context.handle(
+        _fingerprintMeta,
+        fingerprint.isAcceptableOrUnknown(
+          data['fingerprint']!,
+          _fingerprintMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_fingerprintMeta);
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(
+        _entityIdMeta,
+        entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entityIdMeta);
+    }
+    if (data.containsKey('result_json')) {
+      context.handle(
+        _resultJsonMeta,
+        resultJson.isAcceptableOrUnknown(data['result_json']!, _resultJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_resultJsonMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  OperationReceipt map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return OperationReceipt(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      fingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fingerprint'],
+      )!,
+      entityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_id'],
+      )!,
+      resultJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}result_json'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $OperationReceiptsTable createAlias(String alias) {
+    return $OperationReceiptsTable(attachedDatabase, alias);
+  }
+}
+
+class OperationReceipt extends DataClass
+    implements Insertable<OperationReceipt> {
+  final String id;
+  final String kind;
+  final String fingerprint;
+  final String entityId;
+  final String resultJson;
+  final int createdAt;
+  const OperationReceipt({
+    required this.id,
+    required this.kind,
+    required this.fingerprint,
+    required this.entityId,
+    required this.resultJson,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['kind'] = Variable<String>(kind);
+    map['fingerprint'] = Variable<String>(fingerprint);
+    map['entity_id'] = Variable<String>(entityId);
+    map['result_json'] = Variable<String>(resultJson);
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  OperationReceiptsCompanion toCompanion(bool nullToAbsent) {
+    return OperationReceiptsCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      fingerprint: Value(fingerprint),
+      entityId: Value(entityId),
+      resultJson: Value(resultJson),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory OperationReceipt.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return OperationReceipt(
+      id: serializer.fromJson<String>(json['id']),
+      kind: serializer.fromJson<String>(json['kind']),
+      fingerprint: serializer.fromJson<String>(json['fingerprint']),
+      entityId: serializer.fromJson<String>(json['entityId']),
+      resultJson: serializer.fromJson<String>(json['resultJson']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'kind': serializer.toJson<String>(kind),
+      'fingerprint': serializer.toJson<String>(fingerprint),
+      'entityId': serializer.toJson<String>(entityId),
+      'resultJson': serializer.toJson<String>(resultJson),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  OperationReceipt copyWith({
+    String? id,
+    String? kind,
+    String? fingerprint,
+    String? entityId,
+    String? resultJson,
+    int? createdAt,
+  }) => OperationReceipt(
+    id: id ?? this.id,
+    kind: kind ?? this.kind,
+    fingerprint: fingerprint ?? this.fingerprint,
+    entityId: entityId ?? this.entityId,
+    resultJson: resultJson ?? this.resultJson,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  OperationReceipt copyWithCompanion(OperationReceiptsCompanion data) {
+    return OperationReceipt(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      fingerprint: data.fingerprint.present
+          ? data.fingerprint.value
+          : this.fingerprint,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      resultJson: data.resultJson.present
+          ? data.resultJson.value
+          : this.resultJson,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OperationReceipt(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('fingerprint: $fingerprint, ')
+          ..write('entityId: $entityId, ')
+          ..write('resultJson: $resultJson, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, kind, fingerprint, entityId, resultJson, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is OperationReceipt &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.fingerprint == this.fingerprint &&
+          other.entityId == this.entityId &&
+          other.resultJson == this.resultJson &&
+          other.createdAt == this.createdAt);
+}
+
+class OperationReceiptsCompanion extends UpdateCompanion<OperationReceipt> {
+  final Value<String> id;
+  final Value<String> kind;
+  final Value<String> fingerprint;
+  final Value<String> entityId;
+  final Value<String> resultJson;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const OperationReceiptsCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.fingerprint = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.resultJson = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  OperationReceiptsCompanion.insert({
+    required String id,
+    required String kind,
+    required String fingerprint,
+    required String entityId,
+    required String resultJson,
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       kind = Value(kind),
+       fingerprint = Value(fingerprint),
+       entityId = Value(entityId),
+       resultJson = Value(resultJson),
+       createdAt = Value(createdAt);
+  static Insertable<OperationReceipt> custom({
+    Expression<String>? id,
+    Expression<String>? kind,
+    Expression<String>? fingerprint,
+    Expression<String>? entityId,
+    Expression<String>? resultJson,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (fingerprint != null) 'fingerprint': fingerprint,
+      if (entityId != null) 'entity_id': entityId,
+      if (resultJson != null) 'result_json': resultJson,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  OperationReceiptsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? kind,
+    Value<String>? fingerprint,
+    Value<String>? entityId,
+    Value<String>? resultJson,
+    Value<int>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return OperationReceiptsCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      fingerprint: fingerprint ?? this.fingerprint,
+      entityId: entityId ?? this.entityId,
+      resultJson: resultJson ?? this.resultJson,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (fingerprint.present) {
+      map['fingerprint'] = Variable<String>(fingerprint.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (resultJson.present) {
+      map['result_json'] = Variable<String>(resultJson.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OperationReceiptsCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('fingerprint: $fingerprint, ')
+          ..write('entityId: $entityId, ')
+          ..write('resultJson: $resultJson, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -5632,6 +7044,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $ImportReceiptsTable importReceipts = $ImportReceiptsTable(this);
+  late final $AssistantSessionsTable assistantSessions =
+      $AssistantSessionsTable(this);
+  late final $AssistantSessionRecordsTable assistantSessionRecords =
+      $AssistantSessionRecordsTable(this);
+  late final $OperationReceiptsTable operationReceipts =
+      $OperationReceiptsTable(this);
   late final Index missionScheduleFixed = Index(
     'mission_schedule_fixed',
     'CREATE INDEX mission_schedule_fixed ON mission_schedule_revisions (time_policy, fixed_start_at, mission_id, revision_number)',
@@ -5652,6 +7070,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'import_receipts_content',
     'CREATE INDEX import_receipts_content ON import_receipts (schema_name, content_sha256)',
   );
+  late final Index assistantSessionsUpdated = Index(
+    'assistant_sessions_updated',
+    'CREATE INDEX assistant_sessions_updated ON assistant_sessions (updated_at, id)',
+  );
+  late final Index operationReceiptsEntity = Index(
+    'operation_receipts_entity',
+    'CREATE INDEX operation_receipts_entity ON operation_receipts (kind, entity_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5670,11 +7096,16 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     failureRecords,
     evidenceRecords,
     importReceipts,
+    assistantSessions,
+    assistantSessionRecords,
+    operationReceipts,
     missionScheduleFixed,
     executionEventsOneStart,
     executionEventsOneEnd,
     evidenceRecordsMission,
     importReceiptsContent,
+    assistantSessionsUpdated,
+    operationReceiptsEntity,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -10689,6 +12120,1011 @@ typedef $$ImportReceiptsTableProcessedTableManager =
       ImportReceipt,
       PrefetchHooks Function({bool goalId})
     >;
+typedef $$AssistantSessionsTableCreateCompanionBuilder =
+    AssistantSessionsCompanion Function({
+      required String id,
+      required String title,
+      required int createdAt,
+      required int updatedAt,
+      Value<String?> missionId,
+      Value<String?> goalId,
+      Value<String?> writerToken,
+      Value<int?> writerLeaseUntil,
+      Value<int> rowid,
+    });
+typedef $$AssistantSessionsTableUpdateCompanionBuilder =
+    AssistantSessionsCompanion Function({
+      Value<String> id,
+      Value<String> title,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<String?> missionId,
+      Value<String?> goalId,
+      Value<String?> writerToken,
+      Value<int?> writerLeaseUntil,
+      Value<int> rowid,
+    });
+
+final class $$AssistantSessionsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $AssistantSessionsTable,
+          AssistantSession
+        > {
+  $$AssistantSessionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<
+    $AssistantSessionRecordsTable,
+    List<AssistantSessionRecord>
+  >
+  _assistantSessionRecordsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.assistantSessionRecords,
+        aliasName:
+            'assistant_sessions__id__assistant_session_records__session_id',
+      );
+
+  $$AssistantSessionRecordsTableProcessedTableManager
+  get assistantSessionRecordsRefs {
+    final manager = $$AssistantSessionRecordsTableTableManager(
+      $_db,
+      $_db.assistantSessionRecords,
+    ).filter((f) => f.sessionId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _assistantSessionRecordsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$AssistantSessionsTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantSessionsTable> {
+  $$AssistantSessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get missionId => $composableBuilder(
+    column: $table.missionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get goalId => $composableBuilder(
+    column: $table.goalId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get writerToken => $composableBuilder(
+    column: $table.writerToken,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get writerLeaseUntil => $composableBuilder(
+    column: $table.writerLeaseUntil,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> assistantSessionRecordsRefs(
+    Expression<bool> Function($$AssistantSessionRecordsTableFilterComposer f) f,
+  ) {
+    final $$AssistantSessionRecordsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.assistantSessionRecords,
+          getReferencedColumn: (t) => t.sessionId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AssistantSessionRecordsTableFilterComposer(
+                $db: $db,
+                $table: $db.assistantSessionRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$AssistantSessionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantSessionsTable> {
+  $$AssistantSessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get missionId => $composableBuilder(
+    column: $table.missionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get goalId => $composableBuilder(
+    column: $table.goalId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get writerToken => $composableBuilder(
+    column: $table.writerToken,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get writerLeaseUntil => $composableBuilder(
+    column: $table.writerLeaseUntil,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssistantSessionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantSessionsTable> {
+  $$AssistantSessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get missionId =>
+      $composableBuilder(column: $table.missionId, builder: (column) => column);
+
+  GeneratedColumn<String> get goalId =>
+      $composableBuilder(column: $table.goalId, builder: (column) => column);
+
+  GeneratedColumn<String> get writerToken => $composableBuilder(
+    column: $table.writerToken,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get writerLeaseUntil => $composableBuilder(
+    column: $table.writerLeaseUntil,
+    builder: (column) => column,
+  );
+
+  Expression<T> assistantSessionRecordsRefs<T extends Object>(
+    Expression<T> Function($$AssistantSessionRecordsTableAnnotationComposer a)
+    f,
+  ) {
+    final $$AssistantSessionRecordsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.assistantSessionRecords,
+          getReferencedColumn: (t) => t.sessionId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AssistantSessionRecordsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.assistantSessionRecords,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$AssistantSessionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantSessionsTable,
+          AssistantSession,
+          $$AssistantSessionsTableFilterComposer,
+          $$AssistantSessionsTableOrderingComposer,
+          $$AssistantSessionsTableAnnotationComposer,
+          $$AssistantSessionsTableCreateCompanionBuilder,
+          $$AssistantSessionsTableUpdateCompanionBuilder,
+          (AssistantSession, $$AssistantSessionsTableReferences),
+          AssistantSession,
+          PrefetchHooks Function({bool assistantSessionRecordsRefs})
+        > {
+  $$AssistantSessionsTableTableManager(
+    _$AppDatabase db,
+    $AssistantSessionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantSessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AssistantSessionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AssistantSessionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<String?> missionId = const Value.absent(),
+                Value<String?> goalId = const Value.absent(),
+                Value<String?> writerToken = const Value.absent(),
+                Value<int?> writerLeaseUntil = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantSessionsCompanion(
+                id: id,
+                title: title,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                missionId: missionId,
+                goalId: goalId,
+                writerToken: writerToken,
+                writerLeaseUntil: writerLeaseUntil,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String title,
+                required int createdAt,
+                required int updatedAt,
+                Value<String?> missionId = const Value.absent(),
+                Value<String?> goalId = const Value.absent(),
+                Value<String?> writerToken = const Value.absent(),
+                Value<int?> writerLeaseUntil = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantSessionsCompanion.insert(
+                id: id,
+                title: title,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                missionId: missionId,
+                goalId: goalId,
+                writerToken: writerToken,
+                writerLeaseUntil: writerLeaseUntil,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$AssistantSessionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({assistantSessionRecordsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (assistantSessionRecordsRefs) db.assistantSessionRecords,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (assistantSessionRecordsRefs)
+                    await $_getPrefetchedData<
+                      AssistantSession,
+                      $AssistantSessionsTable,
+                      AssistantSessionRecord
+                    >(
+                      currentTable: table,
+                      referencedTable: $$AssistantSessionsTableReferences
+                          ._assistantSessionRecordsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$AssistantSessionsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).assistantSessionRecordsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.sessionId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AssistantSessionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantSessionsTable,
+      AssistantSession,
+      $$AssistantSessionsTableFilterComposer,
+      $$AssistantSessionsTableOrderingComposer,
+      $$AssistantSessionsTableAnnotationComposer,
+      $$AssistantSessionsTableCreateCompanionBuilder,
+      $$AssistantSessionsTableUpdateCompanionBuilder,
+      (AssistantSession, $$AssistantSessionsTableReferences),
+      AssistantSession,
+      PrefetchHooks Function({bool assistantSessionRecordsRefs})
+    >;
+typedef $$AssistantSessionRecordsTableCreateCompanionBuilder =
+    AssistantSessionRecordsCompanion Function({
+      required String sessionId,
+      required int sequence,
+      required int timestamp,
+      required String type,
+      required String data,
+      Value<int> version,
+      Value<bool> ignorable,
+      Value<int> rowid,
+    });
+typedef $$AssistantSessionRecordsTableUpdateCompanionBuilder =
+    AssistantSessionRecordsCompanion Function({
+      Value<String> sessionId,
+      Value<int> sequence,
+      Value<int> timestamp,
+      Value<String> type,
+      Value<String> data,
+      Value<int> version,
+      Value<bool> ignorable,
+      Value<int> rowid,
+    });
+
+final class $$AssistantSessionRecordsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $AssistantSessionRecordsTable,
+          AssistantSessionRecord
+        > {
+  $$AssistantSessionRecordsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $AssistantSessionsTable _sessionIdTable(_$AppDatabase db) =>
+      db.assistantSessions.createAlias(
+        'assistant_session_records__session_id__assistant_sessions__id',
+      );
+
+  $$AssistantSessionsTableProcessedTableManager get sessionId {
+    final $_column = $_itemColumn<String>('session_id')!;
+
+    final manager = $$AssistantSessionsTableTableManager(
+      $_db,
+      $_db.assistantSessions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AssistantSessionRecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantSessionRecordsTable> {
+  $$AssistantSessionRecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get data => $composableBuilder(
+    column: $table.data,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get ignorable => $composableBuilder(
+    column: $table.ignorable,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$AssistantSessionsTableFilterComposer get sessionId {
+    final $$AssistantSessionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.assistantSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AssistantSessionsTableFilterComposer(
+            $db: $db,
+            $table: $db.assistantSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AssistantSessionRecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantSessionRecordsTable> {
+  $$AssistantSessionRecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get data => $composableBuilder(
+    column: $table.data,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get ignorable => $composableBuilder(
+    column: $table.ignorable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$AssistantSessionsTableOrderingComposer get sessionId {
+    final $$AssistantSessionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.assistantSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AssistantSessionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.assistantSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AssistantSessionRecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantSessionRecordsTable> {
+  $$AssistantSessionRecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get sequence =>
+      $composableBuilder(column: $table.sequence, builder: (column) => column);
+
+  GeneratedColumn<int> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get data =>
+      $composableBuilder(column: $table.data, builder: (column) => column);
+
+  GeneratedColumn<int> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<bool> get ignorable =>
+      $composableBuilder(column: $table.ignorable, builder: (column) => column);
+
+  $$AssistantSessionsTableAnnotationComposer get sessionId {
+    final $$AssistantSessionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.sessionId,
+          referencedTable: $db.assistantSessions,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$AssistantSessionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.assistantSessions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$AssistantSessionRecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantSessionRecordsTable,
+          AssistantSessionRecord,
+          $$AssistantSessionRecordsTableFilterComposer,
+          $$AssistantSessionRecordsTableOrderingComposer,
+          $$AssistantSessionRecordsTableAnnotationComposer,
+          $$AssistantSessionRecordsTableCreateCompanionBuilder,
+          $$AssistantSessionRecordsTableUpdateCompanionBuilder,
+          (AssistantSessionRecord, $$AssistantSessionRecordsTableReferences),
+          AssistantSessionRecord,
+          PrefetchHooks Function({bool sessionId})
+        > {
+  $$AssistantSessionRecordsTableTableManager(
+    _$AppDatabase db,
+    $AssistantSessionRecordsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantSessionRecordsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AssistantSessionRecordsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AssistantSessionRecordsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> sessionId = const Value.absent(),
+                Value<int> sequence = const Value.absent(),
+                Value<int> timestamp = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<String> data = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                Value<bool> ignorable = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantSessionRecordsCompanion(
+                sessionId: sessionId,
+                sequence: sequence,
+                timestamp: timestamp,
+                type: type,
+                data: data,
+                version: version,
+                ignorable: ignorable,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String sessionId,
+                required int sequence,
+                required int timestamp,
+                required String type,
+                required String data,
+                Value<int> version = const Value.absent(),
+                Value<bool> ignorable = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantSessionRecordsCompanion.insert(
+                sessionId: sessionId,
+                sequence: sequence,
+                timestamp: timestamp,
+                type: type,
+                data: data,
+                version: version,
+                ignorable: ignorable,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$AssistantSessionRecordsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({sessionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (sessionId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.sessionId,
+                                referencedTable:
+                                    $$AssistantSessionRecordsTableReferences
+                                        ._sessionIdTable(db),
+                                referencedColumn:
+                                    $$AssistantSessionRecordsTableReferences
+                                        ._sessionIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AssistantSessionRecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantSessionRecordsTable,
+      AssistantSessionRecord,
+      $$AssistantSessionRecordsTableFilterComposer,
+      $$AssistantSessionRecordsTableOrderingComposer,
+      $$AssistantSessionRecordsTableAnnotationComposer,
+      $$AssistantSessionRecordsTableCreateCompanionBuilder,
+      $$AssistantSessionRecordsTableUpdateCompanionBuilder,
+      (AssistantSessionRecord, $$AssistantSessionRecordsTableReferences),
+      AssistantSessionRecord,
+      PrefetchHooks Function({bool sessionId})
+    >;
+typedef $$OperationReceiptsTableCreateCompanionBuilder =
+    OperationReceiptsCompanion Function({
+      required String id,
+      required String kind,
+      required String fingerprint,
+      required String entityId,
+      required String resultJson,
+      required int createdAt,
+      Value<int> rowid,
+    });
+typedef $$OperationReceiptsTableUpdateCompanionBuilder =
+    OperationReceiptsCompanion Function({
+      Value<String> id,
+      Value<String> kind,
+      Value<String> fingerprint,
+      Value<String> entityId,
+      Value<String> resultJson,
+      Value<int> createdAt,
+      Value<int> rowid,
+    });
+
+class $$OperationReceiptsTableFilterComposer
+    extends Composer<_$AppDatabase, $OperationReceiptsTable> {
+  $$OperationReceiptsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resultJson => $composableBuilder(
+    column: $table.resultJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$OperationReceiptsTableOrderingComposer
+    extends Composer<_$AppDatabase, $OperationReceiptsTable> {
+  $$OperationReceiptsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resultJson => $composableBuilder(
+    column: $table.resultJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$OperationReceiptsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $OperationReceiptsTable> {
+  $$OperationReceiptsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<String> get resultJson => $composableBuilder(
+    column: $table.resultJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$OperationReceiptsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $OperationReceiptsTable,
+          OperationReceipt,
+          $$OperationReceiptsTableFilterComposer,
+          $$OperationReceiptsTableOrderingComposer,
+          $$OperationReceiptsTableAnnotationComposer,
+          $$OperationReceiptsTableCreateCompanionBuilder,
+          $$OperationReceiptsTableUpdateCompanionBuilder,
+          (
+            OperationReceipt,
+            BaseReferences<
+              _$AppDatabase,
+              $OperationReceiptsTable,
+              OperationReceipt
+            >,
+          ),
+          OperationReceipt,
+          PrefetchHooks Function()
+        > {
+  $$OperationReceiptsTableTableManager(
+    _$AppDatabase db,
+    $OperationReceiptsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$OperationReceiptsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$OperationReceiptsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$OperationReceiptsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> fingerprint = const Value.absent(),
+                Value<String> entityId = const Value.absent(),
+                Value<String> resultJson = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => OperationReceiptsCompanion(
+                id: id,
+                kind: kind,
+                fingerprint: fingerprint,
+                entityId: entityId,
+                resultJson: resultJson,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String kind,
+                required String fingerprint,
+                required String entityId,
+                required String resultJson,
+                required int createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => OperationReceiptsCompanion.insert(
+                id: id,
+                kind: kind,
+                fingerprint: fingerprint,
+                entityId: entityId,
+                resultJson: resultJson,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$OperationReceiptsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $OperationReceiptsTable,
+      OperationReceipt,
+      $$OperationReceiptsTableFilterComposer,
+      $$OperationReceiptsTableOrderingComposer,
+      $$OperationReceiptsTableAnnotationComposer,
+      $$OperationReceiptsTableCreateCompanionBuilder,
+      $$OperationReceiptsTableUpdateCompanionBuilder,
+      (
+        OperationReceipt,
+        BaseReferences<
+          _$AppDatabase,
+          $OperationReceiptsTable,
+          OperationReceipt
+        >,
+      ),
+      OperationReceipt,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -10714,4 +13150,13 @@ class $AppDatabaseManager {
       $$EvidenceRecordsTableTableManager(_db, _db.evidenceRecords);
   $$ImportReceiptsTableTableManager get importReceipts =>
       $$ImportReceiptsTableTableManager(_db, _db.importReceipts);
+  $$AssistantSessionsTableTableManager get assistantSessions =>
+      $$AssistantSessionsTableTableManager(_db, _db.assistantSessions);
+  $$AssistantSessionRecordsTableTableManager get assistantSessionRecords =>
+      $$AssistantSessionRecordsTableTableManager(
+        _db,
+        _db.assistantSessionRecords,
+      );
+  $$OperationReceiptsTableTableManager get operationReceipts =>
+      $$OperationReceiptsTableTableManager(_db, _db.operationReceipts);
 }

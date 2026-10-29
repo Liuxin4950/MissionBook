@@ -13,6 +13,8 @@ import 'tables/evidence_records.dart';
 import 'tables/goals.dart';
 import 'tables/goal_nodes.dart';
 import 'tables/import_receipts.dart';
+import 'tables/assistant_sessions.dart';
+import 'tables/operation_receipts.dart';
 
 part 'app_database.g.dart';
 
@@ -30,6 +32,9 @@ part 'app_database.g.dart';
     Goals,
     GoalNodes,
     ImportReceipts,
+    AssistantSessions,
+    AssistantSessionRecords,
+    OperationReceipts,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -62,13 +67,13 @@ class AppDatabase extends _$AppDatabase {
             ),
       );
 
-  // v9 扩展材料类型与不可变修正链，原有八张表和旧材料继续保留。
+  // v11 追加助手会话日志与通用操作回执，任务、目标和执行事实保持不变。
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-    // 首次安装沿用默认 onCreate：Drift 创建全部八表、声明的索引和归属触发器。
+    // 首次安装创建全部已注册表、声明的索引和归属触发器。
     // 已有库版本不同时，Drift 调用此回调，并传入旧版本 from 和目标版本 to。
     onUpgrade: (migrator, from, to) async {
       // 守卫与 schemaVersion 联动，不再手写版本数字：
@@ -134,6 +139,13 @@ class AppDatabase extends _$AppDatabase {
           await migrator.createIndex(importReceiptsContent);
           await migrator.createIndex(evidenceRecordsMission);
           await migrator.createIndex(missionScheduleFixed);
+        }
+        if (from < 11) {
+          await migrator.createTable(assistantSessions);
+          await migrator.createIndex(assistantSessionsUpdated);
+          await migrator.createTable(assistantSessionRecords);
+          await migrator.createTable(operationReceipts);
+          await migrator.createIndex(operationReceiptsEntity);
         }
         // Drift 默认在全部开库回调完成后才记版本。把标记与结构一起提交，
         // 避免结构已建好、后续开库中断后，重开仍按 v1 重复创建索引。
