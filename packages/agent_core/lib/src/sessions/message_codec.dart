@@ -76,7 +76,16 @@ AgentMessage decodeMessage(Map<String, Object?> json) {
 
 Map<String, Object?> encodeContentBlock(ContentBlock block) => switch (block) {
   TextBlock() => {'type': 'text', 'text': block.text},
-  ImageBlock() => {'type': 'image', 'url': block.url},
+  ImageBlock() => {
+    'type': 'image',
+    if (block.fileId != null) 'fileId': block.fileId else 'url': block.url,
+    if (block.provider != null) 'provider': block.provider,
+    'detail': block.detail.name,
+    if (block.label != null) 'label': block.label,
+    if (block.width != null) 'width': block.width,
+    if (block.height != null) 'height': block.height,
+    if (block.byteLength != null) 'byteLength': block.byteLength,
+  },
   ThinkingBlock() => {
     'type': 'thinking',
     'text': block.text,
@@ -93,7 +102,26 @@ Map<String, Object?> encodeContentBlock(ContentBlock block) => switch (block) {
 ContentBlock decodeContentBlock(Map<String, Object?> json) =>
     switch (readString(json, 'type')) {
       'text' => TextBlock(text: readString(json, 'text')),
-      'image' => ImageBlock(url: readString(json, 'url')),
+      'image' =>
+        json['fileId'] != null
+            ? ImageBlock.file(
+                id: readString(json, 'fileId'),
+                provider: json['provider'] as String? ?? 'deepseek',
+                label: json['label'] as String?,
+                width: json['width'] as int?,
+                height: json['height'] as int?,
+                byteLength: json['byteLength'] as int?,
+              )
+            : ImageBlock(
+                url: readString(json, 'url'),
+                detail: ImageDetail.values.byName(
+                  json['detail'] as String? ?? 'auto',
+                ),
+                label: json['label'] as String?,
+                width: json['width'] as int?,
+                height: json['height'] as int?,
+                byteLength: json['byteLength'] as int?,
+              ),
       'thinking' => ThinkingBlock(
         text: readString(json, 'text'),
         signature: _nullableString(json['signature']),

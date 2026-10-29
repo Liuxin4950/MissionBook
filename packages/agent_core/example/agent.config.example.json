@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "defaultModelProfile": "deepseek",
-  "summaryModelProfile": "deepseek",
+  "defaultModelProfile": "deepseek-chat",
+  "summaryModelProfile": "deepseek-chat",
   "maxSteps": 16,
   "profiles": [
     {
@@ -10,13 +10,20 @@
       "model": "deepseek-flash",
       "endpoint": "https://api.deepseek.com/anthropic/v1/messages",
       "protocol": "messages",
-      "credentialEnvironment": "DEEPSEEK_API_KEY",
-      "contextWindowTokens": 64000,
-      "maxOutputTokens": 2048,
+      "contextWindowTokens": 1048576,
+      "maxOutputTokens": 8192,
       "streamResponses": true,
       "reasoningEffort": "off",
       "requestTimeoutMs": 120000,
-      "retry": { "maxRetries": 2, "initialDelayMs": 500, "maxDelayMs": 10000 }
+      "retry": {
+        "maxRetries": 2,
+        "initialDelayMs": 500,
+        "maxDelayMs": 10000
+      },
+      "credentialKey": "DEEPSEEK_API_KEY",
+      "outputTokenLimit": 393216,
+      "supportsImages": true,
+      "totalRequestTimeoutMs": 600000
     },
     {
       "id": "deepseek-chat",
@@ -24,13 +31,20 @@
       "model": "deepseek-flash",
       "endpoint": "https://api.deepseek.com/chat/completions",
       "protocol": "chatCompletions",
-      "credentialEnvironment": "DEEPSEEK_API_KEY",
-      "contextWindowTokens": 64000,
-      "maxOutputTokens": 2048,
+      "contextWindowTokens": 1048576,
+      "maxOutputTokens": 8192,
       "streamResponses": true,
       "reasoningEffort": "off",
       "requestTimeoutMs": 120000,
-      "retry": { "maxRetries": 2, "initialDelayMs": 500, "maxDelayMs": 10000 }
+      "retry": {
+        "maxRetries": 2,
+        "initialDelayMs": 500,
+        "maxDelayMs": 10000
+      },
+      "credentialKey": "DEEPSEEK_API_KEY",
+      "outputTokenLimit": 393216,
+      "supportsImages": true,
+      "totalRequestTimeoutMs": 600000
     }
   ],
   "context": {
@@ -41,5 +55,6 @@
     "keepRecentMessages": 6,
     "summaryMaxTokens": 1024,
     "maxSummaryCalls": 8
-  }
+  },
+  "maxRunDurationMs": 900000
 }

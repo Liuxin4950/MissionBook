@@ -1,6 +1,7 @@
 import 'cancellation.dart';
 import 'message.dart';
 import 'tool.dart';
+import 'models/configuration.dart';
 
 enum ModelRequestPurpose { conversation, summary }
 
@@ -11,6 +12,8 @@ final class ModelRequest {
     required List<AgentMessage> messages,
     required List<ToolDefinition> tools,
     this.maxOutputTokens,
+    this.reasoningEffort,
+    this.jsonOutput = false,
     this.purpose = ModelRequestPurpose.conversation,
   }) : messages = List.unmodifiable(messages),
        tools = List.unmodifiable(tools);
@@ -19,6 +22,8 @@ final class ModelRequest {
   final List<AgentMessage> messages;
   final List<ToolDefinition> tools;
   final int? maxOutputTokens; // 摘要请求可采用比普通回答更小的输出上限。
+  final ReasoningEffort? reasoningEffort; // 会话的选择；不传时采用模型配置。
+  final bool jsonOutput; // 仅 Chat Completions 的 JSON 对象模式。
   final ModelRequestPurpose purpose;
 }
 
@@ -31,9 +36,9 @@ final class TokenUsage {
     this.outputTokens = 0,
     this.cachedInputTokens = 0,
   });
-  final int inputTokens;
+  final int inputTokens; // 全部输入，包含缓存命中和写入；协议差异在适配器内归一化。
   final int outputTokens;
-  final int cachedInputTokens;
+  final int cachedInputTokens; // inputTokens 中命中缓存的部分，不应再次累加。
 
   TokenUsage operator +(TokenUsage other) => TokenUsage(
     inputTokens: inputTokens + other.inputTokens,
@@ -91,6 +96,12 @@ final class ModelThinkingDelta extends ModelStreamEvent {
   const ModelThinkingDelta(this.index, this.text);
   final int index;
   final String text;
+}
+
+/// 供应商在结束前报告的累计用量；即使随后断流，也能保留已经收到的计数。
+final class ModelUsageSnapshot extends ModelStreamEvent {
+  const ModelUsageSnapshot(this.usage);
+  final TokenUsage usage;
 }
 
 final class ModelToolCallDelta extends ModelStreamEvent {

@@ -52,6 +52,14 @@ final class ToolContext {
   final String callId; // 模型调用编号；业务幂等命令仍由应用创建、保留和校验。
   final CancellationToken cancellation;
   final String? sessionId; // 会话入口运行时提供，独立循环可以不传。
+  String get idempotencyKey => '${sessionId ?? 'standalone'}:$callId';
+}
+
+/// 工具明确保证本次没有提交副作用时，可用它报告业务拒绝或已确认的回滚。
+final class ToolRejected implements Exception {
+  const ToolRejected(this.code, this.message);
+  final String code;
+  final String message;
 }
 
 typedef ToolHandler =
@@ -62,11 +70,15 @@ typedef ToolHandler =
 
 /// 应用注册的工具，包含说明、参数校验和实际执行函数。
 final class AgentTool {
-  AgentTool({required this.definition, required this.execute})
-    : _schema = JsonSchema.create(definition.inputSchema);
+  AgentTool({
+    required this.definition,
+    required this.execute,
+    this.readOnly = false,
+  }) : _schema = JsonSchema.create(definition.inputSchema);
 
   final ToolDefinition definition;
   final ToolHandler execute; // 接入 App 时在这里调用已有 Service。
+  final bool readOnly; // 只读工具的执行异常可安全回传；写工具的未知结果仍要核对。
   final JsonSchema _schema;
 
   String? validateInput(Map<String, Object?> input) {

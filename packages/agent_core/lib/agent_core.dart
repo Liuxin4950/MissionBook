@@ -10,6 +10,8 @@ export 'src/tool.dart';
 export 'src/models/configuration.dart' hide readString, readObject;
 export 'src/models/http_agent_model.dart';
 export 'src/models/model_registry.dart';
+export 'src/models/image_input.dart';
+export 'src/models/deepseek_files.dart';
 export 'src/context/context_compactor.dart';
 export 'src/sessions/agent_runtime.dart';
 export 'src/sessions/session_store.dart' hide validateSessionId;

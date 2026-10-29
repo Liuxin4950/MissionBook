@@ -12,7 +12,8 @@ Future<void> main(List<String> arguments) async {
       final handle = await store.open('locked');
       await handle.close();
       exitCode = 0;
-    } catch (error) {
+    } on StateError catch (error) {
+      if (!error.message.contains('会话已有写入者')) rethrow;
       exitCode = 75;
     }
     return;

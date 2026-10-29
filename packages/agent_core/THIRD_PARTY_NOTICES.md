@@ -11,7 +11,7 @@
 | `packages/llm/llm/src/retry-policy.ts` | 有限重试和退避 |
 | `packages/llm/llm-deepseek` | 协议转换、流式拼接、完整结束判定 |
 
-运行依赖由 pub 管理：`args`、`crypto`、`http`、`json_schema`、`uuid`；实际版本见 `pubspec.lock`，各依赖自己的 LICENSE 随其发布包提供。本文件不改变这些依赖的许可。包没有复制 Harness 的 Node 依赖或插件运行时。
+运行依赖由 pub 管理：`args`、`crypto`、`http`、`http_parser`、`image`、`sqlite3`、`json_schema`、`uuid`；实际版本见 `pubspec.lock`，各依赖自己的 LICENSE 随其发布包提供。本文件不改变这些依赖的许可。包没有复制 Harness 的 Node 依赖或插件运行时。
 
 来源：[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。以下为该基线仓库 `LICENSE`：
 

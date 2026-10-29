@@ -1,62 +1,74 @@
 # Agent 基座验证记录
 
-日期：2026-10-28。环境：Windows、Dart 3.13.5；工作目录 `E:\working\mission_book\packages\agent_core`。Harness 参考基线 `f3803c9697`。
+日期：2026-10-29；Windows、Dart 3.13.5；目录 `E:\working\mission_book\packages\agent_core`。本轮对已提交的首版基座继续加固，Harness 参考基线 `f3803c9697`。结论限于 [FOUNDATION](FOUNDATION.md) 的独立包范围。
 
-本次验收对应 [FOUNDATION.md](FOUNDATION.md) 的独立基座范围。以下记录来自当前源码与实际运行，App 集成不包含在结论中。
+## 最终自动验证
 
-## 逐项证据
+- `dart analyze`：无问题。
+- `dart format --output=none --set-exit-if-changed lib bin example test`：52 个 Dart 文件，无格式变化。
+- `dart test --reporter expanded`：**111/111 通过，退出码 0**。首版历史基线为 81 项，本轮增加并调整协议、恢复、工具和视觉用例。
+- `dart run example/foundation_demo.dart`：退出码 0；估算 3341 → 235，12 条原始消息、5 条当前上下文；工具只执行一次，关闭重开后继续，分支保留 14 条消息。
+- `dart compile js example/foundation_demo.dart -o .dart_tool/agent-core-checks/foundation_demo.js`：退出码 0；证明纯核心可编译 JavaScript，不是浏览器实跑验收。
 
-| 要求 | 实现位置 | 当前证据 |
-| --- | --- | --- |
-| 消息与工具 | `message.dart`、`tool.dart`、`agent_loop.dart` | `agent_loop_test.dart` 验证参数、逐次授权、顺序执行、多步多工具、重复编号、已知失败、未知结果、取消保留成功结果。`session_runtime_test.dart` 验证来源及未知结果核对。 |
-| 模型配置 | `models/configuration.dart`、`model_registry.dart`、`io/configuration_file.dart` | `model_configuration_test.dart` 验证双协议、多配置引用、JSON 往返、参数和地址校验；文件测试实际保存、覆盖保存、读取；CLI 实际加载样例并切换模型。 |
-| 通信与流式 | `http_agent_model.dart`、`wire_codec.dart`、`stream_decoder.dart`、`sse_reader.dart`、`request_runner.dart` | 完整响应与流式测试覆盖 UTF-8 逐字节、思考签名、交错工具参数、结束标记、截断、使用量、有限重试、退避取消、响应头和已开始流的取消/超时。真实 DeepSeek 两种协议在思考关闭和 low 模式下均完成工具往返。 |
-| 自动压缩 | `context/context_compactor.dart` | 9 项专项测试覆盖原文与最新输入保留、完整工具组、手动/关闭自动、取消/失败/无效摘要、超大单元、分块和调用上限；模拟模型溢出后恢复，已完成工具执行计数仍为 1。真实 API 自动摘要后准确回答测试项目代号，原文和最新要求仍在。 |
-| 会话 | `sessions/agent_runtime.dart`、`session_state.dart` | 多轮、关闭重开、配置变更、上下文注入、压缩投影、导入导出、分支/分支再分支、中断继续、并发拒绝均有测试；损坏导入序号和请求上下文被拒绝。CLI 实际执行新建、列出、打开失败后继续、模型切换、导入导出和分支。 |
-| 存储与恢复 | `sessions/session_store.dart`、`io/file_session_store.dart` | 真实文件重开恢复原文和摘要；未完成尾片段隔离；完整坏行和未知版本不被修改；同进程与独立进程写锁。测试子进程在写出真实副作用后 `exit(73)`，重开得到 `outcome_unknown`，阻止自动执行，核对后继续且副作用没有重复。 |
-| 可观察性与持久化边界 | `agent_event.dart`、Runtime `_observe()` | 模型尝试、文字/思考/参数、工具、压缩与终态可订阅；摘要增量有独立 purpose。故障注入覆盖执行开始保存失败、工具结果保存失败、取消收尾保存失败，验证保存失败时停止及保留进程内真实结果。 |
-| 可运行与可读 | `bin/agent.dart`、`example/`、`README.md` | 离线完整演示通过；CLI 帮助与配置样例可用，真实 CLI 一次运行并在新进程重开继续通过；README 按同一次调用讲解。纯核心完整演示编译 JavaScript 成功。 |
-| 回归与验收 | `test/`、真实验证入口 | 全部 **81/81** 自动测试通过，静态分析无问题，42 个 Dart 文件格式检查无变化；真实网络与原生文件证据见下。 |
-
-## 实际执行
-
-```powershell
-dart analyze
-dart test --reporter expanded
-dart format --output=none --set-exit-if-changed lib bin example test
-dart run example/foundation_demo.dart
-dart compile js example/foundation_demo.dart -o .dart_tool/agent-core-checks/foundation_demo.js
-dart run bin/agent.dart --help
-```
-
-以上命令退出码均为 0。离线演示压缩预算估算 3951 → 683，保留 12 条原文而当前上下文为 5 条；时间工具执行一次、模型请求两步，关闭重开后继续并创建 14 条消息的分支。
-
-CLI 配置和管理命令检查采用独立 `.agent-data/cli-smoke-*` 目录：切换到 `deepseek-chat`，尝试打开不存在会话后原会话仍可导出；导入、分支和新建后列出 4 个会话，导出格式为 `agent_core_export`，退出码 0。
+| 场景 | 对应证据 |
+| --- | --- |
+| 业务拒绝、只读失败、写入后取消、工具不返回 | `foundation_hardening_test.dart`；业务失败可继续，未知写入必须核对，期限结束不会假称未执行。 |
+| 预算、摘要与原文 | `context_compaction_test.dart`、加固测试；触发线与硬预算分开，完整工具组和最新输入保留，摘要失败不覆盖原投影。 |
+| 图片与模型限额 | `vision_test.dart`；图片头、数量/尺寸/大小、双协议编码、文件上传查询删除、跨供应商保护、输出上限不可绕过。 |
+| 流式与重试 | `model_streaming_test.dart`、加固测试；UTF-8、交错参数、重复相同 id、缺 function 的首帧、严格结束、Retry-After、心跳与凭据等待总超时。 |
+| 用量、空正文、界面快照 | 加固测试；失败尝试不漏掉已报告用量，缓存计入总输入但不重复相加；只返回思考可保存并重开继续；晚订阅可读已生成文字。 |
+| 存储与版本 | `file_session_store_test.dart`、`session_runtime_test.dart`；零字节初始化、只读/分页、跨块大记录、大小限制、关闭与追加顺序、跨 isolate/进程锁、半截尾、完整坏行及未来记录。 |
+| 中断与副作用 | 真实子进程在写出副作用后 `exit(73)`；重开获得未知结果，阻止重放，核对后继续。落盘故障覆盖工具执行前、结果后及收尾。 |
+| 去重与分支 | 加固测试；同一请求规格只保存一次；导入不嵌套整个日志；fork 工具边界、配置恢复、未来诊断与未知业务记录分别处理。 |
 
 ## 真实 DeepSeek 验证
 
-沿用用户明确授权的 Key，仅设置测试子进程环境，结束后恢复；不写入项目配置或会话。请求只包含示例内合成背景和本机时间，不读取 MissionBook 数据。
+有效凭据只用于临时测试进程，不写入源码、配置、会话或本记录。请求只发送合成资料、测试图和本机时间。先前 401 属于凭据问题；本轮已用新的有效凭据取得成功结果。
 
-运行 `dart run example/foundation_live_smoke.dart` 与 `--thinking`：
+### 图片
 
-| 模式与协议 | 自动压缩前 → 后（本地估算） | 完整主请求 / 工具执行 | 结果 |
+`example/foundation_vision_live.dart` 生成白底黑字 `AGENT 42` 的 PNG，上传到 Files API，验证文件引用；结束时确认删除本次测试文件。四项均完整回答，退出码 0。
+
+| 协议 | 思考 | 实际识别 | 当次输出 tokens |
 | --- | --- | --- | --- |
-| 关闭思考 · Messages | 9554 → 2133 | 2 / 1 | 15:12:43，准确回答杉木-42 和本机时间 |
-| 关闭思考 · Chat Completions | 9613 → 1875 | 2 / 1 | 15:12:48，准确回答杉木-42 和本机时间 |
-| low 思考 · Messages | 9586 → 1772 | 2 / 1 | 对话文字增量 28、思考增量 31，准确回答代号和时间 |
-| low 思考 · Chat Completions | 9637 → 2080 | 2 / 1 | 对话文字增量 33、思考增量 7，准确回答代号和 15:14:38 |
+| Messages | off | AGENT 42 | 4 |
+| Messages | low | AGENT 42 | 112 |
+| Chat Completions | off | AGENT 42 | 4 |
+| Chat Completions | low | AGENT 42 | 132 |
 
-四项每次均自动调用摘要模型一次，最终 `completed`；验证入口同时断言原文可读取、最新用户要求原样保留和工具只执行一次。模型返回标识均为 `deepseek-flash`，两个程序退出码均为 0。计数属于本次响应，后续模型措辞、摘要长度和增量数量可能变化。
+图像验证支持“能识别并完成请求”的结论，不用于比较协议成本。
 
-另通过真实命令行验证跨进程持久对话：第一次查询得到 `2026-10-28 15:22:50`、UTC 偏移 +480 分钟，2 步 / 2 次尝试；程序退出后以原会话编号启动新进程，要求根据上次结果回答偏移，1 步回答 +480 分钟，没有再次执行工具，两次都 `completed`、退出码 0。
+### 自动压缩、流式思考和工具往返
 
-早期非流式 `example/deepseek_demo.dart` 在 14:15:54 的真实时间工具验证保留为历史证据，见应用[学习进度](../../docs/教学/学习进度.md)。
+运行 `foundation_live_smoke.dart` 及 `--thinking`；每项均摘要一次，再以两次主请求、一次时间工具完成回答，准确包含 `杉木-42`。脚本同时断言原文仍可读取、最新要求原样保留。
 
-## 结论适用范围
+| 模式 / 协议 | 估算压缩前 → 后 | 时间与结果 |
+| --- | --- | --- |
+| off / Messages | 9078 → 573 | 09:49:42，PASS |
+| off / Chat Completions | 9102 → 665 | 09:49:48，PASS |
+| low / Messages | 9091 → 649 | 09:49:58，PASS，有思考和文字增量 |
+| low / Chat Completions | 9111 → 684 | 约 09:50，PASS，有思考和文字增量 |
 
-- 默认预算估算是保守 UTF-8 字节估算，非精确 tokenizer。单个不可拆分超大输入会明确失败；摘要的语义质量仍应通过原始记录核对。
-- 未获得完整响应的失败尝试可能缺少用量，`usage` 不是完整账单。网络重试只针对请求，不能保证供应商没有计费。
-- 已验证的网络供应商是 DeepSeek；其他兼容服务需各自测试。图片输入有协议表示能力，本轮未验证供应商视觉理解。
-- 文件持久化和跨进程锁在 Windows 验证；JavaScript 编译只证明纯核心编译兼容性，不是浏览器运行或 Web 持久化验收。
-- 没有接入 MissionBook UI、业务服务、任务总结或目标记忆；没有 Android/iOS 设备验收，也没有新增用户独立实现或掌握证据。
-- 本次未提交或推送 Git。业务代码与数据库结构未改变。
+最后核对发现缓存统计差异，相同合成输入直接查询得到：Chat 总输入 **4409**，Messages 为 `input_tokens=185` 加 `cache_read_input_tokens=4224`。修复后 `TokenUsage.inputTokens` 统一包含普通输入、缓存读和缓存写；`cachedInputTokens` 是其中命中缓存的部分。
+
+补修后再次执行 `--thinking`：Messages **9091 → 582**，总输入/输出 **6933/321**；Chat **9111 → 991**，**7530/640**，均 PASS、两步主请求、一次工具、一次摘要、退出码 0。总量包含摘要请求，摘要措辞和缓存变化会影响后续计数。统计规则参照 [Messages 缓存说明](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)，并与 DeepSeek 实际响应核对。
+
+## 真实终端交互
+
+`foundation_generation_live.dart` 另验证纯思考历史后的继续请求和 Chat JSON 对象输出：首次复现 Chat 空 assistant 消息导致 400；发送时省略不可回传的空内容后，两协议均 PASS，JSON 的 `ok=true` 校验通过，退出码 0。原始思考仍留在会话记录中。
+
+通过 `run.ps1 --demo` 构建并运行原生 bundle，现场执行 `/status`、`/thinking low`、`/output 65536`、时间查询、`/rename`、`/history`、`/exit`。新进程以原会话编号重开，显示 1 Mi 上下文、64 Ki 输出和低思考，历史工具结果仍在；最终源码变动后自动重建，时间查询成功，退出码 0。
+
+终端采用清晰角色、简短完成信息、可选颜色与等待动画，完整配置留在 `/status`。`dart build cli` 将 SQLite 原生资产放进 bundle，启动器会一起保留。
+
+## 审查意见的处理边界
+
+- 修复已复现的业务拒绝停摆、字节预算、视觉摘要、取消误判、工具增量兼容、Retry-After、无总期限、初始化孤儿、跨 isolate 锁、用量、活动快照和日志重复问题。
+- 保留执行前落盘、未知写入硬拦、真实 socket 取消、尾片段隔离和原始事实不改写；核对另有结构化 `resolvedOutcomes`。
+- SSE 没有终止空行的最后一帧仍不交付；这是 [SSE 规范](https://html.spec.whatwg.org/multipage/server-sent-events.html#event-stream-interpretation) 的要求，不把不完整流当成功。
+- 记录级版本与可忽略诊断已实现；未知业务事实仍拒绝读取。新日志不承诺旧版程序可读。
+- 存储已有分页、体积上限和请求规格去重，活跃会话仍重建完整状态；没有宣称无限日志、手机内存或帧率已经验收。
+
+## 未包含的验收
+
+其他供应商真实请求、Android/iOS 实机、App Drift 与备份、安全凭据存储、业务工具及权限界面、任务总结和目标记忆仍属后续工作。没有修改 App 业务代码或数据库，没有新增用户独立实现/掌握证据。本记录随本轮基座代码一并提交；未推送远端。

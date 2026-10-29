@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'agent_event.dart';
 import 'agent_result.dart';
@@ -21,6 +22,10 @@ final class AgentLoop {
     this.maxSteps = 8,
     this.compactor,
     this.sessionId,
+    this.maxOutputTokens,
+    this.reasoningEffort,
+    this.jsonOutput = false,
+    this.maxRunDuration = const Duration(minutes: 15),
     RetryPolicy? retry,
   }) : _tools = _indexTools(tools),
        _requests = ModelRequestRunner(
@@ -28,6 +33,7 @@ final class AgentLoop {
          retry: retry ?? RetryPolicy(),
        ) {
     if (maxSteps < 1) throw ArgumentError.value(maxSteps, 'maxSteps');
+    if (maxRunDuration <= Duration.zero) throw ArgumentError('整轮时长必须大于零');
   }
 
   final AgentModel model;
@@ -36,6 +42,12 @@ final class AgentLoop {
   final int maxSteps;
   final ContextCompactor? compactor;
   final String? sessionId;
+  final int? maxOutputTokens;
+  final ReasoningEffort? reasoningEffort;
+  final bool jsonOutput;
+  String get _requestSystemPrompt =>
+      jsonOutput ? '$systemPrompt\n请将最终回答输出为一个有效 JSON 对象。' : systemPrompt;
+  final Duration maxRunDuration;
   final Map<String, AgentTool> _tools;
   final ModelRequestRunner _requests;
   final _events = StreamController<AgentEvent>.broadcast();
@@ -68,6 +80,7 @@ final class AgentLoop {
     _active = token;
     final done = Completer<void>();
     _runDone = done;
+    // 复制会话的历史：messages 留完整记录，context 用于下一次模型请求。
     final messages = List<AgentMessage>.of(history);
     var context = List<AgentMessage>.of(contextHistory ?? history);
     final pending = <ToolCallBlock>[];
@@ -75,8 +88,19 @@ final class AgentLoop {
     var attempts = 0;
     var compactions = 0;
     var usage = const TokenUsage();
+    var usageIncomplete = false;
+    final elapsed = Stopwatch()..start();
+    var timedOut = false;
+    final deadline = Timer(maxRunDuration, () {
+      timedOut = true;
+      token.cancel(deadlineExceeded: true);
+    });
 
     Future<void> publish(AgentEvent event) async {
+      if (event is ModelUsageReported) {
+        usage = usage + event.usage;
+        usageIncomplete = usageIncomplete || !event.complete;
+      }
       await onEvent?.call(event); // 会话先保存关键事实，再向观察者发布。
       if (event is ModelAttemptStarted &&
           event.request.purpose == ModelRequestPurpose.conversation) {
@@ -119,6 +143,7 @@ final class AgentLoop {
           usage: usage,
           modelAttempts: attempts,
           compactions: compactions,
+          usageIncomplete: usageIncomplete,
         );
 
     Future<AgentRunResult> finish(
@@ -133,9 +158,12 @@ final class AgentLoop {
     Future<bool> compact(CompactionTrigger trigger) async {
       final next = await compactor?.prepare(
         ModelRequest(
-          systemPrompt: systemPrompt,
+          systemPrompt: _requestSystemPrompt,
           messages: context,
           tools: _definitions,
+          maxOutputTokens: maxOutputTokens,
+          reasoningEffort: reasoningEffort,
+          jsonOutput: jsonOutput,
         ),
         token,
         trigger: trigger,
@@ -144,7 +172,6 @@ final class AgentLoop {
       if (next == null) return false;
       await publish(ContextCompacted(step, next));
       context = List.of(next.contextMessages);
-      usage = usage + next.usage;
       compactions++;
       return true;
     }
@@ -161,24 +188,31 @@ final class AgentLoop {
             AgentFailure('invalid_history', error.message, cause: error),
           );
         }
+        // send 带来新消息；resume 可能没有新消息，避免重复添加用户输入。
         final newInput =
             userMessage ?? (input == null ? null : UserMessage(text: input));
         if (newInput != null) {
           await publish(UserMessageAccepted(0, newInput));
           appendMessage(newInput);
         }
+        // 一步是一次对话模型请求；执行工具后回到这里继续，maxSteps 限制总步数。
         for (var nextStep = 1; nextStep <= maxSteps; nextStep++) {
           token.throwIfCancelled();
           step = nextStep;
+          // 发送前检查上下文预算；需要时压缩旧内容，原始记录仍保留。
           await compact(CompactionTrigger.automatic);
           await publish(ModelRequestStarted(step));
           ModelResponse response;
           try {
+            // 把系统提示、上下文和工具说明交给请求执行器；下一站是 request_runner.dart。
             response = await _requests.run(
               ModelRequest(
-                systemPrompt: systemPrompt,
+                systemPrompt: _requestSystemPrompt,
                 messages: context,
                 tools: _definitions,
+                maxOutputTokens: maxOutputTokens,
+                reasoningEffort: reasoningEffort,
+                jsonOutput: jsonOutput,
               ),
               token,
               step: step,
@@ -192,9 +226,12 @@ final class AgentLoop {
             // 只在该请求尚未执行任何新工具时压缩并恢复一次，不重放业务操作。
             response = await _requests.run(
               ModelRequest(
-                systemPrompt: systemPrompt,
+                systemPrompt: _requestSystemPrompt,
                 messages: context,
                 tools: _definitions,
+                maxOutputTokens: maxOutputTokens,
+                reasoningEffort: reasoningEffort,
+                jsonOutput: jsonOutput,
               ),
               token,
               step: step,
@@ -207,9 +244,17 @@ final class AgentLoop {
             AssistantReceived(step, response.message, usage: response.usage),
           );
           appendMessage(response.message);
+          if (response.stopReason == ModelStopReason.completed &&
+              response.message.text.trim().isEmpty) {
+            // 思考和用量已保存，留给宿主展示并允许 resume，不把空正文当作完成。
+            return await finish(
+              AgentStopReason.failed,
+              const AgentFailure('empty_answer', '模型尚未生成正文，可以继续请求或调整输出预算'),
+            );
+          }
+          // 模型返回的工具调用只是请求，到这里工具还没有执行。
           final calls = response.message.toolCalls;
           pending.addAll(calls);
-          usage = usage + response.usage;
           if (response.stopReason == ModelStopReason.maxTokens) {
             await settlePending('not_executed', '模型输出被截断，未执行其中的工具调用');
             return await finish(AgentStopReason.maxTokens);
@@ -218,6 +263,7 @@ final class AgentLoop {
             await settlePending('not_executed', '模型拒绝了请求，未执行工具');
             return await finish(AgentStopReason.refused);
           }
+          // 没有工具调用就结束；有调用则执行并保存结果，下次请求交回模型。
           if (calls.isEmpty) return await finish(AgentStopReason.completed);
           if (step == maxSteps) {
             await settlePending('step_limit', '请求次数已到上限，未执行本批工具');
@@ -226,7 +272,13 @@ final class AgentLoop {
           for (final call in calls) {
             token.throwIfCancelled();
             await publish(ToolCallStarted(step, call));
-            final output = await _executeTool(call, token, step, publish);
+            final output = await _executeTool(
+              call,
+              token,
+              step,
+              publish,
+              elapsed,
+            );
             await appendResult(call, output);
           }
         }
@@ -235,6 +287,12 @@ final class AgentLoop {
         rethrow;
       } on AgentCancelled {
         await settlePending('cancelled', '运行已取消，此调用未执行或由工具协作取消');
+        if (timedOut || token.deadlineExceeded) {
+          return await finish(
+            AgentStopReason.failed,
+            const AgentFailure('turn_timeout', '本轮已达到总时长上限'),
+          );
+        }
         return await finish(AgentStopReason.cancelled);
       } on _ToolOutcomeUnknown catch (error) {
         for (final call in List<ToolCallBlock>.of(pending)) {
@@ -266,11 +324,13 @@ final class AgentLoop {
       // 连取消和错误收尾的保存失败也在这里终止，不能再次补写同一个坏日志。
       final result = snapshot(
         AgentStopReason.failed,
-        AgentFailure('persistence_failed', error.message, cause: error),
+        AgentFailure(error.code, error.message, cause: error),
       );
       _events.add(AgentRunFinished(step, result));
       return result;
     } finally {
+      deadline.cancel();
+      elapsed.stop();
       _active = null;
       _runDone = null;
       done.complete();
@@ -285,7 +345,9 @@ final class AgentLoop {
     CancellationToken token,
     int step,
     AgentEventSink publish,
+    Stopwatch elapsed,
   ) async {
+    // 按模型给出的名字查找工具，随后检查参数并请求宿主授权。
     final tool = _tools[call.name];
     if (tool == null) {
       return ToolOutput.failure('unknown_tool', '未注册工具：${call.name}');
@@ -297,21 +359,41 @@ final class AgentLoop {
     final decision = await token.wait(
       Future.sync(() => authorize(tool.definition, call, token)),
     );
+    if (elapsed.elapsed >= maxRunDuration) {
+      token.cancel(deadlineExceeded: true);
+    }
     token.throwIfCancelled();
     if (!decision.allowed) {
       return ToolOutput.failure('permission_denied', decision.reason);
     }
-    await publish(ToolExecutionStarted(step, call)); // 保存失败时绝不执行工具。
+    await publish(
+      ToolExecutionStarted(step, call, readOnly: tool.readOnly),
+    ); // 保存失败时绝不执行工具。
     try {
-      return await tool.execute(
-        call.input,
-        ToolContext(callId: call.id, cancellation: token, sessionId: sessionId),
-      );
+      token.throwIfCancelled();
+      // 通过检查和授权才执行实际函数；时间工具见 example/demo_tools.dart。
+      return await Future.sync(
+        () => tool.execute(
+          call.input,
+          ToolContext(
+            callId: call.id,
+            cancellation: token,
+            sessionId: sessionId,
+          ),
+        ),
+      ).timeout(maxRunDuration - elapsed.elapsed);
+    } on ToolRejected catch (error) {
+      return ToolOutput.failure(error.code, error.message);
     } on AgentCancelled {
-      rethrow;
-    } on AgentPersistenceException {
-      rethrow;
+      if (tool.readOnly) return ToolOutput.failure('cancelled', '只读操作已取消');
+      throw _ToolOutcomeUnknown(
+        call,
+        const AgentFailure('tool_outcome_unknown', '工具已开始后取消，必须核对是否已提交'),
+      );
     } catch (error) {
+      if (tool.readOnly) {
+        return ToolOutput.failure('tool_failed', '只读工具执行失败，请稍后重试或调整输入');
+      }
       throw _ToolOutcomeUnknown(
         call,
         AgentFailure(
@@ -364,8 +446,22 @@ final class AgentLoop {
       throw const ModelException('invalid_response', '模型结束原因与工具调用不一致');
     }
     if (response.stopReason == ModelStopReason.completed &&
-        message.text.trim().isEmpty) {
-      throw const ModelException('invalid_response', '模型没有返回可展示的回答');
+        message.text.trim().isEmpty &&
+        !message.content.whereType<ThinkingBlock>().any(
+          (block) => block.text.trim().isNotEmpty,
+        )) {
+      throw const ModelException('invalid_response', '模型没有返回回答或思考内容');
+    }
+    if (jsonOutput &&
+        response.stopReason == ModelStopReason.completed &&
+        message.text.trim().isNotEmpty) {
+      try {
+        if (jsonDecode(message.text) is! Map<String, Object?>) {
+          throw const FormatException();
+        }
+      } on FormatException {
+        throw const ModelException('invalid_json', '模型未返回有效 JSON 对象，可继续请求');
+      }
     }
     usedCallIds.addAll(batchIds);
   }

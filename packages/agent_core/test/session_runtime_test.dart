@@ -49,7 +49,7 @@ void main() {
       ),
     );
     final session = await runtime.createSession(id: 'compressed');
-    await session.send('早期资料：${'用户明确约束' * 120}');
+    await session.send('早期资料：${'用户明确约束' * 480}');
     final first = session.transcript.first;
     final result = await session.send('当前要求：我还有两小时，请继续。');
     expect(result.reason, AgentStopReason.completed);
@@ -59,7 +59,7 @@ void main() {
     final projectionIds = session.contextMessages
         .map((message) => message.id)
         .toList();
-    final exported = session.export();
+    final exported = await session.export();
     final imported = await runtime.importSession(exported, id: 'copy');
     expect(
       imported.contextMessages.map((message) => message.id),
@@ -111,7 +111,7 @@ void main() {
     expect(result.reason, AgentStopReason.completed);
     expect(reopened.transcript.whereType<UserMessage>(), hasLength(1));
     expect(
-      reopened.records
+      (await reopened.readRecords())
           .where((record) => record.type == 'turn_ended')
           .first
           .data['reason'],
@@ -177,7 +177,7 @@ void main() {
     expect(session.needsOutcomeResolution, isTrue);
     await expectLater(session.send('重试'), throwsStateError);
     expect(
-      session.records.where(
+      (await session.readRecords()).where(
         (record) => record.type == 'tool_execution_started',
       ),
       hasLength(1),
@@ -288,7 +288,7 @@ void main() {
     final runtime = testRuntime();
     final session = await runtime.createSession(id: 'source');
     await session.send('原始输入');
-    final records = (session.export()['records'] as List<Object?>)
+    final records = ((await session.export())['records'] as List<Object?>)
         .cast<Map<String, Object?>>();
     final wrongSequence = [
       records.first,
@@ -328,13 +328,20 @@ final class _FailingStore implements SessionStore {
   final SessionStore inner;
   final _FailurePredicate shouldFail;
   @override
-  Future<SessionHandle> create(String id) async =>
-      _FailingHandle(await inner.create(id), shouldFail);
+  Future<SessionHandle> create(
+    String id, {
+    List<SessionRecord> initialRecords = const [],
+  }) async => _FailingHandle(
+    await inner.create(id, initialRecords: initialRecords),
+    shouldFail,
+  );
   @override
-  Future<SessionHandle> open(String id) async =>
-      _FailingHandle(await inner.open(id), shouldFail);
+  Future<SessionHandle> open(String id, {bool readOnly = false}) async =>
+      _FailingHandle(await inner.open(id, readOnly: readOnly), shouldFail);
   @override
   Future<List<String>> listSessionIds() => inner.listSessionIds();
+  @override
+  Future<void> delete(String id) => inner.delete(id);
 }
 
 final class _FailingHandle implements SessionHandle {
@@ -344,9 +351,12 @@ final class _FailingHandle implements SessionHandle {
   @override
   String get id => inner.id;
   @override
-  List<SessionRecord> get records => inner.records;
+  int get recordCount => inner.recordCount;
   @override
-  int get recoveredTailBytes => inner.recoveredTailBytes;
+  bool get readOnly => inner.readOnly;
+  @override
+  Future<List<SessionRecord>> readRecords({int start = 0, int? limit}) =>
+      inner.readRecords(start: start, limit: limit);
   @override
   Future<void> close() => inner.close();
   @override

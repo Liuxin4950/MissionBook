@@ -6,7 +6,7 @@ final class DeepSeekMessagesModel extends HttpAgentModel {
   DeepSeekMessagesModel({
     required String apiKey,
     String model = 'deepseek-flash',
-    int maxTokens = 2048,
+    int maxTokens = DeepSeekFlash.defaultOutputTokens,
     Duration requestTimeout = const Duration(seconds: 60),
     Uri? endpoint,
     super.client,
@@ -22,7 +22,8 @@ final class DeepSeekMessagesModel extends HttpAgentModel {
            protocol: ModelProtocol.messages,
            credentialEnvironment: 'DEEPSEEK_API_KEY',
            maxOutputTokens: maxTokens,
-           contextWindowTokens: maxTokens >= 64000 ? maxTokens + 1 : 64000,
+           contextWindowTokens: DeepSeekFlash.contextWindowTokens,
+           outputTokenLimit: DeepSeekFlash.outputTokenLimit,
            requestTimeout: requestTimeout,
            streamResponses: streamResponses,
          ),

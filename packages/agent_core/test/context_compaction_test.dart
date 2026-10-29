@@ -15,8 +15,8 @@ void main() {
   ModelRequest request(List<AgentMessage> history) =>
       ModelRequest(systemPrompt: '保留用户约束', messages: history, tools: []);
   List<AgentMessage> longHistory() => [
-    UserMessage(text: '旧资料：${'学习记录和明确约束。' * 100}'),
-    textReply('已记录这些资料。${'历史事实。' * 40}').message,
+    UserMessage(text: '旧资料：${'学习记录和明确约束。' * 800}'),
+    textReply('已记录这些资料。${'历史事实。' * 320}').message,
     UserMessage(text: '我现在只剩两小时，请保留这个要求。'),
   ];
   ContextCompactor compactor({
@@ -199,7 +199,7 @@ void main() {
     var calls = 0;
     final history = <AgentMessage>[];
     for (var i = 0; i < 7; i++) {
-      history.add(UserMessage(text: '资料$i：${'详细内容' * 65}'));
+      history.add(UserMessage(text: '资料$i：${'详细内容' * 200}'));
       history.add(textReply('已记录$i').message);
     }
     history.add(UserMessage(text: '保留当前要求'));
@@ -263,7 +263,9 @@ void main() {
     expect(executions, 1);
     expect(session.transcript.whereType<ToolResultMessage>(), hasLength(1));
     expect(
-      session.records.where((record) => record.type == 'context_compacted'),
+      (await session.readRecords()).where(
+        (record) => record.type == 'context_compacted',
+      ),
       hasLength(1),
     );
     await runtime.close();

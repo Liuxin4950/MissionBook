@@ -3,6 +3,17 @@ enum ModelProtocol { messages, chatCompletions }
 
 enum ReasoningEffort { off, low, high, max }
 
+/// DeepSeek 官方模型能力；日常输出预算与服务端允许的最大输出分别保存。
+abstract final class DeepSeekFlash {
+  static const contextWindowTokens = 1048576; // 输入与输出共用 1 Mi token。
+  static const outputTokenLimit = 393216; // 单次最大输出，包含思考。
+  static const defaultOutputTokens = 8192; // 日常非思考回答采用 8 Ki。
+  static const maxImageTokens = 1024;
+  static const maxImageBytes = 32 * 1024 * 1024;
+  static const maxRequestBytes = 48 * 1024 * 1024;
+  static const maxImages = 600;
+}
+
 /// 纯模型请求的有限重试；不会自动重试工具写入。
 final class RetryPolicy {
   RetryPolicy({
@@ -57,23 +68,41 @@ final class ModelProfile {
     required this.model,
     required this.endpoint,
     required this.protocol,
-    required this.credentialEnvironment,
+    String? credentialKey,
+    String? credentialEnvironment,
     this.contextWindowTokens = 64000,
     this.maxOutputTokens = 2048,
+    this.outputTokenLimit,
+    this.supportsImages = true,
     this.streamResponses = true,
     this.reasoningEffort = ReasoningEffort.off,
     this.temperature,
     this.requestTimeout = const Duration(seconds: 120),
+    this.totalRequestTimeout = const Duration(minutes: 10),
     RetryPolicy? retry,
-  }) : retry = retry ?? RetryPolicy() {
-    if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(credentialEnvironment)) {
-      throw ArgumentError('凭据配置需要环境变量名称，请勿在此填写 Key 明文');
+  }) : credentialKey = credentialKey ?? credentialEnvironment ?? '',
+       retry = retry ?? RetryPolicy() {
+    if (credentialKey != null &&
+        credentialEnvironment != null &&
+        credentialKey != credentialEnvironment) {
+      throw ArgumentError('credentialKey 与旧凭据字段不一致，请只保留一个');
+    }
+    if (credentialKey == null &&
+        credentialEnvironment != null &&
+        !RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(credentialEnvironment)) {
+      throw ArgumentError('旧 credentialEnvironment 字段需要环境变量名称');
+    }
+    if (!RegExp(
+          r'^[A-Za-z_][A-Za-z0-9_.:/-]{0,127}$',
+        ).hasMatch(this.credentialKey) ||
+        this.credentialKey.startsWith('sk-')) {
+      throw ArgumentError('credentialKey 是凭据标识，不是 API Key 明文');
     }
     if (id.trim().isEmpty ||
         provider.trim().isEmpty ||
         model.trim().isEmpty ||
-        credentialEnvironment.trim().isEmpty) {
-      throw ArgumentError('模型配置的 id、provider、model 和凭据变量名不能为空');
+        this.credentialKey.trim().isEmpty) {
+      throw ArgumentError('模型配置的 id、provider、model 和凭据标识不能为空');
     }
     if (!['http', 'https'].contains(endpoint.scheme) ||
         endpoint.host.isEmpty ||
@@ -85,11 +114,23 @@ final class ModelProfile {
     if (maxOutputTokens < 1 || contextWindowTokens <= maxOutputTokens) {
       throw ArgumentError('上下文预算必须大于正数的输出上限');
     }
+    if (outputTokenLimit != null &&
+        (outputTokenLimit! < 1 || maxOutputTokens > outputTokenLimit!)) {
+      throw ArgumentError('本次输出预算不能超过模型的 outputTokenLimit');
+    }
+    if (provider == 'deepseek' &&
+        model == 'deepseek-flash' &&
+        (contextWindowTokens > DeepSeekFlash.contextWindowTokens ||
+            maxOutputTokens > DeepSeekFlash.outputTokenLimit ||
+            (outputTokenLimit ?? 0) > DeepSeekFlash.outputTokenLimit)) {
+      throw ArgumentError('DeepSeek Flash 配置超过官方上下文或输出上限');
+    }
     if (temperature != null &&
         (!temperature!.isFinite || temperature! < 0 || temperature! > 2)) {
       throw ArgumentError('temperature 必须在 0 到 2 之间');
     }
     if (requestTimeout <= Duration.zero) throw ArgumentError('请求超时必须大于零');
+    if (totalRequestTimeout <= Duration.zero) throw ArgumentError('请求总时长必须大于零');
   }
 
   final String id;
@@ -97,13 +138,17 @@ final class ModelProfile {
   final String model;
   final Uri endpoint; // 完整请求地址，不在适配器里猜测路径。
   final ModelProtocol protocol;
-  final String credentialEnvironment; // 例如 DEEPSEEK_API_KEY，由宿主解析。
+  final String credentialKey; // 宿主将此标识映射到环境变量或设备安全存储。
+  String get credentialEnvironment => credentialKey; // 兼容早期使用方。
   final int contextWindowTokens; // 本地采用的上下文预算，可小于供应商真实窗口。
   final int maxOutputTokens;
+  final int? outputTokenLimit; // 模型硬上限；未知供应商可不填。
+  final bool supportsImages; // 关闭时，在发请求前拒绝图片输入。
   final bool streamResponses;
   final ReasoningEffort reasoningEffort;
   final double? temperature;
   final Duration requestTimeout;
+  final Duration totalRequestTimeout; // 包括凭据解析、响应头与完整响应体。
   final RetryPolicy retry;
 
   Map<String, Object?> toJson() => {
@@ -112,13 +157,16 @@ final class ModelProfile {
     'model': model,
     'endpoint': endpoint.toString(),
     'protocol': protocol.name,
-    'credentialEnvironment': credentialEnvironment,
+    'credentialKey': credentialKey,
     'contextWindowTokens': contextWindowTokens,
     'maxOutputTokens': maxOutputTokens,
+    if (outputTokenLimit != null) 'outputTokenLimit': outputTokenLimit,
+    'supportsImages': supportsImages,
     'streamResponses': streamResponses,
     'reasoningEffort': reasoningEffort.name,
     if (temperature != null) 'temperature': temperature,
     'requestTimeoutMs': requestTimeout.inMilliseconds,
+    'totalRequestTimeoutMs': totalRequestTimeout.inMilliseconds,
     'retry': retry.toJson(),
   };
 
@@ -130,12 +178,16 @@ final class ModelProfile {
       'endpoint',
       'protocol',
       'credentialEnvironment',
+      'credentialKey',
       'contextWindowTokens',
       'maxOutputTokens',
+      'outputTokenLimit',
+      'supportsImages',
       'streamResponses',
       'reasoningEffort',
       'temperature',
       'requestTimeoutMs',
+      'totalRequestTimeoutMs',
       'retry',
     });
     return ModelProfile(
@@ -144,13 +196,18 @@ final class ModelProfile {
       model: readString(json, 'model'),
       endpoint: Uri.parse(readString(json, 'endpoint')),
       protocol: _enumValue(ModelProtocol.values, readString(json, 'protocol')),
-      credentialEnvironment: readString(json, 'credentialEnvironment'),
+      credentialKey: json['credentialKey'] as String?,
+      credentialEnvironment: json['credentialEnvironment'] as String?,
       contextWindowTokens: _integer(
         json,
         'contextWindowTokens',
         fallback: 64000,
       ),
       maxOutputTokens: _integer(json, 'maxOutputTokens', fallback: 2048),
+      outputTokenLimit: json['outputTokenLimit'] == null
+          ? null
+          : _integer(json, 'outputTokenLimit'),
+      supportsImages: _boolean(json, 'supportsImages', fallback: true),
       streamResponses: _boolean(json, 'streamResponses', fallback: true),
       reasoningEffort: _enumValue(
         ReasoningEffort.values,
@@ -163,6 +220,9 @@ final class ModelProfile {
           : _number(json, 'temperature'),
       requestTimeout: Duration(
         milliseconds: _integer(json, 'requestTimeoutMs', fallback: 120000),
+      ),
+      totalRequestTimeout: Duration(
+        milliseconds: _integer(json, 'totalRequestTimeoutMs', fallback: 600000),
       ),
       retry: json['retry'] == null
           ? null
@@ -238,7 +298,7 @@ final class ContextPolicy {
 /// 基座启动配置；主模型和摘要模型可以选择不同的命名配置。
 final class AgentConfiguration {
   factory AgentConfiguration.deepSeek() => AgentConfiguration(
-    defaultModelProfile: 'deepseek',
+    defaultModelProfile: 'deepseek-chat',
     profiles: [
       ModelProfile(
         id: 'deepseek',
@@ -247,6 +307,9 @@ final class AgentConfiguration {
         endpoint: Uri.parse('https://api.deepseek.com/anthropic/v1/messages'),
         protocol: ModelProtocol.messages,
         credentialEnvironment: 'DEEPSEEK_API_KEY',
+        contextWindowTokens: DeepSeekFlash.contextWindowTokens,
+        maxOutputTokens: DeepSeekFlash.defaultOutputTokens,
+        outputTokenLimit: DeepSeekFlash.outputTokenLimit,
       ),
       ModelProfile(
         id: 'deepseek-chat',
@@ -255,6 +318,9 @@ final class AgentConfiguration {
         endpoint: Uri.parse('https://api.deepseek.com/chat/completions'),
         protocol: ModelProtocol.chatCompletions,
         credentialEnvironment: 'DEEPSEEK_API_KEY',
+        contextWindowTokens: DeepSeekFlash.contextWindowTokens,
+        maxOutputTokens: DeepSeekFlash.defaultOutputTokens,
+        outputTokenLimit: DeepSeekFlash.outputTokenLimit,
       ),
     ],
   );
@@ -263,6 +329,7 @@ final class AgentConfiguration {
     required this.defaultModelProfile,
     String? summaryModelProfile,
     this.maxSteps = 16,
+    this.maxRunDuration = const Duration(minutes: 15),
     ContextPolicy? context,
   }) : profiles = List.unmodifiable(profiles),
        summaryModelProfile = summaryModelProfile ?? defaultModelProfile,
@@ -276,12 +343,14 @@ final class AgentConfiguration {
       throw ArgumentError('默认模型或摘要模型引用了不存在的配置');
     }
     if (maxSteps < 1) throw ArgumentError('maxSteps 必须大于零');
+    if (maxRunDuration <= Duration.zero) throw ArgumentError('整轮时长必须大于零');
   }
 
   final List<ModelProfile> profiles;
   final String defaultModelProfile;
   final String summaryModelProfile;
   final int maxSteps;
+  final Duration maxRunDuration;
   final ContextPolicy context;
 
   ModelProfile profile(String id) => profiles.firstWhere(
@@ -295,6 +364,7 @@ final class AgentConfiguration {
     'defaultModelProfile': defaultModelProfile,
     'summaryModelProfile': summaryModelProfile,
     'maxSteps': maxSteps,
+    'maxRunDurationMs': maxRunDuration.inMilliseconds,
     'context': context.toJson(),
   };
 
@@ -305,6 +375,7 @@ final class AgentConfiguration {
       'defaultModelProfile',
       'summaryModelProfile',
       'maxSteps',
+      'maxRunDurationMs',
       'context',
     });
     if (_integer(json, 'version') != 1) {
@@ -323,6 +394,9 @@ final class AgentConfiguration {
           ? null
           : readString(json, 'summaryModelProfile'),
       maxSteps: _integer(json, 'maxSteps', fallback: 16),
+      maxRunDuration: Duration(
+        milliseconds: _integer(json, 'maxRunDurationMs', fallback: 900000),
+      ),
       context: json['context'] == null
           ? null
           : ContextPolicy.fromJson(readObject(json['context'])),

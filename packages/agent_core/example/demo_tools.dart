@@ -5,6 +5,8 @@ import 'package:agent_core/agent_core.dart';
 /// 演示中实际执行的只读工具；时间来自当前设备，不来自模型猜测。
 AgentTool currentTimeTool() {
   return AgentTool(
+    readOnly: true,
+    // definition 发给模型，说明工具名字、用途和参数。
     definition: ToolDefinition(
       name: 'get_current_time',
       description: '读取用户设备的当前本地时间及 UTC 偏移。',
@@ -14,8 +16,10 @@ AgentTool currentTimeTool() {
         'additionalProperties': false,
       },
     ),
+    // execute 是真实的 Dart 函数；模型提出请求后由 AgentLoop 调用。
     execute: (input, context) {
       context.cancellation.throwIfCancelled();
+      // 从运行程序的设备读取时间，结果随后转换成文字返回给模型。
       final now = DateTime.now();
       return ToolOutput.success(
         jsonEncode({
@@ -39,6 +43,8 @@ ToolDecision authorizeDemoTool(
 
 void printAgentEvent(AgentEvent event) {
   switch (event) {
+    case ModelUsageReported():
+      break;
     case ModelRequestStarted():
       print('[第 ${event.step} 次请求] 请求模型');
     case AssistantReceived():

@@ -28,7 +28,10 @@ Stream<ModelStreamEvent> decodeMessagesStream(
       if (header['role'] != 'assistant' || header['type'] != 'message') {
         throw const FormatException('无效流开始');
       }
-      if (header['usage'] != null) usage.addAll(readObject(header['usage']));
+      if (header['usage'] != null) {
+        usage.addAll(readObject(header['usage']));
+        yield ModelUsageSnapshot(decodeUsage(profile.protocol, usage));
+      }
       continue;
     }
     if (header == null) throw const FormatException('流在 message_start 前包含内容');
@@ -96,7 +99,10 @@ Stream<ModelStreamEvent> decodeMessagesStream(
     } else if (type == 'message_delta') {
       final delta = readObject(event['delta']);
       if (delta['stop_reason'] != null) stopReason = delta['stop_reason'];
-      if (event['usage'] != null) usage.addAll(readObject(event['usage']));
+      if (event['usage'] != null) {
+        usage.addAll(readObject(event['usage']));
+        yield ModelUsageSnapshot(decodeUsage(profile.protocol, usage));
+      }
     } else if (type == 'message_stop') {
       if (stopReason == null || blocks.values.any((block) => !block.closed)) {
         throw const FormatException('流未完整结束');
@@ -179,7 +185,10 @@ Stream<ModelStreamEvent> decodeChatStream(
     final event = readObject(jsonDecode(frame.data));
     if (event['error'] != null) throw streamError(event['error']);
     if (event['model'] != null) model = readString(event, 'model');
-    if (event['usage'] != null) usage = event['usage'];
+    if (event['usage'] != null) {
+      usage = event['usage'];
+      yield ModelUsageSnapshot(decodeUsage(profile.protocol, usage));
+    }
     final choices = event['choices'];
     if (choices is! List<Object?> || choices.length > 1) {
       throw const FormatException('无效流选择');
@@ -211,12 +220,18 @@ Stream<ModelStreamEvent> decodeChatStream(
         final index = _index(update);
         final tool = tools.putIfAbsent(index, _ChatTool.new);
         if (update['id'] != null) {
-          if (tool.id != null) throw const FormatException('重复工具编号');
+          if (tool.id != null && tool.id != update['id']) {
+            throw const FormatException('同一工具索引的编号发生变化');
+          }
           tool.id = readString(update, 'id');
         }
-        final function = readObject(update['function']);
+        final function = update['function'] == null
+            ? <String, Object?>{}
+            : readObject(update['function']);
         if (function['name'] != null) {
-          if (tool.name != null) throw const FormatException('重复工具名称');
+          if (tool.name != null && tool.name != function['name']) {
+            throw const FormatException('同一工具索引的名称发生变化');
+          }
           tool.name = readString(function, 'name');
         }
         final arguments = function['arguments'] == null

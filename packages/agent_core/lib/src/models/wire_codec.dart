@@ -13,14 +13,93 @@ Map<String, Object?> encodeModelRequest(
 }) {
   validateConversation(request.messages);
   final outputLimit = request.maxOutputTokens ?? profile.maxOutputTokens;
-  if (outputLimit < 1 || outputLimit > profile.maxOutputTokens) {
+  final modelOutputLimit =
+      profile.outputTokenLimit ?? profile.contextWindowTokens - 1;
+  if (outputLimit < 1 ||
+      outputLimit > modelOutputLimit ||
+      outputLimit >= profile.contextWindowTokens ||
+      profile.provider == 'deepseek' &&
+          profile.model == 'deepseek-flash' &&
+          outputLimit > DeepSeekFlash.outputTokenLimit) {
     throw const ModelException('invalid_request', '本次输出上限超出模型配置');
   }
+  final effort = request.reasoningEffort ?? profile.reasoningEffort;
+  final images = request.messages
+      .expand((message) => message.content)
+      .whereType<ImageBlock>()
+      .toList();
+  var knownImageBytes = 0;
+  if (images.isNotEmpty && !profile.supportsImages) {
+    throw const ModelException('unsupported_images', '当前模型配置不支持图片，请切换视觉模型');
+  }
+  for (final image in images) {
+    if (image.fileId != null && image.provider != profile.provider) {
+      throw const ModelException('foreign_file', '图片文件属于另一供应商，请重新上传原图');
+    }
+    if (profile.provider == 'deepseek' &&
+        image.url.startsWith('http') &&
+        image.url.length > 8192) {
+      throw const ModelException(
+        'image_url_too_long',
+        '图片链接超过 8192 字符，请改用上传图片',
+      );
+    }
+    if (profile.provider == 'deepseek') {
+      final dimensionLimit = images.length >= 15 ? 4096 : 8192;
+      if ((image.width ?? 0) > dimensionLimit ||
+          (image.height ?? 0) > dimensionLimit) {
+        throw ModelException(
+          'image_dimensions',
+          '本次图片任一边不能超过 $dimensionLimit 像素',
+        );
+      }
+      var bytes = image.byteLength ?? 0;
+      if (image.url.startsWith('data:')) {
+        final encoded = image.url
+            .substring(image.url.indexOf(',') + 1)
+            .replaceAll(RegExp(r'\s'), '');
+        bytes = (encoded.length * 3 / 4).floor();
+        if (encoded.endsWith('==')) {
+          bytes -= 2;
+        } else if (encoded.endsWith('=')) {
+          bytes--;
+        }
+      }
+      final limit = image.fileId == null
+          ? DeepSeekFlash.maxImageBytes
+          : 64 * 1024 * 1024;
+      if (bytes > limit) {
+        throw ModelException(
+          'image_too_large',
+          '单张图片超过 ${limit ~/ (1024 * 1024)} MiB 上限',
+        );
+      }
+      knownImageBytes += bytes;
+    }
+  }
+  if (profile.provider == 'deepseek' &&
+      images.length > DeepSeekFlash.maxImages) {
+    throw const ModelException('too_many_images', 'DeepSeek 单次请求最多包含 600 张图片');
+  }
+  final imageBytesLimit = images.any((image) => image.fileId != null)
+      ? 200 * 1024 * 1024
+      : 64 * 1024 * 1024;
+  if (profile.provider == 'deepseek' && knownImageBytes > imageBytesLimit) {
+    throw const ModelException('images_too_large', '本次请求的图片总大小超过限额，请减少图片');
+  }
   if (profile.protocol == ModelProtocol.messages) {
+    if (request.jsonOutput) {
+      throw const ModelException(
+        'unsupported_format',
+        'JSON 对象模式需要 Chat Completions 协议',
+      );
+    }
     final messages = <Map<String, Object?>>[];
     for (final message in request.messages) {
       final role = message is AssistantMessage ? 'assistant' : 'user';
       final content = _messagesContent(message, profile);
+      // 切换模型后可能过滤掉整条思考块；原文保留，但协议不接受空内容消息。
+      if (content.isEmpty) continue;
       if (messages.isNotEmpty && messages.last['role'] == role) {
         (messages.last['content']! as List<Map<String, Object?>>).addAll(
           content,
@@ -33,13 +112,14 @@ Map<String, Object?> encodeModelRequest(
       'model': profile.model,
       'max_tokens': outputLimit,
       'stream': stream,
-      'thinking': {
-        'type': profile.reasoningEffort == ReasoningEffort.off
-            ? 'disabled'
-            : 'enabled',
-      },
-      if (profile.reasoningEffort != ReasoningEffort.off)
-        'output_config': {'effort': profile.reasoningEffort.name},
+      if (profile.provider == 'deepseek' || effort != ReasoningEffort.off)
+        'thinking': {
+          'type': effort == ReasoningEffort.off ? 'disabled' : 'enabled',
+          if (profile.provider != 'deepseek' && effort != ReasoningEffort.off)
+            'budget_tokens': outputLimit > 4096 ? 4096 : outputLimit - 1,
+        },
+      if (profile.provider == 'deepseek' && effort != ReasoningEffort.off)
+        'output_config': {'effort': effort.name},
       if (profile.temperature != null) 'temperature': profile.temperature,
       if (request.systemPrompt.isNotEmpty) 'system': request.systemPrompt,
       'messages': messages,
@@ -55,24 +135,33 @@ Map<String, Object?> encodeModelRequest(
             .toList(),
     };
   }
+  final chatMessages = <Map<String, Object?>>[];
+  for (final message in request.messages) {
+    final encoded = _chatMessage(message, profile, request.tools.isNotEmpty);
+    if (message is AssistantMessage &&
+        encoded['content'] == null &&
+        !encoded.containsKey('tool_calls') &&
+        !encoded.containsKey('reasoning_content')) {
+      continue; // 无工具时思考不会回传，也不留下导致 400 的空 assistant 消息。
+    }
+    chatMessages.add(encoded);
+  }
   return {
     'model': profile.model,
     'max_tokens': outputLimit,
     'stream': stream,
+    if (request.jsonOutput) 'response_format': {'type': 'json_object'},
     if (stream) 'stream_options': {'include_usage': true},
     if (profile.provider == 'deepseek')
       'thinking': {
-        'type': profile.reasoningEffort == ReasoningEffort.off
-            ? 'disabled'
-            : 'enabled',
+        'type': effort == ReasoningEffort.off ? 'disabled' : 'enabled',
       },
-    if (profile.reasoningEffort != ReasoningEffort.off)
-      'reasoning_effort': profile.reasoningEffort.name,
+    if (effort != ReasoningEffort.off) 'reasoning_effort': effort.name,
     if (profile.temperature != null) 'temperature': profile.temperature,
     'messages': [
       if (request.systemPrompt.isNotEmpty)
         {'role': 'system', 'content': request.systemPrompt},
-      ...request.messages.map(_chatMessage),
+      ...chatMessages,
     ],
     if (request.tools.isNotEmpty)
       'tools': request.tools
@@ -117,7 +206,12 @@ List<Map<String, Object?>> _messagesContent(
       case TextBlock():
         blocks.add({'type': 'text', 'text': block.text});
       case ImageBlock():
-        if (block.url.startsWith('data:')) {
+        if (block.fileId != null) {
+          blocks.add({
+            'type': 'image',
+            'source': {'type': 'file', 'file_id': block.fileId},
+          });
+        } else if (block.url.startsWith('data:')) {
           final comma = block.url.indexOf(',');
           final semicolon = block.url.indexOf(';');
           blocks.add({
@@ -156,7 +250,11 @@ List<Map<String, Object?>> _messagesContent(
   return blocks;
 }
 
-Map<String, Object?> _chatMessage(AgentMessage message) {
+Map<String, Object?> _chatMessage(
+  AgentMessage message,
+  ModelProfile profile,
+  bool hasTools,
+) {
   switch (message) {
     case ToolResultMessage():
       return {
@@ -179,10 +277,19 @@ Map<String, Object?> _chatMessage(AgentMessage message) {
                   'type': 'text',
                   'text': block.text,
                 },
-                ImageBlock() => <String, Object?>{
-                  'type': 'image_url',
-                  'image_url': {'url': block.url},
-                },
+                ImageBlock() =>
+                  block.fileId != null
+                      ? <String, Object?>{
+                          'type': 'file',
+                          'file_id': block.fileId,
+                        }
+                      : <String, Object?>{
+                          'type': 'image_url',
+                          'image_url': {
+                            'url': block.url,
+                            'detail': block.detail.name,
+                          },
+                        },
                 _ => throw const FormatException('用户消息出现无效内容'),
               },
             )
@@ -196,7 +303,11 @@ Map<String, Object?> _chatMessage(AgentMessage message) {
       return {
         'role': 'assistant',
         'content': message.text.isEmpty ? null : message.text,
-        if (reasoning.isNotEmpty) 'reasoning_content': reasoning,
+        if (reasoning.isNotEmpty &&
+            hasTools &&
+            message.provider == profile.provider &&
+            message.model == profile.model)
+          'reasoning_content': reasoning,
         if (message.toolCalls.isNotEmpty)
           'tool_calls': message.toolCalls
               .map(
@@ -346,14 +457,26 @@ TokenUsage decodeUsage(ModelProtocol protocol, Object? value) {
 
   if (protocol == ModelProtocol.messages) {
     return TokenUsage(
-      inputTokens: count('input_tokens'),
+      // Messages 把普通输入、缓存写入、缓存命中分别报告；三者才是完整输入。
+      inputTokens:
+          count('input_tokens') +
+          count('cache_creation_input_tokens') +
+          count('cache_read_input_tokens'),
       outputTokens: count('output_tokens'),
       cachedInputTokens: count('cache_read_input_tokens'),
     );
   }
+  final details = json['prompt_tokens_details'];
+  final cached =
+      json['prompt_cache_hit_tokens'] ??
+      (details == null ? null : readObject(details)['cached_tokens']) ??
+      0;
+  if (cached is! int || cached < 0) {
+    throw const FormatException('无效缓存 token 使用量');
+  }
   return TokenUsage(
     inputTokens: count('prompt_tokens'),
     outputTokens: count('completion_tokens'),
-    cachedInputTokens: count('prompt_cache_hit_tokens'),
+    cachedInputTokens: cached,
   );
 }

@@ -90,7 +90,7 @@ Future<void> _verify(ModelProtocol protocol, {required bool thinking}) async {
         source: '合成测试背景 $index',
         text:
             '项目代号为杉木-42。用户有两小时，先做基座验证。'
-            '${'历史记录只用于验证压缩，尚未对接任何业务应用，不代表工作已经完成。' * 6}',
+            '${'历史记录只用于验证压缩，尚未对接任何业务应用，不代表工作已经完成。' * 24}',
       );
     }
     final originalFirst = session.transcript.first;

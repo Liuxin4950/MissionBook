@@ -1,5 +1,7 @@
 import 'json_value.dart';
 
+enum ImageDetail { auto, low, high, original }
+
 /// 模型消息中的一个内容块。
 sealed class ContentBlock {
   const ContentBlock();
@@ -14,7 +16,15 @@ final class TextBlock extends ContentBlock {
 
 /// 用户提供的图片地址或 base64 data URL；实际能否理解图片由模型决定。
 final class ImageBlock extends ContentBlock {
-  ImageBlock({required this.url}) {
+  ImageBlock({
+    required this.url,
+    this.detail = ImageDetail.auto,
+    this.label,
+    this.width,
+    this.height,
+    this.byteLength,
+  }) : fileId = null,
+       provider = null {
     final parsed = Uri.tryParse(url);
     final remote =
         parsed != null &&
@@ -29,6 +39,28 @@ final class ImageBlock extends ContentBlock {
   }
 
   final String url;
+  final String? fileId; // 云端图片引用；正文不需要反复携带 base64。
+  final String? provider; // 文件引用只能交回上传它的供应商。
+  final ImageDetail detail;
+  final String? label; // 文件名或来源，供界面和不支持视觉的摘要模型说明来源。
+  final int? width; // 本地解析的像素宽高；远程链接可未知，交给供应商核对。
+  final int? height;
+  final int? byteLength;
+
+  ImageBlock.file({
+    required String id,
+    this.provider = 'deepseek',
+    this.label,
+    this.width,
+    this.height,
+    this.byteLength,
+  }) : fileId = id,
+       url = '',
+       detail = ImageDetail.auto {
+    if (!RegExp(r'^[A-Za-z0-9_-]{1,200}$').hasMatch(id)) {
+      throw ArgumentError('图片文件编号无效');
+    }
+  }
 }
 
 /// 保留供应商返回的思考块，使后续请求可以原样回传。

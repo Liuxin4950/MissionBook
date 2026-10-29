@@ -24,15 +24,22 @@ final class ModelRequestRunner {
       await onEvent?.call(event);
     }
 
+    // 一次模型请求允许有限重试；这里重试模型通信，不重新执行工具。
     for (var attempt = 1; ; attempt++) {
       token.throwIfCancelled();
       final partialText = StringBuffer();
       await publish(ModelAttemptStarted(step, attempt, request));
+      TokenUsage? observedUsage;
+      var completed = false;
       try {
         if (model is! StreamingAgentModel) {
-          return await token.wait(model.complete(request, token));
+          final response = await token.wait(model.complete(request, token));
+          observedUsage = response.usage;
+          completed = true;
+          return response;
         }
         final streaming = model as StreamingAgentModel;
+        // 增量交给事件监听者，完整响应交还 AgentLoop；下一站是 http_agent_model.dart。
         final iterator = StreamIterator(streaming.stream(request, token));
         ModelResponse? response;
         try {
@@ -43,6 +50,10 @@ final class ModelRequestRunner {
             }
             if (update is ModelCompleted) {
               response = update.response;
+              observedUsage = response.usage;
+              completed = true;
+            } else if (update is ModelUsageSnapshot) {
+              observedUsage = update.usage;
             } else {
               if (update is ModelTextDelta) partialText.write(update.text);
               await publish(
@@ -90,7 +101,7 @@ final class ModelRequestRunner {
           if (error.retryAfter != null && error.retryAfter! > delay) {
             delay = error.retryAfter!;
           }
-          if (delay > retry.maxDelay) delay = retry.maxDelay;
+          // maxDelay 只限制本地指数退避；服务端要求的等待时间必须保留。
         }
         await publish(
           ModelAttemptFailed(
@@ -104,6 +115,16 @@ final class ModelRequestRunner {
         );
         if (!willRetry) rethrow;
         await token.delay(delay);
+      } finally {
+        await publish(
+          ModelUsageReported(
+            step,
+            attempt,
+            observedUsage ?? const TokenUsage(),
+            request.purpose,
+            complete: completed,
+          ),
+        );
       }
     }
   }

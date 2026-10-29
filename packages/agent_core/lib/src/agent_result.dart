@@ -13,9 +13,14 @@ enum AgentStopReason {
 
 /// 关键记录无法保存时必须停止；写入结果可能仍存在于本次进程快照。
 final class AgentPersistenceException implements Exception {
-  const AgentPersistenceException(this.message, {this.cause});
+  const AgentPersistenceException(
+    this.message, {
+    this.cause,
+    this.code = 'persistence_failed',
+  });
   final String message;
   final Object? cause;
+  final String code;
   @override
   String toString() => message;
 }
@@ -43,6 +48,7 @@ final class AgentRunResult {
     this.usage = const TokenUsage(),
     this.modelAttempts = 0,
     this.compactions = 0,
+    this.usageIncomplete = false,
   }) : messages = List.unmodifiable(messages),
        contextMessages = List.unmodifiable(contextMessages ?? messages);
 
@@ -54,6 +60,7 @@ final class AgentRunResult {
   final TokenUsage usage;
   final int modelAttempts;
   final int compactions;
+  final bool usageIncomplete;
 
   /// 只有完整结束时才把最后一条模型消息当成最终回答。
   String? get answer {

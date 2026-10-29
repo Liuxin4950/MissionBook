@@ -3,11 +3,14 @@ import 'dart:async';
 /// 一轮运行共享的取消信号；模型、授权等待和工具读取同一个对象。
 final class CancellationToken {
   final Completer<void> _cancelled = Completer<void>();
+  bool _deadlineExceeded = false;
+  bool get deadlineExceeded => _deadlineExceeded;
 
   bool get isCancelled => _cancelled.isCompleted;
   Future<void> get whenCancelled => _cancelled.future;
 
-  void cancel() {
+  void cancel({bool deadlineExceeded = false}) {
+    _deadlineExceeded = _deadlineExceeded || deadlineExceeded;
     if (!isCancelled) _cancelled.complete();
   }
 

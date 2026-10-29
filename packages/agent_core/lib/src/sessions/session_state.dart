@@ -2,6 +2,7 @@ import '../agent_result.dart';
 import '../content_block.dart';
 import '../message.dart';
 import '../models/configuration.dart';
+import '../tool.dart';
 import 'message_codec.dart';
 import 'session_store.dart';
 
@@ -15,6 +16,9 @@ final class SessionState {
   late String systemPrompt;
   late String modelProfileId;
   late String summaryProfileId;
+  int? outputTokens;
+  ReasoningEffort? reasoningEffort;
+  bool jsonOutput = false;
   String? openTurnId;
   AgentStopReason? lastStopReason;
   int _nextSequence = 0;
@@ -23,12 +27,18 @@ final class SessionState {
   final Map<String, AgentMessage> _knownMessages = {};
   final Map<String, ToolCallBlock> _pending = {};
   final Set<String> _started = {};
+  final Set<String> _startedReadOnly = {};
   final Set<String> _usedCallIds = {};
   final Map<String, ToolResultMessage> _unknown = {};
+  final Map<String, ToolOutput> _resolved = {};
+  final Set<String> _requestSpecs = {};
+  Map<String, ToolOutput> get resolvedOutcomes => Map.unmodifiable(_resolved);
+  bool hasRequestSpec(String id) => _requestSpecs.contains(id);
   List<AgentMessage> get transcript => List.unmodifiable(_transcript);
   List<AgentMessage> get contextMessages => List.unmodifiable(_context);
   Map<String, ToolCallBlock> get pendingCalls => Map.unmodifiable(_pending);
   Set<String> get startedCallIds => Set.unmodifiable(_started);
+  Set<String> get readOnlyCallIds => Set.unmodifiable(_startedReadOnly);
   Map<String, ToolResultMessage> get unknownOutcomes =>
       Map.unmodifiable(_unknown);
   bool get needsOutcomeResolution => _unknown.isNotEmpty;
@@ -37,6 +47,13 @@ final class SessionState {
   void apply(SessionRecord record) {
     if (record.sequence != _nextSequence) {
       throw const FormatException('日志序号不连续');
+    }
+    if (record.version != 1) {
+      if (record.ignorable) {
+        _nextSequence++;
+        return;
+      }
+      throw FormatException('会话记录版本 ${record.version} 不受支持，请升级应用；原记录保留');
     }
     if (_id == null &&
         record.type != 'session_created' &&
@@ -66,8 +83,14 @@ final class SessionState {
         _knownMessages.addAll(original._knownMessages);
         _pending.addAll(original._pending);
         _started.addAll(original._started);
+        _startedReadOnly.addAll(original._startedReadOnly);
         _usedCallIds.addAll(original._usedCallIds);
         _unknown.addAll(original._unknown);
+        _resolved.addAll(original._resolved);
+        _requestSpecs.addAll(original._requestSpecs);
+        outputTokens = original.outputTokens;
+        reasoningEffort = original.reasoningEffort;
+        jsonOutput = original.jsonOutput;
       case 'session_created':
         if (_id != null) throw const FormatException('会话重复创建');
         _id = readString(data, 'id');
@@ -88,6 +111,7 @@ final class SessionState {
         if (!_pending.containsKey(callId) || !_started.add(callId)) {
           throw const FormatException('工具执行没有唯一的待处理调用');
         }
+        if (data['readOnly'] == true) _startedReadOnly.add(callId);
       case 'turn_ended':
         if (openTurnId == null ||
             readString(data, 'turnId') != openTurnId ||
@@ -131,8 +155,24 @@ final class SessionState {
           ..addAll(projection);
       case 'models_changed':
         if (openTurnId != null) throw const FormatException('运行中不能切换模型');
-        modelProfileId = readString(data, 'modelProfileId');
+        final nextModel = readString(data, 'modelProfileId');
+        if (nextModel != modelProfileId) {
+          outputTokens = null;
+          reasoningEffort = null;
+          jsonOutput = false;
+        }
+        modelProfileId = nextModel;
         summaryProfileId = readString(data, 'summaryProfileId');
+      case 'title_changed':
+        if (openTurnId != null) throw const FormatException('运行中不能改名');
+        title = readString(data, 'title');
+      case 'generation_changed':
+        if (openTurnId != null) throw const FormatException('运行中不能修改生成设置');
+        outputTokens = data['maxOutputTokens'] as int;
+        reasoningEffort = ReasoningEffort.values.byName(
+          readString(data, 'reasoningEffort'),
+        );
+        jsonOutput = data['jsonOutput'] as bool? ?? false;
       case 'system_prompt_changed':
         if (openTurnId != null) throw const FormatException('运行中不能更改系统提示');
         systemPrompt = readString(data, 'systemPrompt');
@@ -146,7 +186,23 @@ final class SessionState {
           throw const FormatException('核对记录必须标明来源');
         }
         _addMessage(notice);
+        if (data['actual'] != null) {
+          final actual = readObject(data['actual']);
+          _resolved[callId] = actual['isError'] == true
+              ? ToolOutput.failure(
+                  actual['errorCode'] as String? ?? 'tool_failed',
+                  readString(actual, 'text'),
+                )
+              : ToolOutput.success(readString(actual, 'text'));
+        }
+      case 'request_spec_saved':
+        if (!_requestSpecs.add(readString(data, 'id'))) {
+          throw const FormatException('请求定义重复');
+        }
       case 'request_prepared':
+        if (data['specId'] != null && !_requestSpecs.contains(data['specId'])) {
+          throw const FormatException('模型请求引用了不存在的定义');
+        }
         final purpose = readString(data, 'purpose');
         if (purpose == 'conversation') {
           final ids = data['messageIds'];
@@ -161,20 +217,42 @@ final class SessionState {
             }
           }
         } else if (purpose == 'summary') {
-          final messages = data['messages'];
-          if (messages is! List<Object?> || messages.isEmpty) {
-            throw const FormatException('摘要请求缺少可重建的输入');
+          final legacy = data['messages'];
+          if (legacy is List<Object?>) {
+            validateConversation(
+              legacy.map((value) => decodeMessage(readObject(value))).toList(),
+            );
+          } else {
+            final ids = data['messageIds'];
+            final extra = data['extraMessages'];
+            if (ids is! List<Object?> || extra is! List<Object?>) {
+              throw const FormatException('摘要请求缺少输入引用');
+            }
+            final available = <String, AgentMessage>{..._knownMessages};
+            for (final raw in extra) {
+              final message = decodeMessage(readObject(raw));
+              if (available.containsKey(message.id)) {
+                throw const FormatException('摘要附加输入与原始消息编号重复');
+              }
+              available[message.id] = message;
+            }
+            final messages = <AgentMessage>[];
+            for (final id in ids) {
+              final message = available[id];
+              if (message == null) throw const FormatException('摘要引用了不存在的消息');
+              messages.add(message);
+            }
+            validateConversation(messages);
           }
-          validateConversation(
-            messages.map((value) => decodeMessage(readObject(value))).toList(),
-          );
         } else {
           throw const FormatException('未知模型请求用途');
         }
-      case 'request_failed' || 'storage_tail_recovered':
+      case 'request_failed' || 'storage_tail_recovered' || 'usage_reported':
         break;
       default:
-        throw FormatException('不支持的会话记录类型：${record.type}');
+        if (!record.ignorable) {
+          throw FormatException('不支持的会话记录类型：${record.type}；请升级应用');
+        }
     }
     _nextSequence++;
   }
@@ -193,6 +271,7 @@ final class SessionState {
       }
       _pending.remove(message.toolCallId);
       _started.remove(message.toolCallId);
+      _startedReadOnly.remove(message.toolCallId);
       if (message.errorCode == 'outcome_unknown') {
         _unknown[message.toolCallId] = message;
       }
@@ -234,6 +313,9 @@ final class SessionState {
     ..systemPrompt = systemPrompt
     ..modelProfileId = modelProfileId
     ..summaryProfileId = summaryProfileId
+    ..outputTokens = outputTokens
+    ..reasoningEffort = reasoningEffort
+    ..jsonOutput = jsonOutput
     ..openTurnId = openTurnId
     ..lastStopReason = lastStopReason
     .._nextSequence = _nextSequence
@@ -242,6 +324,9 @@ final class SessionState {
     .._knownMessages.addAll(_knownMessages)
     .._pending.addAll(_pending)
     .._started.addAll(_started)
+    .._startedReadOnly.addAll(_startedReadOnly)
     .._usedCallIds.addAll(_usedCallIds)
-    .._unknown.addAll(_unknown);
+    .._unknown.addAll(_unknown)
+    .._resolved.addAll(_resolved)
+    .._requestSpecs.addAll(_requestSpecs);
 }

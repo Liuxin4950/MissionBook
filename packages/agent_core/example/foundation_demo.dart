@@ -33,7 +33,7 @@ Future<void> main() async {
     for (var index = 0; index < 8; index++) {
       await session.injectContext(
         source: '离线演示背景 $index',
-        text: '用户计划在两小时内完成 Agent 基座。${'需要先实现完整循环，解释每个输入和结果。' * 5}',
+        text: '用户计划在两小时内完成 Agent 基座。${'需要先实现完整循环，解释每个输入和结果。' * 20}',
       );
     }
     final result = await session.send('请查当前时间，然后说明接下来做什么。');

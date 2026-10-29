@@ -54,10 +54,25 @@ final class ModelAttemptFailed extends AgentEvent {
   final Duration delay;
 }
 
+final class ModelUsageReported extends AgentEvent {
+  const ModelUsageReported(
+    super.step,
+    this.attempt,
+    this.usage,
+    this.purpose, {
+    required this.complete,
+  });
+  final int attempt;
+  final TokenUsage usage;
+  final ModelRequestPurpose purpose;
+  final bool complete; // false 表示本次尝试未完整结束，账单可能还包含未报告部分。
+}
+
 /// 此事件在授权后、工具执行前发布，是重启后判断结果是否未知的依据。
 final class ToolExecutionStarted extends AgentEvent {
-  const ToolExecutionStarted(super.step, this.call);
+  const ToolExecutionStarted(super.step, this.call, {this.readOnly = false});
   final ToolCallBlock call;
+  final bool readOnly;
 }
 
 final class AssistantReceived extends AgentEvent {

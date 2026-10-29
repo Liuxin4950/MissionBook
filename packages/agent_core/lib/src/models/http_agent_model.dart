@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../cancellation.dart';
 import '../model.dart';
@@ -10,8 +11,7 @@ import 'sse_reader.dart';
 import 'stream_decoder.dart';
 import 'wire_codec.dart';
 
-typedef CredentialResolver =
-    FutureOr<String?> Function(String environmentVariable);
+typedef CredentialResolver = FutureOr<String?> Function(String credentialKey);
 
 /// 按配置执行 HTTP 请求；协议转换、增量组装与循环控制各自分开。
 class HttpAgentModel implements StreamingAgentModel {
@@ -53,6 +53,7 @@ class HttpAgentModel implements StreamingAgentModel {
     cancellation.throwIfCancelled();
     final Map<String, Object?> body;
     try {
+      // 把循环传来的通用请求转换成当前服务协议需要的 JSON 内容。
       body = encodeModelRequest(
         profile,
         request,
@@ -62,6 +63,7 @@ class HttpAgentModel implements StreamingAgentModel {
       throw ModelException('invalid_history', error.message);
     }
     try {
+      // _requestBytes 根据配置读取 Key、发送 HTTP 请求并接收服务返回的数据。
       final bytes = _requestBytes(body, cancellation);
       if (!profile.streamResponses) {
         final text = await cancellation.wait(utf8.decoder.bind(bytes).join());
@@ -70,6 +72,7 @@ class HttpAgentModel implements StreamingAgentModel {
         );
         return;
       }
+      // 拆出流式事件，再按所选协议还原文字、工具调用和完整响应。
       final frames = readServerSentEvents(bytes);
       final decoded = profile.protocol == ModelProtocol.messages
           ? decodeMessagesStream(profile, frames)
@@ -103,16 +106,25 @@ class HttpAgentModel implements StreamingAgentModel {
     CancellationToken token,
   ) async* {
     final abort = Completer<void>();
+    final expired = Completer<void>();
+    final deadline = Timer(profile.totalRequestTimeout, () {
+      expired.complete();
+      if (!abort.isCompleted) abort.complete();
+    });
     StreamIterator<List<int>>? iterator;
     try {
-      final key = await token.wait(
-        Future.sync(() => _credentials(profile.credentialEnvironment)),
+      // 宿主提供读取函数；配置保存凭据标识，不保存 Key。
+      final key = await _wait(
+        Future.sync(() => _credentials(profile.credentialKey)),
+        token,
+        abort,
+        expired,
       );
       token.throwIfCancelled();
       if (key == null || key.trim().isEmpty) {
         throw ModelException(
           'missing_credentials',
-          '请配置凭据环境变量 ${profile.credentialEnvironment}',
+          '请配置凭据 ${profile.credentialKey}',
         );
       }
       final outgoing =
@@ -136,21 +148,39 @@ class HttpAgentModel implements StreamingAgentModel {
               } else
                 'authorization': 'Bearer $key',
             })
-            ..body = jsonEncode(body);
-      final response = await _wait(_client.send(outgoing), token, abort);
+            ..bodyBytes = utf8.encode(jsonEncode(body));
+      if (profile.provider == 'deepseek' &&
+          outgoing.bodyBytes.length > DeepSeekFlash.maxRequestBytes) {
+        throw const ModelException(
+          'request_too_large',
+          '请求超过 DeepSeek 的 48 MiB 限额，请减少图片或使用文件引用',
+        );
+      }
+      final hasFileImages = _usesFileImages(body);
+      if (profile.protocol == ModelProtocol.messages && hasFileImages) {
+        outgoing.headers['anthropic-beta'] = 'files-api-2025-04-14';
+      }
+      final response = await _wait(
+        _client.send(outgoing),
+        token,
+        abort,
+        expired,
+      );
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorBody = await _wait(
           response.stream.bytesToString(),
           token,
           abort,
+          expired,
         );
         throw _httpFailure(response.statusCode, response.headers, errorBody);
       }
       iterator = StreamIterator(response.stream);
-      while (await _wait(iterator.moveNext(), token, abort)) {
+      while (await _wait(iterator.moveNext(), token, abort, expired)) {
         yield iterator.current;
       }
     } finally {
+      deadline.cancel();
       if (!abort.isCompleted) abort.complete();
       // 已发中止信号；不让不配合关闭的替身客户端拖住取消结果。
       final pendingIterator = iterator;
@@ -168,20 +198,28 @@ class HttpAgentModel implements StreamingAgentModel {
     Future<T> pending,
     CancellationToken token,
     Completer<void> abort,
+    Completer<void> expired,
   ) {
-    return token
-        .wait(pending)
-        .timeout(
-          profile.requestTimeout,
-          onTimeout: () {
-            if (!abort.isCompleted) abort.complete();
-            throw const ModelException(
-              'timeout',
-              '等待模型响应超时，请稍后重试',
-              retryable: true,
-            );
-          },
+    return Future.any<T>([
+      token.wait(pending),
+      expired.future.then<T>(
+        (_) => throw const ModelException(
+          'request_timeout',
+          '模型请求已达到总时长上限',
+          retryable: true,
+        ),
+      ),
+    ]).timeout(
+      profile.requestTimeout,
+      onTimeout: () {
+        if (!abort.isCompleted) abort.complete();
+        throw const ModelException(
+          'timeout',
+          '等待模型响应超时，请稍后重试',
+          retryable: true,
         );
+      },
+    );
   }
 
   ModelException _httpFailure(
@@ -198,10 +236,21 @@ class HttpAgentModel implements StreamingAgentModel {
     } on FormatException {
       // 网关可能返回 HTML；HTTP 状态仍然有效，不显示原始响应或凭据。
     }
-    final retrySeconds = int.tryParse(headers['retry-after'] ?? '');
-    final retryAfter = retrySeconds == null || retrySeconds < 0
-        ? null
-        : Duration(seconds: retrySeconds);
+    Duration? retryAfter;
+    final retryHeader = headers['retry-after'];
+    final retrySeconds = int.tryParse(retryHeader ?? '');
+    if (retrySeconds != null && retrySeconds >= 0) {
+      retryAfter = Duration(seconds: retrySeconds);
+    } else if (retryHeader != null) {
+      try {
+        final remaining = parseHttpDate(
+          retryHeader,
+        ).difference(DateTime.now().toUtc());
+        if (remaining > Duration.zero) retryAfter = remaining;
+      } on FormatException {
+        /* 非法头部采用本地退避。 */
+      }
+    }
     if (status == 401 || status == 403) {
       return ModelException('http_error', '模型凭据无效或无访问权限', statusCode: status);
     }
@@ -231,4 +280,24 @@ class HttpAgentModel implements StreamingAgentModel {
     _closed = true;
     if (_ownsClient) _client.close();
   }
+}
+
+bool _usesFileImages(Map<String, Object?> body) {
+  final messages = body['messages'];
+  if (messages is! List<Object?>) return false;
+  for (final message in messages) {
+    if (message is! Map<String, Object?> ||
+        message['content'] is! List<Object?>) {
+      continue;
+    }
+    for (final block in message['content'] as List<Object?>) {
+      if (block is! Map<String, Object?>) continue;
+      if (block['type'] == 'file') return true;
+      final source = block['source'];
+      if (source is Map<String, Object?> && source['type'] == 'file') {
+        return true;
+      }
+    }
+  }
+  return false;
 }
