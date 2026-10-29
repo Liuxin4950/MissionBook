@@ -5,6 +5,9 @@ import 'package:agent_core/agent_core.dart';
 import 'package:flutter/material.dart';
 
 import '../../application/assistant/assistant_controller.dart';
+import '../../application/assistant/assistant_attachment.dart';
+import '../../application/assistant/assistant_speech.dart';
+import '../../data/assistant/assistant_attachment_picker.dart';
 import '../../core/theme/app_layout.dart';
 import '../../core/theme/colors.dart';
 import '../widgets/app_page_header.dart';
@@ -40,14 +43,27 @@ class _AssistantPageState extends State<AssistantPage> {
   String? _draftSession;
   bool _followOutput = true;
   bool _scrollScheduled = false;
-  static const _contentWidth = 1120.0;
+  static const _contentWidth = 960.0;
+  final _attachments = <AssistantAttachment>[];
+  bool _picking = false;
+  AssistantVoiceController? _voice;
+  bool _recordingVoice = false;
+  String _voicePrefix = '';
 
   void _controllerChanged() {
     final id = widget.controller.currentSessionId;
     if (id != _draftSession) {
+      if (_recordingVoice) {
+        _recordingVoice = false;
+        unawaited(_voice?.cancel());
+      }
       widget.controller.saveDraft(_draftSession, _input.text);
+      widget.controller.saveAttachments(_draftSession, _attachments);
       _draftSession = id;
       _input.text = widget.controller.draftFor(id);
+      _attachments
+        ..clear()
+        ..addAll(widget.controller.attachmentsFor(id));
       _followOutput = true;
     }
     if (_followOutput) _scrollToBottom(animate: false);
@@ -59,13 +75,44 @@ class _AssistantPageState extends State<AssistantPage> {
     _draftSession = widget.controller.currentSessionId;
     widget.controller.addListener(_controllerChanged);
     _input.text = widget.initialText ?? widget.controller.draft;
+    _attachments.addAll(widget.controller.attachmentsFor(_draftSession));
     unawaited(widget.controller.initialize());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final voice = AssistantScope.maybeOf(context)?.voice;
+    if (_voice != voice) {
+      _voice?.removeListener(_voiceChanged);
+      _voice = voice;
+      _voice?.addListener(_voiceChanged);
+      // 打开助手后再后台部署离线模型，避免拖慢应用首屏。
+      if (voice != null) unawaited(voice.warmUp());
+    }
+  }
+
+  void _voiceChanged() {
+    if (!mounted || !_recordingVoice) return;
+    final text = _voice!.text;
+    if (text.isNotEmpty) {
+      _input.value = TextEditingValue(
+        text: '$_voicePrefix$text',
+        selection: TextSelection.collapsed(
+          offset: _voicePrefix.length + text.length,
+        ),
+      );
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_controllerChanged);
     widget.controller.saveDraft(_draftSession, _input.text);
+    widget.controller.saveAttachments(_draftSession, _attachments);
+    _voice?.removeListener(_voiceChanged);
+    if (_recordingVoice) unawaited(_voice?.cancel());
     _input.dispose();
     _inputFocus.dispose();
     _scroll.dispose();
@@ -80,7 +127,7 @@ class _AssistantPageState extends State<AssistantPage> {
             child: ListenableBuilder(
               listenable: widget.controller,
               builder: (context, _) => AppTopBar(
-                title: '助手',
+                title: widget.controller.persona.name,
                 maxContentWidth: _contentWidth,
                 actions: _headerActions(),
               ),
@@ -107,7 +154,7 @@ class _AssistantPageState extends State<AssistantPage> {
                         0,
                       ),
                       child: AppPageHeader(
-                        title: '助手',
+                        title: controller.persona.name,
                         subtitle: Text(
                           '${controller.sessionTitle} · ${controller.modelProfileId == 'deepseek' ? 'Messages' : 'Chat'}',
                           style: Theme.of(context).textTheme.bodyMedium,
@@ -176,6 +223,7 @@ class _AssistantPageState extends State<AssistantPage> {
     if (controller.transcript.isEmpty && controller.localSchedule == null) {
       children.add(
         _Welcome(
+          persona: controller.persona,
           onLocalSchedule: controller.loadLocalSchedule,
           onPrompt: _usePrompt,
         ),
@@ -278,12 +326,19 @@ class _AssistantPageState extends State<AssistantPage> {
         }
         return false;
       },
-      child: ListView(
+      child: ListView.separated(
         key: const Key('assistant-conversation-list'),
         controller: _scroll,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: AppLayout.pagePadding(context),
-        children: children,
+        padding: EdgeInsets.fromLTRB(
+          AppLayout.horizontalPadding(context),
+          16,
+          AppLayout.horizontalPadding(context),
+          20,
+        ),
+        itemCount: children.length,
+        separatorBuilder: (_, index) => const SizedBox(height: 12),
+        itemBuilder: (_, index) => children[index],
       ),
     );
   }
@@ -295,35 +350,92 @@ class _AssistantPageState extends State<AssistantPage> {
     builder: (context, value, _) {
       final colors = Theme.of(context).colorScheme;
       final canSend =
-          value.text.trim().isNotEmpty &&
+          (value.text.trim().isNotEmpty || _attachments.isNotEmpty) &&
           !controller.isBusy &&
-          !controller.initializing;
+          !controller.initializing &&
+          !_picking &&
+          !(_voice?.busy ?? false) &&
+          !(_voice?.listening ?? false);
       final canStop = controller.isRunning;
       final action = canStop
           ? controller.stop
           : canSend
           ? () => unawaited(_send())
           : null;
-      return DecoratedBox(
+      return Padding(
         key: const Key('assistant-composer'),
-        decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: colors.outlineVariant)),
+        padding: EdgeInsets.fromLTRB(
+          AppLayout.horizontalPadding(context),
+          8,
+          AppLayout.horizontalPadding(context),
+          12,
         ),
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: AppLayout.horizontalPadding(context),
-            vertical: 10,
+        child: Material(
+          color: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: const BorderSide(color: AppColors.hairline),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: TextField(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_attachments.isNotEmpty)
+                  SizedBox(
+                    height: 72,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _attachments.length,
+                      separatorBuilder: (_, index) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final file = _attachments[index];
+                        return InputChip(
+                          avatar: file.isImage
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.memory(
+                                    file.bytes,
+                                    width: 32,
+                                    height: 32,
+                                    cacheWidth: 64,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.description_outlined,
+                                  size: 20,
+                                ),
+                          label: SizedBox(
+                            width: 108,
+                            child: Text(
+                              file.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          onPressed: () => _previewAttachment(file),
+                          onDeleted: controller.isBusy
+                              ? null
+                              : () => setState(
+                                  () => _attachments.removeAt(index),
+                                ),
+                          deleteButtonTooltipMessage: '移除 ${file.name}',
+                        );
+                      },
+                    ),
+                  ),
+                TextField(
                   key: const Key('assistant-input'),
                   controller: _input,
                   autofocus:
                       widget.showBack && MediaQuery.sizeOf(context).width < 600,
                   focusNode: _inputFocus,
+                  readOnly:
+                      (_voice?.listening ?? false) || (_voice?.busy ?? false),
+                  onChanged: (_) {
+                    _recordingVoice = false;
+                  },
                   minLines: 1,
                   maxLines:
                       MediaQuery.sizeOf(context).height -
@@ -335,50 +447,115 @@ class _AssistantPageState extends State<AssistantPage> {
                   onSubmitted: canSend ? (_) => _send() : null,
                   decoration: InputDecoration(
                     hintText: '描述你想讨论或调整的内容…',
+                    filled: false,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
+                      horizontal: 4,
+                      vertical: 12,
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                  ),
+                ),
+                if (_recordingVoice && _voice?.error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      _voice!.error!,
+                      style: const TextStyle(color: AppColors.error),
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: const BorderSide(color: AppColors.hairline),
+                  ),
+                Row(
+                  children: [
+                    PopupMenuButton<bool>(
+                      key: const Key('assistant-add-attachment'),
+                      tooltip: '添加图片或文件',
+                      enabled:
+                          !controller.isBusy &&
+                          !_picking &&
+                          _attachments.length < AssistantAttachment.maxCount,
+                      onSelected: _pickAttachment,
+                      icon: _picking
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.add_rounded),
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: true,
+                          child: ListTile(
+                            leading: Icon(Icons.image_outlined),
+                            title: Text('添加图片'),
+                            subtitle: Text('PNG、JPEG、WebP、GIF · 每张 4 MiB'),
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: false,
+                          child: ListTile(
+                            leading: Icon(Icons.description_outlined),
+                            title: Text('添加文本文件'),
+                            subtitle: Text('TXT、Markdown、CSV、JSON 等'),
+                          ),
+                        ),
+                      ],
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: const BorderSide(
-                        color: AppColors.primary,
-                        width: 1.5,
+                    if (_voice != null)
+                      IconButton(
+                        key: const Key('assistant-composer-voice'),
+                        tooltip: _voice!.listening ? '结束录音' : '语音输入',
+                        onPressed: controller.isBusy || _voice!.busy
+                            ? null
+                            : _toggleVoice,
+                        icon: Icon(
+                          _voice!.listening
+                              ? Icons.stop_circle_outlined
+                              : Icons.mic_none_rounded,
+                          color: _voice!.listening ? colors.primary : null,
+                        ),
+                      ),
+                    Expanded(
+                      child: Text(
+                        _voice?.starting == true
+                            ? '正在准备语音…'
+                            : _voice?.stopping == true
+                            ? '正在转写…'
+                            : _voice?.listening == true
+                            ? '正在听，点击结束'
+                            : _attachments.isEmpty
+                            ? ''
+                            : '${_attachments.length}/${AssistantAttachment.maxCount} 个附件',
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
-                  ),
+                    IconButton.filled(
+                      key: const Key('assistant-send'),
+                      tooltip: canStop ? '停止本轮' : '发送',
+                      onPressed: action,
+                      style: IconButton.styleFrom(
+                        fixedSize: const Size(40, 40),
+                        foregroundColor: colors.onPrimary,
+                        backgroundColor: colors.primary,
+                        disabledForegroundColor: colors.onSurfaceVariant,
+                        disabledBackgroundColor: colors.surfaceContainerHighest,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      icon: Icon(
+                        canStop
+                            ? Icons.stop_rounded
+                            : Icons.arrow_upward_rounded,
+                        color: action == null
+                            ? colors.onSurfaceVariant
+                            : colors.onPrimary,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 10),
-              IconButton.filled(
-                key: const Key('assistant-send'),
-                tooltip: canStop ? '停止本轮' : '发送',
-                onPressed: action,
-                style: IconButton.styleFrom(
-                  fixedSize: const Size(48, 48),
-                  foregroundColor: colors.onPrimary,
-                  backgroundColor: colors.primary,
-                  disabledForegroundColor: colors.onSurfaceVariant,
-                  disabledBackgroundColor: colors.surfaceContainerHighest,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                icon: Icon(
-                  canStop ? Icons.stop_rounded : Icons.arrow_upward_rounded,
-                  color: action == null
-                      ? colors.onSurfaceVariant
-                      : colors.onPrimary,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -387,19 +564,123 @@ class _AssistantPageState extends State<AssistantPage> {
 
   Future<void> _send() async {
     final text = _input.text.trim();
-    if (text.isEmpty || widget.controller.isBusy) return;
+    if ((text.isEmpty && _attachments.isEmpty) || widget.controller.isBusy) {
+      return;
+    }
     if (!widget.controller.hasCredential) {
       await _openSettings();
       return;
     }
+    final files = List<AssistantAttachment>.of(_attachments);
+    final message = UserMessage.withContent(
+      content: [
+        if (text.isNotEmpty) TextBlock(text: text),
+        ...files.map((file) => file.block),
+      ],
+    );
     _input.clear();
+    setState(() => _attachments.clear());
+    _recordingVoice = false;
     widget.controller.draft = '';
+    widget.controller.saveAttachments(_draftSession, []);
     _followOutput = true;
-    final result = await widget.controller.send(text);
+    await widget.controller.sendMessage(message);
     if (!mounted) return;
-    if (result == null && _input.text.isEmpty) _input.text = text;
+    if (!widget.controller.transcript.any((item) => item.id == message.id) &&
+        _input.text.isEmpty &&
+        _attachments.isEmpty) {
+      _input.text = text;
+      setState(() => _attachments.addAll(files));
+    }
     if (_followOutput) _scrollToBottom();
   }
+
+  Future<void> _toggleVoice() async {
+    final voice = _voice!;
+    if (voice.listening) {
+      await voice.stop();
+      return;
+    }
+    _inputFocus.unfocus();
+    _voicePrefix = _input.text.isEmpty ? '' : '${_input.text.trimRight()}\n';
+    _recordingVoice = true;
+    await voice.start();
+  }
+
+  Future<void> _pickAttachment(bool image) async {
+    if (image && !widget.controller.supportsImages) {
+      _showNotice('当前模型未开启图片能力，请先在助手设置中切换支持图片的模型。');
+      return;
+    }
+    final sessionId = widget.controller.currentSessionId;
+    setState(() => _picking = true);
+    try {
+      final file = await pickAssistantAttachment(image: image);
+      if (file == null ||
+          !mounted ||
+          sessionId != widget.controller.currentSessionId) {
+        return;
+      }
+      if (_attachments.fold<int>(
+            file.bytes.length,
+            (total, file) => total + file.bytes.length,
+          ) >
+          AssistantAttachment.maxTotalBytes) {
+        throw const FormatException('本条消息附件合计不能超过 8 MiB');
+      }
+      if (_attachments.fold<int>(
+            file.isImage ? 0 : (file.block as TextBlock).text.length,
+            (total, file) =>
+                total +
+                (file.isImage ? 0 : (file.block as TextBlock).text.length),
+          ) >
+          AssistantAttachment.maxTextCharacters) {
+        throw const FormatException('本条消息文本附件合计不能超过 32000 字符');
+      }
+      setState(() => _attachments.add(file));
+    } catch (error) {
+      if (mounted) _showNotice('$error');
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
+  void _showNotice(String text) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  Future<void> _previewAttachment(AssistantAttachment file) => showDialog<void>(
+    context: context,
+    builder: (context) => Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 640),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(file.name),
+              trailing: IconButton(
+                tooltip: '关闭预览',
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ),
+            Flexible(
+              child: file.isImage
+                  ? InteractiveViewer(
+                      child: Image.memory(file.bytes, fit: BoxFit.contain),
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: SelectableText(
+                        AssistantAttachment.textFile(file.block)!.text,
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 
   void _scrollToBottom({bool animate = true}) {
     if (_scrollScheduled) return;
@@ -436,17 +717,31 @@ class _AssistantPageState extends State<AssistantPage> {
     }
   }
 
-  Future<void> _openHistory() => Navigator.of(context).push<void>(
-    MaterialPageRoute(
-      builder: (_) => AssistantHistoryPage(controller: widget.controller),
-    ),
-  );
+  Future<void> _openHistory() async {
+    if (_recordingVoice) {
+      _recordingVoice = false;
+      await _voice?.cancel();
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => AssistantHistoryPage(controller: widget.controller),
+      ),
+    );
+  }
 
-  Future<void> _openSettings() => Navigator.of(context).push<void>(
-    MaterialPageRoute(
-      builder: (_) => AssistantSettingsPage(controller: widget.controller),
-    ),
-  );
+  Future<void> _openSettings() async {
+    if (_recordingVoice) {
+      _recordingVoice = false;
+      await _voice?.cancel();
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => AssistantSettingsPage(controller: widget.controller),
+      ),
+    );
+  }
 
   void _openReference(String type, String id) {
     if (type == 'goal') {
@@ -488,6 +783,7 @@ class _ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: AppColors.errorSoft,
+    borderRadius: BorderRadius.circular(16),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -523,13 +819,14 @@ class _CredentialBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: AppColors.accentSoft,
+    borderRadius: BorderRadius.circular(16),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
         children: [
           Expanded(
             child: Text(
-              '配置模型后即可对话；本地快捷查询仍可使用',
+              '配置模型后可创建、修改和安排任务；本地快捷查询仍可使用',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),
@@ -541,7 +838,12 @@ class _CredentialBanner extends StatelessWidget {
 }
 
 class _Welcome extends StatelessWidget {
-  const _Welcome({required this.onLocalSchedule, required this.onPrompt});
+  const _Welcome({
+    required this.persona,
+    required this.onLocalSchedule,
+    required this.onPrompt,
+  });
+  final AssistantPersona persona;
   final Future<void> Function() onLocalSchedule;
   final ValueChanged<String> onPrompt;
 
@@ -551,7 +853,7 @@ class _Welcome extends StatelessWidget {
     child: Column(
       children: [
         const AppIllustration(
-          asset: 'assets/illustrations/day-plan.png',
+          asset: 'assets/illustrations/assistant-notebook.png',
           width: 160,
           height: 136,
         ),
@@ -563,7 +865,13 @@ class _Welcome extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '对话负责理解意图，卡片负责修改与确认；保存结果都能回到真实任务或目标。',
+          '${persona.name} · ${persona.role.label} · ${persona.replyStyle.label}',
+          style: Theme.of(context).textTheme.bodySmall,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '创建目标、拆解大纲、安排任务、改期和执行都可以直接告诉我；操作按权限确认，结果关联真实记录。',
           style: Theme.of(context).textTheme.bodyMedium,
           textAlign: TextAlign.center,
         ),
@@ -581,11 +889,35 @@ class _Welcome extends StatelessWidget {
             ),
             ActionChip(
               label: const Text('帮我安排今天'),
-              onPressed: () => onPrompt('看看今天的安排，给我下一步建议。'),
+              onPressed: () => onPrompt(
+                '先看看今天已有的安排，结合我的目标，帮我提出一份今天的任务计划。可用时间不明确时先问我，用计划卡集中展示新建或改期的任务。',
+              ),
             ),
             ActionChip(
               label: const Text('创建一个任务'),
               onPressed: () => onPrompt('创建一个任务：'),
+            ),
+            ActionChip(
+              key: const Key('assistant-outline-prompt'),
+              avatar: const Icon(Icons.account_tree_outlined, size: 18),
+              label: const Text('拆解学习目标'),
+              onPressed: () =>
+                  onPrompt('我想创建一个学习目标，并拆成分层大纲：\n目标：\n目前基础：\n希望达到的结果：'),
+            ),
+            ActionChip(
+              key: const Key('assistant-retry-prompt'),
+              avatar: const Icon(Icons.replay_outlined, size: 18),
+              label: const Text('复盘并重新安排'),
+              onPressed: () => onPrompt(
+                '请先查找我想复盘的已结束或已取消任务，读取真实执行和失败记录，帮我分析改进点；确认任务和新日期后，创建关联的新尝试，保留原记录。\n任务名称：\n新安排：',
+              ),
+            ),
+            ActionChip(
+              key: const Key('assistant-adjust-prompt'),
+              label: const Text('调整一组安排'),
+              onPressed: () => onPrompt(
+                '请先核对相关任务与日期安排，帮我用一份可编辑计划卡集中调整，保留未调整任务。\n需要调整的任务：\n可用日期和时间：',
+              ),
             ),
           ],
         ),
@@ -603,7 +935,7 @@ class _LocalScheduleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final missions = controller.localSchedule!;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.zero,
       child: AppSectionCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -658,8 +990,13 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final text = message.content
+        .whereType<TextBlock>()
+        .where((block) => AssistantAttachment.textFile(block) == null)
+        .map((block) => block.text)
+        .join('\n');
     return Padding(
-      padding: EdgeInsets.only(top: isUser ? 12 : 4, bottom: 8),
+      padding: EdgeInsets.only(top: isUser ? 8 : 0),
       child: LayoutBuilder(
         builder: (context, constraints) => Align(
           alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -685,14 +1022,58 @@ class _MessageBubble extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (message.text.isNotEmpty)
+                    if (text.isNotEmpty)
                       if (!isUser)
-                        AssistantMarkdown(text: message.text)
+                        AssistantMarkdown(text: text)
                       else
                         SelectableText(
-                          message.text,
+                          text,
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: colors.onPrimary, height: 1.5),
+                        ),
+                    for (final block in message.content)
+                      if (AssistantAttachment.textFile(block) case final file?)
+                        Theme(
+                          data: Theme.of(
+                            context,
+                          ).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            tilePadding: EdgeInsets.zero,
+                            textColor: isUser
+                                ? colors.onPrimary
+                                : colors.onSurface,
+                            collapsedTextColor: isUser
+                                ? colors.onPrimary
+                                : colors.onSurface,
+                            iconColor: isUser
+                                ? colors.onPrimary
+                                : colors.onSurface,
+                            collapsedIconColor: isUser
+                                ? colors.onPrimary
+                                : colors.onSurface,
+                            title: Text(file.name),
+                            leading: Icon(
+                              Icons.description_outlined,
+                              color: isUser ? colors.onPrimary : colors.primary,
+                            ),
+                            children: [
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxHeight: 240,
+                                ),
+                                child: SingleChildScrollView(
+                                  child: SelectableText(
+                                    file.text,
+                                    style: TextStyle(
+                                      color: isUser
+                                          ? colors.onPrimary
+                                          : colors.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                     for (final block in message.content.whereType<ImageBlock>())
                       Padding(
@@ -741,7 +1122,39 @@ class _MessageImage extends StatelessWidget {
       final bytes = base64Decode(block.url.split(',').last);
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Image.memory(bytes, width: 240, fit: BoxFit.contain),
+        child: InkWell(
+          onTap: () => showDialog<void>(
+            context: context,
+            builder: (context) => Dialog(
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: InteractiveViewer(
+                      child: Image.memory(bytes, fit: BoxFit.contain),
+                    ),
+                  ),
+                  Positioned(
+                    right: 4,
+                    top: 4,
+                    child: IconButton(
+                      tooltip: '关闭图片',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          child: Image.memory(
+            bytes,
+            width: 240,
+            cacheWidth: 480,
+            fit: BoxFit.contain,
+            errorBuilder: (_, error, stack) => const Text('图片无法解码'),
+          ),
+        ),
       );
     }
     if (block.url.startsWith('http')) {

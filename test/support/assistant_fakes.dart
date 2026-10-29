@@ -9,6 +9,10 @@ class MemoryAssistantSettingsStore implements AssistantSettingsStore {
   String? customCredential;
   ModelProfile? customProfile;
   bool autoApprove = false;
+  AssistantPermissionMode? permissionMode;
+  AssistantSpeechSettings speech = const AssistantSpeechSettings();
+  String? transcriptionCredential;
+  AssistantPersona persona = const AssistantPersona();
 
   @override
   Future<AssistantSettings> load() async => AssistantSettings(
@@ -20,20 +24,45 @@ class MemoryAssistantSettingsStore implements AssistantSettingsStore {
     customProfile: customProfile,
     modelProfileId: profileId,
     autoApproveWrites: autoApprove,
+    permissionMode: permissionMode,
+    speech: speech,
+    hasTranscriptionCredential: transcriptionCredential != null,
+    persona: persona,
   );
 
   @override
   Future<String?> resolveCredential(String credentialKey) async =>
-      credentialKey == 'MISSIONBOOK_CUSTOM_API_KEY'
+      credentialKey == 'MISSIONBOOK_TRANSCRIPTION_API_KEY'
+      ? transcriptionCredential
+      : credentialKey == 'MISSIONBOOK_CUSTOM_API_KEY'
       ? customCredential
       : credential;
 
   @override
-  Future<void> saveAutoApproveWrites(bool value) async => autoApprove = value;
+  Future<void> saveAutoApproveWrites(bool value) async {
+    autoApprove = value;
+    permissionMode = null;
+  }
+
+  @override
+  Future<void> savePermissionMode(AssistantPermissionMode mode) async =>
+      permissionMode = mode;
+
+  @override
+  Future<void> saveSpeechSettings(AssistantSpeechSettings settings) async =>
+      speech = settings;
+
+  @override
+  Future<void> savePersona(AssistantPersona value) async {
+    value.validate();
+    persona = value;
+  }
 
   @override
   Future<void> saveCredential(String credentialKey, String value) async {
-    if (credentialKey == 'MISSIONBOOK_CUSTOM_API_KEY') {
+    if (credentialKey == 'MISSIONBOOK_TRANSCRIPTION_API_KEY') {
+      transcriptionCredential = value.trim().isEmpty ? null : value.trim();
+    } else if (credentialKey == 'MISSIONBOOK_CUSTOM_API_KEY') {
       customCredential = value.trim().isEmpty ? null : value.trim();
     } else {
       credential = value.trim().isEmpty ? null : value.trim();

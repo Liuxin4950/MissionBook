@@ -8,13 +8,18 @@ import 'package:uuid/uuid.dart';
 import '../../domain/entities/execution_command.dart';
 import '../../domain/entities/execution_plan.dart';
 import '../../domain/entities/goal.dart';
+import '../../domain/entities/mission.dart';
+import '../../domain/entities/mission_phase.dart';
 import '../../domain/entities/goal_node.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/mission_detail.dart';
+import '../../domain/entities/mission_plan.dart';
 import '../../domain/entities/mission_ownership.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../goals/goal_service.dart';
 import 'assistant_reader.dart';
+import 'assistant_plan.dart';
+import 'assistant_goal_outline.dart';
 import '../missions/mission_service.dart';
 
 class PreparedToolCall {
@@ -42,7 +47,43 @@ class AssistantTools {
        _resolveCall = resolveCall,
        _clock = clock ?? DateTime.now,
        _location = tz.getLocation(timeZone) {
+    _plans = AssistantPlanService(
+      missions: missions,
+      clock: _clock,
+      timeZone: timeZone,
+    );
     _tools = [
+      _tool(
+        'goal_outline_create',
+        '一次创建新目标及1–20个分层大纲节点，最多4层。整份可编辑、删除子树并按权限一次确认，全部成功或全部回滚。适用于把新学习目标拆成阶段；不用于向已有目标追加，不创建任务、不标记掌握。随后按用户时间使用 mission_plan 安排任务。',
+        AssistantGoalOutline.schema,
+        _createGoalOutline,
+      ),
+      _tool(
+        'mission_retry',
+        '从已结束或已取消任务创建新的再次尝试，保留来源关联、归属、材料策略和原始记录。先用 mission_query 核对来源，询问新日期；强制材料需用户提供本次新截止，不复制旧截止。不把原任务改回未开始。',
+        _schema(
+          {
+            'missionId': _string('来源任务稳定编号'),
+            'scheduledDate': _string('新尝试日期 YYYY-MM-DD'),
+            'plannedMinutes': _integer('计划分钟，省略沿用来源'),
+            'title': _string('新尝试名称，省略沿用来源'),
+            'objective': _string('改进后的具体目标，省略沿用来源'),
+            'steps': _stringArray('改进后的完整步骤，省略沿用来源'),
+            'notes': _string('新备注，省略沿用来源'),
+            'fixedStartLocal': _string('可选 HH:mm；省略为自选'),
+            'evidenceDeadlineLocal': _string('仅强制材料必填 YYYY-MM-DD HH:mm，应用时区'),
+          },
+          required: ['missionId', 'scheduledDate'],
+        ),
+        _retryMission,
+      ),
+      _tool(
+        'mission_plan',
+        '集中安排或改期 1–20 项任务，先查真实任务和相关日期安排。整份计划可编辑、移除条目；冲突时整份零写入，成功后返回每项真实结果。多个任务优先用本工具，不能逐项创建绕过整份计划确认。',
+        AssistantPlanService.schema,
+        _applyPlan,
+      ),
       _tool(
         'schedule_query',
         '查询指定日期的真实任务快照。日期省略时使用宿主今天；不会触发材料截止补算。',
@@ -315,10 +356,14 @@ class AssistantTools {
   final DateTime Function() _clock;
   final tz.Location _location;
   late final List<AgentTool> _tools;
+  late final AssistantPlanService _plans;
 
   List<AgentTool> get tools => List.unmodifiable(_tools);
 
   static const writeToolNames = {
+    'goal_outline_create',
+    'mission_retry',
+    'mission_plan',
     'mission_create',
     'mission_reschedule',
     'mission_update',
@@ -335,6 +380,21 @@ class AssistantTools {
     Map<String, Object?> input,
   ) async {
     if (!writeToolNames.contains(toolName)) return PreparedToolCall(input);
+    if (toolName == 'mission_plan') {
+      try {
+        final draft = await _plans.prepare(input);
+        final prepared = PreparedToolCall(
+          draft.input,
+          snapshot: {'planOriginals': draft.originals},
+        );
+        prepared.snapshot['planConflicts'] = await previewPlan(prepared);
+        return prepared;
+      } on ArgumentError catch (error) {
+        throw ToolRejected('invalid_plan', '${error.message}');
+      } on StateError catch (error) {
+        throw ToolRejected('invalid_plan', '$error');
+      }
+    }
     if (toolName == 'goal_update') {
       final goal = await _goals.findById(input['goalId'] as String);
       if (goal == null) throw const ToolRejected('not_found', '目标不存在');
@@ -353,11 +413,37 @@ class AssistantTools {
     }
     if (toolName == 'mission_reschedule' ||
         toolName == 'mission_update' ||
-        toolName == 'mission_execute') {
+        toolName == 'mission_execute' ||
+        toolName == 'mission_retry') {
       final detail = await _missions.findDetailSnapshot(
         missionId: input['missionId'] as String,
       );
       if (detail == null) throw const ToolRejected('not_found', '任务不存在，请刷新后重试');
+      if (toolName == 'mission_retry') {
+        if (detail.phase != MissionPhase.closed &&
+            detail.phase != MissionPhase.cancelled) {
+          throw const ToolRejected('retry_rejected', '只能从已结束或已取消任务创建新尝试');
+        }
+        if (detail.mission.verificationPolicy ==
+                VerificationPolicy.requiredEvidence &&
+            input['evidenceDeadlineLocal'] == null) {
+          throw const ToolRejected(
+            'deadline_required',
+            '请先询问用户本次尝试的新材料截止时间，不沿用旧截止',
+          );
+        }
+        return PreparedToolCall(
+          {
+            ...input,
+            'title': input['title'] ?? detail.mission.title,
+            'objective': input['objective'] ?? detail.executionPlan.objective,
+            'plannedMinutes':
+                input['plannedMinutes'] ??
+                detail.schedule.plannedDurationMinutes,
+          },
+          snapshot: {'detail': detail},
+        );
+      }
       if (toolName == 'mission_reschedule' || toolName == 'mission_update') {
         final originalStart = detail.schedule.fixedStartAt;
         final localStart = originalStart == null
@@ -396,6 +482,10 @@ class AssistantTools {
     if (tool == null) return '未知工具：$toolName';
     final schemaError = tool.validateInput(input);
     if (schemaError != null) return schemaError;
+    if (toolName == 'mission_plan') return AssistantPlanService.validate(input);
+    if (toolName == 'goal_outline_create') {
+      return AssistantGoalOutline.validate(input);
+    }
     try {
       if (input['scheduledDate'] is String) {
         validateScheduledDate(input['scheduledDate'] as String);
@@ -406,6 +496,9 @@ class AssistantTools {
         }
       }
       if (input['fixedStartLocal'] != null) _fixedStart(input);
+      if (input['evidenceDeadlineLocal'] != null) {
+        _evidenceDeadline(input['evidenceDeadlineLocal'] as String);
+      }
       if (input['timePolicy'] == 'FIXED' && input['fixedStartLocal'] == null) {
         return '固定时间需要填写开始时刻';
       }
@@ -425,11 +518,17 @@ class AssistantTools {
   }) async {
     const uuid = Uuid();
     switch (toolName) {
+      case 'mission_plan':
+        final receipt = await _missions.findOperationReceipt(idempotencyKey);
+        return receipt?.kind == 'mission_plan'
+            ? ToolOutput.success(receipt!.resultJson)
+            : null;
       case 'goal_update':
       case 'goal_node_update':
         final receipt = await _missions.findOperationReceipt(idempotencyKey);
         return receipt == null ? null : ToolOutput.success(receipt.resultJson);
       case 'mission_create':
+      case 'mission_retry':
         final missionId = uuid.v5(
           Namespace.url.value,
           '$idempotencyKey:mission',
@@ -463,6 +562,7 @@ class AssistantTools {
           'missionId': receipt!.entityId,
         });
       case 'goal_create':
+      case 'goal_outline_create':
         final goalId = uuid.v5(Namespace.url.value, '$idempotencyKey:goal');
         final goal = await _goals.findById(goalId);
         if (goal == null) return null;
@@ -471,6 +571,9 @@ class AssistantTools {
           'operation': toolName,
           'goalId': goal.id,
           'title': goal.title,
+          'references': [
+            {'type': 'goal', 'id': goal.id, 'title': goal.title},
+          ],
         });
       case 'goal_node_create':
         final nodeId = uuid.v5(Namespace.url.value, '$idempotencyKey:node');
@@ -484,6 +587,36 @@ class AssistantTools {
         });
       default:
         return null;
+    }
+  }
+
+  Future<List<MissionPlanConflict>> previewPlan(PreparedToolCall prepared) =>
+      _plans.preview(
+        prepared.input,
+        prepared.snapshot['planOriginals'] as Map<String, MissionDetail>,
+      );
+
+  Future<ToolOutput> _applyPlan(
+    Map<String, Object?> input,
+    ToolContext context,
+  ) async {
+    final prepared = _call(context, input);
+    try {
+      final plan = _plans.build(
+        prepared.input,
+        prepared.snapshot['planOriginals'] as Map<String, MissionDetail>,
+        context.idempotencyKey,
+      );
+      final receipt = await _missions.applyPlan(plan);
+      return ToolOutput.success(receipt.resultJson);
+    } on MissionPlanConflictException catch (error) {
+      throw ToolRejected('plan_conflict', '整份计划未保存：$error');
+    } on MissionEditConflict catch (error) {
+      throw ToolRejected('plan_changed', '整份计划未保存：$error');
+    } on ArgumentError catch (error) {
+      throw ToolRejected('invalid_plan', '整份计划未保存：${error.message}');
+    } on StateError catch (error) {
+      throw ToolRejected('plan_rejected', '整份计划未保存：$error');
     }
   }
 
@@ -688,6 +821,122 @@ class AssistantTools {
     );
     if (saved == null) throw StateError('创建提交后未能读取任务');
     return _missionResult('mission_create', saved);
+  }
+
+  Future<ToolOutput> _createGoalOutline(
+    Map<String, Object?> input,
+    ToolContext context,
+  ) async {
+    final values = _call(context, input).input;
+    final recovered = await recoverOutcome(
+      toolName: 'goal_outline_create',
+      idempotencyKey: context.idempotencyKey,
+      input: values,
+    );
+    if (recovered != null) return recovered;
+    final request = _prepareWithoutWrite(
+      () => _goals.prepareOutlineImport(
+        AssistantGoalOutline.parse(values),
+        requestId: context.idempotencyKey,
+      ),
+    );
+    try {
+      // 复用目标导入的单一事务，不逐个创建节点造成半份大纲。
+      await _goals.importOutline(request);
+    } catch (error) {
+      final saved = await recoverOutcome(
+        toolName: 'goal_outline_create',
+        idempotencyKey: context.idempotencyKey,
+        input: values,
+      );
+      if (saved != null) return saved;
+      if (error is ArgumentError || error is StateError) {
+        throw ToolRejected('outline_rejected', '$error');
+      }
+      rethrow;
+    }
+    return _success({
+      'ok': true,
+      'operation': 'goal_outline_create',
+      'goalId': request.goal.id,
+      'title': request.goal.title,
+      'nodeCount': request.nodes.length,
+      'references': [
+        {'type': 'goal', 'id': request.goal.id, 'title': request.goal.title},
+      ],
+    });
+  }
+
+  Future<ToolOutput> _retryMission(
+    Map<String, Object?> input,
+    ToolContext context,
+  ) async {
+    final prepared = _call(context, input);
+    final values = prepared.input;
+    final source = prepared.snapshot['detail'] as MissionDetail;
+    final request = _prepareWithoutWrite(
+      () => _missions.prepareCreation(
+        title: values['title'] as String,
+        scheduledDate: values['scheduledDate'] as String,
+        timeZone: _location.name,
+        plannedDurationMinutes: values['plannedMinutes'] as int,
+        timePolicy: values['fixedStartLocal'] == null
+            ? TimePolicy.flexible
+            : TimePolicy.fixed,
+        fixedStartAt: _fixedStart(values),
+        retrySource: source,
+        ownership: source.mission.ownership,
+        objective: values['objective'] as String,
+        steps: values.containsKey('steps')
+            ? _stringList(values['steps'])
+            : null,
+        notes: values['notes'] as String?,
+        description: source.mission.description,
+        why: source.mission.why,
+        verificationPolicy: source.mission.verificationPolicy,
+        verificationCriteria: source.executionPlan.verificationCriteria,
+        evidenceDeadlineAt: values['evidenceDeadlineLocal'] == null
+            ? null
+            : _evidenceDeadline(values['evidenceDeadlineLocal'] as String),
+        requestId: context.idempotencyKey,
+      ),
+    );
+    try {
+      await _missions.createPrepared(request);
+    } catch (error) {
+      final saved = await _missions.findDetailSnapshot(
+        missionId: request.mission.id,
+      );
+      if (saved != null) return _missionResult('mission_retry', saved);
+      if (error is ArgumentError || error is StateError) {
+        throw ToolRejected('retry_rejected', '$error');
+      }
+      rethrow;
+    }
+    final saved = await _missions.findDetailSnapshot(
+      missionId: request.mission.id,
+    );
+    if (saved == null) throw StateError('新尝试保存后未能读取，请核对结果');
+    return _missionResult('mission_retry', saved);
+  }
+
+  DateTime _evidenceDeadline(String value) {
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$').hasMatch(value)) {
+      throw ArgumentError('材料截止格式应为 YYYY-MM-DD HH:mm');
+    }
+    final parts = value.split(' ');
+    validateScheduledDate(parts[0]);
+    final date = parts[0].split('-').map(int.parse).toList();
+    final time = parts[1].split(':').map(int.parse).toList();
+    if (time[0] > 23 || time[1] > 59) throw ArgumentError('材料截止时刻无效');
+    return tz.TZDateTime(
+      _location,
+      date[0],
+      date[1],
+      date[2],
+      time[0],
+      time[1],
+    ).toUtc();
   }
 
   Future<ToolOutput> _rescheduleMission(
@@ -994,6 +1243,17 @@ class AssistantTools {
     'id': detail.mission.id,
     'goalId': detail.mission.goalId,
     'nodeId': detail.mission.goalNodeId,
+    'sourceMissionId': detail.mission.sourceMissionId,
+    'verificationPolicy': detail.mission.verificationPolicy.name,
+    'verificationCriteria': _preview(
+      detail.executionPlan.verificationCriteria,
+      500,
+    ),
+    'verificationCriteriaLength':
+        detail.executionPlan.verificationCriteria?.length ?? 0,
+    'evidenceDeadlineAt': detail.schedule.evidenceDeadlineAt
+        ?.toUtc()
+        .toIso8601String(),
     'timeZone': detail.schedule.timeZone,
     'title': _preview(detail.mission.title, 120),
     'objective': _preview(detail.executionPlan.objective, 500),

@@ -17,6 +17,9 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
   static const _customProfileKey = 'assistant_custom_profile';
   static const _modelProfileKey = 'assistant_model_profile';
   static const _autoApproveKey = 'assistant_auto_approve_writes';
+  static const _permissionKey = 'assistant_permission_mode';
+  static const _speechKey = 'assistant_speech_settings';
+  static const _personaKey = 'assistant_persona';
   final FlutterSecureStorage _storage;
 
   @override
@@ -31,17 +34,43 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
           );
     final customKey = await resolveCredential('MISSIONBOOK_CUSTOM_API_KEY');
     final autoApprove = await _storage.read(key: _autoApproveKey);
+    final permission = await _storage.read(key: _permissionKey);
+    final speechJson = await _storage.read(key: _speechKey);
+    final speech = speechJson == null
+        ? <String, dynamic>{}
+        : jsonDecode(speechJson) as Map<String, dynamic>;
+    final personaJson = await _storage.read(key: _personaKey);
     return AssistantSettings(
       hasCredential: profile == 'custom' ? customKey != null : apiKey != null,
       hasDeepSeekCredential: apiKey != null,
       hasCustomCredential: customKey != null,
       customProfile: custom,
+      persona: personaJson == null
+          ? const AssistantPersona()
+          : AssistantPersona.fromJson(
+              Map<String, Object?>.from(jsonDecode(personaJson) as Map),
+            ),
+      hasTranscriptionCredential:
+          await resolveCredential('MISSIONBOOK_TRANSCRIPTION_API_KEY') != null,
+      speech: AssistantSpeechSettings(
+        useTranscription: speech['useTranscription'] == true,
+        endpoint: speech['endpoint'] as String? ?? '',
+        model: speech['model'] as String? ?? '',
+      ),
       modelProfileId: profile == 'custom' && custom != null
           ? 'custom'
           : profile == 'deepseek'
           ? 'deepseek'
           : 'deepseek-chat',
-      autoApproveWrites: autoApprove == 'true',
+      permissionMode:
+          AssistantPermissionMode.values
+              .where((mode) => mode.name == permission)
+              .firstOrNull ??
+          (autoApprove == 'true'
+              ? AssistantPermissionMode.full
+              : autoApprove == 'false'
+              ? AssistantPermissionMode.relaxed
+              : AssistantPermissionMode.standard),
     );
   }
 
@@ -50,6 +79,7 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
     if (![
       'DEEPSEEK_API_KEY',
       'MISSIONBOOK_CUSTOM_API_KEY',
+      'MISSIONBOOK_TRANSCRIPTION_API_KEY',
     ].contains(credentialKey)) {
       return null;
     }
@@ -63,6 +93,7 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
     if (![
       'DEEPSEEK_API_KEY',
       'MISSIONBOOK_CUSTOM_API_KEY',
+      'MISSIONBOOK_TRANSCRIPTION_API_KEY',
     ].contains(credentialKey)) {
       throw ArgumentError('未知凭据标识：$credentialKey');
     }
@@ -97,6 +128,32 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
 
   @override
   Future<void> saveAutoApproveWrites(bool value) async {
-    await _storage.write(key: _autoApproveKey, value: '$value');
+    await savePermissionMode(
+      value ? AssistantPermissionMode.full : AssistantPermissionMode.relaxed,
+    );
+  }
+
+  @override
+  Future<void> savePermissionMode(AssistantPermissionMode mode) async {
+    await _storage.write(key: _permissionKey, value: mode.name);
+  }
+
+  @override
+  Future<void> saveSpeechSettings(AssistantSpeechSettings settings) async {
+    settings.validate();
+    await _storage.write(
+      key: _speechKey,
+      value: jsonEncode({
+        'useTranscription': settings.useTranscription,
+        'endpoint': settings.endpoint,
+        'model': settings.model,
+      }),
+    );
+  }
+
+  @override
+  Future<void> savePersona(AssistantPersona persona) async {
+    persona.validate();
+    await _storage.write(key: _personaKey, value: jsonEncode(persona.toJson()));
   }
 }

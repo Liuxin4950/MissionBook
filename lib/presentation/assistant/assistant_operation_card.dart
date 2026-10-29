@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import '../../application/assistant/assistant_controller.dart';
 import '../../core/theme/colors.dart';
 import '../../domain/entities/mission.dart';
+import 'assistant_plan_card.dart';
+import 'assistant_outline_editor.dart';
+import '../../application/assistant/assistant_goal_outline.dart';
 
 class AssistantOperationCard extends StatefulWidget {
   const AssistantOperationCard({
@@ -28,7 +31,57 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
   @override
   Widget build(BuildContext context) {
     final operation = widget.operation;
+    if (operation.toolName == 'mission_plan') {
+      return AssistantPlanCard(
+        controller: widget.controller,
+        operation: operation,
+        onOpenReference: widget.onOpenReference,
+      );
+    }
     if (!operation.isWrite) {
+      if (operation.status == AssistantOperationStatus.waitingConfirmation) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Header(operation: operation),
+                  const SizedBox(height: 8),
+                  const Text('默认权限下，查询应用数据也需要你确认。查询结果会提供给当前模型。'),
+                  if (operation.input.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        jsonEncode(operation.input),
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    children: [
+                      TextButton(
+                        onPressed: () =>
+                            widget.controller.cancelProposal(operation.callId),
+                        child: const Text('取消'),
+                      ),
+                      FilledButton(
+                        onPressed: () =>
+                            widget.controller.confirmProposal(operation.callId),
+                        child: const Text('允许查询'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
       return _ReadResultCard(
         operation: operation,
         onOpenReference: widget.onOpenReference,
@@ -150,6 +203,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
       'description': '说明',
       'why': '为什么',
       'notes': '备注',
+      'evidenceDeadlineLocal': '材料截止',
     };
     for (final entry in operation.input.entries) {
       final label = labels[entry.key];
@@ -167,6 +221,29 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
     }
     if (operation.toolName == 'mission_cancel') {
       rows.add(('影响', '保留排期和方案；不新增执行或失败事实'));
+    }
+    if (operation.toolName == 'mission_retry') {
+      rows.add(('影响', '创建关联的新尝试，保留原任务的结果、记录及材料要求'));
+    }
+    if (operation.toolName == 'goal_outline_create') {
+      final nodes = AssistantGoalOutline.rows(operation.input);
+      final paths = <String, String>{};
+      final counts = <String?, int>{};
+      for (final node in nodes) {
+        final parent = node['parentKey'] as String?;
+        final number = counts.update(
+          parent,
+          (value) => value + 1,
+          ifAbsent: () => 1,
+        );
+        final path = parent == null ? '$number' : '${paths[parent]}.$number';
+        paths[node['key'] as String] = path;
+        rows.add((
+          path,
+          '${node['title']}${node['description'] == null || node['description'] == '' ? '' : '\n${node['description']}'}',
+        ));
+      }
+      rows.add(('保存范围', '新建1个目标、${nodes.length}个大纲节点；不创建任务或标记掌握'));
     }
     return [
       for (final row in rows)
@@ -472,6 +549,18 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
         'plannedMinutes',
         'fixedStartLocal',
       },
+      'mission_retry' => {
+        'title',
+        'scheduledDate',
+        'plannedMinutes',
+        'fixedStartLocal',
+        'objective',
+        'steps',
+        'notes',
+        if (widget.operation.missionBefore?.mission.verificationPolicy ==
+            VerificationPolicy.requiredEvidence)
+          'evidenceDeadlineLocal',
+      },
       'goal_create' || 'goal_update' => {'title', 'description', 'why'},
       'goal_node_create' || 'goal_node_update' => {'title', 'description'},
       'mission_execute' => {
@@ -499,6 +588,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
         'description',
         'why',
         'notes',
+        'evidenceDeadlineLocal',
       ])
         key: TextEditingController(text: _textValue(_draft[key])),
     };
@@ -515,12 +605,20 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
   @override
   Widget build(BuildContext context) {
     final tool = widget.operation.toolName;
+    if (tool == 'goal_outline_create') {
+      return AssistantOutlineEditor(
+        input: widget.operation.input,
+        onSave: widget.onSave,
+        onCancel: widget.onCancel,
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if ([
           'mission_create',
           'mission_update',
+          'mission_retry',
           'goal_create',
           'goal_update',
           'goal_node_create',
@@ -531,16 +629,23 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
           'mission_create',
           'mission_update',
           'mission_reschedule',
+          'mission_retry',
         ].contains(tool)) ...[
           _field('scheduledDate', '日期 YYYY-MM-DD'),
           _field('plannedMinutes', '计划分钟数', keyboardType: TextInputType.number),
           _field('fixedStartLocal', '固定开始 HH:mm（留空为自选）'),
         ],
-        if (tool == 'mission_create' || tool == 'mission_update') ...[
+        if (tool == 'mission_create' ||
+            tool == 'mission_update' ||
+            tool == 'mission_retry') ...[
           _field('objective', '具体目标'),
           _field('steps', '行动步骤，每行一步', maxLines: 4),
           _field('notes', '备注（可留空）', maxLines: 3),
         ],
+        if (tool == 'mission_retry' &&
+            widget.operation.missionBefore?.mission.verificationPolicy ==
+                VerificationPolicy.requiredEvidence)
+          _field('evidenceDeadlineLocal', '新材料截止 YYYY-MM-DD HH:mm'),
         if (tool == 'mission_reschedule' || tool == 'mission_update')
           _choice('timePolicy', '时间方式', const ['FLEXIBLE', 'FIXED']),
         if (tool == 'mission_execute') ...[
@@ -673,7 +778,10 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
         _draft[key] = text;
       }
     }
-    if (widget.operation.toolName != 'mission_create' &&
+    if ([
+          'mission_reschedule',
+          'mission_update',
+        ].contains(widget.operation.toolName) &&
         _touched.contains('fixedStartLocal') &&
         _controllers['fixedStartLocal']!.text.trim().isEmpty) {
       _draft['timePolicy'] = 'FLEXIBLE';
@@ -706,6 +814,8 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
 }
 
 String _toolLabel(String name) => switch (name) {
+  'goal_outline_create' => '创建目标与分层大纲',
+  'mission_retry' => '安排新的尝试',
   'schedule_query' => '查看日期安排',
   'mission_query' => '读取任务详情',
   'goal_list' => '查看目标列表',

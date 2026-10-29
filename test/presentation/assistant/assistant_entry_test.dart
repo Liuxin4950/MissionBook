@@ -264,6 +264,34 @@ void main() {
     expect(condition(), isTrue);
   }
 
+  assistantTest('角色名称、回答风格和图标可以在设置里修改并保存', (tester) async {
+    await mount(tester, ScriptedModel([]), width: 1106);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: AssistantSettingsPage(controller: assistant),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-persona-section')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('assistant-persona-name')),
+      '小书',
+    );
+    await tester.tap(find.byKey(const Key('assistant-reply-style')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('耐心讲解').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, '书页'));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('assistant-save-settings')));
+    await pumpUntil(tester, () => assistant.persona.name == '小书');
+    expect(assistant.persona.replyStyle, AssistantReplyStyle.explanatory);
+    expect(assistant.persona.avatar, AssistantAvatar.book);
+    expect(tester.takeException(), isNull);
+  });
+
   assistantTest('文字在独立二级路由引用当前任务，返回保留原页面草稿和展开', (tester) async {
     await mount(tester, ScriptedModel([]));
     await tester.enterText(
@@ -641,6 +669,10 @@ void main() {
       height: 800,
       shell: true,
     );
+    expect(
+      tester.getCenter(find.byKey(const Key('assistant-launcher'))).dy,
+      greaterThan(700),
+    );
     await tester.tap(find.byKey(const Key('assistant-launcher')));
     await tester.pumpAndSettle();
     expect(tester.getRect(find.text('文字')).left, greaterThan(192));
@@ -670,7 +702,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byKey(const Key('assistant-composer'))).width,
-      1120,
+      960,
     );
     expect(
       tester

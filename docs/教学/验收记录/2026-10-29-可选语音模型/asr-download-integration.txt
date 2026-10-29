@@ -1,0 +1,34 @@
+Flutter assets will be downloaded from https://storage.flutter-io.cn. Make sure you trust this source!
+00:00 +0: loading E:/working/mission_book/integration_test/speech_engine_test.dart
+Running Gradle task 'assembleDebug'...
+WARNING: Your Android app project: app located at: E:\working\mission_book\android\app\build.gradle.kts
+applies the Kotlin Gradle Plugin, which will cause build failures in future versions of Flutter.
+Please migrate your app to Built-in Kotlin using this guide: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers
+
+WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): record_android
+Future versions of Flutter will fail to build if your app uses plugins that apply KGP.
+
+Please check the changelogs of these plugins and upgrade to a version that supports Built-in Kotlin.
+If no such version exists, report the issue to the plugin. If necessary, here is a guide on filing
+an issue against a plugin: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers#report-incompatible-kotlin-gradle-plugin-usage-to-plugin-authors
+
+If you are a plugin author, please migrate your plugin to Built-in Kotlin using this guide: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
+Flutter assets will be downloaded from https://storage.flutter-io.cn. Make sure you trust this source!
+Running Gradle task 'assembleDebug'...                             14.6s
+√ Built build\app\outputs\flutter-apk\app-debug.apk
+Installing build\app\outputs\flutter-apk\app-debug.apk...        2,651ms
+00:00 +0: SenseVoice 本地模型识别官方中文样例
+ASR_DOWNLOAD_BYTES=33557128/239549735
+ASR_DOWNLOAD_BYTES=67119751/239549735
+ASR_DOWNLOAD_BYTES=100674185/239549735
+ASR_DOWNLOAD_BYTES=134236808/239549735
+ASR_DOWNLOAD_BYTES=167796036/239549735
+ASR_DOWNLOAD_BYTES=201350470/239549735
+ASR_DOWNLOAD_BYTES=234913093/239549735
+ASR_DOWNLOAD_BYTES=239549735/239549735
+ASR_DOWNLOAD_MS=100356
+ASR_RESULT=开饭时间早上9点至下午5点。
+ASR_PREPARE_MS=932
+ASR_DECODE_MS=219
+01:41 +1: (tearDownAll)
+01:41 +1: All tests passed!

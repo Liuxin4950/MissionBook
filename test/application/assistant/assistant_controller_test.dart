@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:mission_book/application/assistant/assistant_attachment.dart';
 
 import 'package:agent_core/agent_core.dart';
 import 'package:drift/native.dart';
@@ -81,6 +85,43 @@ void main() {
     throw StateError('等待助手状态超时');
   }
 
+  test('角色与风格实际进入模型请求，修改后已有会话与重开会话都生效', () async {
+    final model = ScriptedModel([
+      (_) => textResponse('你好'),
+      (_) => textResponse('继续'),
+      (_) => textResponse('已恢复'),
+    ]);
+    final assistant = makeController(model);
+    await assistant.initialize();
+    await assistant.send('你好');
+    final first = assistant.currentSessionId!;
+    final permission = assistant.permissionMode;
+    await assistant.savePersona(
+      const AssistantPersona(
+        name: '小书',
+        role: AssistantRole.coach,
+        replyStyle: AssistantReplyStyle.explanatory,
+        avatar: AssistantAvatar.book,
+      ),
+    );
+    await assistant.send('讲讲事务');
+    expect(model.requests.last.systemPrompt, contains('小书'));
+    expect(
+      model.requests.last.systemPrompt,
+      contains(AssistantRole.coach.instruction),
+    );
+    expect(
+      model.requests.last.systemPrompt,
+      contains(AssistantReplyStyle.explanatory.instruction),
+    );
+    expect(assistant.permissionMode, permission);
+    await assistant.startNewSession();
+    await assistant.openConversation(first);
+    await assistant.send('继续');
+    expect(model.requests.last.systemPrompt, contains('小书'));
+    expect(model.requests.last.systemPrompt, contains('不能改变工具权限'));
+  });
+
   test('真实日期查询经工具返回，快捷查询不依赖模型', () async {
     await createMission('阅读第一章');
     final model = ScriptedModel([
@@ -106,6 +147,83 @@ void main() {
     settings.credential = null;
     await assistant.loadLocalSchedule();
     expect(assistant.localSchedule?.single.mission.title, '阅读第一章');
+  });
+
+  test('默认档读取等待授权，宽松档自动查询且仍拦住写入', () async {
+    settings.permissionMode = AssistantPermissionMode.standard;
+    final assistant = makeController(
+      ScriptedModel([
+        (_) => toolResponse('strict-read', 'schedule_query', {}),
+        (_) => textResponse('查询结束'),
+        (_) => toolResponse('relaxed-read', 'schedule_query', {}),
+        (_) => toolResponse('relaxed-write', 'mission_create', {
+          'title': '应取消',
+          'scheduledDate': '2026-10-30',
+          'plannedMinutes': 20,
+        }),
+        (_) => textResponse('已取消'),
+      ]),
+    );
+    await assistant.initialize();
+    final first = assistant.send('读取今天');
+    await waitFor(
+      () => assistant.operations.any(
+        (op) => op.status == AssistantOperationStatus.waitingConfirmation,
+      ),
+    );
+    expect(assistant.operations.single.isWrite, isFalse);
+    expect(assistant.transcript.whereType<ToolResultMessage>(), isEmpty);
+    expect(assistant.confirmProposal('strict-read'), isNull);
+    await first;
+    await assistant.setPermissionMode(AssistantPermissionMode.relaxed);
+    final second = assistant.send('读取后创建');
+    await waitFor(
+      () => assistant.operations.any(
+        (op) =>
+            op.callId == 'relaxed-write' &&
+            op.status == AssistantOperationStatus.waitingConfirmation,
+      ),
+    );
+    expect(
+      assistant.operations
+          .firstWhere((op) => op.callId == 'relaxed-read')
+          .status,
+      AssistantOperationStatus.succeeded,
+    );
+    assistant.cancelProposal('relaxed-write');
+    await second;
+    expect(await missions.findAllDetails(), isEmpty);
+  });
+
+  test('图片和文本附件实际送入模型并在重开会话后完整恢复', () async {
+    final image = AssistantAttachment.fromBytes(
+      'small.png',
+      await File('assets/illustrations/day-plan.png').readAsBytes(),
+    );
+    final file = AssistantAttachment.fromBytes(
+      'plan.md',
+      Uint8List.fromList(utf8.encode('明天复习布局')),
+    );
+    final model = ScriptedModel([(_) => textResponse('已读附件')]);
+    final assistant = makeController(model);
+    await assistant.initialize();
+    final message = UserMessage.withContent(content: [image.block, file.block]);
+    await assistant.sendMessage(message);
+    final received = model.requests.single.messages
+        .whereType<UserMessage>()
+        .single;
+    expect(
+      received.content.whereType<ImageBlock>().single.url,
+      (image.block as ImageBlock).url,
+    );
+    expect(AssistantAttachment.textFile(received.content.last)?.text, '明天复习布局');
+    await assistant.close();
+    final restored = makeController(ScriptedModel([]));
+    await restored.initialize();
+    final saved = restored.transcript.whereType<UserMessage>().single;
+    expect(saved.id, message.id);
+    expect((saved.content.first as ImageBlock).label, 'small.png');
+    expect(AssistantAttachment.textFile(saved.content.last)?.name, 'plan.md');
   });
 
   test('创建提案可编辑并确认，固定请求只产生一个任务', () async {

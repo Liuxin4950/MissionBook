@@ -5,6 +5,7 @@ import 'package:mission_book/application/assistant/assistant_speech.dart';
 
 class ControlledSpeech implements AssistantSpeech {
   Completer<bool>? permission;
+  Completer<void>? stoppingGate;
   bool available = true;
   void Function(String)? emit;
   void Function(String)? fail;
@@ -23,6 +24,10 @@ class ControlledSpeech implements AssistantSpeech {
 
   @override
   Future<void> stop() async {
+    if (stoppingGate != null) {
+      await stoppingGate!.future;
+      return;
+    }
     done?.call();
   }
 
@@ -31,6 +36,20 @@ class ControlledSpeech implements AssistantSpeech {
 }
 
 void main() {
+  test('转写等待期间取消再重录，旧停止流程不能关闭新一轮', () async {
+    final speech = ControlledSpeech()..stoppingGate = Completer<void>();
+    final voice = AssistantVoiceController(speech);
+    await voice.start();
+    final previous = voice.stop();
+    await voice.cancel();
+    await voice.start();
+    speech.emit!('新一轮内容');
+    speech.stoppingGate!.complete();
+    await previous;
+    expect(voice.listening, isTrue);
+    expect(voice.text, '新一轮内容');
+    voice.dispose();
+  });
   test('系统提前结束后保留转写，取消后旧识别结果不能覆盖新草稿', () async {
     final speech = ControlledSpeech();
     final voice = AssistantVoiceController(speech);

@@ -20,6 +20,8 @@ import '../../domain/entities/execution_command.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/evidence.dart';
 import '../../domain/entities/operation_receipt.dart';
+import '../../domain/entities/mission_plan.dart';
+import '../../domain/repositories/mission_plan_repository.dart';
 import '../../domain/rules/evidence_rules.dart';
 import '../../domain/rules/mission_creation_rules.dart';
 import '../evidence/evidence_image_service.dart';
@@ -714,6 +716,43 @@ class MissionService {
       executionPlan: request.plan,
     );
     _notify();
+  }
+
+  /// 计划卡传入完整提案，只检查排期；最终保存仍会在事务内重新检查。
+  Future<List<MissionPlanConflict>> checkPlan(MissionPlan plan) {
+    _validatePlan(plan);
+    final source = repository;
+    if (source is! MissionPlanRepository) {
+      throw StateError('当前任务存储不支持整份计划保存');
+    }
+    return (source as MissionPlanRepository).checkPlan(plan);
+  }
+
+  /// 一次提交只发一次页面刷新；事务失败时不产生部分任务或排期版本。
+  Future<OperationReceiptInfo> applyPlan(MissionPlan plan) async {
+    final source = repository;
+    if (source is! MissionPlanRepository) {
+      throw StateError('当前任务存储不支持整份计划保存');
+    }
+    _validatePlan(plan);
+    final receipt = await (source as MissionPlanRepository).applyPlan(plan);
+    _notify();
+    return receipt;
+  }
+
+  void _validatePlan(MissionPlan plan) {
+    for (final item in plan.items) {
+      validateMissionSchedule(item.schedule);
+      if (item.creation != null) validateMissionCreation(item.creation!);
+      final original = item.original;
+      if (original != null) {
+        validateEvidenceRequirement(
+          policy: original.mission.verificationPolicy,
+          criteria: original.executionPlan.verificationCriteria,
+          schedule: item.schedule,
+        );
+      }
+    }
   }
 
   /// 检查 YYYY-MM-DD 日历日期，返回按仓储约定排序的查询结果。

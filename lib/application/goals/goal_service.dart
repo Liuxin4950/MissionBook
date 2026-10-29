@@ -106,16 +106,22 @@ class GoalService {
   }
 
   /// 把已校验预览转成固定编号的目标与节点树；尚未写入数据库。
-  GoalOutlineCreation prepareOutlineImport(GoalOutlineImport outline) {
+  GoalOutlineCreation prepareOutlineImport(
+    GoalOutlineImport outline, {
+    String? requestId,
+  }) {
     final goal = prepareCreation(
       title: outline.title,
       description: outline.description,
       why: outline.why,
+      requestId: requestId,
     );
     final nodes = <GoalNode>[];
     void append(List<GoalImportNode> siblings, String? parentId) {
       for (final (index, item) in siblings.indexed) {
-        final id = _uuid.v4();
+        final id = requestId == null
+            ? _uuid.v4()
+            : _uuid.v5(Namespace.url.value, '$requestId:outline:${item.key}');
         final node = GoalNode(
           id: id,
           goalId: goal.id,

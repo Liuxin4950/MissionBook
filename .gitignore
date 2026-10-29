@@ -112,3 +112,6 @@ app.*.map.json
 
 # Dart 编译 Web 数据库 Worker 时产生的本机依赖清单；正式 JS 和 WASM 仍提交。
 /web/drift_worker.js.deps
+
+# 离线语音模型体积大，不进入 Git；获取方式见 assets/models/sensevoice/README.md
+/assets/models/sensevoice/*.onnx

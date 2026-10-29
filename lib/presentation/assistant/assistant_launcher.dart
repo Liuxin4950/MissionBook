@@ -6,8 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/colors.dart';
+import '../../application/assistant/assistant_controller.dart';
 import 'assistant_operation_card.dart';
+import 'assistant_avatar.dart';
 import 'assistant_scope.dart';
+import 'assistant_settings_page.dart';
 
 /// 业务页面仅提供身份；助手状态、识别和操作不归业务页面持有。
 class AssistantEntryScope extends InheritedWidget {
@@ -276,7 +279,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
   Future<void> _sendVoice() async {
     final scope = _scope!;
     await scope.voice.stop();
-    if (!mounted) return;
+    if (!mounted || !_bubble || !_recording) return;
     final text = scope.voice.text.trim();
     if (text.isEmpty) return;
     if (scope.controller.currentSessionId != _bubbleSession) {
@@ -405,7 +408,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                               ? Icons.mic_rounded
                               : controller.isRunning
                               ? Icons.auto_awesome
-                              : Icons.auto_awesome_outlined,
+                              : assistantAvatarIcon(controller.persona.avatar),
                           color: Colors.white,
                           size: 26,
                         ),
@@ -454,7 +457,11 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     final controller = _scope!.controller;
     final voice = _scope!.voice;
     final operation = controller.operations
-        .where((item) => item.isWrite)
+        .where(
+          (item) =>
+              item.isWrite ||
+              item.status == AssistantOperationStatus.waitingConfirmation,
+        )
         .lastOrNull;
     final reply = controller.transcript
         .whereType<AssistantMessage>()
@@ -482,7 +489,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                 _recording
                     ? (voice.starting
                           ? '正在准备语音…'
-                          : voice.stopping
+                          : voice.stopping || voice.busy
                           ? '正在结束录音…'
                           : voice.listening
                           ? '正在听…'
@@ -490,8 +497,8 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                           ? '语音暂不可用'
                           : '准备发送')
                     : controller.isRunning
-                    ? '助手处理中…'
-                    : '助手',
+                    ? '${controller.persona.name}处理中…'
+                    : controller.persona.name,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -549,6 +556,26 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                 style: const TextStyle(color: AppColors.error),
               ),
             ),
+          if (voice.error != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () async {
+                  await voice.cancel();
+                  _recording = false;
+                  if (!mounted) return;
+                  _hide();
+                  await Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          AssistantSettingsPage(controller: controller),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.settings_voice_outlined, size: 18),
+                label: const Text('语音设置'),
+              ),
+            ),
           Row(
             children: [
               IconButton(
@@ -559,18 +586,15 @@ class AssistantLauncherState extends State<AssistantLauncher> {
               const Spacer(),
               IconButton.outlined(
                 tooltip: voice.busy
-                    ? '取消准备'
+                    ? '正在处理语音'
                     : voice.listening
                     ? '结束录音'
                     : '重试语音',
                 onPressed: voice.busy
-                    ? voice.cancel
+                    ? null
                     : voice.listening
                     ? voice.stop
-                    : () async {
-                        await voice.cancel();
-                        await voice.start();
-                      },
+                    : voice.start,
                 icon: Icon(
                   voice.busy || voice.listening
                       ? Icons.stop_rounded

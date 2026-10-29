@@ -329,43 +329,57 @@ class _AppShellState extends State<AppShell> {
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 28),
-                    child: expanded
-                        ? Text(
-                            'MissionBook',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          )
-                        : const Icon(Icons.book_outlined, size: 28),
-                  ),
-                  item(0, '今天', Icons.home_outlined, Icons.home_rounded),
-                  item(
-                    1,
-                    '目标',
-                    Icons.track_changes_outlined,
-                    Icons.track_changes,
-                  ),
-                  if (widget.assistant != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 8,
-                      ),
-                      child: AssistantLauncher(
-                        key: _assistantEntry,
-                        navigationRailWidth: expanded ? 192 : 88,
-                      ),
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: Center(
+                              child: expanded
+                                  ? Text(
+                                      'MissionBook',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleLarge,
+                                    )
+                                  : const Icon(Icons.book_outlined, size: 28),
+                            ),
+                          ),
+                        ),
+                        item(0, '今天', Icons.home_outlined, Icons.home_rounded),
+                        item(
+                          1,
+                          '目标',
+                          Icons.track_changes_outlined,
+                          Icons.track_changes,
+                        ),
+                        item(2, '历史', Icons.schedule_outlined, Icons.schedule),
+                        item(3, '我的', Icons.person_outline, Icons.person),
+                        const Spacer(),
+                        if (widget.assistant != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 8,
+                            ),
+                            child: AssistantLauncher(
+                              key: _assistantEntry,
+                              navigationRailWidth: expanded ? 192 : 88,
+                            ),
+                          ),
+                      ],
                     ),
-                  item(2, '历史', Icons.schedule_outlined, Icons.schedule),
-                  item(3, '我的', Icons.person_outline, Icons.person),
-                ],
+                  ),
+                ),
               ),
             ),
           ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:agent_core/agent_core.dart';
+import 'assistant_avatar.dart';
+import 'offline_speech_model_section.dart';
 
 import '../../application/assistant/assistant_controller.dart';
 import '../../core/theme/app_layout.dart';
@@ -20,6 +22,20 @@ class AssistantSettingsPage extends StatefulWidget {
 
 class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   final _credential = TextEditingController();
+  late final _personaName = TextEditingController(
+    text: widget.controller.persona.name,
+  );
+  late AssistantRole _role = widget.controller.persona.role;
+  late AssistantReplyStyle _replyStyle = widget.controller.persona.replyStyle;
+  late AssistantAvatar _avatar = widget.controller.persona.avatar;
+  late final _speechEndpoint = TextEditingController(
+    text: widget.controller.speechSettings.endpoint,
+  );
+  late final _speechModel = TextEditingController(
+    text: widget.controller.speechSettings.model,
+  );
+  final _speechCredential = TextEditingController();
+  late bool _transcription = widget.controller.speechSettings.useTranscription;
   late final _endpoint = TextEditingController(
     text: widget.controller.customProfile?.endpoint.toString() ?? '',
   );
@@ -37,7 +53,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       ModelProtocol.chatCompletions;
   late bool _images = widget.controller.customProfile?.supportsImages ?? false;
   late String _profile = widget.controller.modelProfileId;
-  late bool _autoApprove = widget.controller.autoApproveWrites;
+  late AssistantPermissionMode _permission = widget.controller.permissionMode;
   bool _saving = false;
   bool _testing = false;
   String? _error;
@@ -48,10 +64,14 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
     super.initState();
     for (final field in [
       _credential,
+      _personaName,
       _endpoint,
       _model,
       _contextWindow,
       _outputBudget,
+      _speechEndpoint,
+      _speechModel,
+      _speechCredential,
     ]) {
       field.addListener(_fieldChanged);
     }
@@ -79,8 +99,39 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       _customChanged ||
       _credential.text.trim().isNotEmpty;
   bool get _changed =>
-      _modelChanged || _autoApprove != widget.controller.autoApproveWrites;
+      _modelChanged ||
+      _permission != widget.controller.permissionMode ||
+      _personaChanged ||
+      _speechChanged;
+  bool get _personaChanged =>
+      _personaName.text.trim() != widget.controller.persona.name ||
+      _role != widget.controller.persona.role ||
+      _replyStyle != widget.controller.persona.replyStyle ||
+      _avatar != widget.controller.persona.avatar;
+  AssistantPersona _readPersona() => AssistantPersona(
+    name: _personaName.text.trim(),
+    role: _role,
+    replyStyle: _replyStyle,
+    avatar: _avatar,
+  );
+  bool get _speechChanged =>
+      _transcription != widget.controller.speechSettings.useTranscription ||
+      _speechEndpoint.text.trim() !=
+          widget.controller.speechSettings.endpoint ||
+      _speechModel.text.trim() != widget.controller.speechSettings.model ||
+      _speechCredential.text.isNotEmpty;
+  AssistantSpeechSettings _readSpeechSettings() => AssistantSpeechSettings(
+    useTranscription: _transcription,
+    endpoint: _speechEndpoint.text.trim(),
+    model: _speechModel.text.trim(),
+  );
   bool get _valid {
+    try {
+      _readSpeechSettings().validate();
+      _readPersona().validate();
+    } catch (_) {
+      return false;
+    }
     if (_profile != 'custom') return true;
     try {
       _readCustomProfile();
@@ -113,6 +164,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   void dispose() {
     widget.controller.removeListener(_fieldChanged);
     _credential.dispose();
+    _personaName.dispose();
+    _speechEndpoint.dispose();
+    _speechModel.dispose();
+    _speechCredential.dispose();
     _endpoint.dispose();
     _model.dispose();
     _contextWindow.dispose();
@@ -126,6 +181,47 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       title: '助手设置',
       maxContentWidth: AppLayout.dashboardMaxWidth,
     ),
+    bottomNavigationBar: SafeArea(
+      top: false,
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppLayout.dashboardMaxWidth,
+          ),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppLayout.horizontalPadding(context),
+              8,
+              AppLayout.horizontalPadding(context),
+              12,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_error != null || _result != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        _error ?? _result!,
+                        style: TextStyle(
+                          color: _error != null
+                              ? AppColors.error
+                              : AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                _buildSaveActions(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
     body: SafeArea(
       top: false,
       child: Center(
@@ -136,11 +232,15 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
           child: ListView(
             padding: AppLayout.pagePadding(context),
             children: [
+              _buildPersonaSection(),
+              const SizedBox(height: AppLayout.sectionGap),
               AdaptiveColumns(
                 minColumnWidth: 340,
                 maxColumns: 2,
                 children: [_buildModelSection(), _buildPermissionSection()],
               ),
+              const SizedBox(height: 20),
+              _buildSpeechSection(),
               const SizedBox(height: 20),
               AppSectionCard(
                 child: Column(
@@ -152,31 +252,112 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'API Key 只保存在这台设备的安全存储中，不进入会话数据库或备份。使用云端模型时，当前对话、显式引用和工具查询结果会发送给所选供应商；MissionBook 不经过自建服务器。',
+                      'API Key 只保存在这台设备的安全存储中，不进入会话数据库或备份。对话、引用、已发送附件和工具结果会发送给所选模型供应商。录音转写仅把本次录音发送给单独配置的语音服务；音频不保存到会话。MissionBook 不经过自建服务器。',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
                 ),
               ),
-              if (_error != null || _result != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      _error ?? _result!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _error != null
-                            ? AppColors.error
-                            : AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
       ),
+    ),
+  );
+
+  Widget _buildPersonaSection() => AppSectionCard(
+    child: ExpansionTile(
+      key: const Key('assistant-persona-section'),
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(top: 16),
+      leading: CircleAvatar(
+        backgroundColor: AppColors.primarySoft,
+        child: Icon(assistantAvatarIcon(_avatar), color: AppColors.primary),
+      ),
+      title: Text('角色与风格', style: Theme.of(context).textTheme.titleMedium),
+      subtitle: Text(
+        '${_personaName.text.trim().isEmpty ? '助手' : _personaName.text.trim()} · ${_role.label} · ${_replyStyle.label}',
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+      children: [
+        TextField(
+          key: const Key('assistant-persona-name'),
+          controller: _personaName,
+          enabled: !_saving && !_testing && !widget.controller.isBusy,
+          maxLength: 24,
+          decoration: const InputDecoration(
+            labelText: '角色名称',
+            hintText: '例如：小书、阿青',
+          ),
+        ),
+        const SizedBox(height: 12),
+        AdaptiveColumns(
+          minColumnWidth: 240,
+          maxColumns: 2,
+          children: [
+            DropdownButtonFormField<AssistantRole>(
+              key: const Key('assistant-persona-role'),
+              isExpanded: true,
+              initialValue: _role,
+              decoration: const InputDecoration(labelText: '角色定位'),
+              items: [
+                for (final role in AssistantRole.values)
+                  DropdownMenuItem(value: role, child: Text(role.label)),
+              ],
+              onChanged: _saving || _testing || widget.controller.isBusy
+                  ? null
+                  : (value) => setState(() => _role = value ?? _role),
+            ),
+            DropdownButtonFormField<AssistantReplyStyle>(
+              key: const Key('assistant-reply-style'),
+              isExpanded: true,
+              initialValue: _replyStyle,
+              decoration: const InputDecoration(labelText: '回答风格'),
+              items: [
+                for (final style in AssistantReplyStyle.values)
+                  DropdownMenuItem(value: style, child: Text(style.label)),
+              ],
+              onChanged: _saving || _testing || widget.controller.isBusy
+                  ? null
+                  : (value) =>
+                        setState(() => _replyStyle = value ?? _replyStyle),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text('角色图标', style: Theme.of(context).textTheme.titleSmall),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final choice in [
+                (AssistantAvatar.spark, '灵感'),
+                (AssistantAvatar.book, '书页'),
+                (AssistantAvatar.compass, '指南针'),
+              ])
+                ChoiceChip(
+                  avatar: Icon(assistantAvatarIcon(choice.$1), size: 18),
+                  label: Text(choice.$2),
+                  selected: _avatar == choice.$1,
+                  onSelected: _saving || _testing || widget.controller.isBusy
+                      ? null
+                      : (_) => setState(() => _avatar = choice.$1),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '角色决定帮助的侧重点，回答风格决定表达方式；保存后也会应用到已有会话。',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
     ),
   );
 
@@ -234,46 +415,46 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               label: const Text('清除已保存 Key'),
             ),
           ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            FilledButton(
-              style: FilledButton.styleFrom(
-                foregroundColor: AppColors.onPrimary,
-                iconColor: AppColors.onPrimary,
-                backgroundColor: AppColors.primary,
-                disabledForegroundColor: AppColors.onDisabled,
-                disabledBackgroundColor: AppColors.disabled,
-              ),
-              key: const Key('assistant-save-settings'),
-              onPressed:
-                  _saving ||
-                      _testing ||
-                      widget.controller.isBusy ||
-                      !_changed ||
-                      !_valid
-                  ? null
-                  : _save,
-              child: Text(_saving ? '正在保存…' : '保存设置'),
-            ),
-            OutlinedButton.icon(
-              key: const Key('assistant-test-connection'),
-              onPressed:
-                  _saving ||
-                      _testing ||
-                      _modelChanged ||
-                      !widget.controller.profileHasCredential(_profile)
-                  ? null
-                  : _testConnection,
-              icon: const Icon(Icons.network_check_outlined),
-              label: Text(_testing ? '正在测试…' : '测试已保存配置'),
-            ),
-          ],
-        ),
       ],
     ),
+  );
+
+  Widget _buildSaveActions() => Wrap(
+    spacing: 10,
+    runSpacing: 10,
+    children: [
+      FilledButton(
+        style: FilledButton.styleFrom(
+          foregroundColor: AppColors.onPrimary,
+          iconColor: AppColors.onPrimary,
+          backgroundColor: AppColors.primary,
+          disabledForegroundColor: AppColors.onDisabled,
+          disabledBackgroundColor: AppColors.disabled,
+        ),
+        key: const Key('assistant-save-settings'),
+        onPressed:
+            _saving ||
+                _testing ||
+                widget.controller.isBusy ||
+                !_changed ||
+                !_valid
+            ? null
+            : _save,
+        child: Text(_saving ? '正在保存…' : '保存设置'),
+      ),
+      OutlinedButton.icon(
+        key: const Key('assistant-test-connection'),
+        onPressed:
+            _saving ||
+                _testing ||
+                _modelChanged ||
+                !widget.controller.profileHasCredential(_profile)
+            ? null
+            : _testConnection,
+        icon: const Icon(Icons.network_check_outlined),
+        label: Text(_testing ? '正在测试…' : '测试已保存配置'),
+      ),
+    ],
   );
 
   List<Widget> _customFields() => [
@@ -346,27 +527,129 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       children: [
         Text('操作权限', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        SwitchListTile(
-          key: const Key('assistant-auto-approve'),
-          contentPadding: EdgeInsets.zero,
-          title: const Text('自动执行已提供的写入工具'),
-          subtitle: const Text('关闭时，每份任务或目标修改都先在卡片中确认。业务规则与冲突检查始终有效。'),
-          value: _autoApprove,
-          onChanged: _saving || _testing || widget.controller.isBusy
-              ? null
-              : (value) => setState(() => _autoApprove = value),
-        ),
-        Text(
-          _autoApprove
-              ? '开启后，模型可直接调用当前已接入的创建、改期、执行和取消工具；结果仍必须来自真实提交。'
-              : '当前为逐次确认模式。你可以先修改卡片，再决定执行或取消。',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
+        for (final mode in AssistantPermissionMode.values)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Material(
+              color: _permission == mode
+                  ? AppColors.primarySoft
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              child: ListTile(
+                key: Key('assistant-permission-${mode.name}'),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                leading: Icon(
+                  _permission == mode
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                  color: _permission == mode
+                      ? AppColors.primary
+                      : AppColors.textSecondary,
+                ),
+                title: Text(mode.label),
+                subtitle: Text(mode.description),
+                onTap: _saving || _testing || widget.controller.isBusy
+                    ? null
+                    : () => setState(() => _permission = mode),
+              ),
+            ),
+          ),
         const SizedBox(height: 8),
         Text(
-          '宽松模式的更细分类尚未定稿，本设置不暗中扩大权限范围。',
+          '执行动作（开始、暂停、继续、延长、结束）都属于写入。所有模式保留业务校验、冲突检查和操作结果。更改后点击“保存设置”生效。',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+      ],
+    ),
+  );
+
+  Widget _buildSpeechSection() => AppSectionCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('语音输入', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<bool>(
+          key: const Key('assistant-speech-mode'),
+          initialValue: _transcription,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: '识别方式'),
+          items: const [
+            DropdownMenuItem(value: false, child: Text('离线语音')),
+            DropdownMenuItem(value: true, child: Text('录音转写服务')),
+          ],
+          onChanged: _saving || _testing || widget.controller.isBusy
+              ? null
+              : (value) => setState(() => _transcription = value ?? false),
+        ),
+        const SizedBox(height: 12),
+        if (!_transcription) ...[
+          const OfflineSpeechModelSection(),
+        ] else ...[
+          const Text(
+            '配置支持 OpenAI 兼容音频转写接口的服务。聊天模型 API Key 不会自动用于此服务。录音结束后转写，检查文字后再发送；每次最长 50 秒。',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _speechEndpoint,
+            key: const Key('assistant-speech-endpoint'),
+            autocorrect: false,
+            decoration: const InputDecoration(
+              labelText: '完整转写地址',
+              hintText: 'https://服务地址/v1/audio/transcriptions',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _speechModel,
+            key: const Key('assistant-speech-model'),
+            decoration: const InputDecoration(
+              labelText: '转写模型名称',
+              hintText: '填写服务支持的语音模型',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _speechCredential,
+            key: const Key('assistant-speech-credential'),
+            obscureText: true,
+            enableSuggestions: false,
+            autocorrect: false,
+            decoration: InputDecoration(
+              labelText: '转写 API Key',
+              hintText: widget.controller.hasTranscriptionCredential
+                  ? '已保存，留空保留'
+                  : '本机免认证服务可留空',
+            ),
+          ),
+          if (widget.controller.hasTranscriptionCredential)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: _saving
+                    ? null
+                    : () async {
+                        try {
+                          await widget.controller.saveSpeechSettings(
+                            widget.controller.speechSettings,
+                            credential: '',
+                          );
+                          if (mounted) setState(() => _result = '已清除转写 Key');
+                        } catch (error) {
+                          if (mounted) setState(() => _error = '$error');
+                        }
+                      },
+                child: const Text('清除转写 Key'),
+              ),
+            ),
+          const SizedBox(height: 8),
+          const Text(
+            '浏览器运行需要此服务允许跨域请求（CORS）；本机 HTTP 服务仅限 localhost。音频在转写完成或取消后释放。',
+          ),
+        ],
       ],
     ),
   );
@@ -379,6 +662,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       _result = null;
     });
     try {
+      final speech = _readSpeechSettings();
+      speech.validate();
+      final persona = _readPersona();
+      persona.validate();
       if (_profile == 'custom') {
         final profile = _readCustomProfile();
         await widget.controller.saveCustomProfile(profile);
@@ -391,7 +678,17 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         _credential.clear();
       }
       await widget.controller.selectModelProfile(_profile);
-      await widget.controller.setAutoApproveWrites(_autoApprove);
+      await widget.controller.setPermissionMode(_permission);
+      if (_personaChanged) await widget.controller.savePersona(persona);
+      if (_speechChanged) {
+        await widget.controller.saveSpeechSettings(
+          speech,
+          credential: _speechCredential.text.trim().isEmpty
+              ? null
+              : _speechCredential.text.trim(),
+        );
+        _speechCredential.clear();
+      }
       if (mounted) setState(() => _result = '设置已保存');
     } catch (error) {
       if (mounted) setState(() => _error = '设置未保存：$error');

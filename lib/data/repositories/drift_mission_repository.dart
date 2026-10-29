@@ -10,6 +10,8 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 import '../../domain/entities/execution_plan.dart';
 import '../../domain/entities/mission.dart';
 import '../../domain/entities/mission_creation.dart';
+import '../../domain/entities/mission_plan.dart';
+import '../../domain/repositories/mission_plan_repository.dart';
 import '../../domain/rules/mission_creation_rules.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/scheduled_mission.dart';
@@ -219,7 +221,10 @@ ExecutionPlan executionPlanFromRow(ExecutionPlanRow row) {
 
 /// 使用同一数据库连接完成原子创建、列表查询与详情读取。
 class DriftMissionRepository
-    implements MissionRepository, MissionQueryRepository {
+    implements
+        MissionRepository,
+        MissionQueryRepository,
+        MissionPlanRepository {
   /// 接收应用持有的连接；本仓储不自行创建或关闭数据库。
   DriftMissionRepository(this.database, {this.clock = DateTime.now}) {
     tzdata.initializeTimeZones();
@@ -502,6 +507,155 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
   /// 补算等“作用于全部任务”的入口用空编号的空更新取得全局写锁，
   /// 与任何单任务的提交/执行串行，双方不会各按旧快照同时判定超时。
   Future<void> _acquireGlobalWrite() => _acquireWrite('');
+
+  @override
+  Future<List<MissionPlanConflict>> checkPlan(MissionPlan plan) =>
+      database.transaction(() => _planConflicts(plan));
+
+  Future<List<MissionPlanConflict>> _planConflicts(MissionPlan plan) async {
+    final conflicts = <MissionPlanConflict>[];
+    final replacedIds = plan.items.map((item) => item.missionId).toList();
+    final placeholders = List.filled(replacedIds.length, '?').join(',');
+    for (var index = 0; index < plan.items.length; index++) {
+      final item = plan.items[index];
+      final start = item.schedule.fixedStartAt;
+      if (start == null) continue;
+      final end = start.add(
+        Duration(minutes: item.schedule.plannedDurationMinutes),
+      );
+      // 只读取相交的当前排期，每项最多显示三条，不装配全日或全目标任务。
+      final rows = await database
+          .customSelect(
+            '''
+        SELECT m.id, substr(m.title, 1, 120) AS title
+        FROM missions m JOIN mission_schedule_revisions s ON s.mission_id = m.id
+        WHERE m.cancelled_at IS NULL AND s.fixed_start_at IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM mission_schedule_revisions newer
+            WHERE newer.mission_id = m.id AND newer.revision_number > s.revision_number)
+          AND NOT EXISTS (SELECT 1 FROM execution_events e
+            WHERE e.mission_id = m.id AND e.type = 'END')
+          AND m.id NOT IN ($placeholders)
+          AND s.fixed_start_at < ?
+          AND s.fixed_start_at + s.planned_duration_minutes * 60000 > ?
+        ORDER BY s.fixed_start_at, m.id LIMIT 3
+      ''',
+            variables: [
+              for (final id in replacedIds) Variable<String>(id),
+              Variable<int>(end.millisecondsSinceEpoch),
+              Variable<int>(start.millisecondsSinceEpoch),
+            ],
+          )
+          .get();
+      for (final row in rows) {
+        conflicts.add(
+          MissionPlanConflict(
+            itemId: item.id,
+            otherMissionId: row.read<String>('id'),
+            message: '与已有安排“${row.read<String>('title')}”时间重叠，请调整',
+          ),
+        );
+      }
+      for (var otherIndex = 0; otherIndex < index; otherIndex++) {
+        final other = plan.items[otherIndex];
+        final otherStart = other.schedule.fixedStartAt;
+        if (otherStart == null) continue;
+        final otherEnd = otherStart.add(
+          Duration(minutes: other.schedule.plannedDurationMinutes),
+        );
+        if (start.isBefore(otherEnd) && otherStart.isBefore(end)) {
+          conflicts.add(
+            MissionPlanConflict(
+              itemId: item.id,
+              otherMissionId: other.missionId,
+              message: '与计划内“${other.title}”时间重叠，请调整',
+            ),
+          );
+          conflicts.add(
+            MissionPlanConflict(
+              itemId: other.id,
+              otherMissionId: item.missionId,
+              message: '与计划内“${item.title}”时间重叠，请调整',
+            ),
+          );
+        }
+      }
+    }
+    return List.unmodifiable(conflicts);
+  }
+
+  @override
+  Future<OperationReceiptInfo> applyPlan(MissionPlan plan) =>
+      database.transaction(() async {
+        await _acquireGlobalWrite();
+        final fingerprint = _planFingerprint(plan);
+        final previous = await findOperationReceipt(plan.id);
+        if (previous != null) {
+          if (previous.kind != 'mission_plan' ||
+              previous.fingerprint != fingerprint) {
+            throw StateError('这份计划已经保存为其他内容，请核对结果后重新提出');
+          }
+          return previous;
+        }
+        final conflicts = await _planConflicts(plan);
+        if (conflicts.isNotEmpty) throw MissionPlanConflictException(conflicts);
+        for (final item in plan.items) {
+          final creation = item.creation;
+          if (creation != null) {
+            // 复用创建和编辑的业务校验；嵌套事务处于本次外层事务中。
+            await create(
+              mission: creation.mission,
+              initialSchedule: creation.schedule,
+              executionPlan: creation.plan,
+            );
+          } else {
+            final original = item.original!;
+            await edit(
+              original: original,
+              title: original.mission.title,
+              objective: original.executionPlan.objective,
+              schedule: item.schedule,
+            );
+          }
+        }
+        final now = _now();
+        final result = jsonEncode({
+          'ok': true,
+          'operation': 'mission_plan',
+          'planId': plan.id,
+          'savedCount': plan.items.length,
+          'items': [
+            for (final item in plan.items)
+              {
+                'itemId': item.id,
+                'kind': item.isCreation ? 'CREATE' : 'RESCHEDULE',
+                'missionId': item.missionId,
+                'title': item.title,
+                'scheduledDate': item.schedule.scheduledDate,
+                'plannedMinutes': item.schedule.plannedDurationMinutes,
+                'fixedStartAt': item.schedule.fixedStartAt
+                    ?.toUtc()
+                    .toIso8601String(),
+              },
+          ],
+          'references': [
+            for (final item in plan.items)
+              {'type': 'mission', 'id': item.missionId, 'title': item.title},
+          ],
+        });
+        await database
+            .into(database.operationReceipts)
+            .insert(
+              OperationReceiptsCompanion.insert(
+                id: plan.id,
+                kind: 'mission_plan',
+                fingerprint: fingerprint,
+                entityId: plan.id,
+                resultJson: result,
+                createdAt: now.millisecondsSinceEpoch,
+              ),
+            );
+        return (await findOperationReceipt(plan.id))!;
+      });
 
   DateTime _now() => DateTime.fromMillisecondsSinceEpoch(
     clock().toUtc().millisecondsSinceEpoch,
@@ -1607,6 +1761,43 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
         sameTime(oldPlan.createdAt, plan.createdAt) &&
         sameTime(oldPlan.updatedAt, plan.updatedAt);
   }
+}
+
+String _planFingerprint(MissionPlan plan) {
+  final values = [
+    for (final item in plan.items)
+      {
+        'itemId': item.id,
+        'missionId': item.missionId,
+        'kind': item.isCreation ? 'CREATE' : 'RESCHEDULE',
+        'title': item.title,
+        'date': item.schedule.scheduledDate,
+        'timeZone': item.schedule.timeZone,
+        'timePolicy': item.schedule.timePolicy.name,
+        'minutes': item.schedule.plannedDurationMinutes,
+        'start': item.schedule.fixedStartAt?.millisecondsSinceEpoch,
+        'deadline': item.schedule.evidenceDeadlineAt?.millisecondsSinceEpoch,
+        if (item.creation != null) ...{
+          'objective': item.creation!.plan.objective,
+          'steps': item.creation!.plan.steps,
+          'notes': item.creation!.plan.notes,
+          'policy': item.creation!.mission.verificationPolicy.name,
+          'criteria': item.creation!.plan.verificationCriteria,
+          'goalId': item.creation!.mission.goalId,
+          'goalNodeId': item.creation!.mission.goalNodeId,
+          'description': item.creation!.mission.description,
+          'why': item.creation!.mission.why,
+        },
+        if (item.original != null) ...{
+          'beforeSchedule': item.original!.schedule.id,
+          'beforeMissionUpdatedAt':
+              item.original!.mission.updatedAt.millisecondsSinceEpoch,
+          'beforePlanUpdatedAt':
+              item.original!.executionPlan.updatedAt.millisecondsSinceEpoch,
+        },
+      },
+  ];
+  return sha256.convert(utf8.encode(jsonEncode(values))).toString();
 }
 
 String _editFingerprint({
