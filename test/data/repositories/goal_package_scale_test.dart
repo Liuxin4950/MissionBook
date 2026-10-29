@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:drift/native.dart';
+import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/goals/goal_package_import_service.dart';
 import 'package:mission_book/data/goal_import/goal_import_database.dart';
@@ -102,6 +103,33 @@ void main() {
       ]) {
         expect(await count(db, table), 10000);
       }
+      final assistantReader = DriftAssistantReader(db);
+      final candidatePage = await assistantReader.missions(
+        goalId: result.goalId,
+      );
+      expect(candidatePage['total'], 10000);
+      expect(candidatePage['hasMore'], isTrue);
+      expect(candidatePage['nextOffset'], 20);
+      expect(candidatePage['items'] as List, hasLength(20));
+      expect(jsonEncode(candidatePage).length, lessThan(18000));
+      final nextPage = await assistantReader.missions(
+        goalId: result.goalId,
+        offset: 20,
+      );
+      final firstIds = (candidatePage['items'] as List)
+          .map((row) => (row as Map)['id'])
+          .toSet();
+      expect(
+        (nextPage['items'] as List).any(
+          (row) => firstIds.contains((row as Map)['id']),
+        ),
+        isFalse,
+      );
+      final goalIndex = await assistantReader.goal(result.goalId);
+      expect(goalIndex['missionCount'], 10000);
+      expect(goalIndex.containsKey('missions'), isFalse);
+      expect((goalIndex['nodes'] as Map)['items'] as List, hasLength(20));
+      expect(jsonEncode(goalIndex).length, lessThan(18000));
       expect(await count(db, 'import_receipts'), 1);
       expect(await count(db, 'execution_events'), 0);
       expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);

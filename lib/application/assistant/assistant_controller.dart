@@ -4,22 +4,35 @@ import 'package:agent_core/agent_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:timezone/timezone.dart' as tz;
 
-import '../../data/assistant/assistant_settings_store.dart';
-import '../../data/assistant/drift_session_store.dart';
+import 'assistant_settings.dart';
+import 'assistant_conversation_store.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../goals/goal_service.dart';
 import '../missions/mission_service.dart';
 import 'assistant_tools.dart';
+import 'assistant_reader.dart';
 
-enum AssistantReferenceType { mission, goal }
+enum AssistantReferenceType { mission, goal, node }
 
 class AssistantReference {
   const AssistantReference({
     required this.type,
     required this.id,
     required this.title,
+    this.goalId,
+    this.nodeId,
+    this.path,
   });
+
+  final String? goalId;
+  final String? nodeId;
+  final String? path;
+  String get label => switch (type) {
+    AssistantReferenceType.mission => '任务',
+    AssistantReferenceType.goal => '目标',
+    AssistantReferenceType.node => '节点',
+  };
 
   final AssistantReferenceType type;
   final String id;
@@ -49,6 +62,7 @@ class AssistantOperation {
   String? output;
   String? error;
   MissionDetail? missionBefore;
+  String? targetTitle;
 
   bool get isWrite => AssistantTools.writeToolNames.contains(toolName);
 }
@@ -75,7 +89,8 @@ const _systemPrompt = '''
 /// App 级助手控制器：页面只读取快照，运行和会话生命周期长于页面。
 class AssistantController extends ChangeNotifier {
   AssistantController({
-    required DriftSessionStore sessionStore,
+    required AssistantReader reader,
+    required AssistantConversationStore sessionStore,
     required AssistantSettingsStore settingsStore,
     required MissionService missions,
     required GoalService goals,
@@ -90,6 +105,7 @@ class AssistantController extends ChangeNotifier {
        _modelOverrides = modelOverrides,
        _clock = clock ?? DateTime.now {
     _tools = AssistantTools(
+      reader: reader,
       missions: missions,
       goals: goals,
       resolveCall: _resolveCall,
@@ -97,7 +113,7 @@ class AssistantController extends ChangeNotifier {
     );
   }
 
-  final DriftSessionStore _sessionStore;
+  final AssistantConversationStore _sessionStore;
   final AssistantSettingsStore _settingsStore;
   final MissionService _missions;
   final GoalService _goals;
@@ -132,17 +148,41 @@ class AssistantController extends ChangeNotifier {
   AssistantReference? _reference;
   String? _errorMessage;
   String? _lastUserInput;
+  final _drafts = <String?, String>{};
+  String get draft => draftFor(currentSessionId);
+  String draftFor(String? id) => _drafts[id] ?? '';
+  void saveDraft(String? id, String text) {
+    _drafts[id] = text;
+  }
+
+  set draft(String value) {
+    _drafts[currentSessionId] = value;
+  }
+
+  Future<void>? _initializeFuture;
   bool _initialized = false;
   bool _initializing = false;
   bool _localLoading = false;
   bool _closed = false;
+  bool _sending = false;
+  bool _sendCancelled = false;
+  bool _configuring = false;
+  Completer<void>? _configurationDone;
+  Future<void>? _closing;
 
   bool get initialized => _initialized;
   bool get initializing => _initializing;
-  bool get isRunning => _session?.isRunning ?? false;
-  bool get hasCredential => _settings.hasCredential;
+  bool get isRunning => _sending || (_session?.isRunning ?? false);
+  bool get configuring => _configuring;
+  bool get isBusy => isRunning || _configuring;
+  bool get hasCredential => profileHasCredential(modelProfileId);
+  bool profileHasCredential(String id) => id == 'custom'
+      ? _settings.hasCustomCredential
+      : (_settings.hasDeepSeekCredential ?? _settings.hasCredential);
+  ModelProfile? get customProfile => _settings.customProfile;
   bool get autoApproveWrites => _settings.autoApproveWrites;
-  String get modelProfileId => _settings.modelProfileId;
+  String get modelProfileId =>
+      _session?.modelProfileId ?? _settings.modelProfileId;
   String get sessionTitle => _session?.title ?? '新会话';
   String? get currentSessionId => _session?.id;
   AssistantReference? get reference => _reference;
@@ -162,11 +202,15 @@ class AssistantController extends ChangeNotifier {
   AgentConfiguration get _configuration {
     final base = _baseConfiguration ?? AgentConfiguration.deepSeek();
     final selected = _settings.modelProfileId;
-    final profileId = base.profiles.any((profile) => profile.id == selected)
+    final profiles = [
+      ...base.profiles.where((profile) => profile.id != 'custom'),
+      if (_settings.customProfile != null) _settings.customProfile!,
+    ];
+    final profileId = profiles.any((profile) => profile.id == selected)
         ? selected
         : base.defaultModelProfile;
     return AgentConfiguration(
-      profiles: base.profiles,
+      profiles: profiles,
       defaultModelProfile: profileId,
       summaryModelProfile: profileId,
       maxSteps: base.maxSteps,
@@ -175,7 +219,9 @@ class AssistantController extends ChangeNotifier {
     );
   }
 
-  Future<void> initialize() async {
+  Future<void> initialize() => _initializeFuture ??= _initialize();
+
+  Future<void> _initialize() async {
     if (_initialized || _initializing || _closed) return;
     _initializing = true;
     notifyListeners();
@@ -196,6 +242,7 @@ class AssistantController extends ChangeNotifier {
       _initialized = true;
       _errorMessage = null;
     } catch (error) {
+      _initializeFuture = null;
       _errorMessage = '助手初始化失败：$error';
     } finally {
       _initializing = false;
@@ -211,6 +258,9 @@ class AssistantController extends ChangeNotifier {
         type: AssistantReferenceType.mission,
         id: missionId,
         title: detail.mission.title,
+        goalId: detail.mission.goalId,
+        nodeId: detail.mission.goalNodeId,
+        path: detail.ownershipInfo?.label,
       ),
     );
   }
@@ -227,16 +277,58 @@ class AssistantController extends ChangeNotifier {
     );
   }
 
+  Future<void> openNodeReference(String nodeId) async {
+    final node = await _goals.findNodeById(nodeId);
+    if (node == null) throw StateError('节点不存在');
+    final goal = await _goals.findById(node.goalId);
+    await _selectReference(
+      AssistantReference(
+        path: goal?.title,
+        type: AssistantReferenceType.node,
+        id: node.id,
+        title: node.title,
+        goalId: node.goalId,
+      ),
+    );
+  }
+
+  Future<void> openGlobalConversation() async {
+    await initialize();
+    _ensureUsable();
+    if (_reference == null) return;
+    if (isRunning) throw StateError('请先结束当前对象的这一轮，再切换全局会话');
+    final global = _conversations
+        .where(
+          (item) =>
+              item.missionId == null &&
+              item.goalId == null &&
+              item.nodeId == null,
+        )
+        .firstOrNull;
+    await _closeSession();
+    _reference = null;
+    if (global == null) {
+      await _createSession();
+    } else {
+      await _openSession(global.id);
+    }
+  }
+
   Future<void> _selectReference(AssistantReference reference) async {
     _ensureUsable();
     if (_reference?.type == reference.type && _reference?.id == reference.id) {
+      _reference = reference;
+      notifyListeners();
       return;
     }
     if (isRunning) throw StateError('本轮结束后才能切换任务或目标会话');
     final matching = _conversations.where(
-      (item) => reference.type == AssistantReferenceType.mission
-          ? item.missionId == reference.id
-          : item.goalId == reference.id,
+      (item) => switch (reference.type) {
+        AssistantReferenceType.mission => item.missionId == reference.id,
+        AssistantReferenceType.goal =>
+          item.goalId == reference.id && item.nodeId == null,
+        AssistantReferenceType.node => item.nodeId == reference.id,
+      },
     );
     await _closeSession();
     _reference = reference;
@@ -281,11 +373,29 @@ class AssistantController extends ChangeNotifier {
   }
 
   Future<void> renameCurrentSession(String title) async {
+    _ensureUsable();
     final session = _requireSession();
     if (isRunning) throw StateError('本轮结束后才能修改会话名称');
     await session.rename(title);
     await _refreshConversations();
     _refreshSnapshot();
+  }
+
+  Future<void> renameConversation(String id, String title) async {
+    _ensureUsable();
+    if (isRunning) throw StateError('本轮结束后才能修改会话名称');
+    if (id == currentSessionId) {
+      await renameCurrentSession(title);
+      return;
+    }
+    final session = await _runtime!.openSession(id);
+    try {
+      await session.rename(title);
+    } finally {
+      await session.close();
+    }
+    await _refreshConversations();
+    notifyListeners();
   }
 
   Future<AgentRunResult?> send(String input) async {
@@ -296,7 +406,7 @@ class AssistantController extends ChangeNotifier {
 
   Future<AgentRunResult?> sendMessage(UserMessage message) async {
     _ensureUsable();
-    if (!_settings.hasCredential && _modelOverrides.isEmpty) {
+    if (!hasCredential && _modelOverrides.isEmpty) {
       _setError('请先在助手设置中保存 API Key');
       return null;
     }
@@ -304,16 +414,20 @@ class AssistantController extends ChangeNotifier {
       _setError('本轮仍在运行，可以停止后再发送');
       return null;
     }
-    if (_session == null) await _createSession();
-    final session = _requireSession();
-    if (session.needsOutcomeResolution) {
+    if (_session?.needsOutcomeResolution ?? false) {
       _setError('请先核对结果未知的操作，再继续会话');
       _refreshSnapshot();
       return null;
     }
+    _sending = true;
+    _sendCancelled = false;
+    notifyListeners();
+    _tools.beginTurn();
     _errorMessage = null;
     _lastUserInput = message.text;
     try {
+      if (_session == null) await _createSession();
+      final session = _requireSession();
       if (session.title == '新会话' && message.text.trim().isNotEmpty) {
         final title = message.text.trim();
         await session.rename(
@@ -324,6 +438,7 @@ class AssistantController extends ChangeNotifier {
         source: 'mission_book_context',
         text: _contextText(),
       );
+      if (_sendCancelled) return null;
       final result = await session.sendMessage(message);
       _errorMessage = result.failure?.message;
       await _refreshConversations();
@@ -333,11 +448,13 @@ class AssistantController extends ChangeNotifier {
       _setError('$error');
       return null;
     } finally {
+      _sending = false;
       _refreshSnapshot();
     }
   }
 
   void stop() {
+    _sendCancelled = true;
     final session = _session;
     if (session == null || !session.isRunning) return;
     session.cancel();
@@ -381,6 +498,11 @@ class AssistantController extends ChangeNotifier {
   String? updateProposal(String callId, Map<String, Object?> input) {
     final pending = _pending[callId];
     if (pending == null || pending.decided) return '这份提案已失效，请重新检查';
+    for (final key in ['missionId', 'goalId', 'nodeId']) {
+      if (input[key] != pending.prepared.input[key]) {
+        return '不能在编辑提案时更换操作对象，请取消后重新提出';
+      }
+    }
     final validation = _tools.validate(pending.operation.toolName, input);
     if (validation != null) return validation;
     pending.prepared.input = Map<String, Object?>.unmodifiable(input);
@@ -399,7 +521,9 @@ class AssistantController extends ChangeNotifier {
     if (validation != null) return validation;
     pending.decided = true;
     pending.operation.status = AssistantOperationStatus.running;
-    pending.completer.complete(const ToolDecision.allow());
+    pending.completer.complete(
+      ToolDecision.allowWithInput(pending.prepared.input),
+    );
     notifyListeners();
     return null;
   }
@@ -413,34 +537,78 @@ class AssistantController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> saveCredential(String value) async {
-    if (isRunning) throw StateError('请先结束本轮，再修改凭据');
-    await _settingsStore.saveCredential('DEEPSEEK_API_KEY', value);
-    await _reloadSettings();
-  }
+  Future<void> saveCredential(String value, {String? profileId}) =>
+      _updateConfiguration(() async {
+        await _settingsStore.saveCredential(
+          (profileId ?? modelProfileId) == 'custom'
+              ? 'MISSIONBOOK_CUSTOM_API_KEY'
+              : 'DEEPSEEK_API_KEY',
+          value,
+        );
+        await _reloadSettings();
+      });
 
-  Future<void> selectModelProfile(String profileId) async {
-    if (isRunning) throw StateError('请先结束本轮，再切换模型');
-    await _settingsStore.saveModelProfile(profileId);
-    final previous = _settings;
-    _settings = await _settingsStore.load();
-    if (_session != null &&
-        previous.modelProfileId != _settings.modelProfileId) {
-      await _session!.selectModels(
-        conversation: _settings.modelProfileId,
-        summary: _settings.modelProfileId,
-      );
-    }
+  Future<void> saveCustomProfile(ModelProfile profile) =>
+      _updateConfiguration(() async {
+        await _settingsStore.saveCustomProfile(profile);
+        final sessionId = currentSessionId;
+        await _closeSession();
+        await _runtime?.close();
+        _settings = await _settingsStore.load();
+        _runtime = AgentRuntime(
+          configuration: _configuration,
+          store: _sessionStore,
+          credentials: _settingsStore.resolveCredential,
+          tools: _tools.tools,
+          authorize: _authorize,
+          modelOverrides: _modelOverrides,
+        );
+        if (sessionId != null) await _openSession(sessionId);
+      });
+
+  Future<void> selectModelProfile(String profileId) => _updateConfiguration(
+    () async {
+      if (!_configuration.profiles.any((profile) => profile.id == profileId)) {
+        throw ArgumentError('请先保存所选模型的配置');
+      }
+      await _settingsStore.saveModelProfile(profileId);
+      _settings = await _settingsStore.load();
+      if (_session != null &&
+          (_session!.modelProfileId != profileId ||
+              _session!.summaryProfileId != profileId)) {
+        await _session!.selectModels(
+          conversation: _settings.modelProfileId,
+          summary: _settings.modelProfileId,
+        );
+      }
+    },
+  );
+
+  Future<void> setAutoApproveWrites(bool value) =>
+      _updateConfiguration(() async {
+        await _settingsStore.saveAutoApproveWrites(value);
+        await _reloadSettings();
+      });
+
+  Future<void> _updateConfiguration(Future<void> Function() update) async {
+    _ensureUsable();
+    if (isRunning) throw StateError('请先结束本轮，再修改助手设置');
+    _configuring = true;
+    final done = Completer<void>();
+    _configurationDone = done;
     notifyListeners();
-  }
-
-  Future<void> setAutoApproveWrites(bool value) async {
-    if (isRunning) throw StateError('请先结束本轮，再修改操作权限');
-    await _settingsStore.saveAutoApproveWrites(value);
-    await _reloadSettings();
+    try {
+      await update();
+    } finally {
+      _configuring = false;
+      _configurationDone = null;
+      done.complete();
+      if (!_closed) notifyListeners();
+    }
   }
 
   Future<String> testConnection() async {
+    _ensureUsable();
     final configuration = _configuration;
     final registry = ModelRegistry(
       configuration: configuration,
@@ -451,7 +619,7 @@ class AssistantController extends ChangeNotifier {
     final timer = Timer(const Duration(seconds: 30), cancellation.cancel);
     try {
       final response = await registry
-          .model(configuration.defaultModelProfile)
+          .model(modelProfileId)
           .complete(
             ModelRequest(
               systemPrompt: '这是 MissionBook 的连接检查。',
@@ -518,10 +686,13 @@ class AssistantController extends ChangeNotifier {
       return ToolDecision.deny(error.message);
     }
     _preparedCalls[call.id] = prepared;
-    if (_settings.autoApproveWrites) return const ToolDecision.allow();
+    if (_settings.autoApproveWrites) {
+      return ToolDecision.allowWithInput(prepared.input);
+    }
     final operation = _operationFor(call);
     operation
       ..input = prepared.input
+      ..targetTitle = prepared.snapshot['targetTitle'] as String?
       ..missionBefore = prepared.snapshot['detail'] as MissionDetail?
       ..status = AssistantOperationStatus.waitingConfirmation;
     final pending = _PendingAuthorization(prepared, operation);
@@ -556,10 +727,12 @@ class AssistantController extends ChangeNotifier {
     final reference = _reference;
     final title = reference == null
         ? '新会话'
-        : '${reference.type == AssistantReferenceType.mission ? '任务' : '目标'} · ${reference.title}';
+        : '${reference.label} · ${reference.title}';
     final session = await runtime.createSession(
       title: title,
       systemPrompt: _systemPrompt,
+      modelProfileId: _configuration.defaultModelProfile,
+      summaryProfileId: _configuration.summaryModelProfile,
     );
     if (reference != null) {
       await _sessionStore.attachReference(
@@ -568,6 +741,11 @@ class AssistantController extends ChangeNotifier {
             ? reference.id
             : null,
         goalId: reference.type == AssistantReferenceType.goal
+            ? reference.id
+            : reference.type == AssistantReferenceType.node
+            ? reference.goalId
+            : null,
+        nodeId: reference.type == AssistantReferenceType.node
             ? reference.id
             : null,
       );
@@ -580,7 +758,17 @@ class AssistantController extends ChangeNotifier {
     final runtime = _runtime ?? (throw StateError('助手尚未初始化'));
     final session = await runtime.openSession(id);
     final summary = _conversations.where((item) => item.id == id).firstOrNull;
-    if (summary?.missionId != null) {
+    if (summary?.nodeId != null) {
+      final node = await _goals.findNodeById(summary!.nodeId!);
+      if (node != null) {
+        _reference = AssistantReference(
+          type: AssistantReferenceType.node,
+          id: node.id,
+          title: node.title,
+          goalId: node.goalId,
+        );
+      }
+    } else if (summary?.missionId != null) {
       final detail = await _missions.findDetailSnapshot(
         missionId: summary!.missionId!,
       );
@@ -589,6 +777,9 @@ class AssistantController extends ChangeNotifier {
           type: AssistantReferenceType.mission,
           id: detail.mission.id,
           title: detail.mission.title,
+          goalId: detail.mission.goalId,
+          nodeId: detail.mission.goalNodeId,
+          path: detail.ownershipInfo?.label,
         );
       }
     } else if (summary?.goalId != null) {
@@ -661,19 +852,23 @@ class AssistantController extends ChangeNotifier {
         for (final call in message.toolCalls) {
           final operation = _operationFor(call);
           if (operation.output == null && !_pending.containsKey(call.id)) {
-            operation.input = call.input;
+            operation.input =
+                _session?.executedCalls[call.id]?.input ?? call.input;
           }
         }
       } else if (message is ToolResultMessage) {
         final operation = _operations[message.toolCallId];
         if (operation == null) continue;
-        operation.output = message.text;
-        operation.error = message.errorCode;
-        operation.status = switch (message.errorCode) {
+        final resolved = _session?.resolvedOutcomes[message.toolCallId];
+        operation.output = resolved?.text ?? message.text;
+        operation.error =
+            resolved?.errorCode ??
+            (resolved == null ? message.errorCode : null);
+        operation.status = switch (operation.error) {
           'outcome_unknown' => AssistantOperationStatus.unknown,
           'permission_denied' => AssistantOperationStatus.cancelled,
           null =>
-            message.isError
+            (resolved?.isError ?? message.isError)
                 ? AssistantOperationStatus.failed
                 : AssistantOperationStatus.succeeded,
           _ => AssistantOperationStatus.failed,
@@ -706,6 +901,7 @@ class AssistantController extends ChangeNotifier {
 
   void _ensureUsable() {
     if (_closed) throw StateError('助手已关闭');
+    if (_configuring) throw StateError('正在保存助手设置，请稍候');
     if (!_initialized && _runtime == null) throw StateError('助手正在初始化，请稍候');
   }
 
@@ -715,7 +911,7 @@ class AssistantController extends ChangeNotifier {
     return [
       '宿主当前时间：${now.toIso8601String()}；默认排期时区：Asia/Shanghai。',
       if (reference != null)
-        '用户显式引用${reference.type == AssistantReferenceType.mission ? '任务' : '目标'}：编号 ${reference.id}，名称 ${reference.title}。需要最新内容时用对应工具读取。',
+        '用户显式引用${reference.label}：编号 ${reference.id}，名称 ${reference.title}，所属目标 ${reference.goalId ?? '无额外引用'}，节点 ${reference.nodeId ?? (reference.type == AssistantReferenceType.node ? reference.id : '无额外引用')}，页面路径 ${reference.path ?? reference.label}。需要最新内容时用对应工具读取。',
       '只把这条上下文当作入口信息，不把它当作已完成操作或全部业务事实。',
     ].join('\n');
   }
@@ -730,10 +926,13 @@ class AssistantController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> close() async {
+  Future<void> close() => _closing ??= _close();
+
+  Future<void> _close() async {
     if (_closed) return;
     _closed = true;
     stop();
+    await _configurationDone?.future;
     await _closeSession();
     await _runtime?.close();
     _runtime = null;

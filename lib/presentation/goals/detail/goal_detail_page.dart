@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../assistant/assistant_launcher.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';
 
@@ -121,7 +122,10 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) =>
+      AssistantSurface(goalId: widget.goalId, child: _buildPage(context));
+
+  Widget _buildPage(BuildContext context) => Scaffold(
     appBar: const AppTopBar(title: '目标详情'),
     body: SafeArea(
       child: Align(

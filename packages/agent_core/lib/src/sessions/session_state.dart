@@ -27,6 +27,9 @@ final class SessionState {
   final Map<String, AgentMessage> _knownMessages = {};
   final Map<String, ToolCallBlock> _pending = {};
   final Set<String> _started = {};
+  final Map<String, ToolCallBlock> _executedCalls = {};
+  Map<String, ToolCallBlock> get executedCalls =>
+      Map.unmodifiable(_executedCalls);
   final Set<String> _startedReadOnly = {};
   final Set<String> _usedCallIds = {};
   final Map<String, ToolResultMessage> _unknown = {};
@@ -83,6 +86,7 @@ final class SessionState {
         _knownMessages.addAll(original._knownMessages);
         _pending.addAll(original._pending);
         _started.addAll(original._started);
+        _executedCalls.addAll(original._executedCalls);
         _startedReadOnly.addAll(original._startedReadOnly);
         _usedCallIds.addAll(original._usedCallIds);
         _unknown.addAll(original._unknown);
@@ -111,6 +115,14 @@ final class SessionState {
         if (!_pending.containsKey(callId) || !_started.add(callId)) {
           throw const FormatException('工具执行没有唯一的待处理调用');
         }
+        final proposed = _pending[callId]!;
+        _executedCalls[callId] = ToolCallBlock(
+          id: callId,
+          name: proposed.name,
+          input: data['input'] == null
+              ? proposed.input
+              : readObject(data['input']),
+        );
         if (data['readOnly'] == true) _startedReadOnly.add(callId);
       case 'turn_ended':
         if (openTurnId == null ||
@@ -324,6 +336,7 @@ final class SessionState {
     .._knownMessages.addAll(_knownMessages)
     .._pending.addAll(_pending)
     .._started.addAll(_started)
+    .._executedCalls.addAll(_executedCalls)
     .._startedReadOnly.addAll(_startedReadOnly)
     .._usedCallIds.addAll(_usedCallIds)
     .._unknown.addAll(_unknown)

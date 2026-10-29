@@ -1244,6 +1244,7 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
     required String? operationId,
     required String missionId,
     required String? fingerprint,
+    String kind = 'mission_edit',
   }) async {
     if (operationId == null) return;
     await database
@@ -1251,7 +1252,7 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
         .insert(
           OperationReceiptsCompanion.insert(
             id: operationId,
-            kind: 'mission_edit',
+            kind: kind,
             fingerprint: fingerprint!,
             entityId: missionId,
             resultJson: jsonEncode({'missionId': missionId}),
@@ -1270,7 +1271,7 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
       a.evidenceDeadlineAt == b.evidenceDeadlineAt;
 
   @override
-  Future<void> cancel(String missionId) async {
+  Future<void> cancel(String missionId, {String? operationId}) async {
     if (missionId.trim().isEmpty) {
       throw ArgumentError('任务编号不能为空');
     }
@@ -1278,6 +1279,26 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
     // 页面展示的是旧快照；在同一写事务内重读，再决定是否修改。
     await database.transaction(() async {
       await _acquireWrite(missionId);
+      final fingerprint = sha256
+          .convert(utf8.encode('mission_cancel:$missionId'))
+          .toString();
+      if (operationId != null) {
+        final receipt = await findOperationReceipt(operationId);
+        if (receipt != null) {
+          if (receipt.kind != 'mission_cancel' ||
+              receipt.entityId != missionId ||
+              receipt.fingerprint != fingerprint) {
+            throw StateError('操作编号已用于其他请求');
+          }
+          return;
+        }
+      }
+      Future<void> recordReceipt() => _writeOperationReceipt(
+        operationId: operationId,
+        missionId: missionId,
+        fingerprint: fingerprint,
+        kind: 'mission_cancel',
+      );
       final missions = database.missions;
       final query = database.select(missions);
       query.where((table) => table.id.equals(missionId));
@@ -1286,7 +1307,10 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
         throw StateError('任务不存在，无法取消');
       }
       // 重复请求不覆盖第一次取消的时间，也不更新 updatedAt。
-      if (row.cancelledAt != null) return;
+      if (row.cancelledAt != null) {
+        await recordReceipt();
+        return;
+      }
 
       final events =
           await (database.select(database.executionEvents)
@@ -1308,6 +1332,7 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
       if (changed != 1) {
         throw StateError('任务状态已变化，请刷新后重试');
       }
+      await recordReceipt();
     });
   }
 

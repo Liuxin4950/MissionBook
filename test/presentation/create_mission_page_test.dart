@@ -79,7 +79,7 @@ class PendingRepository implements MissionRepository {
   }) => throw UnsupportedError('本测试不编辑任务');
 
   @override
-  Future<void> cancel(String missionId) =>
+  Future<void> cancel(String missionId, {String? operationId}) =>
       throw UnsupportedError('创建表单测试不取消任务');
 
   @override

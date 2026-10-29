@@ -366,15 +366,22 @@ final class AgentLoop {
     if (!decision.allowed) {
       return ToolOutput.failure('permission_denied', decision.reason);
     }
+    final executionCall = decision.input == null
+        ? call
+        : ToolCallBlock(id: call.id, name: call.name, input: decision.input!);
+    final approvedError = tool.validateInput(executionCall.input);
+    if (approvedError != null) {
+      return ToolOutput.failure('invalid_arguments', approvedError);
+    }
     await publish(
-      ToolExecutionStarted(step, call, readOnly: tool.readOnly),
+      ToolExecutionStarted(step, executionCall, readOnly: tool.readOnly),
     ); // 保存失败时绝不执行工具。
     try {
       token.throwIfCancelled();
       // 通过检查和授权才执行实际函数；时间工具见 example/demo_tools.dart。
       return await Future.sync(
         () => tool.execute(
-          call.input,
+          executionCall.input,
           ToolContext(
             callId: call.id,
             cancellation: token,

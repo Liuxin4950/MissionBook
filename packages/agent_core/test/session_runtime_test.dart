@@ -7,6 +7,68 @@ import 'package:test/test.dart';
 import 'support/foundation_fixtures.dart';
 
 void main() {
+  test('批准参数先入日志，未知结果重开后保留，模型原调用不改写', () async {
+    final store = MemorySessionStore();
+    Map<String, Object?>? written;
+    final tool = AgentTool(
+      definition: ToolDefinition(
+        name: 'write',
+        description: '写入',
+        inputSchema: {
+          'type': 'object',
+          'properties': {
+            'title': {'type': 'string'},
+          },
+          'required': ['title'],
+        },
+      ),
+      execute: (input, _) {
+        written = input;
+        throw StateError('模拟提交后断开');
+      },
+    );
+    final runtime = AgentRuntime(
+      configuration: testConfiguration(),
+      store: store,
+      credentials: (_) => null,
+      tools: [tool],
+      authorize: (_, _, _) => ToolDecision.allowWithInput({'title': '用户批准值'}),
+      modelOverrides: {
+        'main': CallbackModel(
+          (_, _) => toolReply(
+            'approved-call',
+            name: 'write',
+            input: {'title': '模型原值'},
+          ),
+        ),
+      },
+    );
+    final session = await runtime.createSession(id: 'approved-session');
+    await session.send('请修改');
+    expect(written?['title'], '用户批准值');
+    expect(session.needsOutcomeResolution, isTrue);
+    expect(session.executedCalls['approved-call']?.input['title'], '用户批准值');
+    expect(
+      session.transcript
+          .whereType<AssistantMessage>()
+          .single
+          .toolCalls
+          .single
+          .input['title'],
+      '模型原值',
+    );
+    final started = (await session.readRecords()).singleWhere(
+      (record) => record.type == 'tool_execution_started',
+    );
+    expect((started.data['input'] as Map)['title'], '用户批准值');
+    await runtime.close();
+    final restoredRuntime = testRuntime(store: store);
+    final restored = await restoredRuntime.openSession('approved-session');
+    expect(restored.needsOutcomeResolution, isTrue);
+    expect(restored.executedCalls['approved-call']?.input['title'], '用户批准值');
+    await restoredRuntime.close();
+  });
+
   test('会话持有多轮历史，关闭重开后继续，配置变化和来源均保留', () async {
     final store = MemorySessionStore();
     final runtime = testRuntime(

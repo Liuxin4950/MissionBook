@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 
 import '../../domain/entities/goal.dart';
@@ -76,6 +78,95 @@ class DriftGoalRepository implements GoalRepository {
 
   @override
   Future<void> updateGoal(
+    Goal expected, {
+    required String title,
+    String? description,
+    String? why,
+    String? operationId,
+  }) => _withReceipt(
+    operationId,
+    'goal_update',
+    expected.id,
+    {
+      'version': expected.updatedAt.toIso8601String(),
+      'title': title,
+      'description': description,
+      'why': why,
+    },
+    () =>
+        _updateGoal(expected, title: title, description: description, why: why),
+  );
+
+  @override
+  Future<void> updateNode(
+    GoalNode expected, {
+    required String title,
+    String? description,
+    String? operationId,
+  }) => _withReceipt(operationId, 'goal_node_update', expected.id, {
+    'version': expected.updatedAt.toIso8601String(),
+    'title': title,
+    'description': description,
+  }, () => _updateNode(expected, title: title, description: description));
+
+  Future<void> _withReceipt(
+    String? id,
+    String kind,
+    String entityId,
+    Map<String, Object?> input,
+    Future<void> Function() write,
+  ) async {
+    if (id == null) {
+      await write();
+      return;
+    }
+    final fingerprint = sha256
+        .convert(
+          utf8.encode(jsonEncode({'kind': kind, 'id': entityId, ...input})),
+        )
+        .toString();
+    await database.transaction(() async {
+      await _lockGoals();
+      final saved = await (database.select(
+        database.operationReceipts,
+      )..where((row) => row.id.equals(id))).getSingleOrNull();
+      if (saved != null) {
+        if (saved.kind != kind ||
+            saved.entityId != entityId ||
+            saved.fingerprint != fingerprint) {
+          throw StateError('同一操作编号已用于其他内容');
+        }
+        return;
+      }
+      await write();
+      final node = kind == 'goal_node_update'
+          ? await findNodeById(entityId)
+          : null;
+      final goal = kind == 'goal_update' ? await findById(entityId) : null;
+      await database
+          .into(database.operationReceipts)
+          .insert(
+            OperationReceiptsCompanion.insert(
+              id: id,
+              kind: kind,
+              fingerprint: fingerprint,
+              entityId: entityId,
+              resultJson: jsonEncode({
+                'ok': true,
+                'operation': kind,
+                'goalId': goal?.id ?? node?.goalId,
+                if (node != null) 'nodeId': node.id,
+                'title': goal?.title ?? node?.title,
+                'description': goal?.description ?? node?.description,
+                if (goal != null) 'why': goal.why,
+              }),
+              createdAt: DateTime.now().toUtc().millisecondsSinceEpoch,
+            ),
+          );
+    });
+  }
+
+  Future<void> _updateGoal(
     Goal expected, {
     required String title,
     String? description,
@@ -317,8 +408,7 @@ class DriftGoalRepository implements GoalRepository {
     });
   }
 
-  @override
-  Future<void> updateNode(
+  Future<void> _updateNode(
     GoalNode expected, {
     required String title,
     String? description,

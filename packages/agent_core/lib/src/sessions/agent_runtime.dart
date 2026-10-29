@@ -214,6 +214,8 @@ final class AgentSession {
   bool get isRunning => _busy;
   AgentStopReason? get lastStopReason => _state.lastStopReason;
   bool get needsOutcomeResolution => _state.needsOutcomeResolution;
+  Map<String, ToolCallBlock> get executedCalls => _state.executedCalls;
+
   Map<String, ToolResultMessage> get unknownOutcomes => _state.unknownOutcomes;
   Map<String, ToolOutput> get resolvedOutcomes => _state.resolvedOutcomes;
   List<AgentMessage> get transcript => _state.transcript;
@@ -513,6 +515,7 @@ final class AgentSession {
         _activeTool = event.call.name;
         await _record('tool_execution_started', {
           'callId': event.call.id,
+          'input': event.call.input,
           'readOnly': event.readOnly,
         });
       case ToolCallFinished():

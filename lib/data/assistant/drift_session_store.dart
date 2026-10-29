@@ -7,26 +7,11 @@ import 'package:uuid/uuid.dart';
 
 import '../local/app_database.dart';
 
-class AssistantConversationSummary {
-  const AssistantConversationSummary({
-    required this.id,
-    required this.title,
-    required this.createdAt,
-    required this.updatedAt,
-    this.missionId,
-    this.goalId,
-  });
-
-  final String id;
-  final String title;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  final String? missionId;
-  final String? goalId;
-}
+import '../../application/assistant/assistant_conversation_store.dart';
+export '../../application/assistant/assistant_conversation_store.dart';
 
 /// 把基座原始日志存入 AppDatabase；列表索引与记录在同一事务更新。
-class DriftSessionStore implements SessionStore {
+class DriftSessionStore implements AssistantConversationStore {
   DriftSessionStore(
     this._database, {
     DateTime Function()? clock,
@@ -140,6 +125,7 @@ class DriftSessionStore implements SessionStore {
     return [for (final row in rows) row.id];
   }
 
+  @override
   Future<List<AssistantConversationSummary>> listConversations() async {
     final query = _database.select(_database.assistantSessions)
       ..orderBy([
@@ -162,14 +148,17 @@ class DriftSessionStore implements SessionStore {
           ),
           missionId: row.missionId,
           goalId: row.goalId,
+          nodeId: row.nodeId,
         ),
     ];
   }
 
+  @override
   Future<void> attachReference(
     String id, {
     String? missionId,
     String? goalId,
+    String? nodeId,
   }) async {
     if (missionId != null && goalId != null) {
       throw ArgumentError('一个会话只关联一个任务或一个目标');
@@ -180,6 +169,7 @@ class DriftSessionStore implements SessionStore {
       AssistantSessionsCompanion(
         missionId: Value(missionId),
         goalId: Value(goalId),
+        nodeId: Value(nodeId),
       ),
     );
     if (changed != 1) throw StateError('会话不存在：$id');

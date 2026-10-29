@@ -90,7 +90,7 @@ class ControlledQueryRepository implements MissionRepository {
   }) => throw UnsupportedError('本测试不编辑任务');
 
   @override
-  Future<void> cancel(String missionId) =>
+  Future<void> cancel(String missionId, {String? operationId}) =>
       throw UnsupportedError('列表查询替身不取消任务');
 
   // 列表测试默认不会进入详情；导航测试可指定要返回的完整结果。

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'presentation/today/today_page.dart';
+import 'application/assistant/assistant_controller.dart';
+import 'presentation/assistant/assistant_launcher.dart';
 import 'application/missions/mission_service.dart';
 import 'application/notifications/app_notification_service.dart';
 import 'core/theme/app_layout.dart';
@@ -26,6 +28,7 @@ class AppShell extends StatefulWidget {
     required this.backupService,
     required this.device,
     this.notifications,
+    this.assistant,
     this.clock = DateTime.now,
   });
   // App 传入共享任务服务，本层转交给今天、历史及当前任务栏。
@@ -36,6 +39,7 @@ class AppShell extends StatefulWidget {
 
   // 通知动作的 UI 部分由外壳承接：打开 END 确认、旧按钮提示刷新。
   final AppNotificationService? notifications;
+  final AssistantController? assistant;
 
   /// 今天页使用的日期时钟；测试传入固定时刻，避免随运行日期改变查询。
   final DateTime Function() clock;
@@ -54,6 +58,7 @@ class _AppShellState extends State<AppShell> {
   // 窗口缩放只换显示位置，不重建页面（草稿、返回链都留在栈里）。
   final _detailPane = DetailPaneController();
   final _pageStackKey = GlobalKey();
+  final _assistantEntry = GlobalKey<AssistantLauncherState>();
   StreamSubscription<NotificationUiAction>? _uiActions;
   bool _selectingPage = false;
 
@@ -135,6 +140,7 @@ class _AppShellState extends State<AppShell> {
     try {
       // 切主导航先处理右栏及草稿守卫，否则新页面只会在旧面板下面切换。
       if (!await _detailPane.clear() || !mounted) return;
+      _assistantEntry.currentState?.resetContext();
       setState(() => _selectedIndex = index);
     } finally {
       _selectingPage = false;
@@ -171,7 +177,7 @@ class _AppShellState extends State<AppShell> {
         notifications: widget.notifications,
       ),
     ];
-    final body = KeyedSubtree(
+    final pageBody = KeyedSubtree(
       key: _pageStackKey,
       child: IndexedStack(
         index: _selectedIndex,
@@ -183,6 +189,10 @@ class _AppShellState extends State<AppShell> {
             ), // 只在选中时才启动动画
         ],
       ),
+    );
+    final body = AssistantEntryScope(
+      openNode: (id) => _assistantEntry.currentState?.openNodeMenu(id),
+      child: pageBody,
     );
     final compact = AppLayout.windowClassOf(context) == WindowClass.compact;
     // 右栏栈变化（打开/返回）会改变接管状态，这里需要跟着重建。
@@ -342,6 +352,17 @@ class _AppShellState extends State<AppShell> {
                     Icons.track_changes_outlined,
                     Icons.track_changes,
                   ),
+                  if (widget.assistant != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 8,
+                      ),
+                      child: AssistantLauncher(
+                        key: _assistantEntry,
+                        navigationRailWidth: expanded ? 192 : 88,
+                      ),
+                    ),
                   item(2, '历史', Icons.schedule_outlined, Icons.schedule),
                   item(3, '我的', Icons.person_outline, Icons.person),
                 ],
@@ -396,6 +417,11 @@ class _AppShellState extends State<AppShell> {
                       Icons.track_changes,
                       inCapsule: true,
                     ),
+                    if (widget.assistant != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: AssistantLauncher(key: _assistantEntry),
+                      ),
                     _navigationItem(
                       2,
                       '历史',

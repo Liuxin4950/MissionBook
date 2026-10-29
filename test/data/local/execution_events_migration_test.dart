@@ -197,7 +197,44 @@ void main() {
       await directory.delete(recursive: true);
     });
 
-    for (final oldVersion in [5, 6, 7, 8, 9]) {
+    test('v11 升级补节点列并完整保留会话、日志和操作回执', () async {
+      final old = _SnapshotV1Database(NativeDatabase(file), oldVersion: 11);
+      await old.customStatement(
+        "INSERT INTO assistant_sessions(id,title,created_at,updated_at) VALUES ('old-chat','原会话',1,2)",
+      );
+      await old.customStatement(
+        "INSERT INTO assistant_session_records(session_id,sequence,timestamp,type,data) VALUES ('old-chat',0,1,'test_record','{\"text\":\"保留原文\"}')",
+      );
+      await old.customStatement(
+        "INSERT INTO operation_receipts(id,kind,fingerprint,entity_id,result_json,created_at) VALUES ('old-op','mission_edit','same','mission-a','{}',1)",
+      );
+      await old.close();
+      final upgraded = AppDatabase(executor: NativeDatabase(file));
+      try {
+        final session =
+            (await upgraded.select(upgraded.assistantSessions).get()).single;
+        expect(session.title, '原会话');
+        expect(session.nodeId, isNull);
+        expect(session.updatedAt, 2);
+        expect(
+          (await upgraded.select(upgraded.assistantSessionRecords).get())
+              .single
+              .data,
+          contains('保留原文'),
+        );
+        expect(
+          (await upgraded.select(upgraded.operationReceipts).get())
+              .single
+              .fingerprint,
+          'same',
+        );
+        await upgraded.validateDatabaseSchema();
+      } finally {
+        await upgraded.close();
+      }
+    });
+
+    for (final oldVersion in [5, 6, 7, 8, 9, 10, 11]) {
       test('v$oldVersion 全表逐字段保留，旧任务独立，关闭重开仍完整', () async {
         final tables = [
           ..._oldTables,
@@ -299,7 +336,7 @@ void main() {
         }
         final upgraded = AppDatabase(executor: NativeDatabase(file));
         try {
-          expect(await _version(upgraded), 10);
+          expect(await _version(upgraded), 12);
           expect(await snapshot(upgraded), before);
           expect(
             await upgraded.select(upgraded.goals).get(),
@@ -334,7 +371,7 @@ void main() {
         final reopened = AppDatabase(executor: NativeDatabase(file));
         try {
           expect(await snapshot(reopened), before);
-          expect(await _version(reopened), 10);
+          expect(await _version(reopened), 12);
         } finally {
           await reopened.close();
         }
@@ -385,7 +422,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 10);
+        expect(await _version(retry), 12);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -452,7 +489,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 10);
+        expect(await _version(upgraded), 12);
         expect(await snapshot(upgraded), before);
         expect(
           (await upgraded.select(upgraded.missions).get()).every(
@@ -518,7 +555,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 10);
+        expect(await _version(upgraded), 12);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -579,7 +616,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 10);
+        expect(await _version(upgraded), 12);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -608,7 +645,7 @@ void main() {
 
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 10);
+        expect(await _version(upgraded), 12);
         expect(await _readOldRows(upgraded), before);
         expect(await upgraded.select(upgraded.executionEvents).get(), isEmpty);
         await upgraded.validateDatabaseSchema();
@@ -646,7 +683,7 @@ void main() {
 
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 10);
+        expect(await _version(reopened), 12);
         expect(await _readOldRows(reopened), before);
         final event = await reopened
             .select(reopened.executionEvents)
@@ -678,7 +715,7 @@ void main() {
       }
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 10);
+        expect(await _version(reopened), 12);
         expect(await _readOldRows(reopened), before);
         await reopened.validateDatabaseSchema();
       } finally {
@@ -721,7 +758,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 10);
+        expect(await _version(retry), 12);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -764,9 +801,9 @@ void main() {
 
     tearDown(() async => database.close());
 
-    test('v10 新装九表与索引符合当前定义', () async {
-      expect(await _version(database), 10);
-      expect(database.allTables, hasLength(9));
+    test('v12 新装十二表与索引符合当前定义', () async {
+      expect(await _version(database), 12);
+      expect(database.allTables, hasLength(12));
       await database.validateDatabaseSchema();
       expect(
         (await database.customSelect('PRAGMA foreign_keys').getSingle())

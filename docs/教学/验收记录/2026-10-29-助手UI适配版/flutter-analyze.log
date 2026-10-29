@@ -1,0 +1,8 @@
+   Woah! You appear to be trying to run flutter as root.
+   We strongly recommend running the flutter tool without superuser privileges.
+  /
+📎
+Waiting for another flutter command to release the startup lock...
+Flutter assets will be downloaded from https://storage.flutter-io.cn. Make sure you trust this source!
+Analyzing MissionBook...                                        
+No issues found! (ran in 3.5s)

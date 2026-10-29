@@ -542,12 +542,12 @@ class MissionService {
   }
 
   /// 详情页传入当前任务编号；等待仓储事务完成，页面才能显示取消结果。
-  Future<void> cancel({required String missionId}) async {
+  Future<void> cancel({required String missionId, String? operationId}) async {
     if (missionId.trim().isEmpty) {
       throw ArgumentError('任务编号不能为空');
     }
     // 不使用页面之前读到的状态判断是否已取消；由仓储重读最新事实。
-    await repository.cancel(missionId);
+    await repository.cancel(missionId, operationId: operationId);
     _notify();
   }
 

@@ -1,15 +1,31 @@
+import 'dart:async';
+
 import 'package:agent_core/agent_core.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
+import 'package:mission_book/application/assistant/assistant_settings.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
+import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 
 import '../../support/assistant_fakes.dart';
+
+class PausedSettingsStore extends MemoryAssistantSettingsStore {
+  Completer<void>? loadGate;
+
+  @override
+  Future<AssistantSettings> load() async {
+    await loadGate?.future;
+    return super.load();
+  }
+}
 
 void main() {
   late AppDatabase database;
@@ -38,6 +54,7 @@ void main() {
 
   AssistantController makeController(ScriptedModel model) {
     final result = AssistantController(
+      reader: DriftAssistantReader(database),
       sessionStore: DriftSessionStore(database),
       settingsStore: settings,
       missions: missions,
@@ -124,7 +141,14 @@ void main() {
     final saved = await missions.findAllDetails();
     expect(saved, hasLength(1));
     expect(saved.single.mission.title, '确认后的标题');
-    expect(assistant.confirmProposal(operation.callId), isNotNull);
+    expect(assistant.operations.single.input['title'], '确认后的标题');
+    final sessionId = assistant.currentSessionId!;
+    await assistant.close();
+    final restored = makeController(ScriptedModel([]));
+    await restored.initialize();
+    expect(restored.currentSessionId, sessionId);
+    expect(restored.operations.single.input['title'], '确认后的标题');
+    expect(restored.confirmProposal(operation.callId), isNotNull);
     expect((await missions.findAllDetails()), hasLength(1));
   });
 
@@ -242,5 +266,251 @@ void main() {
     expect(second.currentSessionId, sessionId);
     expect(second.transcript.whereType<UserMessage>().single.text, '查今天');
     expect(second.operations.single.status, AssistantOperationStatus.succeeded);
+  });
+  test('非法日历日期零写入且不会阻塞为未知结果', () async {
+    settings.autoApprove = true;
+    final assistant = makeController(
+      ScriptedModel([
+        (_) => toolResponse('invalid-date', 'mission_create', {
+          'title': '非法任务',
+          'scheduledDate': '2026-02-30',
+          'plannedMinutes': 20,
+        }),
+        (_) => textResponse('日期无效，没有保存。'),
+      ]),
+    );
+    await assistant.initialize();
+    await assistant.send('创建任务');
+    expect(await missions.findAllDetails(), isEmpty);
+    expect(assistant.needsOutcomeResolution, isFalse);
+    expect(assistant.operations.single.status, AssistantOperationStatus.failed);
+  });
+
+  test('纽约任务改期仍按原时区解释15点', () async {
+    settings.autoApprove = true;
+    await missions.create(
+      title: '纽约任务',
+      scheduledDate: '2026-10-29',
+      timeZone: 'America/New_York',
+      plannedDurationMinutes: 20,
+      timePolicy: TimePolicy.fixed,
+      fixedStartAt: tz.TZDateTime(
+        tz.getLocation('America/New_York'),
+        2026,
+        10,
+        29,
+        15,
+      ).toUtc(),
+    );
+    final mission = (await missions.findAllDetails()).single;
+    final assistant = makeController(
+      ScriptedModel([
+        (_) => toolResponse('ny-reschedule', 'mission_reschedule', {
+          'missionId': mission.mission.id,
+          'scheduledDate': '2026-10-30',
+          'fixedStartLocal': '15:00',
+        }),
+        (_) => textResponse('已调整。'),
+      ]),
+    );
+    await assistant.initialize();
+    await assistant.send('挪到明天下午3点');
+    final saved = await missions.findDetailSnapshot(
+      missionId: mission.mission.id,
+    );
+    final local = tz.TZDateTime.from(
+      saved!.schedule.fixedStartAt!,
+      tz.getLocation('America/New_York'),
+    );
+    expect(local.hour, 15);
+    expect(local.day, 30);
+  });
+
+  test('节点原位会话、编辑回执和跨重开引用一致', () async {
+    final goal = goals.prepareCreation(title: '学习Flutter');
+    await goals.create(goal);
+    final node = goals.prepareNodeCreation(goalId: goal.id, title: '布局基础');
+    await goals.createNode(node);
+    final assistant = makeController(
+      ScriptedModel([
+        (_) => toolResponse('rename-node', 'goal_node_update', {
+          'nodeId': node.id,
+          'title': '响应式布局',
+        }),
+        (_) => textResponse('已修改节点。'),
+      ]),
+    );
+    await assistant.initialize();
+    await assistant.openNodeReference(node.id);
+    final sessionId = assistant.currentSessionId;
+    final sending = assistant.send('把这个节点改名为响应式布局');
+    await waitFor(() => assistant.operations.isNotEmpty);
+    expect((await goals.findNodeById(node.id))!.title, '布局基础');
+    expect(
+      assistant.updateProposal('rename-node', {
+        'nodeId': 'another-node',
+        'title': '错误',
+      }),
+      isNotNull,
+    );
+    assistant.confirmProposal('rename-node');
+    await sending;
+    expect((await goals.findNodeById(node.id))!.title, '响应式布局');
+    final receipt = await missions.findOperationReceipt(
+      '$sessionId:rename-node',
+    );
+    expect(receipt?.kind, 'goal_node_update');
+    await assistant.close();
+    final restored = makeController(ScriptedModel([]));
+    await restored.initialize();
+    await restored.openNodeReference(node.id);
+    expect(restored.currentSessionId, sessionId);
+    expect(restored.reference?.type, AssistantReferenceType.node);
+    expect(restored.reference?.goalId, goal.id);
+    expect(
+      restored.transcript.whereType<UserMessage>().single.text,
+      contains('这个节点'),
+    );
+  });
+  test('首个会话前切换模型会影响新会话，历史改名仅修改指定会话', () async {
+    final assistant = makeController(ScriptedModel([]));
+    await assistant.initialize();
+    await assistant.selectModelProfile('deepseek');
+    await assistant.startNewSession();
+    expect(assistant.modelProfileId, 'deepseek');
+    final first = assistant.currentSessionId!;
+    await assistant.renameCurrentSession('第一段');
+    await assistant.startNewSession();
+    final second = assistant.currentSessionId!;
+    await assistant.renameCurrentSession('第二段');
+    await assistant.renameConversation(first, '改过的第一段');
+    expect(assistant.currentSessionId, second);
+    expect(assistant.sessionTitle, '第二段');
+    expect(
+      assistant.conversations.singleWhere((item) => item.id == first).title,
+      '改过的第一段',
+    );
+    await assistant.openConversation(first);
+    expect(assistant.sessionTitle, '改过的第一段');
+    expect(assistant.modelProfileId, 'deepseek');
+  });
+
+  test('完整任务编辑保留归属且只提交一次，取消有独立回执', () async {
+    settings.autoApprove = true;
+    await createMission('原标题');
+    final original = (await missions.findAllDetails()).single;
+    final assistant = makeController(
+      ScriptedModel([
+        (_) => toolResponse('edit-mission', 'mission_update', {
+          'missionId': original.mission.id,
+          'title': '新标题',
+          'steps': ['先阅读', '再验证'],
+          'notes': '新备注',
+        }),
+        (_) => textResponse('已修改。'),
+        (_) => toolResponse('cancel-mission', 'mission_cancel', {
+          'missionId': original.mission.id,
+        }),
+        (_) => textResponse('已取消。'),
+      ]),
+    );
+    await assistant.initialize();
+    await assistant.send('修改这个任务');
+    final saved = (await missions.findDetailSnapshot(
+      missionId: original.mission.id,
+    ))!;
+    expect(saved.mission.title, '新标题');
+    expect(saved.executionPlan.steps, ['先阅读', '再验证']);
+    expect(saved.executionPlan.notes, '新备注');
+    expect(saved.schedule.scheduledDate, original.schedule.scheduledDate);
+    await assistant.send('取消这个任务');
+    expect(
+      (await missions.findDetailSnapshot(
+        missionId: original.mission.id,
+      ))!.mission.cancelledAt,
+      isNotNull,
+    );
+    expect(
+      (await missions.findOperationReceipt(
+        '${assistant.currentSessionId}:cancel-mission',
+      ))?.kind,
+      'mission_cancel',
+    );
+    expect((await missions.findAllDetails()), hasLength(1));
+  });
+
+  test('自定义服务配置可用于新会话，换回DeepSeek不会混用凭据', () async {
+    final assistant = makeController(ScriptedModel([]));
+    await assistant.initialize();
+    final profile = ModelProfile(
+      id: 'custom',
+      provider: 'custom',
+      model: 'custom-model',
+      endpoint: Uri.parse('https://example.invalid/v1/chat/completions'),
+      protocol: ModelProtocol.chatCompletions,
+      credentialKey: 'MISSIONBOOK_CUSTOM_API_KEY',
+      supportsImages: false,
+    );
+    await assistant.saveCustomProfile(profile);
+    await assistant.saveCredential('fake-custom', profileId: 'custom');
+    await assistant.selectModelProfile('custom');
+    await assistant.startNewSession();
+    expect(assistant.modelProfileId, 'custom');
+    expect(assistant.hasCredential, isTrue);
+    expect(assistant.customProfile?.endpoint, profile.endpoint);
+    expect(
+      await settings.resolveCredential('MISSIONBOOK_CUSTOM_API_KEY'),
+      'fake-custom',
+    );
+    expect(
+      await settings.resolveCredential('DEEPSEEK_API_KEY'),
+      'test-credential',
+    );
+    await assistant.saveCredential('', profileId: 'custom');
+    expect(assistant.hasCredential, isFalse);
+    await assistant.selectModelProfile('deepseek-chat');
+    expect(assistant.hasCredential, isTrue);
+  });
+
+  test('保存设置期间拒绝发送和切换会话，关闭等待配置落地', () async {
+    final paused = PausedSettingsStore();
+    settings = paused;
+    final model = ScriptedModel([]);
+    final assistant = makeController(model);
+    await assistant.initialize();
+    await assistant.startNewSession();
+    paused.loadGate = Completer<void>();
+    final saving = assistant.saveCredential('replacement-test-key');
+    expect(assistant.configuring, isTrue);
+    expect(assistant.isRunning, isFalse);
+    await expectLater(assistant.send('不应发出'), throwsStateError);
+    await expectLater(assistant.startNewSession(), throwsStateError);
+    await expectLater(
+      assistant.selectModelProfile('deepseek'),
+      throwsStateError,
+    );
+    var closed = false;
+    final closing = assistant.close().then((_) => closed = true);
+    await Future<void>.delayed(Duration.zero);
+    expect(closed, isFalse);
+    paused.loadGate!.complete();
+    await saving;
+    await closing;
+    expect(model.requests, isEmpty);
+    expect(assistant.configuring, isFalse);
+  });
+
+  test('打开旧会话后再次选择已存默认模型，实际会话也会切换', () async {
+    final assistant = makeController(ScriptedModel([]));
+    await assistant.initialize();
+    await assistant.startNewSession();
+    final oldId = assistant.currentSessionId!;
+    await assistant.selectModelProfile('deepseek');
+    await assistant.startNewSession();
+    await assistant.selectModelProfile('deepseek-chat');
+    await assistant.openConversation(oldId);
+    expect(assistant.modelProfileId, 'deepseek');
+    await assistant.selectModelProfile('deepseek-chat');
+    expect(assistant.modelProfileId, 'deepseek-chat');
   });
 }

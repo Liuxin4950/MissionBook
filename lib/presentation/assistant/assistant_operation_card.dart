@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../application/assistant/assistant_controller.dart';
 import '../../core/theme/colors.dart';
-import '../widgets/app_section_card.dart';
+import '../../domain/entities/mission.dart';
 
 class AssistantOperationCard extends StatefulWidget {
   const AssistantOperationCard({
@@ -28,7 +28,12 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
   @override
   Widget build(BuildContext context) {
     final operation = widget.operation;
-    if (!operation.isWrite) return _ReadResultCard(operation: operation, onOpenReference: widget.onOpenReference);
+    if (!operation.isWrite) {
+      return _ReadResultCard(
+        operation: operation,
+        onOpenReference: widget.onOpenReference,
+      );
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Material(
@@ -48,26 +53,39 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
             children: [
               _Header(operation: operation),
               const SizedBox(height: 12),
-              if (_editing && operation.status == AssistantOperationStatus.waitingConfirmation)
+              if (_editing &&
+                  operation.status ==
+                      AssistantOperationStatus.waitingConfirmation)
                 AssistantProposalEditor(
                   operation: operation,
                   onSave: (input) {
-                    final error = widget.controller.updateProposal(operation.callId, input);
-                    if (error == null && mounted) setState(() => _editing = false);
+                    final error = widget.controller.updateProposal(
+                      operation.callId,
+                      input,
+                    );
+                    if (error == null && mounted) {
+                      setState(() => _editing = false);
+                    }
                     return error;
                   },
                   onCancel: () => setState(() => _editing = false),
                 )
               else ...[
                 ..._summaryRows(operation),
-                if (operation.status == AssistantOperationStatus.waitingConfirmation)
+                if (operation.status ==
+                    AssistantOperationStatus.waitingConfirmation)
                   _WaitingActions(
                     onEdit: () => setState(() => _editing = true),
-                    onCancel: () => widget.controller.cancelProposal(operation.callId),
+                    onCancel: () =>
+                        widget.controller.cancelProposal(operation.callId),
                     onConfirm: () {
-                      final error = widget.controller.confirmProposal(operation.callId);
+                      final error = widget.controller.confirmProposal(
+                        operation.callId,
+                      );
                       if (error != null && mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(error)));
                       }
                     },
                   ),
@@ -76,14 +94,27 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: FilledButton.icon(
-                    onPressed: () => widget.controller.resolveUnknownOutcome(operation.callId),
+                    style: FilledButton.styleFrom(
+                      foregroundColor: AppColors.onPrimary,
+                      iconColor: AppColors.onPrimary,
+                      backgroundColor: AppColors.primary,
+                      disabledForegroundColor: AppColors.onDisabled,
+                      disabledBackgroundColor: AppColors.disabled,
+                    ),
+                    onPressed: () => widget.controller.resolveUnknownOutcome(
+                      operation.callId,
+                    ),
                     icon: const Icon(Icons.fact_check_outlined),
                     label: const Text('按真实记录核对结果'),
                   ),
                 ),
               if (operation.output != null &&
-                  operation.status != AssistantOperationStatus.waitingConfirmation)
-                _ResultDetails(operation: operation, onOpenReference: widget.onOpenReference),
+                  operation.status !=
+                      AssistantOperationStatus.waitingConfirmation)
+                _ResultDetails(
+                  operation: operation,
+                  onOpenReference: widget.onOpenReference,
+                ),
             ],
           ),
         ),
@@ -94,8 +125,16 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
   List<Widget> _summaryRows(AssistantOperation operation) {
     final rows = <(String, String)>[];
     final before = operation.missionBefore;
-    if (before != null && operation.toolName == 'mission_reschedule') {
-      rows.add(('原安排', '${before.schedule.scheduledDate} · ${before.schedule.plannedDurationMinutes} 分钟'));
+    if (operation.targetTitle != null) {
+      rows.add(('原名称', operation.targetTitle!));
+    }
+    if (before != null) rows.add(('任务', before.mission.title));
+    if (before != null &&
+        ['mission_reschedule', 'mission_update'].contains(operation.toolName)) {
+      rows.add((
+        '原安排',
+        '${before.schedule.scheduledDate} · ${before.schedule.plannedDurationMinutes} 分钟',
+      ));
     }
     final labels = {
       'title': '名称',
@@ -110,14 +149,22 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
       'report': '用户报告',
       'description': '说明',
       'why': '为什么',
+      'notes': '备注',
     };
     for (final entry in operation.input.entries) {
       final label = labels[entry.key];
       final value = entry.value;
-      if (label != null && value != null && value is! List) rows.add((label, '$value'));
+      if (label != null && value != null && value is! List) {
+        final display = entry.key == 'timePolicy'
+            ? (value == 'FIXED' ? '固定时间' : '自选时间')
+            : '$value';
+        rows.add((label, display));
+      }
     }
     final steps = operation.input['steps'];
-    if (steps is List && steps.isNotEmpty) rows.add(('行动步骤', steps.join(' → ')));
+    if (steps is List && steps.isNotEmpty) {
+      rows.add(('行动步骤', steps.join(' → ')));
+    }
     if (operation.toolName == 'mission_cancel') {
       rows.add(('影响', '保留排期和方案；不新增执行或失败事实'));
     }
@@ -128,8 +175,21 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(width: 76, child: Text(row.$1, style: Theme.of(context).textTheme.bodySmall)),
-              Expanded(child: Text(row.$2, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary))),
+              SizedBox(
+                width: 76,
+                child: Text(
+                  row.$1,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  row.$2,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -153,16 +213,30 @@ class _Header extends StatelessWidget {
     };
     return Row(
       children: [
-        Expanded(child: Text(_toolLabel(operation.toolName), style: Theme.of(context).textTheme.titleMedium)),
+        Expanded(
+          child: Text(
+            _toolLabel(operation.toolName),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
         const SizedBox(width: 12),
-        Text(status, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.primary)),
+        Text(
+          status,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.primary),
+        ),
       ],
     );
   }
 }
 
 class _WaitingActions extends StatelessWidget {
-  const _WaitingActions({required this.onEdit, required this.onCancel, required this.onConfirm});
+  const _WaitingActions({
+    required this.onEdit,
+    required this.onCancel,
+    required this.onConfirm,
+  });
   final VoidCallback onEdit;
   final VoidCallback onCancel;
   final VoidCallback onConfirm;
@@ -176,41 +250,83 @@ class _WaitingActions extends StatelessWidget {
       runSpacing: 8,
       children: [
         TextButton(onPressed: onCancel, child: const Text('取消')),
-        OutlinedButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit_outlined, size: 18), label: const Text('修改')),
-        FilledButton(onPressed: onConfirm, child: const Text('确认执行')),
+        OutlinedButton.icon(
+          onPressed: onEdit,
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          label: const Text('修改'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            foregroundColor: AppColors.onPrimary,
+            iconColor: AppColors.onPrimary,
+            backgroundColor: AppColors.primary,
+            disabledForegroundColor: AppColors.onDisabled,
+            disabledBackgroundColor: AppColors.disabled,
+          ),
+          onPressed: onConfirm,
+          child: const Text('确认执行'),
+        ),
       ],
     ),
   );
 }
 
 class _ReadResultCard extends StatelessWidget {
-  const _ReadResultCard({required this.operation, required this.onOpenReference});
+  const _ReadResultCard({
+    required this.operation,
+    required this.onOpenReference,
+  });
   final AssistantOperation operation;
   final void Function(String, String) onOpenReference;
 
   @override
   Widget build(BuildContext context) {
-    if (operation.status == AssistantOperationStatus.running) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          children: [
-            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-            const SizedBox(width: 8),
-            Text('正在${_toolLabel(operation.toolName)}', style: Theme.of(context).textTheme.bodyMedium),
-          ],
-        ),
-      );
-    }
+    final running = operation.status == AssistantOperationStatus.running;
+    final failed =
+        operation.status == AssistantOperationStatus.failed ||
+        operation.error != null;
+    final colors = Theme.of(context).colorScheme;
+    final label =
+        '${running
+            ? '正在'
+            : failed
+            ? '未能'
+            : '已'}${_toolLabel(operation.toolName)}';
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: AppSectionCard(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+      key: ValueKey('assistant-read-${operation.callId}'),
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 10),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          minTileHeight: 44,
+          visualDensity: VisualDensity.compact,
+          shape: const Border(),
+          collapsedShape: const Border(),
+          leading: running
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  failed ? Icons.error_outline : Icons.check_circle_outline,
+                  size: 18,
+                  color: failed ? colors.error : colors.primary,
+                ),
+          title: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: failed ? colors.error : colors.onSurfaceVariant,
+            ),
+          ),
           children: [
-            Text('已${_toolLabel(operation.toolName)}', style: Theme.of(context).textTheme.titleSmall),
-            _ResultDetails(operation: operation, onOpenReference: onOpenReference),
+            _ResultDetails(
+              operation: operation,
+              onOpenReference: onOpenReference,
+              inlineData: true,
+            ),
           ],
         ),
       ),
@@ -219,9 +335,14 @@ class _ReadResultCard extends StatelessWidget {
 }
 
 class _ResultDetails extends StatelessWidget {
-  const _ResultDetails({required this.operation, required this.onOpenReference});
+  const _ResultDetails({
+    required this.operation,
+    required this.onOpenReference,
+    this.inlineData = false,
+  });
   final AssistantOperation operation;
   final void Function(String, String) onOpenReference;
+  final bool inlineData;
 
   @override
   Widget build(BuildContext context) {
@@ -234,7 +355,12 @@ class _ResultDetails extends StatelessWidget {
         if (message != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text('$message', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.error)),
+            child: Text(
+              '$message',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.error),
+            ),
           ),
         if (references is List)
           Wrap(
@@ -244,29 +370,50 @@ class _ResultDetails extends StatelessWidget {
               for (final reference in references)
                 if (reference is Map && reference['id'] is String)
                   TextButton.icon(
-                    onPressed: () => onOpenReference('${reference['type'] ?? 'mission'}', '${reference['id']}'),
-                    icon: Icon(reference['type'] == 'goal' ? Icons.track_changes : Icons.task_outlined, size: 18),
+                    onPressed: () => onOpenReference(
+                      '${reference['type'] ?? 'mission'}',
+                      '${reference['id']}',
+                    ),
+                    icon: Icon(
+                      reference['type'] == 'goal'
+                          ? Icons.track_changes
+                          : Icons.task_outlined,
+                      size: 18,
+                    ),
                     label: Text('打开${reference['title'] ?? '记录'}'),
                   ),
             ],
           ),
         if (decoded != null)
-          ExpansionTile(
-            tilePadding: EdgeInsets.zero,
-            childrenPadding: EdgeInsets.zero,
-            title: Text('查看返回数据', style: Theme.of(context).textTheme.bodySmall),
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(12)),
-                child: SelectableText(_pretty(decoded), style: Theme.of(context).textTheme.bodySmall),
+          if (inlineData)
+            _rawData(context, decoded)
+          else
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: EdgeInsets.zero,
+              title: Text(
+                '查看返回数据',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
-            ],
-          ),
+              children: [_rawData(context, decoded)],
+            ),
       ],
     );
   }
+
+  Widget _rawData(BuildContext context, Map<String, Object?> decoded) =>
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: SelectableText(
+          _pretty(decoded),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      );
 
   static Map<String, Object?>? _decode(String? output) {
     if (output == null) return null;
@@ -285,26 +432,74 @@ class _ResultDetails extends StatelessWidget {
 }
 
 class AssistantProposalEditor extends StatefulWidget {
-  const AssistantProposalEditor({required this.operation, required this.onSave, required this.onCancel});
+  const AssistantProposalEditor({
+    super.key,
+    required this.operation,
+    required this.onSave,
+    required this.onCancel,
+  });
   final AssistantOperation operation;
   final String? Function(Map<String, Object?> input) onSave;
   final VoidCallback onCancel;
 
   @override
-  State<AssistantProposalEditor> createState() => _AssistantProposalEditorState();
+  State<AssistantProposalEditor> createState() =>
+      _AssistantProposalEditorState();
 }
 
 class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
   late Map<String, Object?> _draft;
   late final Map<String, TextEditingController> _controllers;
   String? _error;
+  final _touched = <String>{};
+
+  Set<String> get _editableKeys {
+    final tool = widget.operation.toolName;
+    return switch (tool) {
+      'mission_create' || 'mission_update' => {
+        'title',
+        'scheduledDate',
+        'plannedMinutes',
+        'fixedStartLocal',
+        'objective',
+        'steps',
+        'notes',
+        'description',
+        'why',
+      },
+      'mission_reschedule' => {
+        'scheduledDate',
+        'plannedMinutes',
+        'fixedStartLocal',
+      },
+      'goal_create' || 'goal_update' => {'title', 'description', 'why'},
+      'goal_node_create' || 'goal_node_update' => {'title', 'description'},
+      'mission_execute' => {
+        if (_draft['type'] == 'EXTEND') 'minutes',
+        if (_draft['type'] == 'PAUSE') 'reason',
+      },
+      _ => {},
+    };
+  }
 
   @override
   void initState() {
     super.initState();
     _draft = Map<String, Object?>.of(widget.operation.input);
     _controllers = {
-      for (final key in ['title', 'scheduledDate', 'plannedMinutes', 'fixedStartLocal', 'objective', 'steps', 'minutes', 'reason', 'description', 'why'])
+      for (final key in [
+        'title',
+        'scheduledDate',
+        'plannedMinutes',
+        'fixedStartLocal',
+        'objective',
+        'steps',
+        'minutes',
+        'reason',
+        'description',
+        'why',
+        'notes',
+      ])
         key: TextEditingController(text: _textValue(_draft[key])),
     };
   }
@@ -323,38 +518,81 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (tool == 'mission_create' || tool == 'goal_create' || tool == 'goal_node_create')
+        if ([
+          'mission_create',
+          'mission_update',
+          'goal_create',
+          'goal_update',
+          'goal_node_create',
+          'goal_node_update',
+        ].contains(tool))
           _field('title', '名称'),
-        if (tool == 'mission_create' || tool == 'mission_reschedule') ...[
+        if ([
+          'mission_create',
+          'mission_update',
+          'mission_reschedule',
+        ].contains(tool)) ...[
           _field('scheduledDate', '日期 YYYY-MM-DD'),
           _field('plannedMinutes', '计划分钟数', keyboardType: TextInputType.number),
           _field('fixedStartLocal', '固定开始 HH:mm（留空为自选）'),
         ],
-        if (tool == 'mission_create') ...[
+        if (tool == 'mission_create' || tool == 'mission_update') ...[
           _field('objective', '具体目标'),
           _field('steps', '行动步骤，每行一步', maxLines: 4),
+          _field('notes', '备注（可留空）', maxLines: 3),
         ],
-        if (tool == 'mission_reschedule') _choice('timePolicy', '时间方式', const ['FLEXIBLE', 'FIXED']),
+        if (tool == 'mission_reschedule' || tool == 'mission_update')
+          _choice('timePolicy', '时间方式', const ['FLEXIBLE', 'FIXED']),
         if (tool == 'mission_execute') ...[
-          _choice('type', '执行动作', const ['START', 'PAUSE', 'RESUME', 'EXTEND', 'END']),
-          if (_draft['type'] == 'EXTEND') _field('minutes', '增加分钟数', keyboardType: TextInputType.number),
+          _choice('type', '执行动作', const [
+            'START',
+            'PAUSE',
+            'RESUME',
+            'EXTEND',
+            'END',
+          ]),
+          if (_draft['type'] == 'EXTEND')
+            _field('minutes', '增加分钟数', keyboardType: TextInputType.number),
           if (_draft['type'] == 'PAUSE') _field('reason', '暂停原因（可留空）'),
           if (_draft['type'] == 'END') ...[
             _choice('report', '用户报告结果', const ['COMPLETED', 'NOT_COMPLETED']),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('稍后提交可选材料'),
-              value: _draft['submitOptionalEvidence'] == true,
-              onChanged: (value) => setState(() => _draft['submitOptionalEvidence'] = value),
-            ),
+            if (widget.operation.missionBefore?.mission.verificationPolicy ==
+                    VerificationPolicy.optionalEvidence &&
+                _draft['report'] == 'COMPLETED')
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('稍后提交可选材料'),
+                value: _draft['submitOptionalEvidence'] == true,
+                onChanged: (value) =>
+                    setState(() => _draft['submitOptionalEvidence'] = value),
+              ),
           ],
         ],
-        if (tool == 'goal_create' || tool == 'goal_node_create') _field('description', '说明（可留空）'),
-        if (tool == 'goal_create') _field('why', '为什么（可留空）'),
+        if ([
+          'goal_create',
+          'goal_update',
+          'goal_node_create',
+          'goal_node_update',
+          'mission_create',
+          'mission_update',
+        ].contains(tool))
+          _field('description', '说明（可留空）'),
+        if ([
+          'goal_create',
+          'goal_update',
+          'mission_create',
+          'mission_update',
+        ].contains(tool))
+          _field('why', '为什么（可留空）'),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text(_error!, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.error)),
+            child: Text(
+              _error!,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.error),
+            ),
           ),
         Padding(
           padding: const EdgeInsets.only(top: 12),
@@ -363,7 +601,17 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
             spacing: 8,
             children: [
               TextButton(onPressed: widget.onCancel, child: const Text('取消修改')),
-              FilledButton(onPressed: _save, child: const Text('保存提案')),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  foregroundColor: AppColors.onPrimary,
+                  iconColor: AppColors.onPrimary,
+                  backgroundColor: AppColors.primary,
+                  disabledForegroundColor: AppColors.onDisabled,
+                  disabledBackgroundColor: AppColors.disabled,
+                ),
+                onPressed: _save,
+                child: const Text('保存提案'),
+              ),
             ],
           ),
         ),
@@ -371,10 +619,18 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
     );
   }
 
-  Widget _field(String key, String label, {int maxLines = 1, TextInputType? keyboardType}) => Padding(
+  Widget _field(
+    String key,
+    String label, {
+    int maxLines = 1,
+    TextInputType? keyboardType,
+  }) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
     child: TextField(
       controller: _controllers[key],
+      onChanged: (_) {
+        _touched.add(key);
+      },
       maxLines: maxLines,
       keyboardType: keyboardType,
       decoration: InputDecoration(labelText: label),
@@ -386,33 +642,58 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
     child: DropdownButtonFormField<String>(
       initialValue: values.contains(_draft[key]) ? _draft[key] as String : null,
       decoration: InputDecoration(labelText: label),
-      items: [for (final value in values) DropdownMenuItem(value: value, child: Text(value))],
+      items: [
+        for (final value in values)
+          DropdownMenuItem(value: value, child: Text(value)),
+      ],
       onChanged: (value) => setState(() => _draft[key] = value),
     ),
   );
 
   void _save() {
-    for (final entry in _controllers.entries) {
-      final text = entry.value.text.trim();
-      if (['plannedMinutes', 'minutes'].contains(entry.key)) {
-        _draft[entry.key] = int.tryParse(text);
-        if (text.isNotEmpty && _draft[entry.key] == null) {
-          setState(() => _error = '分钟数必须是整数');
+    for (final key in _editableKeys) {
+      if (!_draft.containsKey(key) && !_touched.contains(key)) continue;
+      final text = _controllers[key]!.text.trim();
+      if (key == 'plannedMinutes' || key == 'minutes') {
+        final value = int.tryParse(text);
+        if (value == null || value <= 0) {
+          setState(() => _error = '分钟数必须是正整数');
           return;
         }
-      } else if (entry.key == 'steps') {
-        final steps = text.split('\n').map((item) => item.trim()).where((item) => item.isNotEmpty).toList();
-        if (steps.isEmpty) {
-          _draft.remove('steps');
-        } else {
-          _draft['steps'] = steps;
-        }
-      } else if (text.isEmpty && !['title', 'scheduledDate', 'reason', 'description', 'why'].contains(entry.key)) {
-        _draft.remove(entry.key);
+        _draft[key] = value;
+      } else if (key == 'steps') {
+        _draft[key] = text
+            .split('\n')
+            .map((item) => item.trim())
+            .where((item) => item.isNotEmpty)
+            .toList();
+      } else if (key == 'fixedStartLocal' && text.isEmpty) {
+        _draft.remove(key);
       } else {
-        _draft[entry.key] = text;
+        _draft[key] = text;
       }
     }
+    if (widget.operation.toolName != 'mission_create' &&
+        _touched.contains('fixedStartLocal') &&
+        _controllers['fixedStartLocal']!.text.trim().isEmpty) {
+      _draft['timePolicy'] = 'FLEXIBLE';
+    }
+    if (_draft['timePolicy'] == 'FLEXIBLE') _draft.remove('fixedStartLocal');
+    if (widget.operation.toolName == 'mission_execute') {
+      if (_draft['type'] != 'EXTEND') _draft.remove('minutes');
+      if (_draft['type'] != 'PAUSE') _draft.remove('reason');
+      if (_draft['type'] != 'END') {
+        _draft.remove('report');
+        _draft.remove('submitOptionalEvidence');
+        _draft.remove('userReasonCategory');
+        _draft.remove('userReasonText');
+      } else if (_draft['report'] != 'COMPLETED' ||
+          widget.operation.missionBefore?.mission.verificationPolicy !=
+              VerificationPolicy.optionalEvidence) {
+        _draft.remove('submitOptionalEvidence');
+      }
+    }
+
     final error = widget.onSave(_draft);
     if (error != null) setState(() => _error = error);
   }
@@ -431,6 +712,14 @@ String _toolLabel(String name) => switch (name) {
   'goal_query' => '读取目标与节点',
   'mission_create' => '创建任务',
   'mission_reschedule' => '调整任务安排',
+  'mission_update' => '修改任务',
+  'goal_update' => '修改目标',
+  'goal_node_update' => '修改节点',
+  'goal_node_query' => '读取节点',
+  'mission_search' => '搜索任务',
+  'mission_content' => '读取任务片段',
+  'mission_records' => '查看任务记录',
+  'evidence_content' => '读取材料正文',
   'mission_execute' => '提交执行动作',
   'mission_cancel' => '取消任务',
   'goal_create' => '创建目标',

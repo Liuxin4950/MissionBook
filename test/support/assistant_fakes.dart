@@ -6,29 +6,47 @@ import 'package:mission_book/data/assistant/assistant_settings_store.dart';
 class MemoryAssistantSettingsStore implements AssistantSettingsStore {
   String? credential = 'test-credential';
   String profileId = 'deepseek-chat';
+  String? customCredential;
+  ModelProfile? customProfile;
   bool autoApprove = false;
 
   @override
   Future<AssistantSettings> load() async => AssistantSettings(
-    hasCredential: credential != null && credential!.isNotEmpty,
+    hasCredential: profileId == 'custom'
+        ? customCredential != null
+        : credential != null && credential!.isNotEmpty,
+    hasDeepSeekCredential: credential != null && credential!.isNotEmpty,
+    hasCustomCredential: customCredential != null,
+    customProfile: customProfile,
     modelProfileId: profileId,
     autoApproveWrites: autoApprove,
   );
 
   @override
-  Future<String?> resolveCredential(String credentialKey) async => credential;
+  Future<String?> resolveCredential(String credentialKey) async =>
+      credentialKey == 'MISSIONBOOK_CUSTOM_API_KEY'
+      ? customCredential
+      : credential;
 
   @override
   Future<void> saveAutoApproveWrites(bool value) async => autoApprove = value;
 
   @override
   Future<void> saveCredential(String credentialKey, String value) async {
-    credential = value.trim().isEmpty ? null : value.trim();
+    if (credentialKey == 'MISSIONBOOK_CUSTOM_API_KEY') {
+      customCredential = value.trim().isEmpty ? null : value.trim();
+    } else {
+      credential = value.trim().isEmpty ? null : value.trim();
+    }
   }
 
   @override
+  Future<void> saveCustomProfile(ModelProfile profile) async =>
+      customProfile = profile;
+
+  @override
   Future<void> saveModelProfile(String profileId) async =>
-      profileId = profileId;
+      this.profileId = profileId;
 }
 
 class ScriptedModel implements AgentModel {

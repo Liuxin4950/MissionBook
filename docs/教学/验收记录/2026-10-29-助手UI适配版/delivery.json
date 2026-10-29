@@ -1,0 +1,12 @@
+{
+  "versionName": "0.2.8",
+  "versionCode": 10,
+  "package": "chat.liuxin.mission_book",
+  "file": "/sdcard/Download/MissionBook-0.2.8-ai-ui-20261029-arm64.apk",
+  "bytes": 40000765,
+  "sha256": "c53d528e8d2d4813dd14f8b916e930764031839e99f52a36f1f31f7201e66d48",
+  "matchesPreviousSigningCertificate": true,
+  "freshBuildAfterMarker": true,
+  "installed": false,
+  "completeAgentDelivered": false
+}

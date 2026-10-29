@@ -5656,6 +5656,15 @@ class $AssistantSessionsTable extends AssistantSessions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _nodeIdMeta = const VerificationMeta('nodeId');
+  @override
+  late final GeneratedColumn<String> nodeId = GeneratedColumn<String>(
+    'node_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _goalIdMeta = const VerificationMeta('goalId');
   @override
   late final GeneratedColumn<String> goalId = GeneratedColumn<String>(
@@ -5694,6 +5703,7 @@ class $AssistantSessionsTable extends AssistantSessions
     createdAt,
     updatedAt,
     missionId,
+    nodeId,
     goalId,
     writerToken,
     writerLeaseUntil,
@@ -5743,6 +5753,12 @@ class $AssistantSessionsTable extends AssistantSessions
       context.handle(
         _missionIdMeta,
         missionId.isAcceptableOrUnknown(data['mission_id']!, _missionIdMeta),
+      );
+    }
+    if (data.containsKey('node_id')) {
+      context.handle(
+        _nodeIdMeta,
+        nodeId.isAcceptableOrUnknown(data['node_id']!, _nodeIdMeta),
       );
     }
     if (data.containsKey('goal_id')) {
@@ -5798,6 +5814,10 @@ class $AssistantSessionsTable extends AssistantSessions
         DriftSqlType.string,
         data['${effectivePrefix}mission_id'],
       ),
+      nodeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}node_id'],
+      ),
       goalId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}goal_id'],
@@ -5826,6 +5846,7 @@ class AssistantSession extends DataClass
   final int createdAt;
   final int updatedAt;
   final String? missionId;
+  final String? nodeId;
   final String? goalId;
   final String? writerToken;
   final int? writerLeaseUntil;
@@ -5835,6 +5856,7 @@ class AssistantSession extends DataClass
     required this.createdAt,
     required this.updatedAt,
     this.missionId,
+    this.nodeId,
     this.goalId,
     this.writerToken,
     this.writerLeaseUntil,
@@ -5848,6 +5870,9 @@ class AssistantSession extends DataClass
     map['updated_at'] = Variable<int>(updatedAt);
     if (!nullToAbsent || missionId != null) {
       map['mission_id'] = Variable<String>(missionId);
+    }
+    if (!nullToAbsent || nodeId != null) {
+      map['node_id'] = Variable<String>(nodeId);
     }
     if (!nullToAbsent || goalId != null) {
       map['goal_id'] = Variable<String>(goalId);
@@ -5870,6 +5895,9 @@ class AssistantSession extends DataClass
       missionId: missionId == null && nullToAbsent
           ? const Value.absent()
           : Value(missionId),
+      nodeId: nodeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nodeId),
       goalId: goalId == null && nullToAbsent
           ? const Value.absent()
           : Value(goalId),
@@ -5893,6 +5921,7 @@ class AssistantSession extends DataClass
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
       missionId: serializer.fromJson<String?>(json['missionId']),
+      nodeId: serializer.fromJson<String?>(json['nodeId']),
       goalId: serializer.fromJson<String?>(json['goalId']),
       writerToken: serializer.fromJson<String?>(json['writerToken']),
       writerLeaseUntil: serializer.fromJson<int?>(json['writerLeaseUntil']),
@@ -5907,6 +5936,7 @@ class AssistantSession extends DataClass
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
       'missionId': serializer.toJson<String?>(missionId),
+      'nodeId': serializer.toJson<String?>(nodeId),
       'goalId': serializer.toJson<String?>(goalId),
       'writerToken': serializer.toJson<String?>(writerToken),
       'writerLeaseUntil': serializer.toJson<int?>(writerLeaseUntil),
@@ -5919,6 +5949,7 @@ class AssistantSession extends DataClass
     int? createdAt,
     int? updatedAt,
     Value<String?> missionId = const Value.absent(),
+    Value<String?> nodeId = const Value.absent(),
     Value<String?> goalId = const Value.absent(),
     Value<String?> writerToken = const Value.absent(),
     Value<int?> writerLeaseUntil = const Value.absent(),
@@ -5928,6 +5959,7 @@ class AssistantSession extends DataClass
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     missionId: missionId.present ? missionId.value : this.missionId,
+    nodeId: nodeId.present ? nodeId.value : this.nodeId,
     goalId: goalId.present ? goalId.value : this.goalId,
     writerToken: writerToken.present ? writerToken.value : this.writerToken,
     writerLeaseUntil: writerLeaseUntil.present
@@ -5941,6 +5973,7 @@ class AssistantSession extends DataClass
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       missionId: data.missionId.present ? data.missionId.value : this.missionId,
+      nodeId: data.nodeId.present ? data.nodeId.value : this.nodeId,
       goalId: data.goalId.present ? data.goalId.value : this.goalId,
       writerToken: data.writerToken.present
           ? data.writerToken.value
@@ -5959,6 +5992,7 @@ class AssistantSession extends DataClass
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('missionId: $missionId, ')
+          ..write('nodeId: $nodeId, ')
           ..write('goalId: $goalId, ')
           ..write('writerToken: $writerToken, ')
           ..write('writerLeaseUntil: $writerLeaseUntil')
@@ -5973,6 +6007,7 @@ class AssistantSession extends DataClass
     createdAt,
     updatedAt,
     missionId,
+    nodeId,
     goalId,
     writerToken,
     writerLeaseUntil,
@@ -5986,6 +6021,7 @@ class AssistantSession extends DataClass
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.missionId == this.missionId &&
+          other.nodeId == this.nodeId &&
           other.goalId == this.goalId &&
           other.writerToken == this.writerToken &&
           other.writerLeaseUntil == this.writerLeaseUntil);
@@ -5997,6 +6033,7 @@ class AssistantSessionsCompanion extends UpdateCompanion<AssistantSession> {
   final Value<int> createdAt;
   final Value<int> updatedAt;
   final Value<String?> missionId;
+  final Value<String?> nodeId;
   final Value<String?> goalId;
   final Value<String?> writerToken;
   final Value<int?> writerLeaseUntil;
@@ -6007,6 +6044,7 @@ class AssistantSessionsCompanion extends UpdateCompanion<AssistantSession> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.missionId = const Value.absent(),
+    this.nodeId = const Value.absent(),
     this.goalId = const Value.absent(),
     this.writerToken = const Value.absent(),
     this.writerLeaseUntil = const Value.absent(),
@@ -6018,6 +6056,7 @@ class AssistantSessionsCompanion extends UpdateCompanion<AssistantSession> {
     required int createdAt,
     required int updatedAt,
     this.missionId = const Value.absent(),
+    this.nodeId = const Value.absent(),
     this.goalId = const Value.absent(),
     this.writerToken = const Value.absent(),
     this.writerLeaseUntil = const Value.absent(),
@@ -6032,6 +6071,7 @@ class AssistantSessionsCompanion extends UpdateCompanion<AssistantSession> {
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
     Expression<String>? missionId,
+    Expression<String>? nodeId,
     Expression<String>? goalId,
     Expression<String>? writerToken,
     Expression<int>? writerLeaseUntil,
@@ -6043,6 +6083,7 @@ class AssistantSessionsCompanion extends UpdateCompanion<AssistantSession> {
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (missionId != null) 'mission_id': missionId,
+      if (nodeId != null) 'node_id': nodeId,
       if (goalId != null) 'goal_id': goalId,
       if (writerToken != null) 'writer_token': writerToken,
       if (writerLeaseUntil != null) 'writer_lease_until': writerLeaseUntil,
@@ -6056,6 +6097,7 @@ class AssistantSessionsCompanion extends UpdateCompanion<AssistantSession> {
     Value<int>? createdAt,
     Value<int>? updatedAt,
     Value<String?>? missionId,
+    Value<String?>? nodeId,
     Value<String?>? goalId,
     Value<String?>? writerToken,
     Value<int?>? writerLeaseUntil,
@@ -6067,6 +6109,7 @@ class AssistantSessionsCompanion extends UpdateCompanion<AssistantSession> {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       missionId: missionId ?? this.missionId,
+      nodeId: nodeId ?? this.nodeId,
       goalId: goalId ?? this.goalId,
       writerToken: writerToken ?? this.writerToken,
       writerLeaseUntil: writerLeaseUntil ?? this.writerLeaseUntil,
@@ -6092,6 +6135,9 @@ class AssistantSessionsCompanion extends UpdateCompanion<AssistantSession> {
     if (missionId.present) {
       map['mission_id'] = Variable<String>(missionId.value);
     }
+    if (nodeId.present) {
+      map['node_id'] = Variable<String>(nodeId.value);
+    }
     if (goalId.present) {
       map['goal_id'] = Variable<String>(goalId.value);
     }
@@ -6115,6 +6161,7 @@ class AssistantSessionsCompanion extends UpdateCompanion<AssistantSession> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('missionId: $missionId, ')
+          ..write('nodeId: $nodeId, ')
           ..write('goalId: $goalId, ')
           ..write('writerToken: $writerToken, ')
           ..write('writerLeaseUntil: $writerLeaseUntil, ')
@@ -12127,6 +12174,7 @@ typedef $$AssistantSessionsTableCreateCompanionBuilder =
       required int createdAt,
       required int updatedAt,
       Value<String?> missionId,
+      Value<String?> nodeId,
       Value<String?> goalId,
       Value<String?> writerToken,
       Value<int?> writerLeaseUntil,
@@ -12139,6 +12187,7 @@ typedef $$AssistantSessionsTableUpdateCompanionBuilder =
       Value<int> createdAt,
       Value<int> updatedAt,
       Value<String?> missionId,
+      Value<String?> nodeId,
       Value<String?> goalId,
       Value<String?> writerToken,
       Value<int?> writerLeaseUntil,
@@ -12219,6 +12268,11 @@ class $$AssistantSessionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get nodeId => $composableBuilder(
+    column: $table.nodeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get goalId => $composableBuilder(
     column: $table.goalId,
     builder: (column) => ColumnFilters(column),
@@ -12295,6 +12349,11 @@ class $$AssistantSessionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get nodeId => $composableBuilder(
+    column: $table.nodeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get goalId => $composableBuilder(
     column: $table.goalId,
     builder: (column) => ColumnOrderings(column),
@@ -12334,6 +12393,9 @@ class $$AssistantSessionsTableAnnotationComposer
 
   GeneratedColumn<String> get missionId =>
       $composableBuilder(column: $table.missionId, builder: (column) => column);
+
+  GeneratedColumn<String> get nodeId =>
+      $composableBuilder(column: $table.nodeId, builder: (column) => column);
 
   GeneratedColumn<String> get goalId =>
       $composableBuilder(column: $table.goalId, builder: (column) => column);
@@ -12414,6 +12476,7 @@ class $$AssistantSessionsTableTableManager
                 Value<int> createdAt = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
                 Value<String?> missionId = const Value.absent(),
+                Value<String?> nodeId = const Value.absent(),
                 Value<String?> goalId = const Value.absent(),
                 Value<String?> writerToken = const Value.absent(),
                 Value<int?> writerLeaseUntil = const Value.absent(),
@@ -12424,6 +12487,7 @@ class $$AssistantSessionsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 missionId: missionId,
+                nodeId: nodeId,
                 goalId: goalId,
                 writerToken: writerToken,
                 writerLeaseUntil: writerLeaseUntil,
@@ -12436,6 +12500,7 @@ class $$AssistantSessionsTableTableManager
                 required int createdAt,
                 required int updatedAt,
                 Value<String?> missionId = const Value.absent(),
+                Value<String?> nodeId = const Value.absent(),
                 Value<String?> goalId = const Value.absent(),
                 Value<String?> writerToken = const Value.absent(),
                 Value<int?> writerLeaseUntil = const Value.absent(),
@@ -12446,6 +12511,7 @@ class $$AssistantSessionsTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 missionId: missionId,
+                nodeId: nodeId,
                 goalId: goalId,
                 writerToken: writerToken,
                 writerLeaseUntil: writerLeaseUntil,

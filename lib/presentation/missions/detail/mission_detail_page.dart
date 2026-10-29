@@ -1,5 +1,6 @@
 import 'package:mission_book/presentation/missions/detail/mission_detail_content.dart';
 import 'dart:async';
+import '../../assistant/assistant_launcher.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';
 
@@ -355,7 +356,10 @@ class _MissionDetailPageState extends State<MissionDetailPage>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      AssistantSurface(missionId: widget.missionId, child: _buildPage(context));
+
+  Widget _buildPage(BuildContext context) {
     return PopScope<void>(
       // 写入期间留在当前页，等待事务结果；对话框自身仍可用系统返回关闭。
       canPop: !_isCancelBusy,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../application/assistant/assistant_controller.dart';
+import '../../application/assistant/assistant_speech.dart';
 import '../../application/goals/goal_service.dart';
 import '../../application/missions/mission_service.dart';
 import '../goals/detail/goal_detail_page.dart';
@@ -12,14 +13,19 @@ class AssistantScope extends InheritedWidget {
   const AssistantScope({
     super.key,
     required this.controller,
+    required this.voice,
     required this.missions,
     required this.goals,
     required super.child,
   });
 
   final AssistantController controller;
+  final AssistantVoiceController voice;
   final MissionService missions;
   final GoalService goals;
+
+  static AssistantScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AssistantScope>();
 
   static AssistantScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AssistantScope>();
@@ -30,6 +36,7 @@ class AssistantScope extends InheritedWidget {
   @override
   bool updateShouldNotify(AssistantScope oldWidget) =>
       controller != oldWidget.controller ||
+      voice != oldWidget.voice ||
       missions != oldWidget.missions ||
       goals != oldWidget.goals;
 }
@@ -38,34 +45,59 @@ Future<void> openAssistant(
   BuildContext context, {
   String? missionId,
   String? goalId,
+  String? nodeId,
 }) async {
   final scope = AssistantScope.of(context);
   try {
-    if (missionId != null) await scope.controller.openMissionReference(missionId);
-    if (goalId != null) await scope.controller.openGoalReference(goalId);
+    await scope.controller.initialize();
+    if (nodeId != null) {
+      await scope.controller.openNodeReference(nodeId);
+    } else if (missionId != null) {
+      await scope.controller.openMissionReference(missionId);
+    } else if (goalId != null) {
+      await scope.controller.openGoalReference(goalId);
+    } else {
+      await scope.controller.openGlobalConversation();
+    }
     if (!context.mounted) return;
-    await openDetailPane(
-      context,
-      label: '助手',
-      builder: (_) => AssistantPage(controller: scope.controller, showBack: true),
-    );
+    await showAssistantConversation(context);
   } catch (error) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('暂时无法打开助手：$error')),
-    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('暂时无法打开助手：$error')));
+    }
   }
 }
 
-Future<void> openAssistantMission(BuildContext context, String missionId) async {
+/// 独立二级路由覆盖原工作区；不切主导航或清空详情/草稿栈。
+Future<void> showAssistantConversation(
+  BuildContext context, {
+  String? initialText,
+}) {
+  final scope = AssistantScope.of(context);
+  return Navigator.of(context, rootNavigator: true).push<void>(
+    MaterialPageRoute(
+      settings: const RouteSettings(name: '/assistant/conversation'),
+      builder: (_) => AssistantPage(
+        controller: scope.controller,
+        showBack: true,
+        initialText: initialText,
+      ),
+    ),
+  );
+}
+
+Future<void> openAssistantMission(
+  BuildContext context,
+  String missionId,
+) async {
   final scope = AssistantScope.of(context);
   await openDetailPane(
     context,
     label: '任务详情',
-    builder: (_) => MissionDetailPage(
-      missionId: missionId,
-      missionService: scope.missions,
-    ),
+    builder: (_) =>
+        MissionDetailPage(missionId: missionId, missionService: scope.missions),
   );
 }
 

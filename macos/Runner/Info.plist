@@ -28,5 +28,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>使用麦克风向助手描述任务和目标调整。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>将您主动录入的短句转为文字交给助手。</string>
 </dict>
 </plist>

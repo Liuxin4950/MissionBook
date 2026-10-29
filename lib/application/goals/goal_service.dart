@@ -83,6 +83,7 @@ class GoalService {
     required String title,
     String? description,
     String? why,
+    String? operationId,
   }) async {
     final cleanedTitle = title.trim();
     final cleanedDescription = _optionalText(description);
@@ -93,6 +94,7 @@ class GoalService {
       title: cleanedTitle,
       description: cleanedDescription,
       why: cleanedWhy,
+      operationId: operationId,
     );
     _notify();
   }
@@ -197,11 +199,13 @@ class GoalService {
     GoalNode expected, {
     required String title,
     String? description,
+    String? operationId,
   }) async {
     await repository.updateNode(
       expected, // 页面原先读到的节点，用于检查文字是否已被别处修改。
       title: title.trim(),
       description: _optionalText(description),
+      operationId: operationId,
     );
     _notify();
   }

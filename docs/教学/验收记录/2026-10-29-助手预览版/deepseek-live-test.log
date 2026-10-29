@@ -1,0 +1,9 @@
+   Woah! You appear to be trying to run flutter as root.
+   We strongly recommend running the flutter tool without superuser privileges.
+  /
+📎
+Flutter assets will be downloaded from https://storage.flutter-io.cn. Make sure you trust this source!
+00:00 +0: loading /root/Working/MissionBook/test/manual/assistant_live_deepseek_test.dart
+00:00 +0: 真实 DeepSeek：查询、编辑批准参数、写入恢复、节点改名与取消零写入
+LIVE_ASSISTANT query=passed editedApproval=passed persistedInputs=passed nodeRename=passed cancellationZeroWrites=passed
+00:39 +1: All tests passed!

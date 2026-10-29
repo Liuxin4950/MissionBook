@@ -1,5 +1,6 @@
 import 'package:mission_book/presentation/missions/execution/execution_widgets.dart';
 import 'dart:async';
+import '../../assistant/assistant_launcher.dart';
 
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';
@@ -364,7 +365,10 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(builder: _buildWorkspace);
+  Widget build(BuildContext context) => AssistantSurface(
+    missionId: widget.detail.mission.id,
+    child: LayoutBuilder(builder: _buildWorkspace),
+  );
 
   Widget _buildWorkspace(BuildContext context, BoxConstraints viewport) {
     // 高屏把留白分配到圆环上方和控制区之间；小窗/键盘展开时收回，正文仍可滚动。

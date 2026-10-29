@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../assistant/assistant_launcher.dart';
 
 import 'package:flutter/material.dart';
 
@@ -527,9 +528,16 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                   destructive: true,
                 ),
               ),
+              if (AssistantEntryScope.maybeOf(context) != null)
+                PopupMenuItem(
+                  value: _NodeAction.assistant,
+                  child: menuLabel(Icons.auto_awesome_outlined, '问助手'),
+                ),
             ],
       onSelected: (action) {
         switch (action) {
+          case _NodeAction.assistant:
+            AssistantEntryScope.maybeOf(context)?.openNode(node.id);
           case _NodeAction.createMission:
             final section = _taskSections[node.id]?.currentState;
             if (section != null) unawaited(section.createMission());
@@ -811,7 +819,16 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   }
 }
 
-enum _NodeAction { createMission, add, edit, up, down, archive, restore }
+enum _NodeAction {
+  assistant,
+  createMission,
+  add,
+  edit,
+  up,
+  down,
+  archive,
+  restore,
+}
 
 /// 页面临时位置；每条引导线记录该分支下方是否仍有同级节点。
 class _OutlineEntry {

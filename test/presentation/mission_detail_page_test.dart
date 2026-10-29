@@ -82,7 +82,7 @@ class DetailRepository implements MissionRepository {
   final cancellations = <Completer<void>>[];
 
   @override
-  Future<void> cancel(String missionId) {
+  Future<void> cancel(String missionId, {String? operationId}) {
     cancelIds.add(missionId);
     final request = Completer<void>();
     cancellations.add(request);

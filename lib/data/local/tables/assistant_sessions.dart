@@ -9,6 +9,7 @@ class AssistantSessions extends Table {
   IntColumn get createdAt => integer()();
   IntColumn get updatedAt => integer()();
   TextColumn get missionId => text().nullable()();
+  TextColumn get nodeId => text().nullable()();
   TextColumn get goalId => text().nullable()();
   TextColumn get writerToken => text().nullable()();
   IntColumn get writerLeaseUntil => integer().nullable()();

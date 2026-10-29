@@ -90,11 +90,18 @@ final class AgentTool {
 
 /// 一次调用的授权结果；需要确认时，应用先等用户选择再返回。
 final class ToolDecision {
-  const ToolDecision.allow() : allowed = true, reason = '';
-  const ToolDecision.deny(this.reason) : allowed = false;
+  const ToolDecision.allow() : allowed = true, reason = '', input = null;
+
+  /// 宿主批准的最终参数；执行前重新校验并先持久化，不改写模型原消息。
+  ToolDecision.allowWithInput(Map<String, Object?> value)
+    : allowed = true,
+      reason = '',
+      input = freezeJsonObject(value);
+  const ToolDecision.deny(this.reason) : allowed = false, input = null;
 
   final bool allowed;
   final String reason;
+  final Map<String, Object?>? input;
 }
 
 typedef ToolAuthorizer =

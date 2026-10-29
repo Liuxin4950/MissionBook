@@ -12,6 +12,13 @@ import 'core/theme/app_theme.dart';
 import 'data/local/app_database.dart';
 import 'data/repositories/drift_mission_repository.dart';
 import 'app_shell.dart';
+import 'application/assistant/assistant_controller.dart';
+import 'application/assistant/assistant_speech.dart';
+import 'data/assistant/assistant_settings_store.dart';
+import 'data/assistant/drift_session_store.dart';
+import 'data/assistant/drift_assistant_reader.dart';
+import 'data/assistant/system_assistant_speech.dart';
+import 'presentation/assistant/assistant_scope.dart';
 import 'application/evidence/evidence_image_service.dart';
 import 'data/attachments/evidence_image_platform.dart' as image_platform;
 import 'application/goals/goal_service.dart';
@@ -47,6 +54,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   Timer? _launchTimer;
   // late 表示这些属性稍后初始化。
   // final 表示初始化后不再换成另一个对象。
+  late final AssistantController _assistant;
+  late final AssistantVoiceController _assistantVoice;
   late final AppDatabase _database; // 定义数据库连接器
   late final MissionService _missionService; // 业务操作对象
   late final GoalService _goalService; // 目标服务，与任务服务共用数据库。
@@ -98,6 +107,14 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       filePicker: goal_file_platform.createGoalFilePicker(),
       packages: packages,
     );
+    _assistant = AssistantController(
+      reader: DriftAssistantReader(_database),
+      sessionStore: DriftSessionStore(_database),
+      settingsStore: const SecureAssistantSettingsStore(),
+      missions: _missionService,
+      goals: _goalService,
+    );
+    _assistantVoice = AssistantVoiceController(SystemAssistantSpeech());
     _backupService = DatabaseBackupService(
       database: _database,
       readAttachment: _missionService.readEvidenceImage,
@@ -141,6 +158,13 @@ class _AppState extends State<App> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // inactive 也可能只是权限窗口；只有确实隐藏/后台才停止模型后续步骤。
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _assistant.stop();
+      unawaited(_assistantVoice.cancel());
+    }
     _foreground = state == AppLifecycleState.resumed;
     if (_foreground) {
       unawaited(_scheduleDeadlineCheck());
@@ -312,6 +336,13 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MissionBook',
+      builder: (context, child) => AssistantScope(
+        controller: _assistant,
+        voice: _assistantVoice,
+        missions: _missionService,
+        goals: _goalService,
+        child: child!,
+      ),
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       locale: const Locale('zh', 'CN'),
@@ -323,6 +354,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         child: _launchComplete
             ? AppShell(
                 key: const ValueKey('app-shell'),
+                assistant: _assistant,
                 missionService: _missionService,
                 goalService: _goalService,
                 backupService: _backupService,
@@ -349,7 +381,13 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     unawaited(_missionService.dispose());
     unawaited(_goalService.dispose());
     unawaited(_goalService.packages?.dispose());
-    unawaited(_database.close());
+    _assistantVoice.dispose();
+    unawaited(
+      _assistant.close().then((_) {
+        _assistant.dispose();
+        return _database.close();
+      }),
+    );
     super.dispose();
   }
 }

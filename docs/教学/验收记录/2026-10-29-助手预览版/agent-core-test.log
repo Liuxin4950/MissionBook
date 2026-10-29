@@ -1,0 +1,120 @@
+   Woah! You appear to be trying to run flutter as root.
+   We strongly recommend running the flutter tool without superuser privileges.
+  /
+📎
+Running build hooks...Running build hooks...00:00 +0: loading test/agent_loop_test.dart
+00:00 +0: test/agent_loop_test.dart: 直接回答只请求一次，消息和请求都保留独立快照
+00:00 +1: test/context_compaction_test.dart: 自动压缩保留当前要求，原列表和原消息不被删除或修改
+00:00 +2: test/agent_loop_test.dart: 同批工具顺序执行，多轮调用把真实结果交回模型，事件保持顺序
+00:00 +3: test/agent_loop_test.dart: 同批工具顺序执行，多轮调用把真实结果交回模型，事件保持顺序
+00:00 +4: test/agent_loop_test.dart: 同批工具顺序执行，多轮调用把真实结果交回模型，事件保持顺序
+00:00 +5: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +6: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +7: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +8: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +9: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +10: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +11: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +12: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +13: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +14: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +15: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +16: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +17: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +18: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +19: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +20: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +21: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +22: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +23: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +24: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +25: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +26: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +27: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +28: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +29: test/deepseek_messages_model_test.dart: HTTP 适配与循环贯通：发送工具 Schema，回传一批匹配的结果，保留思考签名
+00:00 +30: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +31: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +32: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +33: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +34: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +35: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +36: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +37: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +38: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +39: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +40: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +41: test/context_compaction_test.dart: 确认溢出后压缩并重试该模型请求，不重新执行已完成的工具
+00:00 +42: test/file_session_store_test.dart: (setUpAll)
+00:00 +43: test/file_session_store_test.dart: (setUpAll)
+00:00 +44: test/file_session_store_test.dart: (setUpAll)
+00:00 +45: test/file_session_store_test.dart: (setUpAll)
+00:00 +46: test/file_session_store_test.dart: (setUpAll)
+00:00 +47: test/file_session_store_test.dart: (setUpAll)
+00:01 +48: test/file_session_store_test.dart: (setUpAll)
+00:01 +49: test/file_session_store_test.dart: (setUpAll)
+00:01 +50: test/file_session_store_test.dart: (setUpAll)
+00:01 +51: test/file_session_store_test.dart: (setUpAll)
+00:01 +52: test/file_session_store_test.dart: (setUpAll)
+00:01 +53: test/file_session_store_test.dart: (setUpAll)
+00:01 +54: test/file_session_store_test.dart: (setUpAll)
+00:01 +55: test/file_session_store_test.dart: (setUpAll)
+00:01 +56: test/file_session_store_test.dart: (setUpAll)
+00:01 +57: test/file_session_store_test.dart: (setUpAll)
+00:01 +58: test/file_session_store_test.dart: (setUpAll)
+00:01 +59: test/file_session_store_test.dart: (setUpAll)
+00:01 +60: test/file_session_store_test.dart: (setUpAll)
+00:01 +61: test/file_session_store_test.dart: (setUpAll)
+00:01 +62: test/file_session_store_test.dart: (setUpAll)
+00:01 +63: test/file_session_store_test.dart: (setUpAll)
+00:01 +64: test/file_session_store_test.dart: (setUpAll)
+00:01 +65: test/file_session_store_test.dart: (setUpAll)
+00:01 +66: test/file_session_store_test.dart: (setUpAll)
+00:01 +67: test/file_session_store_test.dart: (setUpAll)
+00:01 +68: test/file_session_store_test.dart: (setUpAll)
+00:01 +69: test/file_session_store_test.dart: (setUpAll)
+00:01 +70: test/file_session_store_test.dart: (setUpAll)
+00:01 +71: test/file_session_store_test.dart: (setUpAll)
+00:01 +72: test/file_session_store_test.dart: (setUpAll)
+00:01 +73: test/file_session_store_test.dart: (setUpAll)
+00:01 +74: test/file_session_store_test.dart: (setUpAll)
+00:01 +75: test/file_session_store_test.dart: (setUpAll)
+00:01 +76: test/file_session_store_test.dart: (setUpAll)
+00:01 +77: test/file_session_store_test.dart: (setUpAll)
+00:01 +78: test/file_session_store_test.dart: (setUpAll)
+00:01 +79: test/file_session_store_test.dart: (setUpAll)
+00:01 +80: test/file_session_store_test.dart: (setUpAll)
+00:01 +81: test/file_session_store_test.dart: (setUpAll)
+00:01 +82: test/file_session_store_test.dart: (setUpAll)
+00:01 +83: test/file_session_store_test.dart: (setUpAll)
+00:01 +84: test/file_session_store_test.dart: (setUpAll)
+00:01 +85: test/file_session_store_test.dart: (setUpAll)
+00:01 +86: test/file_session_store_test.dart: (setUpAll)
+00:02 +87: test/file_session_store_test.dart: (setUpAll)
+00:02 +88: test/file_session_store_test.dart: (setUpAll)
+00:02 +89: test/file_session_store_test.dart: (setUpAll)
+00:02 +90: test/file_session_store_test.dart: (setUpAll)
+00:02 +91: test/file_session_store_test.dart: (setUpAll)
+00:02 +92: test/file_session_store_test.dart: (setUpAll)
+00:02 +93: test/file_session_store_test.dart: (setUpAll)
+00:02 +94: test/file_session_store_test.dart: (setUpAll)
+00:02 +95: test/file_session_store_test.dart: (setUpAll)
+00:02 +96: test/file_session_store_test.dart: (setUpAll)
+00:02 +97: test/file_session_store_test.dart: (setUpAll)
+00:02 +98: test/file_session_store_test.dart: (setUpAll)
+00:02 +99: test/file_session_store_test.dart: (setUpAll)
+00:02 +100: test/file_session_store_test.dart: (setUpAll)
+00:02 +101: test/file_session_store_test.dart: (setUpAll)
+00:02 +102: test/file_session_store_test.dart: (setUpAll)
+00:11 +102: test/file_session_store_test.dart: 大记录跨读取块后仍能分页，关闭开始后不再接受新写入
+00:12 +103: test/file_session_store_test.dart: 真实文件关闭重开，原文、配置、摘要和校验均恢复
+00:12 +104: test/file_session_store_test.dart: 未提交尾片段隔离保存后恢复，完整坏行拒绝修改
+00:12 +105: test/file_session_store_test.dart: 未来版本拒绝打开，文件与未完成尾部均不改动
+00:12 +106: test/file_session_store_test.dart: 同一会话在同进程和不同进程都只能有一个写入者
+00:12 +107: test/file_session_store_test.dart: 真实子进程在工具产生副作用后退出，恢复不会重复执行
+00:13 +108: test/file_session_store_test.dart: 配置 JSON 可保存、再次保存和读取，只保存凭据变量名
+00:13 +109: test/file_session_store_test.dart: 跨 isolate 的写者也被拒绝，失败的开锁不会释放原写者
+00:13 +110: test/file_session_store_test.dart: 空文件可重新创建；只读打开和分页不会取得写权限或修改日志
+00:13 +111: test/file_session_store_test.dart: 存储达到明确体积上限时拒绝继续增长，不截断已保存内容
+00:13 +112: test/file_session_store_test.dart: (tearDownAll)
+00:13 +112: All tests passed!

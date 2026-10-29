@@ -13,6 +13,7 @@ abstract interface class GoalRepository {
     required String title,
     String? description,
     String? why,
+    String? operationId,
   });
   Future<void> setGoalStatus(Goal expected, GoalStatus status);
   Future<void> importOutline(GoalOutlineCreation request); // 目标与完整节点树一次提交。
@@ -25,6 +26,7 @@ abstract interface class GoalRepository {
     GoalNode expected, { // 页面读到的原记录，用来发现其他入口已经修改的内容。
     required String title,
     String? description,
+    String? operationId,
   });
   Future<void> reorderNodes({
     required String goalId,

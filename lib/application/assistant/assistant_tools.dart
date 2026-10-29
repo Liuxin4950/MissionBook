@@ -6,12 +6,15 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:uuid/uuid.dart';
 
 import '../../domain/entities/execution_command.dart';
+import '../../domain/entities/execution_plan.dart';
+import '../../domain/entities/goal.dart';
+import '../../domain/entities/goal_node.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/mission_ownership.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
-import '../../domain/entities/scheduled_mission.dart';
 import '../goals/goal_service.dart';
+import 'assistant_reader.dart';
 import '../missions/mission_service.dart';
 
 class PreparedToolCall {
@@ -27,12 +30,14 @@ typedef AssistantCallResolver = PreparedToolCall Function(String callId);
 /// 把模型参数转成现有业务服务调用；工具输出只报告实际查询或提交结果。
 class AssistantTools {
   AssistantTools({
+    required AssistantReader reader,
     required MissionService missions,
     required GoalService goals,
     required AssistantCallResolver resolveCall,
     DateTime Function()? clock,
     String timeZone = 'Asia/Shanghai',
-  }) : _missions = missions,
+  }) : _reader = reader,
+       _missions = missions,
        _goals = goals,
        _resolveCall = resolveCall,
        _clock = clock ?? DateTime.now,
@@ -41,7 +46,10 @@ class AssistantTools {
       _tool(
         'schedule_query',
         '查询指定日期的真实任务快照。日期省略时使用宿主今天；不会触发材料截止补算。',
-        _schema({'date': _string('YYYY-MM-DD；省略表示今天')}),
+        _schema({
+          'date': _string('YYYY-MM-DD；省略表示今天'),
+          'offset': _offsetSchema,
+        }),
         _scheduleQuery,
         readOnly: true,
       ),
@@ -55,15 +63,120 @@ class AssistantTools {
       _tool(
         'goal_list',
         '查询未放弃目标及状态；需要节点和任务时继续使用 goal_query。',
-        _schema(const {}),
+        _schema({'offset': _offsetSchema}),
         _goalList,
         readOnly: true,
       ),
       _tool(
         'goal_query',
-        '读取目标、节点树和关联任务的真实快照。',
-        _schema({'goalId': _string('目标稳定编号')}, required: ['goalId']),
+        '读取目标和分页节点索引及任务总数；不装载所有任务。',
+        _schema(
+          {'goalId': _string('目标稳定编号'), 'offset': _offsetSchema},
+          required: ['goalId'],
+        ),
         _goalQuery,
+        readOnly: true,
+      ),
+      _tool(
+        'mission_search',
+        '按目标、节点、日期或标题搜索任务候选，每页最多20条。索引不代表完整阶段。',
+        _schema({
+          'goalId': _string('目标编号'),
+          'nodeId': _string('节点编号'),
+          'date': _string('YYYY-MM-DD'),
+          'search': _string('标题包含文字'),
+          'offset': _offsetSchema,
+        }),
+        _missionSearch,
+        readOnly: true,
+      ),
+      _tool(
+        'mission_content',
+        '按需读取任务的长文字片段，每次最多2000字符，steps为JSON数组原文。',
+        _schema(
+          {
+            'missionId': _string('任务编号'),
+            'field': _enum('正文字段', [
+              'objective',
+              'steps',
+              'notes',
+              'description',
+              'why',
+            ]),
+            'offset': _offsetSchema,
+          },
+          required: ['missionId', 'field'],
+        ),
+        _missionContent,
+        readOnly: true,
+      ),
+      _tool(
+        'goal_update',
+        '修改目标名称、说明或原因，未提供字段保持原值。',
+        _schema(
+          {
+            'goalId': _string('目标编号'),
+            'title': _string('新名称'),
+            'description': _string('新说明；空串清空'),
+            'why': _string('新原因；空串清空'),
+          },
+          required: ['goalId'],
+        ),
+        _updateGoal,
+      ),
+      _tool(
+        'goal_node_query',
+        '读取指定节点和所属目标编号，描述最多1000字预览。',
+        _schema({'nodeId': _string('节点编号')}, required: ['nodeId']),
+        _queryNode,
+        readOnly: true,
+      ),
+      _tool(
+        'goal_node_update',
+        '修改节点名称或说明，未提供字段保持原值，不改变归属与任务。',
+        _schema(
+          {
+            'nodeId': _string('节点编号'),
+            'title': _string('新名称'),
+            'description': _string('新说明；空串清空'),
+          },
+          required: ['nodeId'],
+        ),
+        _updateNode,
+      ),
+      _tool(
+        'mission_records',
+        '分页读取任务已保存的执行事件、失败原因或材料索引，区分事实与AI判断。',
+        _schema(
+          {
+            'missionId': _string('任务编号'),
+            'section': _enum('记录范围', ['execution', 'failures', 'evidence']),
+            'offset': _offsetSchema,
+          },
+          required: ['missionId', 'section'],
+        ),
+        (input, _) async => _readResult(
+          await _reader.records(
+            input['missionId'] as String,
+            input['section'] as String,
+            offset: input['offset'] as int? ?? 0,
+          ),
+        ),
+        readOnly: true,
+      ),
+      _tool(
+        'evidence_content',
+        '按材料稳定编号分段读取正式文本、代码或手动记录；不把材料当成AI评价。',
+        _schema(
+          {'evidenceId': _string('材料编号'), 'offset': _offsetSchema},
+          required: ['evidenceId'],
+        ),
+        (input, _) async => _readResult(
+          await _reader.evidenceContent(
+            input['evidenceId'] as String,
+            offset: input['offset'] as int? ?? 0,
+          ),
+        ),
         readOnly: true,
       ),
       _tool(
@@ -101,6 +214,28 @@ class AssistantTools {
           required: ['missionId', 'scheduledDate'],
         ),
         _rescheduleMission,
+      ),
+      _tool(
+        'mission_update',
+        '修改尚未开始任务的名称、具体目标、步骤、备注、说明或安排。未提供字段保持原值。',
+        _schema(
+          {
+            'missionId': _string('任务编号'),
+            'title': _string('新名称'),
+            'objective': _string('新具体目标'),
+            'steps': _stringArray('完整新步骤列表；空数组清空'),
+            'notes': _string('新备注；空串清空'),
+            'description': _string('新说明；空串清空'),
+            'why': _string('新原因；空串清空'),
+            'scheduledDate': _string('新日期 YYYY-MM-DD'),
+            'plannedMinutes': _integer('计划分钟'),
+            'timePolicy': _enum('时间方式', ['FIXED', 'FLEXIBLE']),
+            'fixedStartLocal': _string('HH:mm'),
+          },
+          required: ['missionId'],
+        ),
+        (input, context) =>
+            _rescheduleMission(input, context, operation: 'mission_update'),
       ),
       _tool(
         'mission_execute',
@@ -162,6 +297,18 @@ class AssistantTools {
     ];
   }
 
+  final AssistantReader _reader;
+  int _readCharacters = 0;
+  void beginTurn() {
+    _readCharacters = 0;
+  }
+
+  static const _offsetSchema = {
+    'type': 'integer',
+    'minimum': 0,
+    'maximum': 10000000,
+  };
+
   final MissionService _missions;
   final GoalService _goals;
   final AssistantCallResolver _resolveCall;
@@ -174,10 +321,13 @@ class AssistantTools {
   static const writeToolNames = {
     'mission_create',
     'mission_reschedule',
+    'mission_update',
     'mission_execute',
     'mission_cancel',
     'goal_create',
     'goal_node_create',
+    'goal_update',
+    'goal_node_update',
   };
 
   Future<PreparedToolCall> prepare(
@@ -185,19 +335,42 @@ class AssistantTools {
     Map<String, Object?> input,
   ) async {
     if (!writeToolNames.contains(toolName)) return PreparedToolCall(input);
-    if (toolName == 'mission_reschedule' || toolName == 'mission_execute') {
+    if (toolName == 'goal_update') {
+      final goal = await _goals.findById(input['goalId'] as String);
+      if (goal == null) throw const ToolRejected('not_found', '目标不存在');
+      return PreparedToolCall(
+        input,
+        snapshot: {'goal': goal, 'targetTitle': goal.title},
+      );
+    }
+    if (toolName == 'goal_node_update') {
+      final node = await _goals.findNodeById(input['nodeId'] as String);
+      if (node == null) throw const ToolRejected('not_found', '节点不存在');
+      return PreparedToolCall(
+        input,
+        snapshot: {'node': node, 'targetTitle': node.title},
+      );
+    }
+    if (toolName == 'mission_reschedule' ||
+        toolName == 'mission_update' ||
+        toolName == 'mission_execute') {
       final detail = await _missions.findDetailSnapshot(
         missionId: input['missionId'] as String,
       );
       if (detail == null) throw const ToolRejected('not_found', '任务不存在，请刷新后重试');
-      if (toolName == 'mission_reschedule') {
+      if (toolName == 'mission_reschedule' || toolName == 'mission_update') {
         final originalStart = detail.schedule.fixedStartAt;
         final localStart = originalStart == null
             ? null
-            : tz.TZDateTime.from(originalStart, _location);
+            : tz.TZDateTime.from(
+                originalStart,
+                tz.getLocation(detail.schedule.timeZone),
+              );
         return PreparedToolCall(
           {
             ...input,
+            'scheduledDate':
+                input['scheduledDate'] ?? detail.schedule.scheduledDate,
             'timePolicy':
                 input['timePolicy'] ??
                 (detail.schedule.timePolicy == TimePolicy.fixed
@@ -217,10 +390,32 @@ class AssistantTools {
   }
 
   String? validate(String toolName, Map<String, Object?> input) {
-    for (final tool in _tools) {
-      if (tool.definition.name == toolName) return tool.validateInput(input);
+    final tool = _tools
+        .where((item) => item.definition.name == toolName)
+        .firstOrNull;
+    if (tool == null) return '未知工具：$toolName';
+    final schemaError = tool.validateInput(input);
+    if (schemaError != null) return schemaError;
+    try {
+      if (input['scheduledDate'] is String) {
+        validateScheduledDate(input['scheduledDate'] as String);
+      }
+      for (final field in ['title', 'objective']) {
+        if (input[field] is String && (input[field] as String).trim().isEmpty) {
+          return field == 'title' ? '名称不能为空' : '具体目标不能为空';
+        }
+      }
+      if (input['fixedStartLocal'] != null) _fixedStart(input);
+      if (input['timePolicy'] == 'FIXED' && input['fixedStartLocal'] == null) {
+        return '固定时间需要填写开始时刻';
+      }
+      if (input['type'] == 'EXTEND' && input['minutes'] == null) {
+        return '延长需要填写增加的分钟数';
+      }
+    } on ArgumentError catch (error) {
+      return '$error';
     }
-    return '未知工具：$toolName';
+    return null;
   }
 
   Future<ToolOutput?> recoverOutcome({
@@ -230,6 +425,10 @@ class AssistantTools {
   }) async {
     const uuid = Uuid();
     switch (toolName) {
+      case 'goal_update':
+      case 'goal_node_update':
+        final receipt = await _missions.findOperationReceipt(idempotencyKey);
+        return receipt == null ? null : ToolOutput.success(receipt.resultJson);
       case 'mission_create':
         final missionId = uuid.v5(
           Namespace.url.value,
@@ -238,6 +437,7 @@ class AssistantTools {
         final detail = await _missions.findDetailSnapshot(missionId: missionId);
         return detail == null ? null : _missionResult(toolName, detail);
       case 'mission_reschedule':
+      case 'mission_update':
         final receipt = await _missions.findOperationReceipt(idempotencyKey);
         if (receipt == null) return null;
         final detail = await _missions.findDetailSnapshot(
@@ -252,13 +452,15 @@ class AssistantTools {
             .firstOrNull;
         return event == null ? null : _eventResult(event, missionId);
       case 'mission_cancel':
-        final missionId = input['missionId'] as String;
-        final detail = await _missions.findDetailSnapshot(missionId: missionId);
-        if (detail?.mission.cancelledAt == null) return null;
+        final receipt = await _missions.findOperationReceipt(idempotencyKey);
+        if (receipt?.kind != 'mission_cancel' ||
+            receipt?.entityId != input['missionId']) {
+          return null;
+        }
         return _success({
           'ok': true,
           'operation': toolName,
-          'missionId': missionId,
+          'missionId': receipt!.entityId,
         });
       case 'goal_create':
         final goalId = uuid.v5(Namespace.url.value, '$idempotencyKey:goal');
@@ -285,82 +487,160 @@ class AssistantTools {
     }
   }
 
-  Future<ToolOutput> _scheduleQuery(Map<String, Object?> input, _) async {
-    final date = input['date'] as String? ?? _today();
-    final missions = await _missions.findScheduledSnapshotOn(
-      scheduledDate: date,
-    );
-    return _success({
-      'ok': true,
-      'date': date,
-      'timeZone': _location.name,
-      'queriedAt': _clock().toUtc().toIso8601String(),
-      'missions': [for (final mission in missions) _scheduledSummary(mission)],
-      'references': [
-        for (final mission in missions)
-          _reference(mission.mission.id, mission.mission.title),
-      ],
-    });
+  ToolOutput _readResult(Map<String, Object?> result) {
+    if (result['ok'] == false) {
+      return ToolOutput.failure(
+        result['code'] as String? ?? 'read_failed',
+        result['message'] as String? ?? '读取失败',
+      );
+    }
+    final text = jsonEncode(result);
+    if (_readCharacters + text.length > 64000) {
+      return ToolOutput.failure(
+        'read_budget_exceeded',
+        '本轮已到累计读取预算。请基于已有片段回答并说明未覆盖部分，或让用户另开一轮缩小范围。',
+      );
+    }
+    _readCharacters += text.length;
+    return ToolOutput.success(text);
   }
 
+  Future<ToolOutput> _scheduleQuery(Map<String, Object?> input, _) async =>
+      _readResult({
+        ...await _reader.missions(
+          date: input['date'] as String? ?? _today(),
+          offset: input['offset'] as int? ?? 0,
+        ),
+        'date': input['date'] ?? _today(),
+        'queriedAt': _clock().toUtc().toIso8601String(),
+      });
+  Future<ToolOutput> _missionSearch(Map<String, Object?> input, _) async =>
+      _readResult(
+        await _reader.missions(
+          date: input['date'] as String?,
+          goalId: input['goalId'] as String?,
+          nodeId: input['nodeId'] as String?,
+          search: input['search'] as String?,
+          offset: input['offset'] as int? ?? 0,
+        ),
+      );
+  Future<ToolOutput> _missionContent(Map<String, Object?> input, _) async =>
+      _readResult(
+        await _reader.content(
+          input['missionId'] as String,
+          input['field'] as String,
+          offset: input['offset'] as int? ?? 0,
+        ),
+      );
   Future<ToolOutput> _missionQuery(Map<String, Object?> input, _) async {
     final detail = await _missions.findDetailSnapshot(
       missionId: input['missionId'] as String,
     );
     if (detail == null) return ToolOutput.failure('not_found', '任务不存在');
-    return _success({
+    return _readResult({
       'ok': true,
-      'mission': _detailSummary(detail, includeEvents: true),
+      'mission': _detailSummary(detail),
+      'eventCount': detail.events.length,
+      'lastEvent': detail.events.isEmpty
+          ? null
+          : {
+              'type': detail.events.last.type.name,
+              'sequence': detail.events.last.sequence,
+              'occurredAt': detail.events.last.occurredAt.toIso8601String(),
+            },
+      'hint': '长文字按预览长度截断；用 mission_content 分段读取。',
     });
   }
 
-  Future<ToolOutput> _goalList(Map<String, Object?> input, _) async {
-    final goals = await _goals.findAll();
-    return _success({
-      'ok': true,
-      'goals': [
-        for (final goal in goals)
-          {
-            'id': goal.id,
-            'title': goal.title,
-            'status': goal.status.name,
-            'description': goal.description,
-          },
-      ],
-      'references': [
-        for (final goal in goals) _reference(goal.id, goal.title, type: 'goal'),
-      ],
-    });
-  }
+  Future<ToolOutput> _goalList(Map<String, Object?> input, _) async =>
+      _readResult(await _reader.goals(offset: input['offset'] as int? ?? 0));
+  Future<ToolOutput> _goalQuery(Map<String, Object?> input, _) async =>
+      _readResult(
+        await _reader.goal(
+          input['goalId'] as String,
+          offset: input['offset'] as int? ?? 0,
+        ),
+      );
 
-  Future<ToolOutput> _goalQuery(Map<String, Object?> input, _) async {
-    final goalId = input['goalId'] as String;
-    final goal = await _goals.findById(goalId);
-    if (goal == null) return ToolOutput.failure('not_found', '目标不存在');
-    final nodes = await _goals.findNodes(goalId);
-    final missions = await _missions.findForGoalSnapshot(goalId);
-    return _success({
+  Future<ToolOutput> _queryNode(Map<String, Object?> input, _) async {
+    final node = await _goals.findNodeById(input['nodeId'] as String);
+    if (node == null) return ToolOutput.failure('not_found', '节点不存在');
+    return _readResult({
       'ok': true,
-      'goal': {
-        'id': goal.id,
-        'title': goal.title,
-        'status': goal.status.name,
-        'description': goal.description,
-        'why': goal.why,
+      'node': {
+        'id': node.id,
+        'goalId': node.goalId,
+        'parentNodeId': node.parentNodeId,
+        'title': node.title,
+        'description': _preview(node.description, 1000),
+        'descriptionLength': node.description?.length ?? 0,
+        'updatedAt': node.updatedAt.toIso8601String(),
       },
-      'nodes': [
-        for (final node in nodes)
-          {
-            'id': node.id,
-            'parentNodeId': node.parentNodeId,
-            'title': node.title,
-            'description': node.description,
-            'archived': node.archivedAt != null,
-            'orderIndex': node.orderIndex,
-          },
-      ],
-      'missions': [for (final detail in missions) _detailSummary(detail)],
     });
+  }
+
+  Future<ToolOutput> _updateGoal(
+    Map<String, Object?> input,
+    ToolContext context,
+  ) async {
+    final prepared = _call(context, input);
+    final goal = prepared.snapshot['goal'] as Goal;
+    final values = prepared.input;
+    return _updateWithReceipt(
+      context,
+      () => _goals.updateGoal(
+        goal,
+        title: values['title'] as String? ?? goal.title,
+        description: values.containsKey('description')
+            ? values['description'] as String?
+            : goal.description,
+        why: values.containsKey('why') ? values['why'] as String? : goal.why,
+        operationId: context.idempotencyKey,
+      ),
+    );
+  }
+
+  Future<ToolOutput> _updateNode(
+    Map<String, Object?> input,
+    ToolContext context,
+  ) async {
+    final prepared = _call(context, input);
+    final node = prepared.snapshot['node'] as GoalNode;
+    final values = prepared.input;
+    return _updateWithReceipt(
+      context,
+      () => _goals.updateNode(
+        node,
+        title: values['title'] as String? ?? node.title,
+        description: values.containsKey('description')
+            ? values['description'] as String?
+            : node.description,
+        operationId: context.idempotencyKey,
+      ),
+    );
+  }
+
+  Future<ToolOutput> _updateWithReceipt(
+    ToolContext context,
+    Future<void> Function() write,
+  ) async {
+    try {
+      await write();
+    } catch (error) {
+      final receipt = await _missions.findOperationReceipt(
+        context.idempotencyKey,
+      );
+      if (receipt != null) return ToolOutput.success(receipt.resultJson);
+      if (error is ArgumentError || error is StateError) {
+        throw ToolRejected('edit_rejected', '$error');
+      }
+      rethrow;
+    }
+    final receipt = await _missions.findOperationReceipt(
+      context.idempotencyKey,
+    );
+    if (receipt == null) throw StateError('写入后未找到操作回执');
+    return ToolOutput.success(receipt.resultJson);
   }
 
   Future<ToolOutput> _createMission(
@@ -369,22 +649,27 @@ class AssistantTools {
   ) async {
     final prepared = _call(context, input);
     final values = prepared.input;
-    final request = _missions.prepareCreation(
-      title: values['title'] as String,
-      scheduledDate: values['scheduledDate'] as String,
-      timeZone: _location.name,
-      plannedDurationMinutes: values['plannedMinutes'] as int,
-      fixedStartAt: _fixedStart(values),
-      objective: values['objective'] as String?,
-      ownership: MissionOwnership(
-        goalId: values['goalId'] as String?,
-        goalNodeId: values['goalNodeId'] as String?,
+    final request = _prepareWithoutWrite(
+      () => _missions.prepareCreation(
+        title: values['title'] as String,
+        scheduledDate: values['scheduledDate'] as String,
+        timeZone: _location.name,
+        plannedDurationMinutes: values['plannedMinutes'] as int,
+        timePolicy: values['fixedStartLocal'] == null
+            ? TimePolicy.flexible
+            : TimePolicy.fixed,
+        fixedStartAt: _fixedStart(values),
+        objective: values['objective'] as String?,
+        ownership: MissionOwnership(
+          goalId: values['goalId'] as String?,
+          goalNodeId: values['goalNodeId'] as String?,
+        ),
+        steps: _stringList(values['steps']),
+        notes: values['notes'] as String?,
+        description: values['description'] as String?,
+        why: values['why'] as String?,
+        requestId: context.idempotencyKey,
       ),
-      steps: _stringList(values['steps']),
-      notes: values['notes'] as String?,
-      description: values['description'] as String?,
-      why: values['why'] as String?,
-      requestId: context.idempotencyKey,
     );
     try {
       await _missions.createPrepared(request);
@@ -407,8 +692,9 @@ class AssistantTools {
 
   Future<ToolOutput> _rescheduleMission(
     Map<String, Object?> input,
-    ToolContext context,
-  ) async {
+    ToolContext context, {
+    String operation = 'mission_reschedule',
+  }) async {
     final prepared = _call(context, input);
     final values = prepared.input;
     final original = prepared.snapshot['detail'] as MissionDetail;
@@ -420,15 +706,35 @@ class AssistantTools {
     try {
       await _missions.edit(
         original: original,
-        title: original.mission.title,
-        objective: original.executionPlan.objective,
+        title: values['title'] as String? ?? original.mission.title,
+        objective:
+            values['objective'] as String? ?? original.executionPlan.objective,
+        content: values.containsKey('steps') || values.containsKey('notes')
+            ? ExecutionPlanContent(
+                steps:
+                    _stringList(values['steps']) ??
+                    original.executionPlan.steps,
+                notes: values.containsKey('notes')
+                    ? values['notes'] as String?
+                    : original.executionPlan.notes,
+              )
+            : null,
+        updateContext:
+            values.containsKey('description') || values.containsKey('why'),
+        description: values.containsKey('description')
+            ? values['description'] as String?
+            : original.mission.description,
+        why: values.containsKey('why')
+            ? values['why'] as String?
+            : original.mission.why,
+        ownership: original.mission.ownership,
         scheduledDate: values['scheduledDate'] as String,
         plannedDurationMinutes:
             values['plannedMinutes'] as int? ??
             original.schedule.plannedDurationMinutes,
         timePolicy: timePolicy,
         fixedStartAt: timePolicy == TimePolicy.fixed
-            ? _fixedStart(values)
+            ? _fixedStart(values, timeZone: original.schedule.timeZone)
             : null,
         operationId: context.idempotencyKey,
       );
@@ -440,7 +746,7 @@ class AssistantTools {
         final saved = await _missions.findDetailSnapshot(
           missionId: original.mission.id,
         );
-        if (saved != null) return _missionResult('mission_reschedule', saved);
+        if (saved != null) return _missionResult(operation, saved);
       }
       if (error is ArgumentError || error is MissionEditConflict) {
         throw ToolRejected('edit_rejected', '$error');
@@ -451,7 +757,7 @@ class AssistantTools {
       missionId: original.mission.id,
     );
     if (saved == null) throw StateError('改期提交后未能读取任务');
-    return _missionResult('mission_reschedule', saved);
+    return _missionResult(operation, saved);
   }
 
   Future<ToolOutput> _executeMission(
@@ -474,16 +780,18 @@ class AssistantTools {
     if (type != ExecutionEventType.end && report != null) {
       throw const ToolRejected('unexpected_report', '只有 END 可以携带用户报告');
     }
-    final command = _missions.prepareExecution(
-      detail: detail,
-      type: type,
-      minutes: values['minutes'] as int?,
-      reason: values['reason'] as String?,
-      report: report,
-      submitOptionalEvidence: values['submitOptionalEvidence'] as bool?,
-      userReasonCategory: values['userReasonCategory'] as String?,
-      userReasonText: values['userReasonText'] as String?,
-      commandId: context.idempotencyKey,
+    final command = _prepareWithoutWrite(
+      () => _missions.prepareExecution(
+        detail: detail,
+        type: type,
+        minutes: values['minutes'] as int?,
+        reason: values['reason'] as String?,
+        report: report,
+        submitOptionalEvidence: values['submitOptionalEvidence'] as bool?,
+        userReasonCategory: values['userReasonCategory'] as String?,
+        userReasonText: values['userReasonText'] as String?,
+        commandId: context.idempotencyKey,
+      ),
     );
     try {
       final event = await _missions.execute(command);
@@ -510,10 +818,15 @@ class AssistantTools {
     final prepared = _call(context, input).input;
     final missionId = prepared['missionId'] as String;
     try {
-      await _missions.cancel(missionId: missionId);
+      await _missions.cancel(
+        missionId: missionId,
+        operationId: context.idempotencyKey,
+      );
     } catch (error) {
-      final current = await _missions.findDetailSnapshot(missionId: missionId);
-      if (current?.mission.cancelledAt != null) {
+      final receipt = await _missions.findOperationReceipt(
+        context.idempotencyKey,
+      );
+      if (receipt?.kind == 'mission_cancel' && receipt?.entityId == missionId) {
         return _success({
           'ok': true,
           'operation': 'mission_cancel',
@@ -539,11 +852,13 @@ class AssistantTools {
     ToolContext context,
   ) async {
     final prepared = _call(context, input).input;
-    final goal = _goals.prepareCreation(
-      title: prepared['title'] as String,
-      description: prepared['description'] as String?,
-      why: prepared['why'] as String?,
-      requestId: context.idempotencyKey,
+    final goal = _prepareWithoutWrite(
+      () => _goals.prepareCreation(
+        title: prepared['title'] as String,
+        description: prepared['description'] as String?,
+        why: prepared['why'] as String?,
+        requestId: context.idempotencyKey,
+      ),
     );
     try {
       await _goals.create(goal);
@@ -575,12 +890,14 @@ class AssistantTools {
     ToolContext context,
   ) async {
     final prepared = _call(context, input).input;
-    final request = _goals.prepareNodeCreation(
-      goalId: prepared['goalId'] as String,
-      title: prepared['title'] as String,
-      parentNodeId: prepared['parentNodeId'] as String?,
-      description: prepared['description'] as String?,
-      requestId: context.idempotencyKey,
+    final request = _prepareWithoutWrite(
+      () => _goals.prepareNodeCreation(
+        goalId: prepared['goalId'] as String,
+        title: prepared['title'] as String,
+        parentNodeId: prepared['parentNodeId'] as String?,
+        description: prepared['description'] as String?,
+        requestId: context.idempotencyKey,
+      ),
     );
     try {
       await _goals.createNode(request);
@@ -607,6 +924,16 @@ class AssistantTools {
     });
   }
 
+  T _prepareWithoutWrite<T>(T Function() prepare) {
+    try {
+      return prepare();
+    } on ArgumentError catch (error) {
+      throw ToolRejected('invalid_arguments', '$error');
+    } on StateError catch (error) {
+      throw ToolRejected('invalid_arguments', '$error');
+    }
+  }
+
   PreparedToolCall _call(ToolContext context, Map<String, Object?> input) {
     try {
       return _resolveCall(context.callId);
@@ -615,7 +942,7 @@ class AssistantTools {
     }
   }
 
-  DateTime? _fixedStart(Map<String, Object?> input) {
+  DateTime? _fixedStart(Map<String, Object?> input, {String? timeZone}) {
     final value = input['fixedStartLocal'] as String?;
     if (value == null) return null;
     final match = RegExp(r'^(\d{2}):(\d{2})$').firstMatch(value);
@@ -628,7 +955,7 @@ class AssistantTools {
         .map(int.parse)
         .toList();
     return tz.TZDateTime(
-      _location,
+      timeZone == null ? _location : tz.getLocation(timeZone),
       date[0],
       date[1],
       date[2],
@@ -660,33 +987,27 @@ class AssistantTools {
     'references': [_reference(missionId, '查看任务')],
   });
 
-  Map<String, Object?> _scheduledSummary(ScheduledMission item) => {
-    'id': item.mission.id,
-    'title': item.mission.title,
-    'phase': item.phase.name,
-    'scheduledDate': item.schedule.scheduledDate,
-    'plannedMinutes': item.schedule.plannedDurationMinutes,
-    'timePolicy': item.schedule.timePolicy.name,
-    'fixedStartAt': item.schedule.fixedStartAt?.toUtc().toIso8601String(),
-    'cancelled': item.mission.cancelledAt != null,
-  };
-
   Map<String, Object?> _detailSummary(
     MissionDetail detail, {
     bool includeEvents = false,
   }) => {
     'id': detail.mission.id,
-    'title': detail.mission.title,
-    'objective': detail.executionPlan.objective,
+    'goalId': detail.mission.goalId,
+    'nodeId': detail.mission.goalNodeId,
+    'timeZone': detail.schedule.timeZone,
+    'title': _preview(detail.mission.title, 120),
+    'objective': _preview(detail.executionPlan.objective, 500),
+    'objectiveLength': detail.executionPlan.objective.length,
     'phase': detail.phase.name,
     'scheduledDate': detail.schedule.scheduledDate,
     'scheduleRevisionId': detail.schedule.id,
     'plannedMinutes': detail.schedule.plannedDurationMinutes,
     'timePolicy': detail.schedule.timePolicy.name,
     'fixedStartAt': detail.schedule.fixedStartAt?.toUtc().toIso8601String(),
-    'steps': detail.executionPlan.steps,
-    'notes': detail.executionPlan.notes,
-    'ownership': detail.ownershipInfo?.label,
+    'stepCount': detail.executionPlan.steps.length,
+    'notesPreview': _preview(detail.executionPlan.notes, 500),
+    'notesLength': detail.executionPlan.notes?.length ?? 0,
+    'ownership': _preview(detail.ownershipInfo?.label, 500),
     'cancelledAt': detail.mission.cancelledAt?.toUtc().toIso8601String(),
     if (includeEvents)
       'events': [
@@ -705,12 +1026,17 @@ class AssistantTools {
     String id,
     String title, {
     String type = 'mission',
-  }) => {'type': type, 'id': id, 'title': title};
+  }) => {'type': type, 'id': id, 'title': _preview(title, 120)};
 
   String _today() {
     final now = tz.TZDateTime.from(_clock(), _location);
     return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
+
+  static String? _preview(String? value, int limit) =>
+      value == null || value.length <= limit
+      ? value
+      : value.substring(0, limit);
 
   static ToolOutput _success(Map<String, Object?> value) =>
       ToolOutput.success(jsonEncode(value));
