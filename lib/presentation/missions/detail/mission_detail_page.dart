@@ -276,7 +276,8 @@ class _MissionDetailPageState extends State<MissionDetailPage>
     }
     final executing =
         detail.phase == MissionPhase.running ||
-        detail.phase == MissionPhase.paused;
+        (detail.phase == MissionPhase.paused ||
+            detail.phase == MissionPhase.reportPending);
     final historyRecord =
         widget._entry == _MissionPageEntry.historyRecord &&
         detail.phase == MissionPhase.closed;

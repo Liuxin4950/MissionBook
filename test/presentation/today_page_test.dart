@@ -34,7 +34,10 @@ import 'package:timezone/timezone.dart' as tz;
 // 每次读取都有独立 Future，用来控制等待、失败、重试和乱序返回。
 class ControlledQueryRepository implements MissionRepository {
   @override
-  Future<List<String>> startDueScheduledMissions() async => <String>[];
+  Future<List<String>> reconcileScheduledEnds() async => [];
+
+  @override
+  Future<List<String>> reconcileScheduledMissions() async => <String>[];
 
   @override
   Future<List<MissionGoalChoices>> findGoalChoices() async => [];

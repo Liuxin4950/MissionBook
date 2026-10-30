@@ -28,6 +28,7 @@ import '../../domain/entities/evidence.dart';
 import '../../domain/rules/evidence_rules.dart';
 import 'evidence_mapping.dart';
 import '../../domain/rules/execution_event_rules.dart';
+import '../../domain/rules/scheduled_execution_rules.dart';
 
 import '../../domain/repositories/mission_repository.dart';
 import '../../domain/repositories/mission_query_repository.dart';
@@ -370,7 +371,8 @@ WHERE m.cancelled_at IS NULL AND r.time_policy='FIXED'
   Future<PlannedMissionSnapshot> findPlannedSnapshot() =>
       database.transaction(() async {
         final checkedAt = _now().millisecondsSinceEpoch;
-        final hasRunning = (await findActive()).any(
+        final active = await findActive();
+        final hasRunning = active.any(
           (detail) => detail.phase == MissionPhase.running,
         );
         final row = await database
@@ -386,6 +388,7 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
             .getSingleOrNull();
         return PlannedMissionSnapshot(
           hasRunning: hasRunning,
+          nextEndAt: _nextScheduledEnd(active),
           refreshAfterExpiredCandidate: true,
           candidates: row == null
               ? []
@@ -404,6 +407,15 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
                 ],
         );
       });
+
+  DateTime? _nextScheduledEnd(List<MissionDetail> active) {
+    DateTime? next;
+    for (final detail in active) {
+      final end = scheduledExecutionEnd(detail.schedule, detail.events);
+      if (end != null && (next == null || end.isBefore(next))) next = end;
+    }
+    return next;
+  }
 
   @override
   Future<List<MissionDetail>> findReminderCandidates() =>
@@ -935,13 +947,14 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
   }
 
   @override
-  Future<List<String>> startDueScheduledMissions() =>
+  Future<List<String>> reconcileScheduledMissions() =>
       database.transaction(() async {
         await _acquireGlobalWrite();
+        final changed = await _stopDueScheduledMissions();
         if ((await findActive()).any(
           (detail) => detail.phase == MissionPhase.running,
         )) {
-          return <String>[];
+          return changed;
         }
         for (var attempt = 0; attempt < 64; attempt++) {
           final checkedAt = _now().millisecondsSinceEpoch;
@@ -955,7 +968,7 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
                 variables: [Variable<int>(checkedAt), Variable<int>(checkedAt)],
               )
               .getSingleOrNull();
-          if (row == null) return <String>[];
+          if (row == null) return changed;
           final detail = await findDetail(row.read<String>('id'));
           if (detail == null) throw const FormatException('到点任务缺失');
           final startedAt = _now();
@@ -976,13 +989,46 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
             ),
             occurredAt: startedAt,
           );
-          return [detail.mission.id];
+          return [...changed, detail.mission.id];
         }
-        return <String>[];
+        return changed;
+      });
+
+  /// 调度唤醒和普通动作共用：先停止过期执行，再接受新的用户操作。
+  /// 调度延迟不延长计时；只追加 STOP，不虚构用户完成报告。
+  Future<List<String>> _stopDueScheduledMissions() async {
+    final changed = <String>[];
+    for (final detail in await findActive()) {
+      final end = scheduledExecutionEnd(detail.schedule, detail.events);
+      if (end == null || end.isAfter(_now())) continue;
+      await _execute(
+        ExecutionCommand(
+          id: 'scheduled-stop-${detail.events.first.id}',
+          missionId: detail.mission.id,
+          expectedSequence: detail.lastSequence,
+          type: ExecutionEventType.stop,
+        ),
+        occurredAt: end,
+      );
+      changed.add(detail.mission.id);
+    }
+    return changed;
+  }
+
+  @override
+  Future<List<String>> reconcileScheduledEnds() =>
+      database.transaction(() async {
+        await _acquireGlobalWrite();
+        return _stopDueScheduledMissions();
       });
 
   @override
-  Future<ExecutionEvent> execute(ExecutionCommand command) => _execute(command);
+  Future<ExecutionEvent> execute(ExecutionCommand command) async {
+    if (command.type == ExecutionEventType.stop) {
+      throw const ExecutionConflict('到点停止只能由计划调度执行');
+    }
+    return _execute(command);
+  }
 
   @override
   Future<OperationReceiptInfo> completeHistory(
@@ -1032,6 +1078,7 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
             MissionPhase.notStarted,
             MissionPhase.running,
             MissionPhase.paused,
+            MissionPhase.reportPending,
           ].contains(current.phase) ||
           current.mission.verificationPolicy != VerificationPolicy.selfReport ||
           current.schedule.scheduledDate.compareTo(request.beforeDate) >= 0) {
@@ -1169,6 +1216,15 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
       }
       // 已取得写锁、重读事实后才捕获时间，精度与持久化统一到毫秒。
       final now = occurredAt ?? _now();
+      final scheduledEnd = scheduledExecutionEnd(
+        detail.schedule,
+        detail.events,
+      );
+      if (occurredAt == null &&
+          scheduledEnd != null &&
+          !now.isBefore(scheduledEnd)) {
+        throw const ExecutionConflict('计划时间已到，请刷新后确认完成情况');
+      }
       if (command.isRetrospective) {
         final local = tz.TZDateTime.from(
           now,
@@ -1293,7 +1349,12 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
       final details = await _detailsForRows(missionRows);
       details.sort((a, b) {
         if (!ended && a.phase != b.phase) {
-          return a.phase == MissionPhase.running ? -1 : 1;
+          int priority(MissionPhase phase) => switch (phase) {
+            MissionPhase.running => 0,
+            MissionPhase.paused => 1,
+            _ => 2,
+          };
+          return priority(a.phase).compareTo(priority(b.phase));
         }
         final timeOrder = b.events.last.occurredAt.compareTo(
           a.events.last.occurredAt,

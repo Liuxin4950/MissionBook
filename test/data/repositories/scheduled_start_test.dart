@@ -82,10 +82,10 @@ void main() {
       fixedStartAt: plannedAt.add(const Duration(minutes: 10)),
     );
     now = plannedAt;
-    expect(await missions.startDueScheduledMissions(), isEmpty);
+    expect(await missions.reconcileScheduledMissions(), isEmpty);
     now = plannedAt.add(const Duration(minutes: 10));
-    expect(await missions.startDueScheduledMissions(), [original.mission.id]);
-    expect(await missions.startDueScheduledMissions(), isEmpty);
+    expect(await missions.reconcileScheduledMissions(), [original.mission.id]);
+    expect(await missions.reconcileScheduledMissions(), isEmpty);
     final detail = (await missions.findDetail(missionId: original.mission.id))!;
     expect(detail.phase, MissionPhase.running);
     expect(detail.events.single.scheduleRevisionId, detail.schedule.id);
@@ -107,9 +107,9 @@ void main() {
   test('延迟唤醒只从真实开始时刻计时；回拨不会提前写 START', () async {
     final detail = await create();
     now = plannedAt.subtract(const Duration(milliseconds: 1));
-    expect(await missions.startDueScheduledMissions(), isEmpty);
+    expect(await missions.reconcileScheduledMissions(), isEmpty);
     now = plannedAt.add(const Duration(minutes: 3));
-    await missions.startDueScheduledMissions();
+    await missions.reconcileScheduledMissions();
     final started = (await missions.findDetail(missionId: detail.mission.id))!;
     expect(started.events.single.occurredAt, now);
     expect(calculateExecutionTimes(started.events, now).focus, Duration.zero);
@@ -121,7 +121,7 @@ void main() {
     await create(title: '自选任务', flexible: true);
     await missions.cancel(missionId: cancelled.mission.id);
     now = plannedAt.add(const Duration(minutes: 30));
-    expect(await missions.startDueScheduledMissions(), isEmpty);
+    expect(await missions.reconcileScheduledMissions(), isEmpty);
     expect(
       (await missions.findDetail(missionId: missed.mission.id))!.events,
       isEmpty,
@@ -136,7 +136,7 @@ void main() {
         .subtract(const Duration(milliseconds: 1));
     repository.afterRead = () =>
         now = plannedAt.add(const Duration(minutes: 30));
-    expect(await repository.startDueScheduledMissions(), isEmpty);
+    expect(await repository.reconcileScheduledMissions(), isEmpty);
     final missed = (await missions.findDetail(missionId: detail.mission.id))!;
     expect(missed.events, isEmpty);
     await missions.execute(
@@ -160,7 +160,7 @@ void main() {
     );
     final planned = await create();
     now = plannedAt;
-    expect(await missions.startDueScheduledMissions(), isEmpty);
+    expect(await missions.reconcileScheduledMissions(), isEmpty);
     expect(
       (await missions.findDetail(missionId: planned.mission.id))!.events,
       isEmpty,
@@ -179,7 +179,7 @@ void main() {
       "CREATE TRIGGER reject_scheduled_start BEFORE INSERT ON execution_events WHEN NEW.type = 'START' BEGIN SELECT RAISE(ABORT, 'test failure'); END",
     );
     await expectLater(
-      missions.startDueScheduledMissions(),
+      missions.reconcileScheduledMissions(),
       throwsA(isA<Exception>()),
     );
     expect(
@@ -187,7 +187,7 @@ void main() {
       isEmpty,
     );
     await database.customStatement('DROP TRIGGER reject_scheduled_start');
-    await missions.startDueScheduledMissions();
+    await missions.reconcileScheduledMissions();
     expect(
       (await missions.findDetail(missionId: detail.mission.id))!.events,
       hasLength(1),
@@ -203,7 +203,7 @@ void main() {
       } catch (_) {}
     }
 
-    await Future.wait([missions.startDueScheduledMissions(), cancel()]);
+    await Future.wait([missions.reconcileScheduledMissions(), cancel()]);
     final latest = (await missions.findDetail(missionId: detail.mission.id))!;
     expect(
       latest.phase == MissionPhase.running ||
@@ -312,14 +312,14 @@ void main() {
       now = plannedAt;
       Future<void> attempt(MissionService service) async {
         try {
-          await service.startDueScheduledMissions();
+          await service.reconcileScheduledMissions();
         } catch (_) {
           // SQLite BUSY 允许稍后重试；不能留下半条事实或第二个 RUNNING。
         }
       }
 
       await Future.wait([attempt(one), attempt(two)]);
-      await one.startDueScheduledMissions();
+      await one.reconcileScheduledMissions();
       final details = await one.findAllDetails();
       expect(
         details.where((item) => item.phase == MissionPhase.running),
@@ -338,7 +338,7 @@ void main() {
     final reopened = AppDatabase(executor: NativeDatabase(file));
     try {
       final repo = DriftMissionRepository(reopened, clock: () => now);
-      expect(await repo.startDueScheduledMissions(), isEmpty);
+      expect(await repo.reconcileScheduledMissions(), isEmpty);
       expect((await repo.findActive()).single.events, hasLength(1));
     } finally {
       await reopened.close();

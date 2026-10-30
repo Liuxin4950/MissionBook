@@ -243,6 +243,7 @@ class MissionEventTimeline extends StatelessWidget {
                 ExecutionEventType.resume => Icons.play_circle_outline,
                 ExecutionEventType.extend => Icons.more_time,
                 ExecutionEventType.end => Icons.stop_circle_outlined,
+                ExecutionEventType.stop => Icons.timer_off_outlined,
               }, color: AppColors.primary),
               const SizedBox(width: AppLayout.spaceLg),
               Expanded(
@@ -252,11 +253,18 @@ class MissionEventTimeline extends StatelessWidget {
                     Text(switch (event.type) {
                       ExecutionEventType.start => '开始执行',
                       ExecutionEventType.pause => '暂停执行',
+                      ExecutionEventType.stop => '到点停止计时',
                       ExecutionEventType.resume => '继续执行',
                       ExecutionEventType.extend =>
                         '增加 ${event.grantedDurationMinutes} 分钟',
                       ExecutionEventType.end =>
-                        event.isRetrospective ? '补记已完成' : '结束执行',
+                        event.isRetrospective
+                            ? '补记已完成'
+                            : detail.events.any(
+                                (e) => e.type == ExecutionEventType.stop,
+                              )
+                            ? '确认完成情况'
+                            : '结束执行',
                     }, style: Theme.of(context).textTheme.titleSmall),
                     Text(
                       missionLocalTime(

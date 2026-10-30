@@ -105,7 +105,8 @@ class _AppShellState extends State<AppShell> {
       if (detail == null || !mounted) return;
       final executing =
           detail.phase == MissionPhase.running ||
-          detail.phase == MissionPhase.paused;
+          (detail.phase == MissionPhase.paused ||
+              detail.phase == MissionPhase.reportPending);
       await _detailPane.open<void>(
         DetailPaneEntry(
           executing ? '任务执行' : '任务详情',

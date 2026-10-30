@@ -67,7 +67,7 @@ object PlannedAlarm {
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, "planned_failures")
             else Notification.Builder(context)
         manager.notify(-71003, builder.setSmallIcon(R.drawable.ic_stat_mission)
-            .setContentTitle("计划任务自动开始暂未完成")
+            .setContentTitle("计划任务自动执行暂未完成")
             .setContentText("请打开应用查看任务，系统将稍后重试")
             .setContentIntent(launch).setOnlyAlertOnce(true).setAutoCancel(true).build())
     }

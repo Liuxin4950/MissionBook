@@ -8,6 +8,7 @@ String executionTypeText(ExecutionEventType type) => switch (type) {
   ExecutionEventType.pause => 'PAUSE',
   ExecutionEventType.resume => 'RESUME',
   ExecutionEventType.extend => 'EXTEND',
+  ExecutionEventType.stop => 'STOP',
   ExecutionEventType.end => 'END',
 };
 
@@ -39,6 +40,7 @@ ExecutionEvent eventFromRow(ExecutionEventRow row) => ExecutionEvent(
     'PAUSE' => ExecutionEventType.pause,
     'RESUME' => ExecutionEventType.resume,
     'EXTEND' => ExecutionEventType.extend,
+    'STOP' => ExecutionEventType.stop,
     'END' => ExecutionEventType.end,
     _ => throw FormatException('未知执行动作：${row.type}'),
   },

@@ -321,6 +321,7 @@ class AppNotificationService {
           ReminderKind.startReminder => 'start',
           ReminderKind.executionRunning => 'stop',
           ReminderKind.executionPaused => 'resume',
+          ReminderKind.executionStopped => '',
         };
     if (action.isEmpty) return NotificationActionResult.openMission;
     final type = switch (action) {

@@ -139,12 +139,14 @@ class _AllMissionsPageState extends State<AllMissionsPage>
         context,
         label:
             detail.phase == MissionPhase.running ||
-                detail.phase == MissionPhase.paused
+                (detail.phase == MissionPhase.paused ||
+                    detail.phase == MissionPhase.reportPending)
             ? '任务执行'
             : '任务详情',
         builder: (_) =>
             detail.phase == MissionPhase.running ||
-                detail.phase == MissionPhase.paused
+                (detail.phase == MissionPhase.paused ||
+                    detail.phase == MissionPhase.reportPending)
             ? MissionExecutionPage(detail: detail, service: widget.missions)
             : detail.phase == MissionPhase.cancelled
             ? MissionDetailPage.fromHistory(
@@ -710,7 +712,8 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 style: theme.textTheme.bodyMedium,
               ),
               if (detail.phase == MissionPhase.running ||
-                  detail.phase == MissionPhase.paused)
+                  (detail.phase == MissionPhase.paused ||
+                      detail.phase == MissionPhase.reportPending))
                 MissionLiveStatus(
                   phase: detail.phase,
                   events: detail.events,

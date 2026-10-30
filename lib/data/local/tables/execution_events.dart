@@ -63,7 +63,7 @@ class ExecutionEvents extends Table {
   @override
   List<String> get customConstraints => [
     'CHECK (sequence > 0)',
-    "CHECK (type IN ('START', 'PAUSE', 'RESUME', 'EXTEND', 'END'))",
+    "CHECK (type IN ('START', 'PAUSE', 'RESUME', 'EXTEND', 'STOP', 'END'))",
     'CHECK (granted_duration_minutes > 0)',
     "CHECK (user_reported_result IN ('COMPLETED', 'NOT_COMPLETED'))",
   ];

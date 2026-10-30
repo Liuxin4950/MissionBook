@@ -166,7 +166,7 @@ class _MissionEvidenceFieldsState extends State<MissionEvidenceFields> {
           ),
           const SizedBox(height: AppLayout.spaceSm),
           Text(
-            '按任务时区 ${widget.timeZone} 记录，截止不会自动停止正在执行的任务。',
+            '按任务时区 ${widget.timeZone} 记录，此处是材料截止；固定日程按计划结束时间停止计时。',
             style: theme.textTheme.bodyMedium,
           ),
         ],

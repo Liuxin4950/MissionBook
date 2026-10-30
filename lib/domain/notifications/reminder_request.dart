@@ -15,6 +15,9 @@ enum ReminderKind {
 
   /// 执行通知（暂停中）：标题 + Focus 摘要 +「继续」。
   executionPaused,
+
+  /// 固定日程到点停止：点击进入报告，没有继续计时按钮。
+  executionStopped,
 }
 
 /// 系统提醒的投影内容：由任务事实与提醒偏好生成，只读，不写回业务表。

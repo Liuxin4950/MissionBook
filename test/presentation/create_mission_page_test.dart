@@ -23,7 +23,10 @@ DateTime _formClock() => DateTime.utc(2031, 12, 31, 16, 5);
 // 用可控制完成时机的仓储替代磁盘，验证页面确实等待业务保存结果。
 class PendingRepository implements MissionRepository {
   @override
-  Future<List<String>> startDueScheduledMissions() async => <String>[];
+  Future<List<String>> reconcileScheduledEnds() async => [];
+
+  @override
+  Future<List<String>> reconcileScheduledMissions() async => <String>[];
 
   @override
   Future<List<MissionGoalChoices>> findGoalChoices() async => [];

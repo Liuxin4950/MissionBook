@@ -271,7 +271,8 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       }
       final executing =
           detail.phase == MissionPhase.running ||
-          detail.phase == MissionPhase.paused;
+          (detail.phase == MissionPhase.paused ||
+              detail.phase == MissionPhase.reportPending);
       final closed = openDetailPane<void>(
         context,
         label: executing ? '任务执行' : '任务详情',
@@ -909,7 +910,8 @@ String _missionSemanticsLabel(
   ];
   if (item.events.isNotEmpty &&
       (item.phase == MissionPhase.running ||
-          item.phase == MissionPhase.paused)) {
+          (item.phase == MissionPhase.paused ||
+              item.phase == MissionPhase.reportPending))) {
     final focus = calculateExecutionTimes(item.events, clock().toUtc()).focus;
     parts.add('专注 ${focusDuration(focus)}');
   }

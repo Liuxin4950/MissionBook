@@ -235,7 +235,7 @@ void main() {
       }
     });
 
-    for (final oldVersion in [5, 6, 7, 8, 9, 10, 11, 12]) {
+    for (final oldVersion in [5, 6, 7, 8, 9, 10, 11, 12, 13]) {
       test('v$oldVersion 全表逐字段保留，旧任务独立，关闭重开仍完整', () async {
         final tables = [
           ..._oldTables,
@@ -338,7 +338,7 @@ void main() {
         }
         final upgraded = AppDatabase(executor: NativeDatabase(file));
         try {
-          expect(await _version(upgraded), 13);
+          expect(await _version(upgraded), 14);
           expect(await snapshot(upgraded), before);
           expect(
             await upgraded.select(upgraded.goals).get(),
@@ -373,12 +373,76 @@ void main() {
         final reopened = AppDatabase(executor: NativeDatabase(file));
         try {
           expect(await snapshot(reopened), before);
-          expect(await _version(reopened), 13);
+          expect(await _version(reopened), 14);
         } finally {
           await reopened.close();
         }
       });
     }
+
+    test('v13 升级后执行事件表接纳 STOP，非法类型与重复 START/END 仍被拒绝', () async {
+      final old = _SnapshotV1Database(NativeDatabase(file), oldVersion: 13);
+      try {
+        await _seedV1(old);
+      } finally {
+        await old.close();
+      }
+      final upgraded = AppDatabase(executor: NativeDatabase(file));
+      try {
+        expect(await _version(upgraded), 14);
+        // v14 重建表的唯一目的：CHECK 放宽接纳 STOP；其余约束必须原样生效。
+        await _insertEvent(
+          upgraded,
+          'start-v14',
+          'mission-a',
+          1,
+          'START',
+          schedule: 'schedule-a2',
+        );
+        await _insertEvent(upgraded, 'stop-v14', 'mission-a', 2, 'STOP');
+        await _insertEvent(
+          upgraded,
+          'end-v14',
+          'mission-a',
+          3,
+          'END',
+          report: 'COMPLETED',
+        );
+        await expectLater(
+          _insertEvent(upgraded, 'bogus-v14', 'mission-a', 4, 'CANCEL'),
+          throwsA(isA<SqliteException>()),
+        );
+        await expectLater(
+          _insertEvent(
+            upgraded,
+            'start-dup-v14',
+            'mission-a',
+            4,
+            'START',
+            schedule: 'schedule-a2',
+          ),
+          throwsA(isA<SqliteException>()),
+        );
+        await expectLater(
+          _insertEvent(
+            upgraded,
+            'end-dup-v14',
+            'mission-a',
+            4,
+            'END',
+            report: 'NOT_COMPLETED',
+          ),
+          throwsA(isA<SqliteException>()),
+        );
+        await upgraded.validateDatabaseSchema();
+        expect(
+          await upgraded.customSelect('PRAGMA foreign_key_check').get(),
+          isEmpty,
+        );
+      } finally {
+        await upgraded.close();
+      }
+    });
 
     test('v7 升级在第二条归属触发器处失败，新增列和第一条触发器一起回滚后可重试', () async {
       final old = _SnapshotV1Database(NativeDatabase(file), oldVersion: 7);
@@ -424,7 +488,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 13);
+        expect(await _version(retry), 14);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -492,7 +556,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 13);
+        expect(await _version(upgraded), 14);
         expect(await snapshot(upgraded), before);
         expect(
           (await upgraded.select(upgraded.missions).get()).every(
@@ -558,7 +622,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 13);
+        expect(await _version(upgraded), 14);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -619,7 +683,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 13);
+        expect(await _version(upgraded), 14);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -648,7 +712,7 @@ void main() {
 
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 13);
+        expect(await _version(upgraded), 14);
         expect(await _readOldRows(upgraded), before);
         expect(await upgraded.select(upgraded.executionEvents).get(), isEmpty);
         await upgraded.validateDatabaseSchema();
@@ -686,7 +750,7 @@ void main() {
 
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 13);
+        expect(await _version(reopened), 14);
         expect(await _readOldRows(reopened), before);
         final event = await reopened
             .select(reopened.executionEvents)
@@ -718,7 +782,7 @@ void main() {
       }
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 13);
+        expect(await _version(reopened), 14);
         expect(await _readOldRows(reopened), before);
         await reopened.validateDatabaseSchema();
       } finally {
@@ -761,7 +825,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 13);
+        expect(await _version(retry), 14);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -805,7 +869,7 @@ void main() {
     tearDown(() async => database.close());
 
     test('v12 新装十二表与索引符合当前定义', () async {
-      expect(await _version(database), 13);
+      expect(await _version(database), 14);
       expect(database.allTables, hasLength(12));
       await database.validateDatabaseSchema();
       expect(

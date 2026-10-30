@@ -60,6 +60,7 @@ object NotificationAppearance {
         if (original.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() != title ||
             original.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() != body) return false
         val running = call.argument<Boolean>("running") == true
+        val stopped = call.argument<Boolean>("stopped") == true
         val behind = call.argument<Boolean>("clockBehind") == true
         val projectedAt = requireNotNull(call.argument<Number>("projectedAt")).toLong()
         val focus = requireNotNull(call.argument<Number>("focusMilliseconds")).toLong().coerceAtLeast(0)
@@ -72,9 +73,9 @@ object NotificationAppearance {
             else String.format(Locale.ROOT, "%02d:%02d", seconds / 60, seconds % 60)
         fun content(layout: Int) = RemoteViews(context.packageName, layout).apply {
             setTextViewText(R.id.notification_title, title)
-            setTextViewText(R.id.notification_state, if (behind) "请校正系统时间" else if (running) "正在专注" else "已暂停 · 专注已冻结")
+            setTextViewText(R.id.notification_state, if (behind) "请校正系统时间" else if (running) "正在专注" else if (stopped) "已到点 · 待确认" else "已暂停 · 专注已冻结")
             setImageViewResource(R.id.notification_state_icon, if (running) R.drawable.ic_stat_running else R.drawable.ic_stat_paused)
-            setContentDescription(R.id.notification_state_icon, if (running) "执行中" else "已暂停")
+            setContentDescription(R.id.notification_state_icon, if (running) "执行中" else if (stopped) "待确认" else "已暂停")
             setViewVisibility(R.id.notification_clock, if (advancing) View.VISIBLE else View.GONE)
             setViewVisibility(R.id.notification_frozen, if (advancing) View.GONE else View.VISIBLE)
             setChronometer(R.id.notification_clock, SystemClock.elapsedRealtime() - currentFocus, null, advancing)

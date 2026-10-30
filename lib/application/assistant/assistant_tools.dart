@@ -420,6 +420,7 @@ class AssistantTools {
                       MissionPhase.notStarted,
                       MissionPhase.running,
                       MissionPhase.paused,
+                      MissionPhase.reportPending,
                     ].contains(d.phase) &&
                     d.mission.verificationPolicy ==
                         VerificationPolicy.selfReport,

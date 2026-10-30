@@ -25,6 +25,7 @@ import '../../domain/entities/mission_plan.dart';
 import '../../domain/repositories/mission_plan_repository.dart';
 import '../../domain/rules/evidence_rules.dart';
 import '../../domain/rules/mission_creation_rules.dart';
+import '../../domain/rules/scheduled_execution_rules.dart';
 import '../evidence/evidence_image_service.dart';
 
 /// 任务的应用业务入口：组织创建、查询、编辑、取消和执行。
@@ -139,8 +140,9 @@ class MissionService {
   /// 等仓储事务提交后再通知页面重读；真正的事件时刻、序号由写事务确定。
   Future<ExecutionEvent> execute(ExecutionCommand command) async {
     // await 等待仓储的整个事务；抛异常时会直接离开，不执行下面的通知。
+    final stopped = await repository.reconcileScheduledEnds();
+    if (stopped.isNotEmpty) _notify();
     final event = await repository.execute(command);
-    // 同 id 的成功重试也通知：第一次可能已保存但返回结果丢失，页面仍需要重读。
     _notify();
     return event;
   }
@@ -190,8 +192,8 @@ class MissionService {
   Future<List<MissionDetail>> findCancelled() => repository.findCancelled();
 
   /// 自动执行也从本服务进入仓储；提交后通知各页面重读。
-  Future<List<String>> startDueScheduledMissions() async {
-    final changed = await repository.startDueScheduledMissions();
+  Future<List<String>> reconcileScheduledMissions() async {
+    final changed = await repository.reconcileScheduledMissions();
     if (changed.isNotEmpty) _notify();
     return changed;
   }
@@ -211,6 +213,16 @@ class MissionService {
     final all = await findAllDetails();
     return PlannedMissionSnapshot(
       hasRunning: all.any((detail) => detail.phase == MissionPhase.running),
+      nextEndAt:
+          (all
+                  .map(
+                    (detail) =>
+                        scheduledExecutionEnd(detail.schedule, detail.events),
+                  )
+                  .whereType<DateTime>()
+                  .toList()
+                ..sort())
+              .firstOrNull,
       candidates: [
         for (final detail in all)
           if (detail.phase == MissionPhase.notStarted &&

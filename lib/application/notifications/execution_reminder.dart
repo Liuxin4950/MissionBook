@@ -31,10 +31,16 @@ ReminderRequest executionReminder(
     scheduleRevisionId: detail.schedule.id,
     kind: running
         ? ReminderKind.executionRunning
+        : detail.phase == MissionPhase.reportPending
+        ? ReminderKind.executionStopped
         : ReminderKind.executionPaused,
     title: detail.mission.title,
     body:
-        '${running ? '执行中' : '已暂停'} · 专注 $focus · 额度 $budget 分钟${times.clockBehind ? ' · 请校时' : ''}',
+        '${running
+            ? '执行中'
+            : detail.phase == MissionPhase.reportPending
+            ? '已到点 · 待确认'
+            : '已暂停'} · 专注 $focus · 额度 $budget 分钟${times.clockBehind ? ' · 请校时' : ''}',
     focusMilliseconds: times.focus.inMilliseconds,
     projectedAt: projectedAt,
     budgetMinutes: budget,
@@ -42,7 +48,8 @@ ReminderRequest executionReminder(
     expectedSequence: sequence,
     candidateEventIds: {
       'pause': 'notif-pause-$id-$sequence',
-      'resume': 'notif-resume-$id-$sequence',
+      if (detail.phase != MissionPhase.reportPending)
+        'resume': 'notif-resume-$id-$sequence',
     },
   );
 }

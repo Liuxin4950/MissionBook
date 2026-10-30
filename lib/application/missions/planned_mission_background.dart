@@ -59,7 +59,8 @@ Future<void> runPlannedMissionBackground() async {
       final notificationId = store.notificationIds['mission-$id-execution'];
       if (notificationId != null &&
           (detail.phase == MissionPhase.running ||
-              detail.phase == MissionPhase.paused)) {
+              detail.phase == MissionPhase.paused ||
+              detail.phase == MissionPhase.reportPending)) {
         await dispatcher.show(executionReminder(detail, notificationId));
       }
       final start = detail.schedule.fixedStartAt;

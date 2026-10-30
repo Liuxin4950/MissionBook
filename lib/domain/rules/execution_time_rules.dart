@@ -32,22 +32,27 @@ ExecutionTimes calculateExecutionTimes(
       clockBehind: false,
     );
   }
-  final ended = events.last.type == ExecutionEventType.end;
+  final stopped = events
+      .where((event) => event.type == ExecutionEventType.stop)
+      .firstOrNull;
+  final ended = stopped != null || events.last.type == ExecutionEventType.end;
   final behind = !ended && now.isBefore(events.last.occurredAt);
   final bound = ended
-      ? events.last.occurredAt
+      ? (stopped ?? events.last).occurredAt
       : (behind ? events.last.occurredAt : now);
   var paused = Duration.zero;
   DateTime? pauseAt;
   var extension = 0;
   var pauseCount = 0;
   for (final event in events) {
+    if (event.occurredAt.isAfter(bound)) break;
     // 这里汇总暂停区间和额度，不重新决定动作是否合法或另建状态机。
     if (event.type == ExecutionEventType.pause) {
       pauseAt = event.occurredAt;
       pauseCount++;
     } else if ((event.type == ExecutionEventType.resume ||
-            event.type == ExecutionEventType.end) &&
+            event.type == ExecutionEventType.end ||
+            event.type == ExecutionEventType.stop) &&
         pauseAt != null) {
       paused += event.occurredAt.difference(pauseAt);
       pauseAt = null;

@@ -69,7 +69,7 @@ class AppDatabase extends _$AppDatabase {
 
   // v11 追加助手会话日志与通用操作回执，任务、目标和执行事实保持不变。
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -156,6 +156,10 @@ class AppDatabase extends _$AppDatabase {
             executionEvents,
             executionEvents.isRetrospective,
           );
+        }
+        if (from >= 2 && from < 14) {
+          // v14 放宽动作约束，保留事件及唯一索引；没有表引用执行事件。
+          await migrator.alterTable(TableMigration(executionEvents));
         }
         // Drift 默认在全部开库回调完成后才记版本。把标记与结构一起提交，
         // 避免结构已建好、后续开库中断后，重开仍按 v1 重复创建索引。

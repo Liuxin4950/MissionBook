@@ -4,6 +4,7 @@ enum ExecutionEventType {
   pause, // 暂停，可以填写原因。
   resume, // 从暂停恢复执行。
   extend, // 增加投入额度，不改变执行或暂停状态。
+  stop, // 固定日程到点停止计时，等待用户确认结果。
   end, // 结束执行，同时记录用户报告。
 }
 

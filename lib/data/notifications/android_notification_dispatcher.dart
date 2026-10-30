@@ -32,7 +32,8 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
     final kind = request.kind;
     final executing =
         kind == ReminderKind.executionRunning ||
-        kind == ReminderKind.executionPaused;
+        kind == ReminderKind.executionPaused ||
+        kind == ReminderKind.executionStopped;
     final running = kind == ReminderKind.executionRunning;
     final advancing =
         running &&
@@ -67,12 +68,19 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
         channelShowBadge: !executing,
         // 与 AppColors.primary 一致；Android 通知不能引用 Flutter 主题对象。
         color: const Color(0xFF244D3D),
-        subText: executing ? (running ? '正在专注' : '已暂停') : '计划提醒',
+        subText: executing
+            ? (running
+                  ? '正在专注'
+                  : kind == ReminderKind.executionStopped
+                  ? '待确认'
+                  : '已暂停')
+            : '计划提醒',
         styleInformation: BigTextStyleInformation(
           request.body,
           contentTitle: request.title,
         ),
         actions: switch (kind) {
+          ReminderKind.executionStopped => [],
           ReminderKind.upcomingReminder => [],
           ReminderKind.startReminder => [
             AndroidNotificationAction('start', '开始', showsUserInterface: true),
@@ -151,6 +159,7 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
           'title': request.title,
           'body': request.body,
           'running': request.kind == ReminderKind.executionRunning,
+          'stopped': request.kind == ReminderKind.executionStopped,
           'focusMilliseconds': request.focusMilliseconds,
           'projectedAt': request.projectedAt?.millisecondsSinceEpoch,
           'budgetMinutes': request.budgetMinutes,

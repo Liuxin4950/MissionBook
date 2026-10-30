@@ -21,7 +21,10 @@ import 'package:mission_book/presentation/widgets/app_confirm_dialog.dart';
 // 由测试决定读取何时完成，才能观察等待、失败、重试、离页和乱序返回。
 class DetailRepository implements MissionRepository {
   @override
-  Future<List<String>> startDueScheduledMissions() async => <String>[];
+  Future<List<String>> reconcileScheduledEnds() async => [];
+
+  @override
+  Future<List<String>> reconcileScheduledMissions() async => <String>[];
 
   @override
   Future<List<MissionGoalChoices>> findGoalChoices() async => [];

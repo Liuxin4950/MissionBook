@@ -17,6 +17,7 @@ class MissionPhaseIcon extends StatelessWidget {
       MissionPhase.notStarted => Icons.radio_button_unchecked,
       MissionPhase.running => Icons.play_arrow_rounded,
       MissionPhase.paused => Icons.pause_rounded,
+      MissionPhase.reportPending => Icons.fact_check_outlined,
       MissionPhase.closed => Icons.check_rounded,
       MissionPhase.cancelled => Icons.block_outlined,
       MissionPhase.evidencePending => Icons.upload_file_outlined,

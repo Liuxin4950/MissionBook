@@ -57,11 +57,12 @@ class PlannedMissionScheduler {
       _timer?.cancel();
       _retryTimer?.cancel();
       await beforeRefresh?.call();
-      await missions.startDueScheduledMissions();
+      await missions.reconcileScheduledMissions();
       final snapshot = await missions.findPlannedSnapshot();
       final checkedAt = now();
       final hasRunning = snapshot.hasRunning;
-      DateTime? next;
+      DateTime? next = snapshot.nextEndAt;
+      if (next != null && !next.isAfter(checkedAt)) _again = true;
       for (final candidate in snapshot.candidates) {
         final at = candidate.start;
         // 已到点但被当前 RUNNING 阻塞时，等待下一次任务变化，避免零时长忙循环。

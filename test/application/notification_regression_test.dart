@@ -64,12 +64,12 @@ void main() {
     await db.close();
     await dir.delete(recursive: true);
   });
-  Future<String> create() async {
+  Future<String> create({int duration = 30}) async {
     await missions.create(
       title: 'review',
       scheduledDate: '2026-10-25',
       timeZone: 'Asia/Shanghai',
-      plannedDurationMinutes: 30,
+      plannedDurationMinutes: duration,
       timePolicy: TimePolicy.fixed,
       fixedStartAt: DateTime.utc(2026, 10, 25, 1),
     );
@@ -172,16 +172,16 @@ void main() {
     },
   );
   test('执行摘要复用真实时间规则：暂停冻结、延长不恢复、继续累计、END撤销', () async {
-    final id = await create();
+    final id = await create(duration: 120);
     await service.refresh();
     now = DateTime.utc(2026, 10, 25, 1);
-    await missions.startDueScheduledMissions();
+    await missions.reconcileScheduledMissions();
     now = now.add(const Duration(seconds: 75));
     await service.refresh();
     final running = dispatcher.visible.values.single;
     expect(running.focusMilliseconds, 75000);
     expect(running.body, contains('专注 01:15'));
-    expect(running.budgetMinutes, 30);
+    expect(running.budgetMinutes, 120);
     Future<void> act(
       ExecutionEventType type, {
       int? minutes,
@@ -205,7 +205,7 @@ void main() {
     final paused = dispatcher.visible.values.single;
     expect(paused.kind, ReminderKind.executionPaused);
     expect(paused.focusMilliseconds, 75000);
-    expect(paused.budgetMinutes, 35);
+    expect(paused.budgetMinutes, 125);
     expect(paused.notificationId, running.notificationId);
     expect(paused.expectedSequence, 3);
     await act(ExecutionEventType.resume);
@@ -231,7 +231,7 @@ void main() {
       final id = await create();
       await service.refresh();
       now = DateTime.utc(2026, 10, 25, 1);
-      await missions.startDueScheduledMissions();
+      await missions.reconcileScheduledMissions();
       await service.refresh();
       final request = dispatcher.visible.values.single;
       final results = await Future.wait([

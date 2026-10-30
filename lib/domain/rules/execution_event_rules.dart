@@ -143,6 +143,8 @@ MissionPhase _phaseBeforeEnd(Mission mission, _ExecutionState state) {
       return MissionPhase.running;
     case _ExecutionState.paused:
       return MissionPhase.paused;
+    case _ExecutionState.stopped:
+      return MissionPhase.reportPending;
     case _ExecutionState.ended:
       // 执行已结束，不足以确定材料是否仍待提交，所以不能直接返回 closed。
       throw UnsupportedError('此函数只推导结束前阶段；END后的阶段需要报告及材料相关事实');
@@ -355,10 +357,18 @@ _ExecutionState _replayExecutionHistory(
           throw ArgumentError('只有执行中或暂停的任务才能延长');
         }
         break;
-      case ExecutionEventType.end: // 结束：执行中、暂停均可，之后不再允许动作。
+      case ExecutionEventType.stop:
+        if (state != _ExecutionState.running &&
+            state != _ExecutionState.paused) {
+          throw ArgumentError('只有执行中或暂停的任务才能到点停止');
+        }
+        state = _ExecutionState.stopped;
+        break;
+      case ExecutionEventType.end: // 报告：到点停止后也可确认结果。
         if (!(event.isRetrospective && state == _ExecutionState.notStarted) &&
             state != _ExecutionState.running &&
-            state != _ExecutionState.paused) {
+            state != _ExecutionState.paused &&
+            state != _ExecutionState.stopped) {
           throw ArgumentError('只有执行中或暂停的任务才能结束');
         }
         state = _ExecutionState.ended;
@@ -377,5 +387,6 @@ enum _ExecutionState {
   notStarted, // 未开始。
   running, // 执行中。
   paused, // 已暂停。
+  stopped, // 已停止计时，之后只能提交结束报告。
   ended, // 已有结束事件；不等于材料流程也已完成。
 }

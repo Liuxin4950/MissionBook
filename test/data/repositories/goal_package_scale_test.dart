@@ -144,13 +144,13 @@ void main() {
       expect((await missions.findPlannedSnapshot()).candidates.length, 1);
       expect(await missions.findCompletedGoalNodeIds(result.goalId), isEmpty);
       now = DateTime.utc(2030, 1, 1, 0, 3);
-      final started = await missions.startDueScheduledMissions();
+      final started = await missions.reconcileScheduledMissions();
       expect(started.length, 1);
       final running = (await missions.findDetail(started.single))!;
       expect(running.phase, MissionPhase.running);
       expect(running.events.single.occurredAt, now);
       expect(await count(db, 'execution_events'), 1);
-      expect(await missions.startDueScheduledMissions(), isEmpty);
+      expect(await missions.reconcileScheduledMissions(), isEmpty);
       await db.close();
       db = AppDatabase(executor: NativeDatabase(file));
       expect(await count(db, 'missions'), 10000);

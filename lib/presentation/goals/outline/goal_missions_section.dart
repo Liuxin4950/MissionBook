@@ -67,7 +67,8 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
         label: detail == null
             ? '新建任务'
             : detail.phase == MissionPhase.running ||
-                  detail.phase == MissionPhase.paused
+                  (detail.phase == MissionPhase.paused ||
+                      detail.phase == MissionPhase.reportPending)
             ? '任务执行'
             : detail.phase == MissionPhase.closed
             ? '执行记录'
@@ -81,7 +82,8 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
             );
           }
           if (detail.phase == MissionPhase.running ||
-              detail.phase == MissionPhase.paused) {
+              (detail.phase == MissionPhase.paused ||
+                  detail.phase == MissionPhase.reportPending)) {
             return MissionExecutionPage(
               detail: detail,
               service: widget.service,
@@ -126,6 +128,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
         int priority(MissionDetail detail) => switch (detail.phase) {
           MissionPhase.running => 0,
           MissionPhase.paused => 1,
+          MissionPhase.reportPending => 1,
           MissionPhase.notStarted => 2,
           MissionPhase.evidencePending => 3,
           MissionPhase.closed => 4,
@@ -400,7 +403,8 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     detail,
                     emphasized:
                         detail.phase == MissionPhase.running ||
-                        detail.phase == MissionPhase.paused,
+                        (detail.phase == MissionPhase.paused ||
+                            detail.phase == MissionPhase.reportPending),
                   ),
                 if (direct.length > 50)
                   Wrap(
@@ -521,7 +525,8 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     onPressed: _opening ? null : () => _open(detail: detail),
                     tooltip:
                         detail.phase == MissionPhase.running ||
-                            detail.phase == MissionPhase.paused
+                            (detail.phase == MissionPhase.paused ||
+                                detail.phase == MissionPhase.reportPending)
                         ? '返回执行'
                         : detail.phase == MissionPhase.closed
                         ? '查看执行记录'

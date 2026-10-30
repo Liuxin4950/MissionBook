@@ -14,9 +14,14 @@ bool hasCompletionRecord(List<MissionDetail> directMissions) =>
     directMissions.any((detail) => detail.endReportedCompleted);
 
 /// 节点记录标签，按领域模型 §2.3 的优先级取第一个成立的：
-/// 有完成记录 > 执行中（含已暂停）> 已安排 > 暂无完成记录。
+/// 有完成记录 > 待确认 > 执行中（含已暂停）> 已安排 > 暂无完成记录。
 String nodeRecordLabel(List<MissionDetail> directMissions) {
   if (hasCompletionRecord(directMissions)) return '有完成记录';
+  if (directMissions.any(
+    (detail) => detail.phase == MissionPhase.reportPending,
+  )) {
+    return '待确认';
+  }
   if (directMissions.any(
     (detail) =>
         detail.phase == MissionPhase.running ||

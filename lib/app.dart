@@ -142,13 +142,13 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       },
       scheduleInSystem: (next) async {
         // 后台复用的通知编号先持久化，再允许系统唤醒。
-        // 通知失败单独提示，仍安排系统自动开始；编号缺失只影响通知呈现。
+        // 通知失败单独提示，仍安排系统自动执行；编号缺失只影响通知呈现。
         await _refreshNotifications();
         await _plannedBridge?.schedule(next);
       },
       onError: (error) {
-        debugPrint('计划任务自动开始失败：$error');
-        _notifications?.reportFailure('计划任务自动开始失败，请刷新重试：$error');
+        debugPrint('计划任务自动执行失败：$error');
+        _notifications?.reportFailure('计划任务自动执行失败，请刷新重试：$error');
       },
     );
     unawaited(_initNotifications());

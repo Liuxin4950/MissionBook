@@ -15,10 +15,12 @@ class PlannedMissionSnapshot {
     required this.hasRunning,
     required this.candidates,
     this.refreshAfterExpiredCandidate = false,
+    this.nextEndAt,
   });
   final bool hasRunning;
   final List<PlannedMissionPoint> candidates;
   final bool refreshAfterExpiredCandidate;
+  final DateTime? nextEndAt; // 已开始固定日程的下一次停止时刻，包含加时。
 }
 
 /// 【查询组合】任务、当前排期及执行投影，供日期列表和实时标签读取。

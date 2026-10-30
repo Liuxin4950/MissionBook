@@ -51,6 +51,7 @@ TodayMissionGroups groupMissionsForDisplay(List<ScheduledMission> missions) {
         case MissionPhase.paused:
           activeFlexible.add(item);
         case MissionPhase.evidencePending:
+        case MissionPhase.reportPending:
           pendingFlexible.add(item);
         case MissionPhase.closed:
         case MissionPhase.cancelled:

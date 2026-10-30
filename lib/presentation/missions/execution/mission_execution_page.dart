@@ -74,12 +74,16 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
   @override
   void initState() {
     super.initState();
-    _report = widget.openEndConfirm;
+    _report =
+        widget.openEndConfirm ||
+        widget.detail.phase == MissionPhase.reportPending;
     _action = MissionActionController(
       detail: widget.detail,
       service: widget.service,
     );
-    if (_report && _action.detail.phase == MissionPhase.paused) {
+    if (_report &&
+        (_action.detail.phase == MissionPhase.paused ||
+            _action.detail.phase == MissionPhase.reportPending)) {
       _reportSequence = _action.detail.lastSequence;
       _reportFocus = calculateExecutionTimes(
         _action.detail.events,
@@ -210,6 +214,18 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
         ? _action.pending?.id
         : null;
     if (!await _action.refresh() || !mounted) return;
+    if (_action.detail.phase == MissionPhase.reportPending) {
+      // 自动停止只冻结计时；已有报告草稿保留，STOP 不改变用户的报告意图。
+      _reportSequence = _action.detail.lastSequence;
+      _reportFocus = calculateExecutionTimes(
+        _action.detail.events,
+        widget.clock().toUtc(),
+      ).focus;
+      _report = true;
+      _extend = false;
+      setState(() {});
+      return;
+    }
     if (_action.detail.phase == MissionPhase.closed &&
         _action.detail.mission.verificationPolicy ==
             VerificationPolicy.selfReport) {
@@ -241,7 +257,23 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
   Future<void> _run(ExecutionCommand command, {bool openReport = false}) async {
     if (_action.busy) return;
     _openingReport = openReport;
-    if (!await _action.execute(command) || !mounted) return;
+    final succeeded = await _action.execute(command);
+    if (!mounted) return;
+    if (!succeeded) {
+      if (_action.stale) {
+        try {
+          final latest = await widget.service.findDetailSnapshot(
+            missionId: _action.detail.mission.id,
+          );
+          if (mounted && latest?.phase == MissionPhase.reportPending) {
+            await _refresh();
+          }
+        } catch (_) {
+          // 读取失败保留原冲突与输入，继续提供刷新入口。
+        }
+      }
+      return;
+    }
     _inputError = null;
     _extend = false;
     if (_action.detail.phase == MissionPhase.closed &&
@@ -474,6 +506,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
     final running = detail.phase == MissionPhase.running;
     final showPrompt =
         running &&
+        detail.schedule.fixedStartAt == null &&
         times.focus >= Duration(minutes: budget) &&
         _promptedBudget != budget;
     final feedback = MissionActionFeedback(
@@ -498,13 +531,23 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             secondary: OutlinedButton(
               key: const Key('report-cancel'),
               onPressed: _action.locked ? null : _leaveReport,
-              child: const Text('取消报告', textAlign: TextAlign.center),
+              child: Text(
+                detail.phase == MissionPhase.reportPending ? '稍后确认' : '取消报告',
+                textAlign: TextAlign.center,
+              ),
             ),
+          )
+        : detail.phase == MissionPhase.reportPending
+        ? FilledButton.icon(
+            key: const Key('execution-end'),
+            onPressed: canAct ? _beginReport : null,
+            icon: const Icon(Icons.fact_check_outlined),
+            label: const Text('确认完成情况'),
           )
         : MissionActionPair(
             primary: FilledButton.icon(
               key: const Key('execution-toggle'),
-              onPressed: canAct
+              onPressed: canAct && detail.phase != MissionPhase.reportPending
                   ? running
                         ? _requestPause
                         : () => _run(_action.prepare(ExecutionEventType.resume))
@@ -568,7 +611,9 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           ),
           const SizedBox(height: AppLayout.spaceXl),
           Text(
-            detail.phase == MissionPhase.paused
+            detail.phase == MissionPhase.reportPending
+                ? '计划时间已到，计时已停止。请选择实际完成情况，确认后可补充材料。'
+                : detail.phase == MissionPhase.paused
                 ? '已暂停，取消报告后仍保持暂停。请选择实际完成情况，确认后才保存。'
                 : '执行状态已变化，本次报告尚未保存。请先查看下方说明。',
           ),
@@ -672,6 +717,10 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             budgetMinutes: budget,
             paused: !running,
           ),
+          if (detail.phase == MissionPhase.reportPending) ...[
+            const SizedBox(height: AppLayout.spaceLg),
+            const Text('计划时间已到，计时已停止，待确认完成情况。', textAlign: TextAlign.center),
+          ],
           if (times.extensionMinutes > 0) ...[
             const SizedBox(height: AppLayout.spaceMd),
             Center(
@@ -690,16 +739,17 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             ),
           ),
           const SizedBox(height: AppLayout.spaceSm),
-          Center(
-            child: TextButton.icon(
-              key: const Key('execution-extend'),
-              onPressed: canAct
-                  ? () => setState(() => _extend = !_extend)
-                  : null,
-              icon: const Icon(Icons.add_rounded, size: AppLayout.iconMd),
-              label: const Text('延长时间'),
+          if (detail.phase != MissionPhase.reportPending)
+            Center(
+              child: TextButton.icon(
+                key: const Key('execution-extend'),
+                onPressed: canAct
+                    ? () => setState(() => _extend = !_extend)
+                    : null,
+                icon: const Icon(Icons.add_rounded, size: AppLayout.iconMd),
+                label: const Text('延长时间'),
+              ),
             ),
-          ),
           if (_extend) ...[
             const SizedBox(height: AppLayout.spaceLg),
             TextField(

@@ -230,7 +230,7 @@ void main() {
       NotificationActionResult.openMission,
     );
     now = DateTime.utc(2026, 10, 25, 1);
-    await missions.startDueScheduledMissions();
+    await missions.reconcileScheduledMissions();
     // 原来的预告点击仍只是打开任务。
     expect(
       await service.handleAction(request),
@@ -303,7 +303,7 @@ void main() {
     );
     await service.setReminderLeadMinutes(-1);
     now = DateTime.utc(2026, 10, 25, 1);
-    await missions.startDueScheduledMissions();
+    await missions.reconcileScheduledMissions();
     await service.refresh();
     final waiting = dispatcher.visible.values.where(
       (request) => request.title.startsWith('计划任务等待开始'),

@@ -243,7 +243,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
           ),
           const SizedBox(height: AppLayout.spaceMd),
           Text(
-            '到点自动开始，开始前可修改排期；提前提醒可在“我的”中设置。',
+            '到点自动开始，按计划时长停止并待确认；执行中加时会顺延，暂停不顺延。开始前可修改排期。',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ] else

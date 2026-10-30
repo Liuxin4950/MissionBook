@@ -44,6 +44,7 @@ void main() {
   const pause = ExecutionEventType.pause;
   const resume = ExecutionEventType.resume;
   const extend = ExecutionEventType.extend;
+  const stop = ExecutionEventType.stop;
   const end = ExecutionEventType.end;
 
   test('未开始和已取消任务允许空时间线，已取消任务拒绝任何执行事件', () {
@@ -61,12 +62,14 @@ void main() {
     '未开始': [],
     '执行中': [start],
     '暂停': [start, pause],
+    '到点停止': [start, stop],
     '结束': [start, end],
   };
   final allowed = <String, Set<ExecutionEventType>>{
     '未开始': {start},
-    '执行中': {pause, extend, end},
-    '暂停': {resume, extend, end},
+    '执行中': {pause, extend, stop, end},
+    '暂停': {resume, extend, stop, end},
+    '到点停止': {end},
     '结束': {},
   };
   for (final entry in prefixes.entries) {
