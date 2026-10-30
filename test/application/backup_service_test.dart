@@ -7,6 +7,7 @@ import 'package:mission_book/data/backup/database_backup_service.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/local/app_database.dart';
+import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 
@@ -59,6 +60,16 @@ void main() {
   });
 
   test('备份可重建完整数据库、约束与版本，且只包含正式引用的附件', () async {
+    final handle = await DriftSessionStore(db).create('backup-conversation');
+    await handle.append('session_created', {
+      'id': 'backup-conversation',
+      'title': '备份会话',
+    });
+    await handle.append('message_added', {
+      'text': '中文与换行\n保留',
+      'attachments': ['已发送的附件'],
+    });
+    await handle.close();
     final original = Uint8List.fromList([1, 2, 3, 4]);
     final backup = DatabaseBackupService(
       database: db,
@@ -72,9 +83,26 @@ void main() {
       'database.sql',
       'manifest.json',
       'README.txt',
+      'assistant-conversations.json',
       imageKey,
     });
     expect(zip.findFile(imageKey)!.content, original);
+    final conversations =
+        jsonDecode(
+              utf8.decode(
+                zip.findFile('assistant-conversations.json')!.content
+                    as List<int>,
+              ),
+            )
+            as Map;
+    final conversation = (conversations['conversations'] as List).single as Map;
+    expect(conversation['title'], '备份会话');
+    expect(conversation.containsKey('writerToken'), isFalse);
+    final records = conversation['records'] as List;
+    expect(records.map((e) => e['sequence']), [0, 1]);
+    expect(records.last['data']['text'], '中文与换行\n保留');
+    expect(records.last['data']['attachments'], ['已发送的附件']);
+
     final manifest =
         jsonDecode(
               utf8.decode(zip.findFile('manifest.json')!.content as List<int>),

@@ -1,3 +1,4 @@
+import '../../widgets/app_dropdown_form_field.dart';
 import 'package:mission_book/presentation/missions/execution/execution_widgets.dart';
 import 'dart:async';
 import '../../assistant/assistant_launcher.dart';
@@ -600,7 +601,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           ),
           if (_result == UserReportedResult.notCompleted) ...[
             const SizedBox(height: AppLayout.spaceLg),
-            DropdownButtonFormField<String>(
+            AppDropdownFormField<String>(
               initialValue: _reasonCategory,
               isExpanded: true,
               decoration: const InputDecoration(labelText: '原因类别（可不选）'),

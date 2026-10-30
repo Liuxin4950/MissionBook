@@ -371,7 +371,14 @@ void main() {
           final hero = tester.getRect(
             find.byKey(const Key('goal-empty-state')),
           );
-          expect(hero.width, lessThanOrEqualTo(792));
+          final firstTab = tester.getRect(
+            find.byKey(const Key('goal-filter-active')),
+          );
+          final lastTab = tester.getRect(
+            find.byKey(const Key('goal-filter-achieved')),
+          );
+          expect(hero.left, closeTo(firstTab.left - 4, .01));
+          expect(hero.right, closeTo(lastTab.right + 4, .01));
           await _capture(tester, 'goals-empty-$status-1280');
         }
         expect(tester.takeException(), isNull);

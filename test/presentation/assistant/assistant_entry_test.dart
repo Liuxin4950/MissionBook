@@ -31,6 +31,23 @@ final _screen = GlobalKey();
 
 Future<void> capture(WidgetTester tester, String name) async {
   if (_captureDir.isEmpty) return;
+  final providers = tester
+      .widgetList<Image>(find.byType(Image))
+      .map((image) => image.image)
+      .toList();
+  await tester.runAsync(() async {
+    for (final provider in providers) {
+      await precacheImage(provider, _screen.currentContext!);
+    }
+    await precacheImage(
+      const ResizeImage(
+        AssetImage('assets/illustrations/paper-leaf-background.png'),
+        width: 1024,
+      ),
+      _screen.currentContext!,
+    );
+  });
+  await tester.pumpAndSettle();
   await tester.pump(const Duration(milliseconds: 250));
   final boundary =
       _screen.currentContext!.findRenderObject()! as RenderRepaintBoundary;
@@ -223,6 +240,8 @@ void main() {
             voice: voice,
             missions: missions,
             goals: goals,
+            backup: TestBackup(),
+            device: TestAppDevice(),
             child: RepaintBoundary(key: _screen, child: child!),
           ),
         ),
@@ -270,6 +289,133 @@ void main() {
     }
     expect(condition(), isTrue);
   }
+
+  for (final width in [390.0, 768.0, 1578.0]) {
+    assistantTest('应用设置进入同一助手设置并导出数据 $width', (tester) async {
+      await mount(
+        tester,
+        ScriptedModel([]),
+        width: width,
+        height: 956,
+        shell: true,
+      );
+      await tester.tap(find.byTooltip('我的'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('me-settings')));
+      await tester.pumpAndSettle();
+      await capture(tester, 'app-settings-${width.toInt()}');
+      await tester.tap(find.byKey(const Key('settings-assistant-entry')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<AssistantSettingsPage>(find.byType(AssistantSettingsPage))
+            .controller,
+        same(assistant),
+      );
+      final export = find.byKey(const Key('backup-export'));
+      await tester.scrollUntilVisible(
+        export,
+        300,
+        scrollable: find
+            .descendant(
+              of: find.byType(AssistantSettingsPage),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.ensureVisible(export);
+      await tester.pumpAndSettle();
+      await tester.tap(export);
+      await tester.pumpAndSettle();
+      expect(find.text('已取消保存，可以随时重新导出'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await capture(tester, 'settings-export-${width.toInt()}');
+    });
+  }
+
+  assistantTest('助手设置离开前可保留输入或明确放弃，返回原设置工作区', (tester) async {
+    await mount(
+      tester,
+      ScriptedModel([]),
+      width: 1578,
+      height: 956,
+      shell: true,
+    );
+    await tester.tap(find.byTooltip('我的'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('me-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settings-assistant-entry')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('assistant-credential-input')),
+      '未保存的测试输入',
+    );
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('放弃助手设置修改？'), findsOneWidget);
+    await tester.tap(find.text('继续编辑'));
+    await tester.pumpAndSettle();
+    expect(find.text('未保存的测试输入'), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('放弃修改'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AssistantSettingsPage), findsNothing);
+    expect(find.byKey(const Key('settings-assistant-entry')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  assistantTest('助手欢迎页在桌面、平板和手机切换保留输入与真实会话侧栏', (tester) async {
+    await mount(
+      tester,
+      ScriptedModel([]),
+      width: 1578,
+      height: 956,
+      shell: true,
+    );
+    final brand = find.byKey(const Key('navigation-brand'));
+    final navIcon = find.byKey(const Key('navigation-icon-0'));
+    final launcher = find.byKey(const Key('assistant-launcher')).hitTestable();
+    expect(tester.getTopLeft(brand).dx, tester.getTopLeft(navIcon).dx);
+    expect(tester.getCenter(launcher).dx, tester.getCenter(navIcon).dx);
+    await tester.tap(find.byKey(const Key('assistant-launcher')).hitTestable());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('assistant-sidebar-new')), findsOneWidget);
+    expect(find.byKey(const Key('assistant-history')), findsNothing);
+    expect(find.byKey(const Key('assistant-new-session')), findsNothing);
+    expect(find.byKey(const Key('assistant-settings')), findsOneWidget);
+    expect(find.text('助手设置与数据导出'), findsNothing);
+    expect(
+      tester.getCenter(find.byKey(const Key('assistant-sidebar-search'))).dy,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('assistant-sidebar-new'))).dy,
+      ),
+    );
+    await tester.tap(find.byKey(const Key('assistant-sidebar-search')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('assistant-history-search')), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('assistant-input')), '缩放保留的输入');
+    await capture(tester, 'assistant-welcome-1578');
+    for (final width in [768.0, 390.0]) {
+      tester.view.physicalSize = Size(width, 956);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('assistant-sidebar-new')), findsNothing);
+      expect(find.byKey(const Key('assistant-history')), findsOneWidget);
+      expect(find.byKey(const Key('assistant-settings')), findsOneWidget);
+      expect(find.text('缩放保留的输入'), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const Key('assistant-composer'))).width,
+        width,
+      );
+      expect(tester.takeException(), isNull);
+      await capture(tester, 'assistant-welcome-${width.toInt()}');
+    }
+  });
 
   assistantTest('角色名称、回答风格和图标可以在设置里修改并保存', (tester) async {
     await mount(tester, ScriptedModel([]), width: 1106);
@@ -711,7 +857,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byKey(const Key('assistant-composer'))).width,
-      960,
+      1008,
     );
     expect(
       tester

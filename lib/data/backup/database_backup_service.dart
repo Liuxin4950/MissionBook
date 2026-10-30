@@ -51,6 +51,53 @@ class DatabaseBackupService implements BackupExporter {
       final result = <String, Uint8List>{
         'database.sql': Uint8List.fromList(utf8.encode(sql.toString())),
       };
+      // 可阅读的会话日志与 SQL 使用同一事务快照，不读取安全存储中的凭据。
+      final sessions = await database.select(database.assistantSessions).get();
+      final records = await database
+          .select(database.assistantSessionRecords)
+          .get();
+      final bySession = <String, List<Map<String, Object?>>>{};
+      records.sort((a, b) => a.sequence.compareTo(b.sequence));
+      for (final record in records) {
+        (bySession[record.sessionId] ??= []).add({
+          'sequence': record.sequence,
+          'timestamp': DateTime.fromMillisecondsSinceEpoch(
+            record.timestamp,
+            isUtc: true,
+          ).toIso8601String(),
+          'type': record.type,
+          'data': jsonDecode(record.data),
+          'version': record.version,
+          'ignorable': record.ignorable,
+        });
+      }
+      result['assistant-conversations.json'] = Uint8List.fromList(
+        utf8.encode(
+          const JsonEncoder.withIndent('  ').convert({
+            'format': 'mission-book-assistant-conversations',
+            'version': 1,
+            'conversations': [
+              for (final session in sessions)
+                {
+                  'id': session.id,
+                  'title': session.title,
+                  'createdAt': DateTime.fromMillisecondsSinceEpoch(
+                    session.createdAt,
+                    isUtc: true,
+                  ).toIso8601String(),
+                  'updatedAt': DateTime.fromMillisecondsSinceEpoch(
+                    session.updatedAt,
+                    isUtc: true,
+                  ).toIso8601String(),
+                  'missionId': session.missionId,
+                  'goalId': session.goalId,
+                  'nodeId': session.nodeId,
+                  'records': bySession[session.id] ?? [],
+                },
+            ],
+          }),
+        ),
+      );
       final evidence = await database.select(database.evidenceRecords).get();
       for (final row in evidence) {
         final key = row.attachmentStorageKey;
@@ -69,13 +116,20 @@ class DatabaseBackupService implements BackupExporter {
             'attachments': result.keys
                 .where((key) => key.startsWith('attachments/'))
                 .toList(),
-            'excludes': ['drafts', 'temporaryFiles', 'notificationMetadata'],
+            'readableConversations': 'assistant-conversations.json',
+            'excludes': [
+              'apiKeys',
+              'drafts',
+              'temporaryFiles',
+              'notificationMetadata',
+              'localProfile',
+            ],
           }),
         ),
       );
       result['README.txt'] = Uint8List.fromList(
         utf8.encode(
-          'Mission Book 本地备份\n\ndatabase.sql 是一致事务内导出的 SQLite 完整逻辑快照，包含八张领域表、索引、触发器及数据库版本。\n可使用 SQLite 在一个新的空数据库中执行该文件；attachments/ 保留正式材料原始路径。\nmanifest.json 记录格式、导出时间与附件清单。\n不含未提交草稿、缓存、提醒偏好。当前应用不提供恢复导入入口。\n',
+          'Mission Book 本地备份\n\ndatabase.sql 是一致事务内导出的 SQLite 完整逻辑快照，包含全部应用表、索引、触发器及数据库版本。\n可使用 SQLite 在一个新的空数据库中执行该文件；attachments/ 保留正式材料原始路径。\nassistant-conversations.json 提供同一快照中的会话索引和完整原始日志，可用文本编辑器阅读。包含已发送的消息、引用、附件内容及工具结果；不读取安全存储中的 API Key。\nmanifest.json 记录格式、导出时间与附件清单。\n不含未发送草稿、缓存、本机资料、提醒偏好。当前应用不提供恢复导入入口。\n',
         ),
       );
       return result;

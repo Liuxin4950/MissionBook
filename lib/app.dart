@@ -1,3 +1,6 @@
+import 'application/settings/motion_settings.dart';
+import 'data/settings/motion_settings_store.dart';
+import 'presentation/widgets/motion_settings_scope.dart';
 import 'dart:async';
 import 'dart:io';
 import 'application/missions/planned_mission_scheduler.dart';
@@ -61,6 +64,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   late final MissionService _missionService; // 业务操作对象
   late final GoalService _goalService; // 目标服务，与任务服务共用数据库。
   late final BackupExporter _backupService; // 备份服务，负责导出数据。
+  late final MotionSettings _motionSettings;
   late final AppDevice _device; // 设备服务，负责平台能力。
   // 系统提醒编排：装配层只负责创建与生命周期；业务规则在应用服务里。
   AppNotificationService? _notifications;
@@ -124,6 +128,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       readAttachment: _missionService.readEvidenceImage,
     );
     _device = createAppDevice();
+    _motionSettings = createMotionSettings();
+    unawaited(_motionSettings.load());
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       _plannedBridge = PlannedAlarmBridge()
         ..listenForCommits(_missionService.refreshAfterExternalCommit);
@@ -343,12 +349,17 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MissionBook',
-      builder: (context, child) => AssistantScope(
-        controller: _assistant,
-        voice: _assistantVoice,
-        missions: _missionService,
-        goals: _goalService,
-        child: child!,
+      builder: (context, child) => MotionSettingsHost(
+        settings: _motionSettings,
+        child: AssistantScope(
+          controller: _assistant,
+          voice: _assistantVoice,
+          missions: _missionService,
+          goals: _goalService,
+          backup: _backupService,
+          device: _device,
+          child: child!,
+        ),
       ),
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
@@ -388,6 +399,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     unawaited(_missionService.dispose());
     unawaited(_goalService.dispose());
     unawaited(_goalService.packages?.dispose());
+    _motionSettings.dispose();
     _assistantVoice.dispose();
     unawaited(
       _assistant.close().then((_) {

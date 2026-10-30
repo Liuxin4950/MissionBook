@@ -1,3 +1,6 @@
+import '../widgets/app_dropdown_form_field.dart';
+import '../../application/settings/motion_settings.dart';
+import '../widgets/motion_settings_scope.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -6,6 +9,9 @@ import '../../application/notifications/app_notification_service.dart';
 import '../widgets/adaptive_columns.dart';
 import '../widgets/adaptive_sheet.dart';
 import '../widgets/app_section_card.dart';
+import '../widgets/data_export_card.dart';
+import '../assistant/assistant_scope.dart';
+import '../assistant/assistant_settings_page.dart';
 
 import '../../application/backup/backup_service.dart';
 import '../../application/settings/app_device.dart';
@@ -36,10 +42,7 @@ class _SettingsPageState extends State<SettingsPage>
   bool _refreshingNotifications = false;
   bool _refreshAgain = false;
   bool _openingSettings = false;
-  bool _exporting = false;
-  bool _backupFailed = false;
   String? _capabilityError;
-  String? _backupMessage;
   bool _about = false;
   bool _savingScheduleSettings = false;
   String? _scheduleSettingsError;
@@ -113,39 +116,6 @@ class _SettingsPageState extends State<SettingsPage>
       if (mounted) setState(() => _capabilityError = '无法打开系统设置，请在系统中手动管理权限');
     } finally {
       if (mounted) setState(() => _openingSettings = false);
-    }
-  }
-
-  Future<void> _export() async {
-    if (_exporting) return;
-    setState(() {
-      _exporting = true;
-      _backupFailed = false;
-      _backupMessage = '正在准备数据与正式附件…';
-    });
-    try {
-      final bytes = await widget.backup.create();
-      if (!mounted) return;
-      setState(() => _backupMessage = '备份已准备好，请选择保存位置');
-      final stamp = DateTime.now().toUtc().toIso8601String().replaceAll(
-        RegExp(r'[:.]'),
-        '-',
-      );
-      final result = await widget.device.saveBackup(
-        bytes,
-        'MissionBook-$stamp.zip',
-      );
-      if (mounted) setState(() => _backupMessage = result ?? '已取消保存，可以随时重新导出');
-    } catch (error, stack) {
-      debugPrint('本地备份导出失败：$error\n$stack');
-      if (mounted) {
-        setState(() {
-          _backupFailed = true;
-          _backupMessage = '导出失败，请检查保存位置和正式附件后重试，源数据已保留';
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _exporting = false);
     }
   }
 
@@ -230,6 +200,89 @@ class _SettingsPageState extends State<SettingsPage>
             child: ListView(
               padding: AppLayout.pagePadding(context),
               children: [
+                if (AssistantScope.maybeOf(context) case final scope?) ...[
+                  AppSectionCard(
+                    padding: EdgeInsets.zero,
+                    child: ListTile(
+                      key: const Key('settings-assistant-entry'),
+                      leading: const Icon(Icons.auto_awesome_outlined),
+                      title: const Text('AI 助手设置'),
+                      subtitle: const Text('模型、语音、角色与操作权限'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () =>
+                          Navigator.of(context, rootNavigator: true).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => AssistantSettingsPage(
+                                controller: scope.controller,
+                              ),
+                            ),
+                          ),
+                    ),
+                  ),
+                  const SizedBox(height: AppLayout.spaceXxl),
+                ],
+                if (MotionSettingsScope.maybeOf(context) case final scope?) ...[
+                  Text('界面', style: text.titleMedium),
+                  const SizedBox(height: AppLayout.spaceMd),
+                  AppSectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        AppDropdownFormField<MotionPreference>(
+                          key: ValueKey(
+                            'page-motion-${scope.settings.preference.name}',
+                          ),
+                          initialValue: scope.settings.preference,
+                          decoration: const InputDecoration(
+                            labelText: '页面动效',
+                            prefixIcon: Icon(Icons.animation_outlined),
+                          ),
+                          items: const [
+                            DropdownMenuItem(
+                              value: MotionPreference.system,
+                              child: Text('跟随系统'),
+                            ),
+                            DropdownMenuItem(
+                              value: MotionPreference.full,
+                              child: Text('开启动效'),
+                            ),
+                            DropdownMenuItem(
+                              value: MotionPreference.reduced,
+                              child: Text('减少动效'),
+                            ),
+                          ],
+                          onChanged: scope.settings.saving
+                              ? null
+                              : (value) {
+                                  if (value != null) {
+                                    unawaited(scope.settings.select(value));
+                                  }
+                                },
+                        ),
+                        const SizedBox(height: AppLayout.spaceSm),
+                        Text(
+                          scope.settings.preference == MotionPreference.system
+                              ? scope.systemReducedMotion
+                                    ? '系统当前要求减少动效，日期切换直接完成。'
+                                    : '系统当前允许播放页面过渡。'
+                              : scope.settings.preference ==
+                                    MotionPreference.full
+                              ? '播放日期切换等页面过渡，仅对本机生效。'
+                              : '跳过页面位移和渐变，仅对本机生效。',
+                          style: text.bodySmall,
+                        ),
+                        if (scope.settings.error case final error?)
+                          Text(
+                            error,
+                            style: text.bodySmall?.copyWith(
+                              color: AppColors.error,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppLayout.spaceXxl),
+                ],
                 Semantics(
                   container: true,
                   header: true,
@@ -521,80 +574,7 @@ class _SettingsPageState extends State<SettingsPage>
           child: Text('数据', style: text.titleMedium),
         ),
         const SizedBox(height: AppLayout.spaceMd),
-        AppSectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const CircleAvatar(
-                    backgroundColor: AppColors.primarySoft,
-                    child: Icon(
-                      Icons.file_upload_outlined,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: AppLayout.spaceLg),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('本地备份', style: text.titleMedium),
-                        Text(
-                          _backupMessage == null
-                              ? '本次尚未导出'
-                              : (_backupFailed ? '上次导出未成功' : '查看下方导出结果'),
-                          style: text.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppLayout.spaceMd),
-              Text(
-                '包含数据库与正式附件；不含草稿、本机资料和提醒偏好。暂不支持恢复导入。',
-                style: text.bodyMedium,
-              ),
-              const SizedBox(height: AppLayout.spaceMd),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  key: const Key('backup-export'),
-                  onPressed: _exporting ? null : _export,
-                  icon: _exporting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(
-                          Icons.file_download_outlined,
-                          size: AppLayout.iconMd,
-                        ),
-                  label: Text(
-                    _exporting ? '正在导出…' : (_backupFailed ? '重试导出' : '导出备份'),
-                  ),
-                ),
-              ),
-              if (_backupMessage != null) ...[
-                const SizedBox(height: AppLayout.spaceMd),
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    _backupMessage!,
-                    key: const Key('backup-result'),
-                    style: text.bodyMedium?.copyWith(
-                      color: _backupFailed
-                          ? AppColors.error
-                          : AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
+        DataExportCard(backup: widget.backup, device: widget.device),
       ],
     );
   }

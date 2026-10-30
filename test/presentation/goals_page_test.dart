@@ -176,24 +176,36 @@ void main() {
     expect(find.text('从一个目标开始'), findsOneWidget);
   });
 
-  testWidgets('目标分类切换保持标题角色、居中和分类栏位置', (tester) async {
-    await open(tester);
-    final filter = find.byKey(const Key('goal-filter-active'));
-    final top = tester.getTopLeft(filter).dy;
-    for (final (status, title) in [
-      ('active', '从一个目标开始'),
-      ('paused', '没有已搁置的目标'),
-      ('achieved', '没有已达成的目标'),
-    ]) {
-      await tap(tester, 'goal-filter-$status');
-      final heading = tester.widget<Text>(find.text(title));
-      expect(
-        heading.style,
-        Theme.of(tester.element(find.text(title))).textTheme.titleLarge,
-      );
-      expect(heading.textAlign, status == 'active' ? isNull : TextAlign.center);
-      expect(tester.getTopLeft(filter).dy, top);
-      expect(find.text('0 个目标'), findsOneWidget);
+  testWidgets('目标分类空态与分类栏等宽，共用插画和标题对齐', (tester) async {
+    for (final width in [390.0, 768.0, 1366.0]) {
+      await open(tester, width: width);
+      final filter = find.byKey(const Key('goal-filter-active'));
+      final top = tester.getTopLeft(filter).dy;
+      final card = find.byKey(const Key('goal-empty-state'));
+      final original = tester.getRect(card);
+      for (final (status, title) in [
+        ('active', '从一个目标开始'),
+        ('paused', '没有已搁置的目标'),
+        ('achieved', '没有已达成的目标'),
+      ]) {
+        await tap(tester, 'goal-filter-$status');
+        final heading = tester.widget<Text>(find.text(title));
+        expect(
+          heading.style,
+          Theme.of(tester.element(find.text(title))).textTheme.titleLarge,
+        );
+        expect(heading.textAlign, isNull);
+        expect(tester.getRect(card).left, original.left);
+        expect(tester.getRect(card).width, original.width);
+        expect(find.byKey(const Key('goal-waymarker-artwork')), findsOneWidget);
+        expect(tester.getTopLeft(filter).dy, top);
+        expect(find.text('0 个目标'), findsOneWidget);
+      }
+      await tester.tap(find.byKey(const Key('goal-return-active')));
+      await tester.pumpAndSettle();
+      expect(find.text('从一个目标开始'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
     }
   });
 

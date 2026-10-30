@@ -1,18 +1,20 @@
 import '../../core/theme/app_layout.dart';
 import 'package:flutter/material.dart';
 
-/// 四个主页面共用标题基线、说明行和主操作位置，外层使用 AppLayout.pagePadding。
+/// 主页面共用说明与操作位置；导航已标明页面时可隐藏重复标题。
 class AppPageHeader extends StatelessWidget {
   const AppPageHeader({
     super.key,
     required this.title,
     this.subtitle,
     this.action,
+    this.showTitle = true,
   });
 
   final String title;
   final Widget? subtitle;
   final Widget? action;
+  final bool showTitle; // 主导航已标明页面时，使用说明与操作组成紧凑工具栏。
 
   @override
   Widget build(BuildContext context) => Column(
@@ -23,15 +25,17 @@ class AppPageHeader extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Semantics(
-                container: true,
-                header: true,
-                child: Text(
-                  title,
-                  key: ValueKey('page-heading-$title'),
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-              ),
+              child: !showTitle
+                  ? subtitle ?? const SizedBox.shrink()
+                  : Semantics(
+                      container: true,
+                      header: true,
+                      child: Text(
+                        title,
+                        key: ValueKey('page-heading-$title'),
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
             ),
             if (action != null) ...[
               const SizedBox(width: AppLayout.spaceMd),
@@ -51,8 +55,8 @@ class AppPageHeader extends StatelessWidget {
           ],
         ),
       ),
-      // 说明行使用完整宽度，窄屏日期不会被右侧操作挤成多行。
-      if (subtitle != null)
+      // 有标题时，说明另起一行；紧凑工具栏中说明与操作共用一行。
+      if (showTitle && subtitle != null)
         ConstrainedBox(
           key: ValueKey('page-subtitle-$title'),
           constraints: const BoxConstraints(

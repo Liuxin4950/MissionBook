@@ -117,7 +117,8 @@ void main() {
     tester.view.physicalSize = const Size(1200, 900);
     await tester.pumpAndSettle();
     expect(tester.getSize(rail).width, 192);
-    expect(find.byKey(const ValueKey('page-heading-我的')), findsOneWidget);
+    expect(find.byKey(const Key('me-settings')), findsOneWidget);
+    expect(find.byKey(const ValueKey('page-heading-我的')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

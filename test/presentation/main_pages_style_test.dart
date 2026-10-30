@@ -11,6 +11,7 @@ import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/presentation/goals/detail/goal_detail_page.dart';
 import 'package:mission_book/presentation/widgets/app_page_header.dart';
+import 'package:mission_book/presentation/widgets/app_segmented_control.dart';
 import '../support/me_fakes.dart';
 
 void main() {
@@ -43,7 +44,7 @@ void main() {
     (1024.0, 768.0, 1.0),
     (1200.0, 900.0, 1.0),
   ]) {
-    testWidgets('四页标题坐标一致且无溢出 $scenario', (tester) async {
+    testWidgets('主页面工具栏对齐、移除重复标题且无溢出 $scenario', (tester) async {
       tester.view.physicalSize = Size(scenario.$1, scenario.$2);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -74,20 +75,27 @@ void main() {
       );
       await tester.pumpAndSettle();
       Offset? first;
-      double? headerBottom;
       for (final title in ['今天', '目标', '历史', '我的']) {
         await tester.tap(find.byTooltip(title));
         await tester.pumpAndSettle();
-        final finder = find.byKey(ValueKey('page-heading-$title'));
-        final point = tester.getTopLeft(finder);
+        final header = title == '历史'
+            ? find.byType(AppSegmentedControl<bool>)
+            : find.byType(AppPageHeader);
+        final point = tester.getTopLeft(header);
         first ??= point;
-        expect(point, first, reason: '$title 应与今天页标题对齐');
-        final text = tester.widget<Text>(finder);
-        expect(text.style!.fontSize, 28);
-        if (scenario.$3 == 1) {
-          final bottom = tester.getBottomLeft(find.byType(AppPageHeader)).dy;
-          headerBottom ??= bottom;
-          expect(bottom, headerBottom, reason: '$title 的说明行与操作不应改变顶部高度');
+        expect(point, first, reason: '$title 的工具栏应使用一致页面边距');
+        final heading = find.byKey(ValueKey('page-heading-$title'));
+        expect(heading, findsNothing);
+        if (title == '历史') {
+          expect(find.text('执行报告、专注时间与材料'), findsNothing);
+        }
+        if (title == '今天') {
+          expect(find.byKey(const Key('today-date-picker')), findsOneWidget);
+          expect(find.byTooltip('创建任务'), findsOneWidget);
+        }
+        if (title == '目标') expect(find.text('0 个目标'), findsOneWidget);
+        if (title == '我的') {
+          expect(find.byKey(const Key('me-settings')), findsOneWidget);
         }
         expect(tester.takeException(), isNull);
       }

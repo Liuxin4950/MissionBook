@@ -102,7 +102,7 @@ void main() {
     await tester.tap(export);
     await tester.pump();
     expect(backup.calls, 1);
-    expect(tester.widget<FilledButton>(export).onPressed, isNull);
+    expect(tester.widget<ButtonStyleButton>(export).onPressed, isNull);
     backup.pending!.complete(Uint8List.fromList([1, 2, 3]));
     await tester.pumpAndSettle();
     expect(find.text('已取消保存，可以随时重新导出'), findsOneWidget);
@@ -259,7 +259,7 @@ void main() {
     final semantics = tester.ensureSemantics();
 
     await open(tester, reduceMotion: true);
-    final scope = find.textContaining('不含草稿、本机资料和提醒偏好');
+    final scope = find.textContaining('不含 API Key、未发送草稿、本机资料和提醒偏好');
     await tester.scrollUntilVisible(
       scope,
       250,

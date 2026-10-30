@@ -4,6 +4,8 @@ import '../../application/assistant/assistant_controller.dart';
 import '../../application/assistant/assistant_speech.dart';
 import '../../application/goals/goal_service.dart';
 import '../../application/missions/mission_service.dart';
+import '../../application/backup/backup_service.dart';
+import '../../application/settings/app_device.dart';
 import '../goals/detail/goal_detail_page.dart';
 import '../missions/detail/mission_detail_page.dart';
 import '../widgets/detail_pane.dart';
@@ -16,6 +18,8 @@ class AssistantScope extends InheritedWidget {
     required this.voice,
     required this.missions,
     required this.goals,
+    this.backup,
+    this.device,
     required super.child,
   });
 
@@ -23,6 +27,8 @@ class AssistantScope extends InheritedWidget {
   final AssistantVoiceController voice;
   final MissionService missions;
   final GoalService goals;
+  final BackupExporter? backup;
+  final AppDevice? device;
 
   static AssistantScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<AssistantScope>();
@@ -37,6 +43,8 @@ class AssistantScope extends InheritedWidget {
   bool updateShouldNotify(AssistantScope oldWidget) =>
       controller != oldWidget.controller ||
       voice != oldWidget.voice ||
+      backup != oldWidget.backup ||
+      device != oldWidget.device ||
       missions != oldWidget.missions ||
       goals != oldWidget.goals;
 }

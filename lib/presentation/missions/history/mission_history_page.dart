@@ -11,7 +11,6 @@ import '../../widgets/detail_pane.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
-import '../../widgets/app_page_header.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/evidence.dart';
 import '../../../domain/entities/mission_phase.dart';
@@ -145,14 +144,6 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                   padding: AppLayout.pagePadding(context),
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
-                    AppPageHeader(
-                      title: '历史',
-                      subtitle: Text(
-                        '执行报告、专注时间与材料',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                    const SizedBox(height: AppLayout.spaceLg),
                     AppSegmentedControl<bool>(
                       options: const {false: '执行记录', true: '已取消'},
                       selected: _cancelled,
@@ -179,24 +170,17 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                           child: const Text('刷新失败，当前保留上次读取的记录，点击重试'),
                         ),
                       if (records.isEmpty)
-                        Align(
-                          alignment: Alignment.topCenter,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxWidth: AppLayout.maxPageWidth,
-                            ),
-                            child: AppSectionCard(
-                              key: const Key('history-empty-state'),
-                              paperBackground: true,
-                              child: AppEmptyState(
-                                title: _cancelled ? '还没有取消的任务' : '还没有执行结束的记录',
-                                asset: 'assets/illustrations/history-pages.png',
-                                details: Text(
-                                  _cancelled
-                                      ? '取消的任务会保留在这里，方便回看。'
-                                      : '每次结束后，在这里回看报告、专注与材料。',
-                                ),
-                              ),
+                        AppSectionCard(
+                          key: const Key('history-empty-state'),
+                          paperBackground: true,
+                          child: AppEmptyState(
+                            horizontalWhenWide: true,
+                            title: _cancelled ? '还没有取消的任务' : '还没有执行结束的记录',
+                            asset: 'assets/illustrations/history-pages.png',
+                            details: Text(
+                              _cancelled
+                                  ? '取消的任务会保留在这里，方便回看。'
+                                  : '每次结束后，在这里回看报告、专注与材料。',
                             ),
                           ),
                         ),

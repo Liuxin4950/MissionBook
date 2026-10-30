@@ -31,6 +31,14 @@ abstract final class AppTheme {
     scaffoldBackgroundColor: AppColors.background, // 页面背景
     textTheme: AppTypography.textTheme,
     iconTheme: const IconThemeData(color: AppColors.textSecondary),
+    expansionTileTheme: const ExpansionTileThemeData(
+      shape: Border(),
+      collapsedShape: Border(),
+      iconColor: AppColors.primary,
+      collapsedIconColor: AppColors.textSecondary,
+      textColor: AppColors.textPrimary,
+      collapsedTextColor: AppColors.textPrimary,
+    ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: AppColors.textPrimary,
@@ -122,7 +130,11 @@ abstract final class AppTheme {
     ),
     popupMenuTheme: PopupMenuThemeData(
       color: AppColors.card,
-      textStyle: AppTypography.textTheme.bodyMedium?.copyWith(
+      surfaceTintColor: Colors.transparent,
+      elevation: 2,
+      shadowColor: AppColors.shadow,
+      menuPadding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
+      textStyle: AppTypography.textTheme.bodyLarge?.copyWith(
         color: AppColors.textPrimary,
       ),
       shape: RoundedRectangleBorder(

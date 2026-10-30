@@ -884,19 +884,112 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('已加载的日期切换后清除旧卡片，返回原日期也必须等待本次结果', (tester) async {
+  for (final width in [390.0, 768.0, 1578.0]) {
+    testWidgets('滑动只移动日期选中块，正文原位交叉淡化 $width', (tester) async {
+      tester.view.physicalSize = Size(width, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = ControlledQueryRepository();
+      await tester.pumpWidget(testApp(repository));
+      repository.requests.single.complete([example('旧日期的内容')]);
+      await tester.pumpAndSettle();
+      final selection = find.byKey(const Key('today-week-selection'));
+      final startX = tester.getCenter(selection).dx;
+      final targetX = tester
+          .getCenter(find.byKey(const Key('today-week-day-2026-10-22')))
+          .dx;
+      final content = find.byKey(const Key('today-content-switcher'));
+      final contentX = tester.getTopLeft(content).dx;
+      final surface = find.byKey(const Key('today-day-swipe'));
+      final gesture = await tester.startGesture(tester.getCenter(surface));
+      await gesture.moveBy(const Offset(-20, 0));
+      await gesture.moveBy(const Offset(-90, 0));
+      await tester.pump();
+      expect(tester.getTopLeft(content).dx, contentX);
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(repository.dates.last, '2026-10-22');
+      expect(tester.getCenter(selection).dx, inExclusiveRange(startX, targetX));
+      expect(find.text('旧日期的内容').hitTestable(), findsNothing);
+      repository.requests.last.complete([example('新日期的内容')]);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(find.text('旧日期的内容'), findsOneWidget);
+      expect(find.text('新日期的内容'), findsOneWidget);
+      final fade = find
+          .ancestor(
+            of: find.byKey(const ValueKey('today-content-2026-10-22')),
+            matching: find.byType(FadeTransition),
+          )
+          .first;
+      expect(
+        tester.widget<FadeTransition>(fade).opacity.value,
+        inExclusiveRange(0, 1),
+      );
+      expect(tester.getTopLeft(content).dx, contentX);
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(selection).dx, closeTo(targetX, .01));
+      expect(find.text('旧日期的内容'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
+  for (final reduceMotion in [false, true]) {
+    testWidgets('日期背景块连续移动且尊重减少动效 $reduceMotion', (tester) async {
+      final repository = ControlledQueryRepository();
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          FakeAccessibilityFeatures(disableAnimations: reduceMotion);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await tester.pumpWidget(testApp(repository));
+      repository.requests.single.complete([]);
+      await tester.pumpAndSettle();
+      final selection = find.byKey(const Key('today-week-selection'));
+      for (final day in ['22', '21']) {
+        final startX = tester.getCenter(selection).dx;
+        final targetX = tester
+            .getCenter(find.byKey(Key('today-week-day-2026-10-$day')))
+            .dx;
+        await tester.tap(find.text(day));
+        repository.requests.last.complete([]);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 60));
+        final x = tester.getCenter(selection).dx;
+        if (reduceMotion) {
+          expect(x, closeTo(targetX, .01));
+        } else {
+          expect(
+            x,
+            inExclusiveRange(
+              startX < targetX ? startX : targetX,
+              startX > targetX ? startX : targetX,
+            ),
+          );
+        }
+        await tester.pumpAndSettle();
+        expect(tester.getCenter(selection).dx, closeTo(targetX, .01));
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
+  testWidgets('查询期间旧卡片不可交互，返回原日期仍等待本次查询，迟到结果被丢弃', (tester) async {
     final repository = ControlledQueryRepository();
     await tester.pumpWidget(testApp(repository));
     repository.requests.single.complete([example('旧日期的任务')]);
     await tester.pumpAndSettle();
     await tester.tap(find.text('22'));
     await tester.pump();
-    expect(find.text('旧日期的任务'), findsNothing);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('旧日期的任务').hitTestable(), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     await tester.tap(find.text('21'));
     await tester.pump();
-    expect(find.text('旧日期的任务'), findsNothing);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('旧日期的任务').hitTestable(), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     repository.requests.last.complete([]);
     await tester.pumpAndSettle();
     repository.requests[1].complete([example('另一日期的迟到任务')]);

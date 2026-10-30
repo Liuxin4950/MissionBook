@@ -1,0 +1,105 @@
+{
+  "snapshotDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "gitHead": "5c42d99c238b9867bb63073820b2e6d74e9b9a3d",
+  "includesUncommittedWork": true,
+  "validationNote": "引用既有580通过/1跳过及分析和Web构建日志，本次仅校对文档，不代表重跑功能或设备验收。",
+  "evidence": [
+    {
+      "path": "pubspec.yaml",
+      "sha256": "68fdc517ee7f16cbaf78c318eb8db993fd4fdd3f25d0a2d992a6b2b2fe7be261"
+    },
+    {
+      "path": "lib/data/local/app_database.dart",
+      "sha256": "8603e8c87054ac0e1cb60559b5e457eabf84a7159b1fdb6b61fdc82f25cb4c0c"
+    },
+    {
+      "path": "lib/data/local/tables/execution_events.dart",
+      "sha256": "51693767875e8c0156fe0946cea81fa0d287b16f3fe9a16d366a85c2a88cb0c1"
+    },
+    {
+      "path": "lib/data/local/tables/assistant_sessions.dart",
+      "sha256": "1d9ad95dfb131288bdc459283d65796e37d9e92386fd3570aad238479ea1587a"
+    },
+    {
+      "path": "lib/data/local/tables/import_receipts.dart",
+      "sha256": "94f5ad53aab3278ad6fd5ce2694d214f5ed74ba3e9c789688f86c4d574b09ce6"
+    },
+    {
+      "path": "lib/data/local/tables/operation_receipts.dart",
+      "sha256": "7b7f4882f1c2e8f3a2757e3f6a99c7b9954014e5fd0ce3b47311ee2c3e000c25"
+    },
+    {
+      "path": "lib/domain/rules/execution_event_rules.dart",
+      "sha256": "2bca62ebfe2caf9a1e07dff94a8f4be90bce68a89ea65fae59d91d1af08722ab"
+    },
+    {
+      "path": "lib/domain/rules/goal_package_rules.dart",
+      "sha256": "bc1a00018e1666b728923487e09e582d919a8bd5bf4a8e34aba888827783b044"
+    },
+    {
+      "path": "lib/data/repositories/drift_mission_repository.dart",
+      "sha256": "284271be9395da001ce89341d57ed27f373086c99c640883a42c770ea5d56d27"
+    },
+    {
+      "path": "lib/application/assistant/assistant_tools.dart",
+      "sha256": "fbb317d76c1825574117855e5ce6722769953b6b914f46934a595a9f77bd509a"
+    },
+    {
+      "path": "lib/application/assistant/assistant_controller.dart",
+      "sha256": "324907037e3f29eb0b61e4d2722e1ab13bcb80aaf60e1aa895bd8b0c1b5fb60f"
+    },
+    {
+      "path": "lib/data/assistant/drift_assistant_reader.dart",
+      "sha256": "a8a717b7dc40f53570f4918ee943dd0e3229aeb72949ae268b7e362db23292df"
+    },
+    {
+      "path": "lib/data/assistant/configured_assistant_speech.dart",
+      "sha256": "e7f26222b212552e4cc7c43aaacd986b6bc6efa3a7a0b9117b8dadd5577405b0"
+    },
+    {
+      "path": "lib/application/goals/goal_package_import_service.dart",
+      "sha256": "27fa18e46af6fcbc1df5538ad2181ba00ef572ff5c6be9ecfb5bd52468388d1a"
+    },
+    {
+      "path": "lib/data/backup/database_backup_service.dart",
+      "sha256": "5c717a493492d32fee8a2e842460a3b02ed5f65e9963dc3e465e58c39275454a"
+    },
+    {
+      "path": "lib/core/theme/app_layout.dart",
+      "sha256": "d490b8c7cbe4195c31cca0f0ed8459976bd1342369d3d1e6cb14d0dba9118799"
+    },
+    {
+      "path": "lib/presentation/today/today_page.dart",
+      "sha256": "a8ed97a85388d4cc79a52b835fd059fbe1522b2f88f9b8a592dd5358b9a8ea59"
+    },
+    {
+      "path": "lib/presentation/goals/list/goals_page.dart",
+      "sha256": "aa80947567703b7ae7f361046302608821410744b8d1279d7820659e05768953"
+    },
+    {
+      "path": "lib/presentation/assistant/assistant_page.dart",
+      "sha256": "39a2e1d923ad17e17f1de23402b56e4e4218b3c935daa1f584a2d4c9eccb9ff1"
+    },
+    {
+      "path": "lib/presentation/missions/form/mission_form_page.dart",
+      "sha256": "218943de269aa1832baf21dd294957c427d1490f4a882c914c6e631ecab445f2"
+    },
+    {
+      "path": "lib/application/settings/motion_settings.dart",
+      "sha256": "690e2c9489a16e43847218aa1692e4bdaddda82e82b73a91131fbd3eb7f046a4"
+    },
+    {
+      "path": "output/ui-feedback-followup-all-tests.log",
+      "sha256": "e169a61194de82721deee16c7475c9351e6e4359347de07959ddcf61b426f0bb"
+    },
+    {
+      "path": "output/ui-feedback-followup-analyze.log",
+      "sha256": "688a890f6cbfe43071bd042ddf9fe9cc35debdcbc64516f61c47298d6259413f"
+    },
+    {
+      "path": "output/ui-feedback-followup-build.log",
+      "sha256": "a29204d574ca91f482ee5684d2916e28723d4953e98d7da0acf8d035082899eb"
+    }
+  ]
+}

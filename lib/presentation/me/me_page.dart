@@ -208,6 +208,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
           children: [
             AppPageHeader(
               title: '我的',
+              showTitle: false,
               subtitle: Text(
                 '个人资料与行动概览',
                 style: Theme.of(context).textTheme.bodyMedium,

@@ -344,18 +344,22 @@ class _AppShellState extends State<AppShell> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                            0,
+                          padding: EdgeInsets.fromLTRB(
+                            expanded ? AppLayout.space3Xl : 0,
                             AppLayout.spaceSm,
                             0,
                             AppLayout.spaceXxl,
                           ),
                           child: SizedBox(
                             width: double.infinity,
-                            child: Center(
+                            child: Align(
+                              alignment: expanded
+                                  ? Alignment.centerLeft
+                                  : Alignment.center,
                               child: expanded
                                   ? Text(
                                       'MissionBook',
+                                      key: const Key('navigation-brand'),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: Theme.of(
@@ -380,11 +384,16 @@ class _AppShellState extends State<AppShell> {
                           Padding(
                             padding: const EdgeInsets.symmetric(
                               vertical: AppLayout.spaceMd,
-                              horizontal: AppLayout.spaceSm,
+                              horizontal: AppLayout.spaceLg,
                             ),
-                            child: AssistantLauncher(
-                              key: _assistantEntry,
-                              navigationRailWidth: expanded ? 192 : 88,
+                            child: Align(
+                              alignment: expanded
+                                  ? Alignment.centerLeft
+                                  : Alignment.center,
+                              child: AssistantLauncher(
+                                key: _assistantEntry,
+                                navigationRailWidth: expanded ? 192 : 88,
+                              ),
                             ),
                           ),
                       ],
@@ -498,6 +507,7 @@ class _AppShellState extends State<AppShell> {
 
     final iconWidget = Icon(
       selected ? selectedIcon : icon,
+      key: ValueKey('navigation-icon-$index'),
       size: AppLayout.iconLg,
       color: foreground,
     );
@@ -516,7 +526,7 @@ class _AppShellState extends State<AppShell> {
         ? Padding(
             padding: const EdgeInsets.symmetric(
               vertical: AppLayout.spaceLg,
-              horizontal: AppLayout.spaceMd,
+              horizontal: AppLayout.space3Xl,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.start,

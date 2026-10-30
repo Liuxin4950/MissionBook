@@ -1,3 +1,4 @@
+import '../../widgets/app_dropdown_form_field.dart';
 import '../../widgets/app_date_picker.dart';
 import '../../widgets/adaptive_columns.dart';
 import '../../widgets/app_section_card.dart';
@@ -633,7 +634,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
               future: _goalChoices,
               builder: (context, snapshot) {
                 final goals = snapshot.data ?? const <Goal>[];
-                return DropdownButtonFormField<String>(
+                return AppDropdownFormField<String>(
                   key: ValueKey('all-missions-goal-${_goalId ?? 'all'}'),
                   initialValue:
                       goals.any((goal) => goal.id == _goalId) || _goalId == ''

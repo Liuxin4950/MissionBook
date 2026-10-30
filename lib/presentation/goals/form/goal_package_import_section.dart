@@ -10,6 +10,8 @@ import '../../../application/goals/goal_package_import_service.dart';
 import '../../../domain/entities/goal_package_import.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_text_field.dart';
+import '../../widgets/app_section_card.dart';
+import '../../../core/theme/colors.dart';
 import '../../../core/theme/app_layout.dart';
 
 /// 原导入区域内完成文件读取、分页预览和确认，支持恢复本机封存草稿。
@@ -80,7 +82,8 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
         setState(() => _error = '上次文件读取或校验未完成。请丢弃未完成草稿后重新选择文件。');
       }
     } catch (error) {
-      if (mounted) setState(() => _error = '无法恢复导入草稿：$error');
+      debugPrint('恢复导入草稿失败：$error');
+      if (mounted) setState(() => _error = '暂时无法读取上次的导入草稿，请关闭后重试。');
     } finally {
       if (mounted) setState(() => _restoring = false);
     }
@@ -228,16 +231,18 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
       _reviewCode = null;
     });
     String? failure;
+    String? failureCode;
     try {
       await _service.review(preview, _options);
     } catch (error) {
       failure = _errorText(error);
-      _reviewCode = error is GoalImportException ? error.code : null;
+      failureCode = error is GoalImportException ? error.code : null;
     }
     if (!mounted || generation != _reviewGeneration) return;
     setState(() {
       _reviewing = false;
       _reviewError = failure;
+      _reviewCode = failureCode;
     });
   }
 
@@ -353,309 +358,403 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
     );
   }
 
+  static const _outlineExample = '''{
+  "schema": "mission-book.goal-outline",
+  "version": 1,
+  "goal": {"title": "目标名称"},
+  "nodes": [{"key": "stage-1", "title": "阶段名称", "children": []}]
+}''';
+
   @override
   Widget build(BuildContext context) {
     final preview = _preview;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            for (final (index, label) in ['选择文件', '预览', '导入'].indexed) ...[
-              if (index > 0)
-                const Expanded(child: Divider(indent: 8, endIndent: 8)),
-              Icon(
-                _saved || preview != null && index == 0
-                    ? Icons.check_circle
-                    : index == 0
-                    ? Icons.folder_open_outlined
-                    : index == 1
-                    ? Icons.preview_outlined
-                    : Icons.task_alt,
-                size: AppLayout.iconMd,
-                color: _saved || preview != null && index < 2
-                    ? Theme.of(context).colorScheme.primary
-                    : null,
-              ),
-              const SizedBox(width: AppLayout.spaceXs),
-              Text(label, style: Theme.of(context).textTheme.labelSmall),
-            ],
-          ],
-        ),
-        const SizedBox(height: AppLayout.spaceXl),
-        if (preview == null) ...[
-          OutlinedButton.icon(
-            key: const Key('goal-import-file'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(AppLayout.topBarHeight),
-            ),
-            onPressed: _busy || _unknown || _restoring ? null : _pick,
-            icon: const Icon(
-              Icons.upload_file_outlined,
-              size: AppLayout.iconLg,
-            ),
-            label: const Text('选择课表或目标文件'),
-          ),
-          const SizedBox(height: AppLayout.spaceSm),
-          ExpansionTile(
-            key: const Key('goal-import-paste-toggle'),
-            tilePadding: EdgeInsets.zero,
-            title: const Text('粘贴 JSON'),
-            onExpansionChanged: (value) => setState(() => _pasteOpen = value),
-            children: [
-              AppTextField(
-                key: const Key('goal-import-input'),
-                label: 'JSON 内容',
-                hint: '粘贴目标或课表 JSON',
-                controller: _input,
-                readOnly: _busy || _unknown || _restoring,
-                minLines: 3,
-                maxLines: 6,
-                inputFormatters: [
-                  TextInputFormatter.withFunction((old, next) {
-                    if (next.text.length > GoalImportLimits.pasteBytes ||
-                        next.text.length > GoalImportLimits.pasteBytes ~/ 4 &&
-                            utf8.encode(next.text).length >
-                                GoalImportLimits.pasteBytes) {
-                      setState(() => _error = '内容较大，请选择文件');
-                      return old;
-                    }
-                    return next;
-                  }),
-                ],
-              ),
-              const SizedBox(height: AppLayout.spaceSm),
-              FilledButton.icon(
-                key: const Key('goal-import-preview'),
-                onPressed:
-                    _busy ||
-                        _unknown ||
-                        _restoring ||
-                        _input.text.trim().isEmpty
-                    ? null
-                    : _validate,
-                icon: const Icon(Icons.arrow_forward),
-                label: const Text('预览内容'),
-              ),
-            ],
-          ),
-          if (!_pasteOpen)
-            Text(
-              'JSON · 最多 32 MB',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-        ] else ...[
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.description_outlined),
-            title: Text(
-              _sourceName ?? '已保存的导入草稿',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: TextButton(
-              onPressed: _busy || _unknown ? null : _discard,
-              child: const Text('更换'),
-            ),
-          ),
-        ],
-        if (_knownJobId != null && preview == null && !_unknown)
-          TextButton(
-            onPressed: _busy ? null : _discard,
-            child: const Text('丢弃未完成草稿'),
-          ),
-        if (_busy || _restoring) ...[
-          const LinearProgressIndicator(),
-          Semantics(
-            liveRegion: true,
-            child: Text(_restoring ? '检查本机导入草稿' : _progress),
-          ),
-          if (_busy && _cancellation != null)
-            TextButton(
-              onPressed: () => _cancellation!.cancel(),
-              child: const Text('取消本次操作'),
-            ),
-        ],
-        if (_error != null)
-          Semantics(
-            liveRegion: true,
-            child: Text(
-              _error!,
-              key: const Key('goal-import-error'),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-        if (preview != null) ...[
-          const Divider(height: 28),
-          Text(preview.title, style: Theme.of(context).textTheme.titleMedium),
-
-          Text(
-            '完整大纲 · ${preview.nodeCount} 个节点；${preview.missionCount} 个任务，共 ${preview.totalMinutes} 分钟',
-          ),
+    return AppSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Wrap(
-            spacing: 8,
+            spacing: AppLayout.spaceSm,
+            runSpacing: AppLayout.spaceSm,
             children: [
-              Chip(
-                avatar: const Icon(
-                  Icons.calendar_month,
-                  size: AppLayout.iconSm,
+              for (final (index, label) in ['选择内容', '检查预览', '确认导入'].indexed)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppLayout.spaceMd,
+                    vertical: AppLayout.spaceSm,
+                  ),
+                  decoration: BoxDecoration(
+                    color:
+                        (_saved
+                                ? 2
+                                : preview != null
+                                ? 1
+                                : 0) ==
+                            index
+                        ? AppColors.primarySoft
+                        : AppColors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                  ),
+                  child: Text(
+                    '${index + 1}  $label',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color:
+                          (_saved
+                                  ? 2
+                                  : preview != null
+                                  ? 1
+                                  : 0) ==
+                              index
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
+                    ),
+                  ),
                 ),
-                label: Text('固定 ${preview.fixedCount}'),
-              ),
-              const Chip(
-                avatar: Icon(Icons.history, size: AppLayout.iconSm),
-                label: Text('保留历史计划'),
-              ),
             ],
           ),
-          if (preview.existingGoalId != null)
-            const Text('此包已导入，确认会返回原目标，不重复创建。'),
-          if (preview.duplicateGoalId != null && preview.existingGoalId == null)
-            const Text('相同计划内容曾以其他包编号导入，本次确认将创建独立副本。'),
-          if (_reviewCode == 'DUE_AUTO_START' || _allowDue)
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('按当前时段自动开始'),
-              value: _allowDue,
-              onChanged: _busy || _unknown
-                  ? null
-                  : (value) {
-                      setState(() => _allowDue = value);
-                      unawaited(_review());
-                    },
+          const SizedBox(height: AppLayout.spaceXl),
+          if (preview == null) ...[
+            FilledButton.tonalIcon(
+              key: const Key('goal-import-file'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(AppLayout.topBarHeight),
+              ),
+              onPressed: _busy || _unknown || _restoring ? null : _pick,
+              icon: const Icon(
+                Icons.upload_file_outlined,
+                size: AppLayout.iconLg,
+              ),
+              label: const Text('选择课表或目标文件'),
             ),
-          if (_reviewCode == 'SCHEDULE_CONFLICT' || _allowOverlaps)
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('保留重叠课程'),
-              value: _allowOverlaps,
-              onChanged: _busy || _unknown
-                  ? null
-                  : (value) {
-                      setState(() => _allowOverlaps = value);
-                      unawaited(_review());
-                    },
+            const SizedBox(height: AppLayout.spaceMd),
+            Text(
+              '支持 MissionBook 目标大纲或目标计划 JSON。文件读取后先预览，确认后才保存。',
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
-          if (_reviewError != null)
+            const SizedBox(height: AppLayout.spaceMd),
+            ExpansionTile(
+              key: const Key('goal-import-paste-toggle'),
+              tilePadding: EdgeInsets.zero,
+              title: const Text('粘贴 JSON'),
+              onExpansionChanged: (value) => setState(() => _pasteOpen = value),
+              children: [
+                AppTextField(
+                  key: const Key('goal-import-input'),
+                  label: 'JSON 内容',
+                  hint: '粘贴目标或课表 JSON',
+                  controller: _input,
+                  readOnly: _busy || _unknown || _restoring,
+                  minLines: 3,
+                  maxLines: 6,
+                  inputFormatters: [
+                    TextInputFormatter.withFunction((old, next) {
+                      if (next.text.length > GoalImportLimits.pasteBytes ||
+                          next.text.length > GoalImportLimits.pasteBytes ~/ 4 &&
+                              utf8.encode(next.text).length >
+                                  GoalImportLimits.pasteBytes) {
+                        setState(() => _error = '内容较大，请选择文件');
+                        return old;
+                      }
+                      return next;
+                    }),
+                  ],
+                ),
+                const SizedBox(height: AppLayout.spaceSm),
+                FilledButton.icon(
+                  key: const Key('goal-import-preview'),
+                  onPressed:
+                      _busy ||
+                          _unknown ||
+                          _restoring ||
+                          _input.text.trim().isEmpty
+                      ? null
+                      : _validate,
+                  icon: const Icon(Icons.arrow_forward),
+                  label: const Text('预览内容'),
+                ),
+              ],
+            ),
+            if (!_pasteOpen)
+              Text(
+                'JSON · 最多 32 MB',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+          ] else ...[
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.description_outlined),
+              title: Text(
+                _sourceName ?? '已保存的导入草稿',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: TextButton(
+                onPressed: _busy || _unknown ? null : _discard,
+                child: const Text('更换'),
+              ),
+            ),
+          ],
+          if (preview == null)
+            ExpansionTile(
+              key: const Key('goal-import-format-help'),
+              tilePadding: EdgeInsets.zero,
+              title: const Text('查看支持的格式'),
+              children: [
+                const Text(
+                  '普通文本、Excel 或任意 JSON 不能直接导入。下面是目标大纲的最小格式；课表请使用 MissionBook 课表导出文件。',
+                ),
+                const SizedBox(height: AppLayout.spaceMd),
+                const SelectableText(_outlineExample),
+                TextButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      const ClipboardData(text: _outlineExample),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text('格式示例已复制')));
+                    }
+                  },
+                  icon: const Icon(Icons.copy_outlined),
+                  label: const Text('复制格式示例'),
+                ),
+              ],
+            ),
+          if (_knownJobId != null && preview == null && !_unknown)
+            TextButton(
+              onPressed: _busy ? null : _discard,
+              child: const Text('丢弃未完成草稿'),
+            ),
+          if (_busy || _restoring) ...[
+            const LinearProgressIndicator(),
             Semantics(
               liveRegion: true,
-              child: Text(
-                _reviewError!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
+              child: Text(_restoring ? '检查本机导入草稿' : _progress),
             ),
-          const SizedBox(height: AppLayout.spaceMd),
-          FilledButton.icon(
-            key: const Key('goal-import-confirm'),
-            onPressed:
-                _busy ||
-                    _saved ||
-                    _reviewing ||
-                    !_unknown && _reviewError != null
-                ? null
-                : _commit,
-            icon: const Icon(Icons.check),
-            label: Text(
-              _saved
-                  ? '已导入目标'
-                  : _unknown
-                  ? '重试并确认原导入结果'
-                  : preview.existingGoalId != null
-                  ? '确认原导入结果'
-                  : '导入 ${preview.missionCount > 0 ? '${preview.missionCount} 个任务' : '${preview.nodeCount} 个节点'}',
-            ),
-          ),
-          const SizedBox(height: AppLayout.spaceLg),
-          Wrap(
-            spacing: 8,
-            children: [
-              ChoiceChip(
-                label: const Text('任务'),
-                selected: _kind == 'MISSION',
-                onSelected: _busy || preview.missionCount == 0
-                    ? null
-                    : (_) => setState(() {
-                        _kind = 'MISSION';
-                        _offset = 0;
-                        _previousOffsets.clear();
-                        _page = _service.page(preview, _kind, 0);
-                      }),
+            if (_busy && _cancellation != null)
+              TextButton(
+                onPressed: () => _cancellation!.cancel(),
+                child: const Text('取消本次操作'),
               ),
-              ChoiceChip(
-                label: const Text('节点'),
-                selected: _kind == 'NODE',
-                onSelected: _busy
-                    ? null
-                    : (_) => setState(() {
-                        _kind = 'NODE';
-                        _offset = 0;
-                        _previousOffsets.clear();
-                        _page = _service.page(preview, _kind, 0);
-                      }),
-              ),
-            ],
-          ),
-          FutureBuilder<List<GoalImportEntry>>(
-            key: ValueKey(preview.jobId + _kind + _offset.toString()),
-            future: _page,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Text('无法读取预览：${snapshot.error}');
-              }
-              if (!snapshot.hasData) return const LinearProgressIndicator();
-              final entries = snapshot.data!;
-              final count = _kind == 'MISSION'
-                  ? preview.missionCount
-                  : preview.nodeCount;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final entry in entries) _entry(entry),
-                  Wrap(
-                    spacing: 8,
+          ],
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppLayout.spaceLg),
+              child: Semantics(
+                liveRegion: true,
+                child: Container(
+                  padding: const EdgeInsets.all(AppLayout.spaceLg),
+                  decoration: BoxDecoration(
+                    color: AppColors.errorSoft,
+                    borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextButton(
-                        onPressed: _busy || _previousOffsets.isEmpty
-                            ? null
-                            : () {
-                                final offset = _previousOffsets.removeLast();
-                                _turnPage(offset, previous: true);
-                              },
-                        child: const Text('上一页'),
-                      ),
                       Text(
-                        '第 ${_offset + (entries.isEmpty ? 0 : 1)}–${_offset + entries.length} / $count',
+                        '导入尚未完成',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: AppColors.error,
+                        ),
                       ),
-                      TextButton(
-                        onPressed: _busy || _offset + entries.length >= count
-                            ? null
-                            : () => _turnPage(_offset + entries.length),
-                        child: const Text('下一页'),
+                      const SizedBox(height: AppLayout.spaceSm),
+                      Text(
+                        _error!,
+                        key: const Key('goal-import-error'),
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
+                      const SizedBox(height: AppLayout.spaceSm),
+                      const Text('已有目标与任务不会因此改变。'),
                     ],
                   ),
-                ],
-              );
-            },
-          ),
+                ),
+              ),
+            ),
+          if (preview != null) ...[
+            const Divider(height: 28),
+            Text(preview.title, style: Theme.of(context).textTheme.titleMedium),
+
+            Text(
+              '完整大纲 · ${preview.nodeCount} 个节点；${preview.missionCount} 个任务，共 ${preview.totalMinutes} 分钟',
+            ),
+            Wrap(
+              spacing: 8,
+              children: [
+                Chip(
+                  avatar: const Icon(
+                    Icons.calendar_month,
+                    size: AppLayout.iconSm,
+                  ),
+                  label: Text('固定 ${preview.fixedCount}'),
+                ),
+                const Chip(
+                  avatar: Icon(Icons.history, size: AppLayout.iconSm),
+                  label: Text('保留历史计划'),
+                ),
+              ],
+            ),
+            if (preview.existingGoalId != null)
+              const Text('此包已导入，确认会返回原目标，不重复创建。'),
+            if (preview.duplicateGoalId != null &&
+                preview.existingGoalId == null)
+              const Text('相同计划内容曾以其他包编号导入，本次确认将创建独立副本。'),
+            if (_reviewCode == 'DUE_AUTO_START' || _allowDue)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('按当前时段自动开始'),
+                value: _allowDue,
+                onChanged: _busy || _unknown
+                    ? null
+                    : (value) {
+                        setState(() => _allowDue = value);
+                        unawaited(_review());
+                      },
+              ),
+            if (_reviewCode == 'SCHEDULE_CONFLICT' || _allowOverlaps)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('保留重叠课程'),
+                value: _allowOverlaps,
+                onChanged: _busy || _unknown
+                    ? null
+                    : (value) {
+                        setState(() => _allowOverlaps = value);
+                        unawaited(_review());
+                      },
+              ),
+            if (_reviewError != null)
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  _reviewError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            const SizedBox(height: AppLayout.spaceMd),
+            FilledButton.icon(
+              key: const Key('goal-import-confirm'),
+              onPressed:
+                  _busy ||
+                      _saved ||
+                      _reviewing ||
+                      !_unknown && _reviewError != null
+                  ? null
+                  : _commit,
+              icon: const Icon(Icons.check),
+              label: Text(
+                _saved
+                    ? '已导入目标'
+                    : _unknown
+                    ? '重试并确认原导入结果'
+                    : preview.existingGoalId != null
+                    ? '确认原导入结果'
+                    : '导入 ${preview.missionCount > 0 ? '${preview.missionCount} 个任务' : '${preview.nodeCount} 个节点'}',
+              ),
+            ),
+            const SizedBox(height: AppLayout.spaceLg),
+            Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('任务'),
+                  selected: _kind == 'MISSION',
+                  onSelected: _busy || preview.missionCount == 0
+                      ? null
+                      : (_) => setState(() {
+                          _kind = 'MISSION';
+                          _offset = 0;
+                          _previousOffsets.clear();
+                          _page = _service.page(preview, _kind, 0);
+                        }),
+                ),
+                ChoiceChip(
+                  label: const Text('节点'),
+                  selected: _kind == 'NODE',
+                  onSelected: _busy
+                      ? null
+                      : (_) => setState(() {
+                          _kind = 'NODE';
+                          _offset = 0;
+                          _previousOffsets.clear();
+                          _page = _service.page(preview, _kind, 0);
+                        }),
+                ),
+              ],
+            ),
+            FutureBuilder<List<GoalImportEntry>>(
+              key: ValueKey(preview.jobId + _kind + _offset.toString()),
+              future: _page,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Text('无法读取预览：${snapshot.error}');
+                }
+                if (!snapshot.hasData) return const LinearProgressIndicator();
+                final entries = snapshot.data!;
+                final count = _kind == 'MISSION'
+                    ? preview.missionCount
+                    : preview.nodeCount;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final entry in entries) _entry(entry),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        TextButton(
+                          onPressed: _busy || _previousOffsets.isEmpty
+                              ? null
+                              : () {
+                                  final offset = _previousOffsets.removeLast();
+                                  _turnPage(offset, previous: true);
+                                },
+                          child: const Text('上一页'),
+                        ),
+                        Text(
+                          '第 ${_offset + (entries.isEmpty ? 0 : 1)}–${_offset + entries.length} / $count',
+                        ),
+                        TextButton(
+                          onPressed: _busy || _offset + entries.length >= count
+                              ? null
+                              : () => _turnPage(_offset + entries.length),
+                          child: const Text('下一页'),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
   String _errorText(Object error) {
     if (error is GoalImportException) {
+      if (error.code == 'UNKNOWN_FIELD' &&
+          error.path.toLowerCase() == '/schema') {
+        return '格式标识的字段名应为小写“schema”。请按下方“查看支持的格式”检查大小写后重新预览。';
+      }
+      if (error.code == 'UNSUPPORTED_SCHEMA') {
+        return '文件不是受支持的目标或课表格式。请使用 MissionBook 导出的 JSON，或按下方“查看支持的格式”整理内容。';
+      }
+      if (error.code == 'UNSUPPORTED_VERSION') {
+        return '此文件的格式版本不受支持，请使用版本 1 的导入文件。';
+      }
+      if (error.code == 'INVALID_JSON') {
+        return 'JSON 内容不完整或格式有误：${error.message}。请检查括号、引号与逗号后重新预览。';
+      }
+
       final item = RegExp(r'^/(missions|nodes)/(\d+)').firstMatch(error.path);
       if (item != null) {
         return '第 ${int.parse(item.group(2)!) + 1} 个${item.group(1) == 'missions' ? '任务' : '节点'}：${error.message}';
       }
-      return error.message;
+      return '${error.message}${error.path == "/" ? "" : "（位置：${error.path}）"}。请调整内容后重新预览。';
     }
     if (error is GoalImportCancelled) return '已取消，可重新选择文件';
-    return error
-        .toString()
-        .replaceFirst('Bad state: ', '')
-        .replaceFirst('FormatException: ', '');
+    debugPrint('目标导入失败：$error');
+    return '暂时无法完成操作，输入已保留。请重试；若保存结果尚未确认，请先核对原导入结果。';
   }
 
   @override

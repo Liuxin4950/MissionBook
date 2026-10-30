@@ -1,3 +1,4 @@
+import '../widgets/app_dropdown_form_field.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -829,7 +830,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
 
   Widget _choice(String key, String label, List<String> values) => Padding(
     padding: const EdgeInsets.only(bottom: AppLayout.spaceMd),
-    child: DropdownButtonFormField<String>(
+    child: AppDropdownFormField<String>(
       initialValue: values.contains(_draft[key]) ? _draft[key] as String : null,
       decoration: InputDecoration(labelText: label),
       items: [

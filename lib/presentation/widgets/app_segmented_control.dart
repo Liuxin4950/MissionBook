@@ -25,49 +25,76 @@ class AppSegmentedControl<T> extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppLayout.spaceXs),
-        child: Row(
+        child: Stack(
           children: [
-            for (final entry in options.entries)
-              Expanded(
-                child: Semantics(
-                  selected: selected == entry.key,
-                  child: TextButton(
-                    key: optionKey?.call(entry.key),
-                    onPressed: () => onSelected(entry.key),
-                    style:
-                        TextButton.styleFrom(
-                          foregroundColor: selected == entry.key
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.onSurfaceVariant,
-                          backgroundColor: selected == entry.key
-                              ? theme.colorScheme.surfaceContainerLow
-                              : Colors.transparent,
-                          minimumSize: const Size(0, AppLayout.touchTargetMin),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppLayout.spaceSm,
-                            vertical: AppLayout.spaceSm,
-                          ),
-                          textStyle: theme.textTheme.labelMedium,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppLayout.radiusMd,
-                            ),
-                            side: BorderSide(
-                              color: selected == entry.key
-                                  ? theme.colorScheme.primary
-                                  : Colors.transparent,
-                            ),
-                          ),
-                        ).copyWith(
-                          animationDuration: AppMotion.resolve(
-                            context,
-                            AppMotion.quick,
-                          ),
-                        ),
-                    child: Text(entry.value, textAlign: TextAlign.center),
+            if (options.keys.contains(selected))
+              Positioned.fill(
+                child: AnimatedAlign(
+                  alignment: Alignment(
+                    options.length <= 1
+                        ? 0
+                        : -1 +
+                              2 *
+                                  options.keys.toList().indexOf(selected) /
+                                  (options.length - 1),
+                    0,
+                  ),
+                  duration: AppMotion.resolve(context, AppMotion.standard),
+                  curve: AppMotion.curve,
+                  child: FractionallySizedBox(
+                    widthFactor: 1 / options.length,
+                    child: DecoratedBox(
+                      key: const Key('segmented-selection-surface'),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                      ),
+                      child: const SizedBox.expand(),
+                    ),
                   ),
                 ),
               ),
+            Row(
+              children: [
+                for (final entry in options.entries)
+                  Expanded(
+                    child: Semantics(
+                      selected: selected == entry.key,
+                      child: TextButton(
+                        key: optionKey?.call(entry.key),
+                        onPressed: () => onSelected(entry.key),
+                        style:
+                            TextButton.styleFrom(
+                              foregroundColor: selected == entry.key
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.onSurfaceVariant,
+                              backgroundColor: Colors.transparent,
+                              minimumSize: const Size(
+                                0,
+                                AppLayout.touchTargetMin,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppLayout.spaceSm,
+                                vertical: AppLayout.spaceSm,
+                              ),
+                              textStyle: theme.textTheme.labelMedium,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppLayout.radiusMd,
+                                ),
+                              ),
+                            ).copyWith(
+                              animationDuration: AppMotion.resolve(
+                                context,
+                                AppMotion.quick,
+                              ),
+                            ),
+                        child: Text(entry.value, textAlign: TextAlign.center),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ],
         ),
       ),

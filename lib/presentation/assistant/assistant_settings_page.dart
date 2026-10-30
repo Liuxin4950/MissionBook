@@ -1,7 +1,10 @@
+import '../widgets/app_dropdown_form_field.dart';
 import 'package:flutter/material.dart';
 import 'package:agent_core/agent_core.dart';
 import 'assistant_avatar.dart';
 import 'offline_speech_model_section.dart';
+import 'assistant_scope.dart';
+import '../widgets/data_export_card.dart';
 
 import '../../application/assistant/assistant_controller.dart';
 import '../../core/theme/app_layout.dart';
@@ -56,8 +59,33 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   late AssistantPermissionMode _permission = widget.controller.permissionMode;
   bool _saving = false;
   bool _testing = false;
+  bool _leaving = false;
+  bool _allowPop = false;
   String? _error;
   String? _result;
+
+  Future<void> _back() async {
+    if (_saving || _testing || _leaving) return;
+    _leaving = true;
+    try {
+      final leave =
+          !_changed ||
+          await AppConfirmDialog.show(
+            context: context,
+            title: '放弃助手设置修改？',
+            message: '尚未保存的模型、角色、语音和权限设置会丢失。',
+            cancelText: '继续编辑',
+            confirmText: '放弃修改',
+          );
+      if (!mounted || !leave) return;
+      setState(() => _allowPop = true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).pop();
+      });
+    } finally {
+      _leaving = false;
+    }
+  }
 
   @override
   void initState() {
@@ -190,19 +218,25 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
 
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: !_saving,
+    canPop: _allowPop || (!_saving && !_testing && !_changed),
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) _back();
+    },
     child: Scaffold(
       appBar: AppTopBar(
         title: '助手设置',
-        maxContentWidth: AppLayout.formMaxWidth,
-        canGoBack: !_saving,
+        maxContentWidth: AppLayout.dashboardMaxWidth,
+        canGoBack: !_saving && !_testing,
+        onBack: _back,
       ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Center(
           heightFactor: 1,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
+            constraints: const BoxConstraints(
+              maxWidth: AppLayout.dashboardMaxWidth,
+            ),
             child: Padding(
               padding: EdgeInsets.fromLTRB(
                 AppLayout.horizontalPadding(context),
@@ -253,10 +287,22 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         top: false,
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
+            constraints: const BoxConstraints(
+              maxWidth: AppLayout.dashboardMaxWidth,
+            ),
             child: ListView(
               padding: AppLayout.pagePadding(context),
               children: [
+                Text(
+                  '让助手按你的方式工作',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: AppLayout.spaceSm),
+                Text(
+                  '连接模型，选择角色与语音方式，并决定哪些操作需要确认。',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: AppLayout.spaceXxl),
                 AdaptiveColumns(
                   minColumnWidth: 390,
                   maxColumns: 2,
@@ -281,6 +327,14 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                   ],
                 ),
                 const SizedBox(height: AppLayout.spaceLg),
+                if (AssistantScope.maybeOf(context) case final scope?)
+                  if (scope.backup != null && scope.device != null) ...[
+                    DataExportCard(
+                      backup: scope.backup!,
+                      device: scope.device!,
+                    ),
+                    const SizedBox(height: AppLayout.spaceLg),
+                  ],
                 AppSectionCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -336,7 +390,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
           minColumnWidth: 240,
           maxColumns: 2,
           children: [
-            DropdownButtonFormField<AssistantRole>(
+            AppDropdownFormField<AssistantRole>(
               key: const Key('assistant-persona-role'),
               isExpanded: true,
               initialValue: _role,
@@ -349,7 +403,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                   ? null
                   : (value) => setState(() => _role = value ?? _role),
             ),
-            DropdownButtonFormField<AssistantReplyStyle>(
+            AppDropdownFormField<AssistantReplyStyle>(
               key: const Key('assistant-reply-style'),
               isExpanded: true,
               initialValue: _replyStyle,
@@ -412,7 +466,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       children: [
         Text('模型与凭据', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppLayout.spaceLg),
-        DropdownButtonFormField<String>(
+        AppDropdownFormField<String>(
           isExpanded: true,
           initialValue: _profile,
           decoration: const InputDecoration(labelText: '模型服务'),
@@ -435,6 +489,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         const SizedBox(height: AppLayout.spaceMd),
         TextField(
           key: const Key('assistant-credential-input'),
+          enabled: !_saving && !_testing && !widget.controller.isBusy,
           controller: _credential,
           obscureText: true,
           enableSuggestions: false,
@@ -524,7 +579,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       ),
     ),
     const SizedBox(height: AppLayout.spaceMd),
-    DropdownButtonFormField<ModelProtocol>(
+    AppDropdownFormField<ModelProtocol>(
       isExpanded: true,
       initialValue: _protocol,
       decoration: const InputDecoration(labelText: '请求协议'),
@@ -583,6 +638,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               borderRadius: BorderRadius.circular(AppLayout.radiusMd),
               child: ListTile(
                 key: Key('assistant-permission-${mode.name}'),
+                selected: _permission == mode,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: AppLayout.spaceMd,
                   vertical: 0,
@@ -619,7 +675,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       children: [
         Text('语音输入', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppLayout.spaceMd),
-        DropdownButtonFormField<bool>(
+        AppDropdownFormField<bool>(
           key: const Key('assistant-speech-mode'),
           initialValue: _transcription,
           isExpanded: true,

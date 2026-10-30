@@ -11,10 +11,12 @@ class AppJourneyHero extends StatelessWidget {
     super.key,
     required this.title,
     required this.actions,
+    this.subtitle = '让想做的事，有一条清晰的路。',
     this.illustrationKey,
   });
   final String title;
   final Widget actions;
+  final String subtitle;
   final Key? illustrationKey;
 
   @override
@@ -44,20 +46,25 @@ class AppJourneyHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.flag_outlined,
-                  color: AppColors.primary,
-                  size: AppLayout.iconLg,
+                Image.asset(
+                  'assets/illustrations/goal-waymarker.png',
+                  key: const Key('goal-waymarker-artwork'),
+                  width: 48,
+                  height: 48,
+                  cacheWidth: 144,
+                  excludeFromSemantics: true,
                 ),
                 const SizedBox(height: AppLayout.spaceMd),
                 Text(title, style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: AppLayout.spaceSm),
-                Text(
-                  '让想做的事，有一条清晰的路。',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+                Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: AppLayout.spaceXl),
-                actions,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minHeight: AppLayout.actionMinHeight,
+                  ),
+                  child: Align(alignment: Alignment.centerLeft, child: actions),
+                ),
               ],
             ),
           );
