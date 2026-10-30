@@ -7,7 +7,8 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme/colors.dart';
 import '../../application/assistant/assistant_controller.dart';
-import 'assistant_operation_card.dart';
+import 'assistant_markdown.dart';
+import 'assistant_voice_status.dart';
 import 'assistant_avatar.dart';
 import 'assistant_scope.dart';
 import 'assistant_settings_page.dart';
@@ -118,6 +119,8 @@ class AssistantLauncherState extends State<AssistantLauncher> {
   bool _opening = false;
   bool _recording = false;
   String? _bubbleSession;
+  UserMessage? _sentMessage;
+  bool _transitioning = false;
   int? _hover;
   AssistantScope? _scope;
 
@@ -157,11 +160,9 @@ class AssistantLauncherState extends State<AssistantLauncher> {
   }
 
   void _showMenu() {
-    if (_opening) return;
+    if (_opening || _transitioning) return;
     if (_bubble) {
-      if (_recording) unawaited(_scope!.voice.cancel());
-      _recording = false;
-      _hide();
+      unawaited(_closeBubble());
       return;
     }
     setState(() {
@@ -241,6 +242,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
       _menu = false;
       _opening = false;
       _bubbleSession = _scope!.controller.currentSessionId;
+      _sentMessage = null;
       if (mode == 0) {
         await _expand();
       } else {
@@ -264,34 +266,68 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     }
   }
 
+  void _preserveVoiceDraft() {
+    final text = _scope!.voice.text.trim();
+    if (!_recording || text.isEmpty) return;
+    final controller = _scope!.controller;
+    final existing = controller.draft.trimRight();
+    controller.draft = existing.isEmpty ? text : '$existing\n$text';
+  }
+
+  Future<void> _closeBubble() async {
+    if (_transitioning) return;
+    _transitioning = true;
+    _preserveVoiceDraft();
+    _recording = false;
+    _hide();
+    await _scope!.voice.cancel();
+    _transitioning = false;
+  }
+
   Future<void> _expand() async {
-    String? draft;
-    if (_recording) {
-      await _scope!.voice.stop();
-      draft = _scope!.voice.text;
-      _recording = false;
-    }
+    if (_transitioning) return;
+    _transitioning = true;
+    _preserveVoiceDraft();
+    if (_recording) await _scope!.voice.cancel();
+    _recording = false;
     if (!mounted) return;
     _hide();
-    await showAssistantConversation(context, initialText: draft);
+    _transitioning = false;
+    await showAssistantConversation(context);
   }
 
   Future<void> _sendVoice() async {
     final scope = _scope!;
-    await scope.voice.stop();
-    if (!mounted || !_bubble || !_recording) return;
+    if (_transitioning ||
+        !_recording ||
+        scope.voice.busy ||
+        scope.voice.listening ||
+        scope.controller.isBusy) {
+      return;
+    }
     final text = scope.voice.text.trim();
     if (text.isEmpty) return;
     if (scope.controller.currentSessionId != _bubbleSession) {
-      _hide();
+      await _closeBubble();
       return;
     }
     if (!scope.controller.hasCredential) {
       await _expand();
       return;
     }
-    setState(() => _recording = false);
-    await scope.controller.send(text);
+    FocusScope.of(context).unfocus();
+    final message = UserMessage(text: text);
+    setState(() {
+      _recording = false;
+      _sentMessage = message;
+    });
+    await scope.controller.sendMessage(message);
+    if (mounted &&
+        _bubble &&
+        _sentMessage == message &&
+        !scope.controller.transcript.any((item) => item.id == message.id)) {
+      setState(() => _recording = true);
+    }
   }
 
   @override
@@ -343,10 +379,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                     color: AppColors.card,
                     borderRadius: BorderRadius.circular(24),
                     clipBehavior: Clip.antiAlias,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 12, 16),
-                      child: _bubbleContent(),
-                    ),
+                    child: _bubbleContent(),
                   ),
                 ),
               ),
@@ -456,214 +489,271 @@ class AssistantLauncherState extends State<AssistantLauncher> {
   Widget _bubbleContent() {
     final controller = _scope!.controller;
     final voice = _scope!.voice;
-    final operation = controller.operations
-        .where(
-          (item) =>
-              item.isWrite ||
-              item.status == AssistantOperationStatus.waitingConfirmation,
-        )
-        .lastOrNull;
-    final reply = controller.transcript
-        .whereType<AssistantMessage>()
-        .where((item) => item.text.trim().isNotEmpty)
-        .lastOrNull
-        ?.text;
+    final transcript = controller.transcript;
+    final start = transcript.indexWhere(
+      (message) => message.id == _sentMessage?.id,
+    );
+    // 只读取本次发送以后的消息与操作，不能用整个会话的最后一条回复。
+    final messages = start < 0
+        ? <AssistantMessage>[]
+        : transcript
+              .skip(start + 1)
+              .takeWhile((m) => m is! UserMessage)
+              .whereType<AssistantMessage>()
+              .toList();
+    final callIds = messages
+        .expand((m) => m.toolCalls)
+        .map((c) => c.id)
+        .toSet();
+    final operations = controller.operations
+        .where((o) => callIds.contains(o.callId))
+        .toList();
+    final waiting = operations.any(
+      (o) => o.status == AssistantOperationStatus.waitingConfirmation,
+    );
+    final reply = messages
+        .where((m) => m.text.trim().isNotEmpty)
+        .map((m) => m.text)
+        .join('\n\n');
+    final streaming = start >= 0 && controller.activity.isRunning
+        ? controller.activity.text
+        : '';
+    final text = Theme.of(context).textTheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            if (_recording) ...[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 4, 0),
+          child: Row(
+            children: [
               Icon(
-                voice.listening ? Icons.mic_rounded : Icons.circle,
-                size: voice.listening ? 18 : 8,
-                color: voice.error == null
-                    ? AppColors.primary
-                    : AppColors.error,
+                _recording
+                    ? Icons.mic_none_rounded
+                    : assistantAvatarIcon(controller.persona.avatar),
+                color: AppColors.primary,
+                size: 20,
               ),
               const SizedBox(width: 8),
-            ],
-            Expanded(
-              child: Text(
-                _recording
-                    ? (voice.starting
-                          ? '正在准备语音…'
-                          : voice.stopping || voice.busy
-                          ? '正在结束录音…'
-                          : voice.listening
-                          ? '正在听…'
-                          : voice.error != null
-                          ? '语音暂不可用'
-                          : '准备发送')
-                    : controller.isRunning
-                    ? '${controller.persona.name}处理中…'
-                    : controller.persona.name,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: AppColors.textSecondary,
+              Expanded(
+                child: Text(
+                  _recording ? '语音输入' : controller.persona.name,
+                  style: text.titleSmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ),
-            IconButton(
-              tooltip: '展开同一对话',
-              onPressed: _expand,
-              icon: const Icon(Icons.open_in_full, size: 18),
-            ),
-            IconButton(
-              tooltip: '收起气泡',
-              onPressed: () {
-                if (_recording) {
-                  unawaited(voice.cancel());
-                  _recording = false;
-                }
-                _hide();
-              },
-              icon: const Icon(Icons.close, size: 18),
-            ),
-          ],
-        ),
-        if (_recording) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(0, 12, 8, 20),
-            child: Semantics(
-              liveRegion: !voice.listening,
-              child: Text(
-                voice.text.isNotEmpty
-                    ? voice.text
-                    : voice.error ??
-                          (voice.starting
-                              ? '正在连接系统语音服务…'
-                              : voice.listening
-                              ? '说说你想调整什么…'
-                              : '没有听清，可以再说一次'),
-                key: const Key('assistant-voice-transcript'),
-                maxLines: 5,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  height: 1.5,
-                  color: voice.error != null && voice.text.isEmpty
-                      ? AppColors.error
-                      : AppColors.textPrimary,
-                ),
-              ),
-            ),
-          ),
-          if (voice.error != null && voice.text.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                voice.error!,
-                style: const TextStyle(color: AppColors.error),
-              ),
-            ),
-          if (voice.error != null)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () async {
-                  await voice.cancel();
-                  _recording = false;
-                  if (!mounted) return;
-                  _hide();
-                  await Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          AssistantSettingsPage(controller: controller),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.settings_voice_outlined, size: 18),
-                label: const Text('语音设置'),
-              ),
-            ),
-          Row(
-            children: [
               IconButton(
-                tooltip: '改用文字',
-                onPressed: _expand,
-                icon: const Icon(Icons.keyboard_outlined),
+                tooltip: '展开同一对话',
+                onPressed: _transitioning ? null : _expand,
+                icon: const Icon(Icons.open_in_full, size: 18),
               ),
-              const Spacer(),
-              IconButton.outlined(
-                tooltip: voice.busy
-                    ? '正在处理语音'
-                    : voice.listening
-                    ? '结束录音'
-                    : '重试语音',
-                onPressed: voice.busy
-                    ? null
-                    : voice.listening
-                    ? voice.stop
-                    : voice.start,
-                icon: Icon(
-                  voice.busy || voice.listening
-                      ? Icons.stop_rounded
-                      : Icons.mic_none_rounded,
-                ),
-              ),
-              const Spacer(),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  foregroundColor: AppColors.onPrimary,
-                  iconColor: AppColors.onPrimary,
-                  backgroundColor: AppColors.primary,
-                  disabledForegroundColor: AppColors.onDisabled,
-                  disabledBackgroundColor: AppColors.disabled,
-                ),
-                key: const Key('assistant-voice-send'),
-                onPressed:
-                    voice.text.trim().isEmpty || voice.busy || controller.isBusy
-                    ? null
-                    : _sendVoice,
-                icon: const Icon(Icons.arrow_upward_rounded, size: 18),
-                label: const Text('发送'),
+              IconButton(
+                tooltip: '收起气泡',
+                onPressed: _closeBubble,
+                icon: const Icon(Icons.close, size: 20),
               ),
             ],
           ),
-        ] else ...[
-          if (controller.lastUserInput != null)
-            Text(
-              controller.lastUserInput!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
+        ),
+        Flexible(
+          child: SingleChildScrollView(
+            key: const Key('assistant-bubble-scroll'),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_recording) ...[
+                  AssistantVoiceStatus(voice: voice),
+                  const SizedBox(height: 12),
+                  if (voice.text.isNotEmpty ||
+                      (!voice.busy && !voice.listening && voice.error == null))
+                    AssistantVoiceDraft(voice: voice)
+                  else if (voice.error == null)
+                    Text(
+                      voice.starting
+                          ? '正在准备，请稍候。'
+                          : voice.stopping
+                          ? '录音已结束，识别完成后可以修改文字。'
+                          : '说完后点击“结束录音”，检查文字后再发送。',
+                      style: text.bodyMedium,
+                    ),
+                  if (voice.error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      voice.error!,
+                      style: text.bodyMedium?.copyWith(color: AppColors.error),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          await _closeBubble();
+                          if (!mounted) return;
+                          await Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  AssistantSettingsPage(controller: controller),
+                            ),
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.settings_voice_outlined,
+                          size: 18,
+                        ),
+                        label: const Text('语音设置'),
+                      ),
+                    ),
+                  ],
+                  if (controller.errorMessage != null)
+                    Text(
+                      controller.errorMessage!,
+                      style: text.bodySmall?.copyWith(color: AppColors.error),
+                    ),
+                ] else ...[
+                  if (_sentMessage != null)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySoft,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '你说',
+                            style: text.labelSmall?.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _sentMessage!.text,
+                            key: const Key('assistant-bubble-request'),
+                            style: text.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  if (reply.isNotEmpty) AssistantMarkdown(text: reply),
+                  if (streaming.isNotEmpty && streaming != reply) ...[
+                    if (reply.isNotEmpty) const SizedBox(height: 8),
+                    AssistantMarkdown(text: streaming),
+                  ],
+                  if (operations.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      key: const Key('assistant-bubble-operations'),
+                      onPressed: _expand,
+                      icon: Icon(
+                        waiting
+                            ? Icons.fact_check_outlined
+                            : Icons.receipt_long_outlined,
+                        size: 18,
+                      ),
+                      label: Text(waiting ? '查看并确认操作' : '查看操作结果'),
+                    ),
+                  ],
+                  if (controller.isRunning)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          if (!waiting)
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          if (!waiting) const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              waiting ? '等待你确认，本次操作尚未执行' : '正在回复…',
+                              style: text.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (controller.errorMessage != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      controller.errorMessage!,
+                      style: text.bodyMedium?.copyWith(color: AppColors.error),
+                    ),
+                  ] else if (!controller.isRunning &&
+                      reply.isEmpty &&
+                      operations.isEmpty)
+                    Text('本轮已结束，可展开对话查看详情。', style: text.bodyMedium),
+                ],
+              ],
             ),
-          if (operation != null)
-            AssistantOperationCard(
-              controller: controller,
-              operation: operation,
-              onOpenReference: (_, _) => _expand(),
-            ),
-          if (controller.activity.text.isNotEmpty || reply != null)
-            Text(
-              controller.activity.text.isNotEmpty
-                  ? controller.activity.text
-                  : reply!,
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-            ),
-          if (controller.errorMessage != null)
-            Text(
-              controller.errorMessage!,
-              style: const TextStyle(color: AppColors.error),
-            ),
-          Wrap(
+          ),
+        ),
+        const Divider(height: 1),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: Wrap(
+            alignment: WrapAlignment.end,
             spacing: 8,
+            runSpacing: 4,
             children: [
-              if (controller.isRunning)
-                TextButton(onPressed: controller.stop, child: const Text('停止')),
-              TextButton(onPressed: _expand, child: const Text('展开对话')),
-              if (!controller.isRunning)
+              if (_recording) ...[
                 TextButton(
-                  onPressed: () async {
-                    setState(() => _recording = true);
-                    await voice.start();
-                  },
-                  child: const Text('继续说'),
+                  onPressed: _transitioning ? null : _expand,
+                  child: const Text('改用文字'),
                 ),
+                if (voice.listening)
+                  FilledButton.icon(
+                    key: const Key('assistant-voice-stop'),
+                    onPressed: voice.stop,
+                    icon: const Icon(Icons.stop_rounded, size: 18),
+                    label: const Text('结束录音'),
+                  )
+                else if (voice.busy)
+                  TextButton(onPressed: voice.cancel, child: const Text('取消识别'))
+                else ...[
+                  IconButton.outlined(
+                    tooltip: '重试语音',
+                    onPressed: voice.start,
+                    icon: const Icon(Icons.mic_none_rounded),
+                  ),
+                  FilledButton.icon(
+                    key: const Key('assistant-voice-send'),
+                    onPressed:
+                        voice.text.trim().isEmpty ||
+                            controller.isBusy ||
+                            _transitioning
+                        ? null
+                        : _sendVoice,
+                    icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+                    label: const Text('发送'),
+                  ),
+                ],
+              ] else ...[
+                TextButton(onPressed: _expand, child: const Text('展开对话')),
+                if (controller.isRunning)
+                  FilledButton.tonal(
+                    onPressed: controller.stop,
+                    child: const Text('停止回复'),
+                  )
+                else
+                  FilledButton.tonal(
+                    onPressed: controller.isBusy
+                        ? null
+                        : () {
+                            setState(() => _recording = true);
+                            unawaited(voice.start());
+                          },
+                    child: const Text('继续说'),
+                  ),
+              ],
             ],
           ),
-        ],
+        ),
       ],
     );
   }
@@ -682,9 +772,9 @@ class _AssistantBubbleLayout extends SingleChildLayoutDelegate {
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
       BoxConstraints(
-        minWidth: math.min(360, bounds.width),
-        maxWidth: math.min(360, bounds.width),
-        maxHeight: math.max(0, math.min(480, bounds.height * .72)),
+        minWidth: math.min(400, bounds.width),
+        maxWidth: math.min(400, bounds.width),
+        maxHeight: math.max(0, math.min(560, bounds.height - 8)),
       );
 
   @override

@@ -124,7 +124,61 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                   onCancel: () => setState(() => _editing = false),
                 )
               else ...[
-                ..._summaryRows(operation),
+                if (const [
+                  AssistantOperationStatus.succeeded,
+                  AssistantOperationStatus.failed,
+                  AssistantOperationStatus.cancelled,
+                ].contains(operation.status))
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: Text(
+                      operation.missionBefore?.mission.title ??
+                          operation.targetTitle ??
+                          '操作详情',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    children: _summaryRows(operation),
+                  )
+                else
+                  ..._summaryRows(operation),
+                if (operation.toolName == 'mission_complete_history') ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Chip(
+                        avatar: const Icon(Icons.task_alt, size: 18),
+                        label: Text(
+                          '${operation.historyMissions.isEmpty ? (_ResultDetails._decode(operation.output)?['completedCount'] ?? 0) : operation.historyMissions.length} 项补记完成',
+                        ),
+                      ),
+                      if (operation.historySkippedCount > 0)
+                        Chip(
+                          label: Text(
+                            '${operation.historySkippedCount} 项保留原记录',
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (operation.historyMissions.isNotEmpty)
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text('查看本批任务'),
+                      children: [
+                        for (final detail in operation.historyMissions.take(20))
+                          ListTile(
+                            dense: true,
+                            title: Text(detail.mission.title),
+                            subtitle: Text(detail.schedule.scheduledDate),
+                          ),
+                        if (operation.historyMissions.length > 20)
+                          Text(
+                            '共 ${operation.historyMissions.length} 项，按以上日期范围处理',
+                          ),
+                      ],
+                    ),
+                ],
                 if (operation.status ==
                     AssistantOperationStatus.waitingConfirmation)
                   _WaitingActions(
@@ -204,14 +258,26 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
       'why': '为什么',
       'notes': '备注',
       'evidenceDeadlineLocal': '材料截止',
+      'beforeDate': '早于日期',
+      'statement': '补记依据',
     };
     for (final entry in operation.input.entries) {
       final label = labels[entry.key];
       final value = entry.value;
       if (label != null && value != null && value is! List) {
-        final display = entry.key == 'timePolicy'
-            ? (value == 'FIXED' ? '固定时间' : '自选时间')
-            : '$value';
+        final display = switch (entry.key) {
+          'timePolicy' => value == 'FIXED' ? '固定时间' : '自选时间',
+          'report' => value == 'COMPLETED' ? '已完成' : '未完成',
+          'type' => switch (value) {
+            'START' => '开始',
+            'PAUSE' => '暂停',
+            'RESUME' => '继续',
+            'EXTEND' => '延长',
+            'END' => '结束',
+            _ => '$value',
+          },
+          _ => '$value',
+        };
         rows.add((label, display));
       }
     }
@@ -284,7 +350,7 @@ class _Header extends StatelessWidget {
       AssistantOperationStatus.waitingConfirmation => '待确认',
       AssistantOperationStatus.running => '正在执行',
       AssistantOperationStatus.succeeded => '已完成',
-      AssistantOperationStatus.failed => '未完成',
+      AssistantOperationStatus.failed => '未能执行',
       AssistantOperationStatus.cancelled => '已取消 · 零写入',
       AssistantOperationStatus.unknown => '需要核对',
     };
@@ -433,7 +499,9 @@ class _ResultDetails extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              '$message',
+              '$message'
+                  .replaceFirst('Invalid argument(s): ', '')
+                  .replaceFirst('Bad state: ', ''),
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppColors.error),
@@ -567,6 +635,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
         if (_draft['type'] == 'EXTEND') 'minutes',
         if (_draft['type'] == 'PAUSE') 'reason',
       },
+      'mission_complete_history' => {'statement'},
       _ => {},
     };
   }
@@ -589,6 +658,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
         'why',
         'notes',
         'evidenceDeadlineLocal',
+        'statement',
       ])
         key: TextEditingController(text: _textValue(_draft[key])),
     };
@@ -648,6 +718,8 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
           _field('evidenceDeadlineLocal', '新材料截止 YYYY-MM-DD HH:mm'),
         if (tool == 'mission_reschedule' || tool == 'mission_update')
           _choice('timePolicy', '时间方式', const ['FLEXIBLE', 'FIXED']),
+        if (tool == 'mission_complete_history')
+          _field('statement', '补记依据', maxLines: 3),
         if (tool == 'mission_execute') ...[
           _choice('type', '执行动作', const [
             'START',
@@ -814,6 +886,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
 }
 
 String _toolLabel(String name) => switch (name) {
+  'mission_complete_history' => '批量补记历史完成',
   'goal_outline_create' => '创建目标与分层大纲',
   'mission_retry' => '安排新的尝试',
   'schedule_query' => '查看日期安排',

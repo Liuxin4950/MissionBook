@@ -56,6 +56,7 @@ void main() {
     final input = File(
       'docs/设计/目标计划导入/examples/课标试运行.goal-package.v1.json',
     ).readAsStringSync();
+    await tap('goal-import-paste-toggle');
     await tester.enterText(find.byKey(const Key('goal-import-input')), input);
     await tap('goal-import-preview');
     expect(find.textContaining('6 个节点；5 个任务'), findsOneWidget);

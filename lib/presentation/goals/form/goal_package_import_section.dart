@@ -37,6 +37,8 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
   String? _knownJobId;
   String? _error;
   String? _reviewError;
+  String? _reviewCode;
+  bool _pasteOpen = false;
   String? _sourceName;
   String _progress = '';
   String _kind = 'MISSION';
@@ -47,7 +49,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
   bool _reviewing = false;
   bool _unknown = false;
   bool _saved = false;
-  bool _keepPast = false;
+  final bool _keepPast = true;
   bool _allowDue = false;
   bool _allowOverlaps = false;
   bool _settingInput = false;
@@ -131,7 +133,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
         _reviewGeneration++;
       });
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => _error = _errorText(error));
     }
   }
 
@@ -153,14 +155,14 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
       _settingInput = false;
       await _prepare(source);
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => _error = _errorText(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _validate() async {
-    if (_busy || _unknown || _restoring) return;
+    if (_busy || _unknown || _restoring || _input.text.trim().isEmpty) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -168,7 +170,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
     try {
       await _prepare(GoalImportSource.text(_input.text));
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => _error = _errorText(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -222,12 +224,14 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
     setState(() {
       _reviewing = true;
       _reviewError = null;
+      _reviewCode = null;
     });
     String? failure;
     try {
       await _service.review(preview, _options);
     } catch (error) {
-      failure = error.toString();
+      failure = _errorText(error);
+      _reviewCode = error is GoalImportException ? error.code : null;
     }
     if (!mounted || generation != _reviewGeneration) return;
     setState(() {
@@ -260,7 +264,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = error.toString();
+        _error = _errorText(error);
         _unknown =
             error is! GoalImportException &&
             error is! GoalImportCancelled &&
@@ -313,11 +317,12 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
       key: ValueKey(entry.id),
       title: Text(value['title']! as String),
       subtitle: Text(
-        '$path\n${at == null ? value['scheduledDate']! as String : _time(at, value['timeZone'])} · ${value['timePolicy'] == 'FIXED' ? '固定' : '自选'} · ${value['plannedDurationMinutes']} 分钟 · ${value['timeZone']! as String}',
+        '${at == null ? value['scheduledDate']! as String : _time(at, value['timeZone'])} · ${value['plannedDurationMinutes']} 分钟',
       ),
       childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Text('$path'),
         Text('具体目标：${value['objective']! as String}'),
         if (value['description'] != null)
           Text('说明：${value['description']! as String}'),
@@ -348,56 +353,108 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('导入目标与计划', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        const Text('支持原大纲和完整目标包。文件最多 32 MiB、10000 个任务；小段 JSON 可粘贴。'),
-        const SizedBox(height: 12),
-        AppTextField(
-          key: const Key('goal-import-input'),
-          label: 'JSON 内容',
-          hint: '粘贴 JSON，或选择文件',
-          controller: _input,
-          readOnly: _busy || _unknown || _restoring,
-          minLines: 3,
-          maxLines: 6,
-          inputFormatters: [
-            TextInputFormatter.withFunction((old, next) {
-              if (next.text.length > GoalImportLimits.pasteBytes ||
-                  next.text.length > GoalImportLimits.pasteBytes ~/ 4 &&
-                      utf8.encode(next.text).length >
-                          GoalImportLimits.pasteBytes) {
-                setState(() => _error = '粘贴超过 2 MiB，请选择文件；原输入已保留');
-                return old;
-              }
-              return next;
-            }),
-          ],
-        ),
-        if (_sourceName != null) Text('来源：$_sourceName'),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        Row(
           children: [
-            OutlinedButton.icon(
-              key: const Key('goal-import-file'),
-              onPressed: _busy || _unknown || _restoring ? null : _pick,
-              icon: const Icon(Icons.folder_open_outlined),
-              label: const Text('选择 JSON 文件'),
-            ),
-            TextButton.icon(
-              key: const Key('goal-import-preview'),
-              onPressed: _busy || _unknown || _restoring ? null : _validate,
-              icon: const Icon(Icons.fact_check_outlined),
-              label: const Text('校验并预览'),
-            ),
-            if (_knownJobId != null && !_unknown)
-              TextButton(
-                onPressed: _busy ? null : _discard,
-                child: const Text('丢弃导入草稿'),
+            for (final (index, label) in ['选择文件', '预览', '导入'].indexed) ...[
+              if (index > 0)
+                const Expanded(child: Divider(indent: 8, endIndent: 8)),
+              Icon(
+                _saved || preview != null && index == 0
+                    ? Icons.check_circle
+                    : index == 0
+                    ? Icons.folder_open_outlined
+                    : index == 1
+                    ? Icons.preview_outlined
+                    : Icons.task_alt,
+                size: 20,
+                color: _saved || preview != null && index < 2
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
               ),
+              const SizedBox(width: 4),
+              Text(label, style: Theme.of(context).textTheme.labelSmall),
+            ],
           ],
         ),
+        const SizedBox(height: 20),
+        if (preview == null) ...[
+          OutlinedButton.icon(
+            key: const Key('goal-import-file'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(64),
+            ),
+            onPressed: _busy || _unknown || _restoring ? null : _pick,
+            icon: const Icon(Icons.upload_file_outlined, size: 28),
+            label: const Text('选择课表或目标文件'),
+          ),
+          const SizedBox(height: 8),
+          ExpansionTile(
+            key: const Key('goal-import-paste-toggle'),
+            tilePadding: EdgeInsets.zero,
+            title: const Text('粘贴 JSON'),
+            onExpansionChanged: (value) => setState(() => _pasteOpen = value),
+            children: [
+              AppTextField(
+                key: const Key('goal-import-input'),
+                label: 'JSON 内容',
+                hint: '粘贴目标或课表 JSON',
+                controller: _input,
+                readOnly: _busy || _unknown || _restoring,
+                minLines: 3,
+                maxLines: 6,
+                inputFormatters: [
+                  TextInputFormatter.withFunction((old, next) {
+                    if (next.text.length > GoalImportLimits.pasteBytes ||
+                        next.text.length > GoalImportLimits.pasteBytes ~/ 4 &&
+                            utf8.encode(next.text).length >
+                                GoalImportLimits.pasteBytes) {
+                      setState(() => _error = '内容较大，请选择文件');
+                      return old;
+                    }
+                    return next;
+                  }),
+                ],
+              ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                key: const Key('goal-import-preview'),
+                onPressed:
+                    _busy ||
+                        _unknown ||
+                        _restoring ||
+                        _input.text.trim().isEmpty
+                    ? null
+                    : _validate,
+                icon: const Icon(Icons.arrow_forward),
+                label: const Text('预览内容'),
+              ),
+            ],
+          ),
+          if (!_pasteOpen)
+            Text(
+              'JSON · 最多 32 MB',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+        ] else ...[
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.description_outlined),
+            title: Text(
+              _sourceName ?? '已保存的导入草稿',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: TextButton(
+              onPressed: _busy || _unknown ? null : _discard,
+              child: const Text('更换'),
+            ),
+          ),
+        ],
+        if (_knownJobId != null && preview == null && !_unknown)
+          TextButton(
+            onPressed: _busy ? null : _discard,
+            child: const Text('丢弃未完成草稿'),
+          ),
         if (_busy || _restoring) ...[
           const LinearProgressIndicator(),
           Semantics(
@@ -422,58 +479,51 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
         if (preview != null) ...[
           const Divider(height: 28),
           Text(preview.title, style: Theme.of(context).textTheme.titleMedium),
-          if (preview.goal['description'] != null)
-            Text(preview.goal['description']! as String),
-          if (preview.goal['why'] != null)
-            Text('为什么：${preview.goal['why']! as String}'),
+
           Text(
             '完整大纲 · ${preview.nodeCount} 个节点；${preview.missionCount} 个任务，共 ${preview.totalMinutes} 分钟',
           ),
-          Text(
-            '固定 ${preview.fixedCount} · 自选 ${preview.missionCount - preview.fixedCount} · 强制材料 ${preview.requiredCount} · 可选材料 ${preview.optionalCount}',
+          Wrap(
+            spacing: 8,
+            children: [
+              Chip(
+                avatar: const Icon(Icons.calendar_month, size: 18),
+                label: Text('固定 ${preview.fixedCount}'),
+              ),
+              const Chip(
+                avatar: Icon(Icons.history, size: 18),
+                label: Text('保留历史计划'),
+              ),
+            ],
           ),
           if (preview.existingGoalId != null)
             const Text('此包已导入，确认会返回原目标，不重复创建。'),
           if (preview.duplicateGoalId != null && preview.existingGoalId == null)
             const Text('相同计划内容曾以其他包编号导入，本次确认将创建独立副本。'),
-          if (preview.missionCount > 0) ...[
-            CheckboxListTile(
+          if (_reviewCode == 'DUE_AUTO_START' || _allowDue)
+            SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: const Text('保留已过期计划（不补执行历史）'),
-              value: _keepPast,
-              onChanged: _busy || _unknown
-                  ? null
-                  : (value) {
-                      setState(() => _keepPast = value!);
-                      unawaited(_review());
-                    },
-            ),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: const Text('允许当前时段的固定任务导入后自动开始'),
+              title: const Text('按当前时段自动开始'),
               value: _allowDue,
               onChanged: _busy || _unknown
                   ? null
                   : (value) {
-                      setState(() => _allowDue = value!);
+                      setState(() => _allowDue = value);
                       unawaited(_review());
                     },
             ),
-            CheckboxListTile(
+          if (_reviewCode == 'SCHEDULE_CONFLICT' || _allowOverlaps)
+            SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: const Text('允许固定计划重叠（同时仅一个任务运行）'),
+              title: const Text('保留重叠课程'),
               value: _allowOverlaps,
               onChanged: _busy || _unknown
                   ? null
                   : (value) {
-                      setState(() => _allowOverlaps = value!);
+                      setState(() => _allowOverlaps = value);
                       unawaited(_review());
                     },
             ),
-          ],
           if (_reviewError != null)
             Semantics(
               liveRegion: true,
@@ -482,6 +532,28 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            key: const Key('goal-import-confirm'),
+            onPressed:
+                _busy ||
+                    _saved ||
+                    _reviewing ||
+                    !_unknown && _reviewError != null
+                ? null
+                : _commit,
+            icon: const Icon(Icons.check),
+            label: Text(
+              _saved
+                  ? '已导入目标'
+                  : _unknown
+                  ? '重试并确认原导入结果'
+                  : preview.existingGoalId != null
+                  ? '确认原导入结果'
+                  : '导入 ${preview.missionCount > 0 ? '${preview.missionCount} 个任务' : '${preview.nodeCount} 个节点'}',
+            ),
+          ),
+          const SizedBox(height: 16),
           Wrap(
             spacing: 8,
             children: [
@@ -554,30 +626,24 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
               );
             },
           ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            key: const Key('goal-import-confirm'),
-            onPressed:
-                _busy ||
-                    _saved ||
-                    _reviewing ||
-                    !_unknown && _reviewError != null
-                ? null
-                : _commit,
-            icon: const Icon(Icons.check),
-            label: Text(
-              _saved
-                  ? '已导入目标'
-                  : _unknown
-                  ? '重试并确认原导入结果'
-                  : preview.existingGoalId != null
-                  ? '确认原导入结果'
-                  : '确认创建目标与全部任务',
-            ),
-          ),
         ],
       ],
     );
+  }
+
+  String _errorText(Object error) {
+    if (error is GoalImportException) {
+      final item = RegExp(r'^/(missions|nodes)/(\d+)').firstMatch(error.path);
+      if (item != null) {
+        return '第 ${int.parse(item.group(2)!) + 1} 个${item.group(1) == 'missions' ? '任务' : '节点'}：${error.message}';
+      }
+      return error.message;
+    }
+    if (error is GoalImportCancelled) return '已取消，可重新选择文件';
+    return error
+        .toString()
+        .replaceFirst('Bad state: ', '')
+        .replaceFirst('FormatException: ', '');
   }
 
   @override

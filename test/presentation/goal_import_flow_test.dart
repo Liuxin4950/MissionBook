@@ -105,10 +105,10 @@ void main() {
     expect(find.textContaining('"interface"'), findsWidgets);
     await tester.enterText(find.byKey(const Key('goal-import-input')), outline);
     await tap(tester, 'goal-import-preview');
-    await tester.drag(find.byType(ListView), const Offset(0, 650));
-    await tester.pumpAndSettle();
-    await tap(tester, 'goal-create');
     await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('离开目标导入？'), findsOneWidget);
+    await tester.tap(find.text('继续填写'));
     await tester.pumpAndSettle();
     await tap(tester, 'goal-import-confirm');
     expect((await goals.findAll()).single.title, '完成自己的项目');
@@ -147,7 +147,7 @@ void main() {
     await tap(tester, 'goal-more-filters');
     await tap(tester, 'goal-import-menu');
     expect(find.byKey(const Key('goal-import-input')), findsOneWidget);
-    await tester.tap(find.text('收起导入区'));
+    await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('goal-import-section')), findsNothing);
     await tap(tester, 'goal-create');

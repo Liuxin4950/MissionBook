@@ -17,7 +17,7 @@ import '../goals/detail/goal_detail_page.dart';
 import '../missions/record/mission_record_page.dart';
 import '../widgets/adaptive_columns.dart';
 import '../widgets/app_confirm_dialog.dart';
-import '../widgets/app_illustration.dart';
+import '../widgets/app_journey_hero.dart';
 import '../widgets/app_page_header.dart';
 import '../widgets/app_section_card.dart';
 import '../widgets/app_text_field.dart';
@@ -220,30 +220,17 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
               ),
             ),
             const SizedBox(height: 24),
-            AdaptiveColumns(
+            Column(
               key: const Key('me-workspace-columns'),
-              minColumnWidth: 400,
-              maxColumns: 2,
-              spacing: 24,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _ProfileCard(
-                      profile: _profile,
-                      error: _profileError,
-                      onEdit: _profile == null ? null : _editProfile,
-                      onRetry: _loadProfile,
-                    ),
-                    if (_statsError == null && _recentRecords.isNotEmpty) ...[
-                      const SizedBox(height: 24),
-                      _RecentRecords(
-                        records: _recentRecords,
-                        onOpen: _openRecord,
-                      ),
-                    ],
-                  ],
+                _ProfileCard(
+                  profile: _profile,
+                  error: _profileError,
+                  onEdit: _profile == null ? null : _editProfile,
+                  onRetry: _loadProfile,
                 ),
+                const SizedBox(height: 16),
                 _ActivityOverview(
                   stats: _statsError == null ? _stats : null,
                   goals: _statsError == null ? _activeGoals : const [],
@@ -251,6 +238,10 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                   error: _statsError,
                   onRetry: _refreshStats,
                 ),
+                if (_statsError == null && _recentRecords.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _RecentRecords(records: _recentRecords, onOpen: _openRecord),
+                ],
               ],
             ),
           ],
@@ -278,39 +269,64 @@ class _ProfileCard extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     return AppSectionCard(
       key: const Key('profile-card'),
-      paperBackground: true,
+      padding: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            profile?.name ?? (error == null ? '正在读取资料…' : '本机资料'),
-            key: const Key('profile-name'),
-            style: text.titleLarge,
+          Image.asset(
+            journeyArtwork,
+            height: 132,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            alignment: Alignment.centerRight,
+            cacheWidth: 1280,
+            excludeFromSemantics: true,
           ),
-          const SizedBox(height: 8),
-          Text(
-            profile?.bio.isNotEmpty == true ? profile!.bio : '把在意的事，一次次落到行动。',
-            style: text.bodyMedium,
-          ),
-          const SizedBox(height: 16),
-          Text('资料仅保存在本机', style: text.bodySmall),
-          const SizedBox(height: 4),
-          TextButton.icon(
-            key: const Key('profile-edit'),
-            onPressed: onEdit,
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            label: const Text('编辑资料'),
-          ),
-          if (error != null) ...[
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                error!,
-                style: text.bodyMedium?.copyWith(color: AppColors.error),
-              ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const CircleAvatar(
+                      backgroundColor: AppColors.primarySoft,
+                      child: Icon(
+                        Icons.person_outline,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        profile?.name ?? (error == null ? '正在读取资料…' : '本机资料'),
+                        key: const Key('profile-name'),
+                        style: text.titleMedium,
+                      ),
+                    ),
+                    IconButton(
+                      key: const Key('profile-edit'),
+                      tooltip: '编辑资料',
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                    ),
+                  ],
+                ),
+                if (profile?.bio.isNotEmpty == true)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(profile!.bio, style: text.bodyMedium),
+                  ),
+                if (error != null) ...[
+                  Text(
+                    error!,
+                    style: text.bodyMedium?.copyWith(color: AppColors.error),
+                  ),
+                  TextButton(onPressed: onRetry, child: const Text('重新读取资料')),
+                ],
+              ],
             ),
-            TextButton(onPressed: onRetry, child: const Text('重新读取资料')),
-          ],
+          ),
         ],
       ),
     );
@@ -368,11 +384,6 @@ class _ActivityOverview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final isEmpty =
-        error == null &&
-        stats != null &&
-        stats!.goals == 0 &&
-        stats!.ended == 0;
     return AppSectionCard(
       key: const Key('activity-overview'),
       child: Column(
@@ -384,49 +395,32 @@ class _ActivityOverview extends StatelessWidget {
             child: Text('我的行动记录', style: text.titleMedium),
           ),
           const SizedBox(height: 16),
-          if (isEmpty) ...[
-            const Center(
-              child: AppIllustration(
-                asset: 'assets/illustrations/history-pages.png',
-                width: 160,
-                height: 110,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '行动会在这里留下记录',
-              textAlign: TextAlign.center,
-              style: text.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-          ],
           AdaptiveColumns(
-            minColumnWidth: 120,
+            minColumnWidth: 88,
             maxColumns: 3,
             spacing: 12,
             children: [
               _ActivityStat(
-                asset: 'assets/illustrations/goal-path.png',
+                icon: Icons.flag_outlined,
                 label: '进行中目标',
                 value: stats?.goals,
                 unit: '个',
               ),
               _ActivityStat(
-                asset: 'assets/illustrations/history-pages.png',
+                icon: Icons.task_alt,
                 label: '已结束任务',
                 value: stats?.ended,
                 unit: '项',
               ),
               _ActivityStat(
-                asset: 'assets/illustrations/focus-hourglass.png',
+                icon: Icons.timelapse_rounded,
                 label: '累计专注',
                 value: stats?.minutes,
                 unit: '分钟',
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text('累计专注仅统计已结束任务。', style: text.bodyMedium),
+
           if (goals.isNotEmpty) ...[
             const SizedBox(height: 20),
             const Divider(height: 1),
@@ -470,12 +464,12 @@ class _ActivityOverview extends StatelessWidget {
 
 class _ActivityStat extends StatelessWidget {
   const _ActivityStat({
-    required this.asset,
+    required this.icon,
     required this.label,
     required this.value,
     required this.unit,
   });
-  final String asset;
+  final IconData icon;
   final String label;
   final int? value;
   final String unit;
@@ -484,24 +478,20 @@ class _ActivityStat extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Image.asset(
-            asset,
-            width: 80,
-            height: 60,
-            cacheWidth: 240,
-            fit: BoxFit.contain,
-            excludeFromSemantics: true,
-          ),
+          Icon(icon, size: 22, color: AppColors.primary),
           const SizedBox(height: 12),
-          Text(label, style: text.bodyMedium),
+          Tooltip(
+            message: label == '累计专注' ? '仅统计已结束任务的实际专注时间' : label,
+            child: Text(label, style: text.bodySmall),
+          ),
           const SizedBox(height: 4),
           Text(
             value == null ? '—' : '$value $unit',

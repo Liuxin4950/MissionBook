@@ -13,6 +13,7 @@ import '../../domain/entities/mission_phase.dart';
 import '../../domain/entities/goal_node.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/mission_detail.dart';
+import '../../domain/entities/historical_completion.dart';
 import '../../domain/entities/mission_plan.dart';
 import '../../domain/entities/mission_ownership.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
@@ -53,6 +54,19 @@ class AssistantTools {
       timeZone: timeZone,
     );
     _tools = [
+      _tool(
+        'mission_complete_history',
+        '用户明确要求补记历史任务已完成时使用。按目标和截止日期（不含当日）一次预览并提交最多10000项；仅处理历史自报任务；无记录时补记完成，执行中或暂停时正常结束，跳过已结束、已取消及有材料要求的任务。保留原计划，记录本次补报的时间和依据，不伪造过去的开始时间或专注时长。不得因时间已过自行推断完成；不能用 START+END 批量绕过。',
+        _schema(
+          {
+            'goalId': _string('目标编号；先查真实目标'),
+            'beforeDate': _string('截止日期 YYYY-MM-DD，不含这一天，不晚于今天'),
+            'statement': _string('用户明确要求补记完成的原意或依据'),
+          },
+          required: ['goalId', 'beforeDate', 'statement'],
+        ),
+        _completeHistory,
+      ),
       _tool(
         'goal_outline_create',
         '一次创建新目标及1–20个分层大纲节点，最多4层。整份可编辑、删除子树并按权限一次确认，全部成功或全部回滚。适用于把新学习目标拆成阶段；不用于向已有目标追加，不创建任务、不标记掌握。随后按用户时间使用 mission_plan 安排任务。',
@@ -361,6 +375,7 @@ class AssistantTools {
   List<AgentTool> get tools => List.unmodifiable(_tools);
 
   static const writeToolNames = {
+    'mission_complete_history',
     'goal_outline_create',
     'mission_retry',
     'mission_plan',
@@ -380,6 +395,52 @@ class AssistantTools {
     Map<String, Object?> input,
   ) async {
     if (!writeToolNames.contains(toolName)) return PreparedToolCall(input);
+    if (toolName == 'mission_complete_history') {
+      final date = input['beforeDate'] as String;
+      try {
+        validateScheduledDate(date);
+      } on ArgumentError {
+        throw const ToolRejected('invalid_date', '请使用有效的截止日期');
+      }
+      if (date.compareTo(_today()) > 0 ||
+          (input['statement'] as String).trim().isEmpty) {
+        throw const ToolRejected('invalid_history', '只能补记今天以前的任务，且需用户明确提供完成依据');
+      }
+      final goal = await _goals.findById(input['goalId'] as String);
+      if (goal == null) throw const ToolRejected('not_found', '目标不存在');
+      final all = await _missions.findForGoalSnapshot(goal.id);
+      final past = all
+          .where((d) => d.schedule.scheduledDate.compareTo(date) < 0)
+          .toList();
+      final eligible =
+          past
+              .where(
+                (d) =>
+                    [
+                      MissionPhase.notStarted,
+                      MissionPhase.running,
+                      MissionPhase.paused,
+                    ].contains(d.phase) &&
+                    d.mission.verificationPolicy ==
+                        VerificationPolicy.selfReport,
+              )
+              .toList()
+            ..sort((a, b) => a.mission.id.compareTo(b.mission.id));
+      if (eligible.isEmpty) {
+        throw const ToolRejected('no_candidates', '这个日期范围没有可处理的历史自报任务');
+      }
+      if (eligible.length > 10000) {
+        throw const ToolRejected('too_many', '请缩小日期范围，每批最多10000项');
+      }
+      return PreparedToolCall(
+        input,
+        snapshot: {
+          'targetTitle': goal.title,
+          'historyMissions': eligible,
+          'historySkippedCount': past.length - eligible.length,
+        },
+      );
+    }
     if (toolName == 'mission_plan') {
       try {
         final draft = await _plans.prepare(input);
@@ -487,6 +548,13 @@ class AssistantTools {
       return AssistantGoalOutline.validate(input);
     }
     try {
+      if (toolName == 'mission_complete_history') {
+        validateScheduledDate(input['beforeDate'] as String);
+        if ((input['beforeDate'] as String).compareTo(_today()) > 0 ||
+            (input['statement'] as String).trim().isEmpty) {
+          return '请提供有效的历史日期范围和补记依据';
+        }
+      }
       if (input['scheduledDate'] is String) {
         validateScheduledDate(input['scheduledDate'] as String);
       }
@@ -518,9 +586,10 @@ class AssistantTools {
   }) async {
     const uuid = Uuid();
     switch (toolName) {
+      case 'mission_complete_history':
       case 'mission_plan':
         final receipt = await _missions.findOperationReceipt(idempotencyKey);
-        return receipt?.kind == 'mission_plan'
+        return receipt?.kind == toolName
             ? ToolOutput.success(receipt!.resultJson)
             : null;
       case 'goal_update':
@@ -617,6 +686,30 @@ class AssistantTools {
       throw ToolRejected('invalid_plan', '整份计划未保存：${error.message}');
     } on StateError catch (error) {
       throw ToolRejected('plan_rejected', '整份计划未保存：$error');
+    }
+  }
+
+  Future<ToolOutput> _completeHistory(
+    Map<String, Object?> input,
+    ToolContext context,
+  ) async {
+    final prepared = _call(context, input);
+    try {
+      final receipt = await _missions.completeHistory(
+        HistoricalCompletion(
+          id: context.idempotencyKey,
+          goalId: prepared.input['goalId'] as String,
+          beforeDate: prepared.input['beforeDate'] as String,
+          statement: prepared.input['statement'] as String,
+          originals:
+              prepared.snapshot['historyMissions'] as List<MissionDetail>,
+        ),
+      );
+      return ToolOutput.success(receipt.resultJson);
+    } on ExecutionConflict catch (error) {
+      throw ToolRejected('history_changed', '$error');
+    } on ArgumentError catch (error) {
+      throw ToolRejected('invalid_history', '${error.message}');
     }
   }
 

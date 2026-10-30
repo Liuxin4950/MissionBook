@@ -10,14 +10,17 @@ class ControlledSpeech implements AssistantSpeech {
   void Function(String)? emit;
   void Function(String)? fail;
   VoidCallback? done;
+  VoidCallback? processing;
   @override
   Future<bool> start({
     required void Function(String) onText,
     required VoidCallback onDone,
+    VoidCallback? onProcessing,
     required void Function(String) onError,
   }) async {
     emit = onText;
     done = onDone;
+    processing = onProcessing;
     fail = onError;
     return permission == null ? available : permission!.future;
   }
@@ -36,6 +39,22 @@ class ControlledSpeech implements AssistantSpeech {
 }
 
 void main() {
+  test('录音达到上限后直接进入转写状态，完成前不能重复录音', () async {
+    final speech = ControlledSpeech();
+    final voice = AssistantVoiceController(speech);
+    await voice.start();
+    speech.processing!();
+    expect(voice.listening, isFalse);
+    expect(voice.stopping, isTrue);
+    await voice.start();
+    expect(voice.stopping, isTrue);
+    speech.emit!('识别成功');
+    speech.done!();
+    expect(voice.busy, isFalse);
+    expect(voice.text, '识别成功');
+    voice.dispose();
+  });
+
   test('转写等待期间取消再重录，旧停止流程不能关闭新一轮', () async {
     final speech = ControlledSpeech()..stoppingGate = Completer<void>();
     final voice = AssistantVoiceController(speech);

@@ -14,7 +14,6 @@ import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/goal.dart';
 import 'package:mission_book/presentation/me/me_page.dart';
-import 'package:mission_book/presentation/widgets/app_illustration.dart';
 import '../support/me_fakes.dart';
 import '../data/repositories/mission_cancellation_test.dart' show seedMission;
 
@@ -241,7 +240,7 @@ void main() {
     final semantics = tester.ensureSemantics();
 
     await open(tester, reduceMotion: true);
-    expect(find.text('行动会在这里留下记录'), findsOneWidget);
+    expect(find.text('我的行动记录'), findsOneWidget);
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('profile-stat-进行中目标')))
@@ -252,19 +251,14 @@ void main() {
       tester.getSemantics(find.byTooltip('设置')).getSemanticsData().tooltip,
       '设置',
     );
-    final illustration = find.descendant(
-      of: find.byKey(const Key('activity-overview')),
-      matching: find.byType(AppIllustration),
-    );
-    expect(illustration, findsOneWidget);
     final image = tester.widget<Image>(
-      find.descendant(of: illustration, matching: find.byType(Image)),
+      find.descendant(
+        of: find.byKey(const Key('profile-card')),
+        matching: find.byType(Image),
+      ),
     );
     expect(image.excludeFromSemantics, isTrue);
-    final opacity = tester.widget<Opacity>(
-      find.descendant(of: illustration, matching: find.byType(Opacity)),
-    );
-    expect(opacity.opacity, 1);
+    expect(image.image, isNotNull);
     semantics.dispose();
   });
 
@@ -273,8 +267,8 @@ void main() {
     final profile = find.byKey(const Key('profile-card'));
     final overview = find.byKey(const Key('activity-overview'));
     expect(
-      tester.getRect(overview).left,
-      greaterThan(tester.getRect(profile).right),
+      tester.getRect(overview).top,
+      greaterThan(tester.getRect(profile).bottom),
     );
     await open(tester, size: const Size(390, 1000), scale: 2);
     expect(
@@ -289,7 +283,7 @@ void main() {
     expect(find.text('本机资料暂时无法读取，请重试'), findsOneWidget);
     expect(
       tester
-          .widget<TextButton>(find.byKey(const Key('profile-edit')))
+          .widget<IconButton>(find.byKey(const Key('profile-edit')))
           .onPressed,
       isNull,
     );
@@ -299,7 +293,7 @@ void main() {
     expect(find.text('本机使用者'), findsOneWidget);
     expect(
       tester
-          .widget<TextButton>(find.byKey(const Key('profile-edit')))
+          .widget<IconButton>(find.byKey(const Key('profile-edit')))
           .onPressed,
       isNotNull,
     );
@@ -328,6 +322,6 @@ void main() {
     await goals.setGoalStatus(goal, GoalStatus.paused);
     await tester.pumpAndSettle();
     expect(shortcut, findsNothing);
-    expect(find.text('行动会在这里留下记录'), findsOneWidget);
+    expect(find.text('我的行动记录'), findsOneWidget);
   });
 }

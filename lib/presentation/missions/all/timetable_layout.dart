@@ -113,6 +113,7 @@ class TimetableConflict {
   DateTime? now,
 ) {
   if (detail.events.isEmpty) return null;
+  if (detail.events.first.isRetrospective) return null;
   final from = detail.events.first.occurredAt; // 时间线第一条必为 START。
   if (now == null && detail.events.last.type != ExecutionEventType.end) {
     return null;

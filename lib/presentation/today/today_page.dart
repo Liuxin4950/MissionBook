@@ -61,6 +61,21 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   );
   // 页面只保存四类信息：选了哪天、查到了什么、是否在等、有没有错误。
   late DateTime _selectedDate;
+  double _daySwipe = 0;
+
+  void _endDaySwipe(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (_daySwipe.abs() < 56 && velocity.abs() < 450) return;
+    final next = _daySwipe.abs() >= 56 ? _daySwipe < 0 : velocity < 0;
+    final date = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day + (next ? 1 : -1),
+    );
+    if (date.year < 1 || date.year > 9999) return;
+    unawaited(_changeDate(date));
+  }
+
   display.TodayMissionGroups _missions =
       const display.TodayMissionGroups.empty();
   bool _isLoading = false;
@@ -341,71 +356,81 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       today.month,
       today.day - today.weekday + 1,
     );
-    final content = SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: AppLayout.dashboardMaxWidth,
-          ),
-          child: RefreshIndicator(
-            onRefresh: _loadMissions,
-            child: ListView(
-              key: const Key('today-list'),
-              // 即使列表为空或很短，也允许向下拖动，触发上面的 onRefresh。
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: AppLayout.pagePadding(context),
-              children: [
-                // 页面顶部：日期文字已经准备好，区域内部只绑定回调、排版。
-                if (!widget.fullSchedule)
-                  _TodayHeader(
-                    dateLabel: display.scheduleDateLabel(_selectedDate),
-                    showTodayShortcut: !DateUtils.isSameDay(
-                      selectedWeek,
-                      currentWeek,
-                    ),
-                    onPickDate: _pickDate,
-                    onCreate: _openCreate,
-                    onOpenAllMissions: _openAllMissions,
-                    onReturnToday: () => _changeDate(_today),
-                  ),
-                if (widget.fullSchedule)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      display.scheduleDateLabel(_selectedDate),
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  )
-                else ...[
-                  const SizedBox(height: 16),
-                  _WeekStrip(
-                    selectedDate: _selectedDate,
-                    today: _today,
-                    onSelect: _changeDate,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                // 构建元素
-                _buildContent(),
-                if (!widget.fullSchedule && _pendingEvidence.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Text('待补材料', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Text('其他日期结束的任务也可以从这里打开执行记录，继续补交材料。'),
-                  for (final detail in _pendingEvidence)
-                    Padding(
-                      key: ValueKey('today-pending-${detail.mission.id}'),
-                      padding: const EdgeInsets.only(top: 8),
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(detail.mission.title),
-                        subtitle: const Text('打开执行记录补交材料'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => _openPendingRecord(detail),
+    final content = GestureDetector(
+      key: const Key('today-day-swipe'),
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: (_) => _daySwipe = 0,
+      onHorizontalDragUpdate: (details) => _daySwipe += details.delta.dx,
+      onHorizontalDragEnd: _endDaySwipe,
+      child: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppLayout.dashboardMaxWidth,
+            ),
+            child: RefreshIndicator(
+              onRefresh: _loadMissions,
+              child: ListView(
+                key: const Key('today-list'),
+                // 即使列表为空或很短，也允许向下拖动，触发上面的 onRefresh。
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: AppLayout.pagePadding(context),
+                children: [
+                  // 页面顶部：日期文字已经准备好，区域内部只绑定回调、排版。
+                  if (!widget.fullSchedule)
+                    _TodayHeader(
+                      dateLabel: display.scheduleDateLabel(_selectedDate),
+                      showTodayShortcut: !DateUtils.isSameDay(
+                        selectedWeek,
+                        currentWeek,
                       ),
+                      onPickDate: _pickDate,
+                      onCreate: _openCreate,
+                      onOpenAllMissions: _openAllMissions,
+                      onReturnToday: () => _changeDate(_today),
                     ),
+                  if (widget.fullSchedule)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        display.scheduleDateLabel(_selectedDate),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    )
+                  else ...[
+                    const SizedBox(height: 16),
+                    _WeekStrip(
+                      selectedDate: _selectedDate,
+                      today: _today,
+                      onSelect: _changeDate,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  // 构建元素
+                  _buildContent(),
+                  if (!widget.fullSchedule && _pendingEvidence.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    Text(
+                      '待补材料',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text('其他日期结束的任务也可以从这里打开执行记录，继续补交材料。'),
+                    for (final detail in _pendingEvidence)
+                      Padding(
+                        key: ValueKey('today-pending-${detail.mission.id}'),
+                        padding: const EdgeInsets.only(top: 8),
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(detail.mission.title),
+                          subtitle: const Text('打开执行记录补交材料'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => _openPendingRecord(detail),
+                        ),
+                      ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),

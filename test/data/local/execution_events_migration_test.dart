@@ -62,6 +62,7 @@ Future<Map<String, List<Map<String, dynamic>>>> _readOldRows(
     result[table] = [
       for (final row in rows)
         Map<String, dynamic>.from(row.data)
+          ..remove('is_retrospective')
           ..remove('source_mission_id')
           ..remove('relation_type')
           ..remove('evidence_waived_at')
@@ -234,7 +235,7 @@ void main() {
       }
     });
 
-    for (final oldVersion in [5, 6, 7, 8, 9, 10, 11]) {
+    for (final oldVersion in [5, 6, 7, 8, 9, 10, 11, 12]) {
       test('v$oldVersion 全表逐字段保留，旧任务独立，关闭重开仍完整', () async {
         final tables = [
           ..._oldTables,
@@ -256,12 +257,13 @@ void main() {
                         .get())
                   {
                     for (final entry in row.data.entries)
-                      if (table != 'missions' ||
-                          !['goal_id', 'goal_node_id'].contains(entry.key))
-                        if (table != 'evidence_records' ||
-                            oldVersion >= 9 ||
-                            entry.key != 'supersedes_evidence_id')
-                          entry.key: entry.value,
+                      if (entry.key != 'is_retrospective')
+                        if (table != 'missions' ||
+                            !['goal_id', 'goal_node_id'].contains(entry.key))
+                          if (table != 'evidence_records' ||
+                              oldVersion >= 9 ||
+                              entry.key != 'supersedes_evidence_id')
+                            entry.key: entry.value,
                   },
               ],
           };
@@ -336,7 +338,7 @@ void main() {
         }
         final upgraded = AppDatabase(executor: NativeDatabase(file));
         try {
-          expect(await _version(upgraded), 12);
+          expect(await _version(upgraded), 13);
           expect(await snapshot(upgraded), before);
           expect(
             await upgraded.select(upgraded.goals).get(),
@@ -371,7 +373,7 @@ void main() {
         final reopened = AppDatabase(executor: NativeDatabase(file));
         try {
           expect(await snapshot(reopened), before);
-          expect(await _version(reopened), 12);
+          expect(await _version(reopened), 13);
         } finally {
           await reopened.close();
         }
@@ -422,7 +424,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 12);
+        expect(await _version(retry), 13);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -447,6 +449,7 @@ void main() {
                     .customSelect('SELECT * FROM $table ORDER BY id')
                     .get())
               Map<String, dynamic>.from(row.data)
+                ..remove('is_retrospective')
                 ..remove('evidence_waived_at')
                 ..remove('goal_id')
                 ..remove('goal_node_id'),
@@ -489,7 +492,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 12);
+        expect(await _version(upgraded), 13);
         expect(await snapshot(upgraded), before);
         expect(
           (await upgraded.select(upgraded.missions).get()).every(
@@ -543,19 +546,19 @@ void main() {
                     'SELECT * FROM execution_events ORDER BY sequence',
                   )
                   .get())
-            row.data,
+            (Map<String, dynamic>.from(row.data)..remove('is_retrospective')),
         ];
         oldFailures = [
           for (final row
               in await old.customSelect('SELECT * FROM failure_records').get())
-            row.data,
+            (Map<String, dynamic>.from(row.data)..remove('is_retrospective')),
         ];
       } finally {
         await old.close();
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 12);
+        expect(await _version(upgraded), 13);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -564,14 +567,14 @@ void main() {
                     'SELECT * FROM execution_events ORDER BY sequence',
                   )
                   .get())
-            row.data,
+            (Map<String, dynamic>.from(row.data)..remove('is_retrospective')),
         ], oldEvents);
         expect([
           for (final row
               in await upgraded
                   .customSelect('SELECT * FROM failure_records')
                   .get())
-            row.data,
+            (Map<String, dynamic>.from(row.data)..remove('is_retrospective')),
         ], oldFailures);
         final missions = await upgraded.select(upgraded.missions).get();
         expect(
@@ -608,7 +611,7 @@ void main() {
         oldEvents = [
           for (final row
               in await old.customSelect('SELECT * FROM execution_events').get())
-            row.data,
+            (Map<String, dynamic>.from(row.data)..remove('is_retrospective')),
         ];
         expect(await _version(old), 2);
       } finally {
@@ -616,14 +619,14 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 12);
+        expect(await _version(upgraded), 13);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
               in await upgraded
                   .customSelect('SELECT * FROM execution_events')
                   .get())
-            row.data,
+            (Map<String, dynamic>.from(row.data)..remove('is_retrospective')),
         ], oldEvents);
         expect(await upgraded.select(upgraded.failureRecords).get(), isEmpty);
         await upgraded.validateDatabaseSchema();
@@ -645,7 +648,7 @@ void main() {
 
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 12);
+        expect(await _version(upgraded), 13);
         expect(await _readOldRows(upgraded), before);
         expect(await upgraded.select(upgraded.executionEvents).get(), isEmpty);
         await upgraded.validateDatabaseSchema();
@@ -683,7 +686,7 @@ void main() {
 
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 12);
+        expect(await _version(reopened), 13);
         expect(await _readOldRows(reopened), before);
         final event = await reopened
             .select(reopened.executionEvents)
@@ -715,7 +718,7 @@ void main() {
       }
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 12);
+        expect(await _version(reopened), 13);
         expect(await _readOldRows(reopened), before);
         await reopened.validateDatabaseSchema();
       } finally {
@@ -758,7 +761,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 12);
+        expect(await _version(retry), 13);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -802,7 +805,7 @@ void main() {
     tearDown(() async => database.close());
 
     test('v12 新装十二表与索引符合当前定义', () async {
-      expect(await _version(database), 12);
+      expect(await _version(database), 13);
       expect(database.allTables, hasLength(12));
       await database.validateDatabaseSchema();
       expect(

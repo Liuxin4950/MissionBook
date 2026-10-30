@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../widgets/app_empty_state.dart';
+import '../../widgets/app_journey_hero.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/detail_pane.dart';
 
@@ -17,7 +18,7 @@ import '../form/goal_form_page.dart';
 import '../outline/goal_outline_section.dart';
 import '../shared/goal_record_summary.dart';
 import '../shared/goal_status_display.dart';
-import '../form/goal_import_section.dart';
+import '../form/goal_import_page.dart';
 
 /// 目标导航页：读取正式目标、创建目标并进入详情。
 class GoalsPage extends StatefulWidget {
@@ -33,7 +34,6 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
   StreamSubscription<void>? _changes;
   bool _opening = false; // 防止连续点击叠加两个创建或详情页面。
   GoalStatus _selectedStatus = GoalStatus.active;
-  bool _importOpen = false;
   Goal? _outlineGoal;
   bool _switchingOutline = false;
   final _outlineKey = GlobalKey<GoalOutlineSectionState>();
@@ -56,32 +56,25 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     }
   }
 
-  final _importKey = GlobalKey<GoalImportSectionState>();
-
-  // 导入是独立的次级入口；普通创建直接打开表单，不再先问一次创建方式。
-  void _openImport() {
-    if (_selectedStatus != GoalStatus.active) return;
-    if (!_importOpen) setState(() => _importOpen = true);
-  }
-
-  Future<void> _closeImport() async {
-    if (!await (_importKey.currentState?.prepareToCollapse() ??
-        Future.value(true))) {
-      return;
+  Future<void> _openImport() async {
+    if (_opening || _selectedStatus != GoalStatus.active) return;
+    _opening = true;
+    try {
+      final id = await openDetailPane<String>(
+        context,
+        label: '导入目标与计划',
+        builder: (_) => GoalImportPage(service: widget.service),
+      );
+      if (!mounted) return;
+      _refresh();
+      if (id != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已导入目标与计划')));
+      }
+    } finally {
+      _opening = false;
     }
-    if (mounted) setState(() => _importOpen = false);
-  }
-
-  void _imported(String id) {
-    if (!mounted) return;
-    setState(() {
-      _importOpen = false;
-      _selectedStatus = GoalStatus.active;
-      _goals = _load();
-    });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('目标和完整路径已创建')));
   }
 
   @override
@@ -123,13 +116,8 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
           await (_outlineKey.currentState?.prepareToCollapse() ??
               Future.value(true));
       if (!mounted || !canLeaveOutline) return;
-      final canLeaveImport =
-          await (_importKey.currentState?.prepareToCollapse() ??
-              Future.value(true));
-      if (!mounted || !canLeaveImport) return;
       setState(() {
         _outlineGoal = null;
-        _importOpen = false;
         _selectedStatus = value;
         _goals = _load();
       });
@@ -310,24 +298,6 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                     const SizedBox(height: 16),
                     _statusTabs(context),
                     const SizedBox(height: 20),
-                    if (_selectedStatus == GoalStatus.active &&
-                        _importOpen &&
-                        !emptyActive) ...[
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          onPressed: _closeImport,
-                          icon: const Icon(Icons.close),
-                          label: const Text('收起导入区'),
-                        ),
-                      ),
-                      GoalImportSection(
-                        key: _importKey,
-                        service: widget.service,
-                        onImported: _imported,
-                      ),
-                      const SizedBox(height: 20),
-                    ],
                     if (_selectedStatus == GoalStatus.dropped &&
                         (waiting || snapshot.hasError || visible.isNotEmpty))
                       Align(
@@ -460,58 +430,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _emptyWorkspace(BuildContext context) => LayoutBuilder(
-    builder: (context, box) {
-      final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-      final split = box.maxWidth >= 900 * scale;
-      final width = split ? (box.maxWidth - 24) / 2 : box.maxWidth;
-      return Wrap(
-        key: const Key('goal-empty-workspace'),
-        spacing: 24,
-        runSpacing: 24,
-        children: [
-          if (split || !_importOpen)
-            SizedBox(
-              width: width,
-              child: _empty(context, showImportAction: !split),
-            ),
-          if (split || _importOpen)
-            SizedBox(
-              key: const Key('goal-import-pane'),
-              width: width,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!split)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton.icon(
-                          key: const Key('goal-create'),
-                          onPressed: _create,
-                          icon: const Icon(Icons.add),
-                          label: const Text('新建目标'),
-                        ),
-                        TextButton.icon(
-                          onPressed: _closeImport,
-                          icon: const Icon(Icons.close),
-                          label: const Text('收起导入区'),
-                        ),
-                      ],
-                    ),
-                  GoalImportSection(
-                    key: _importKey,
-                    service: widget.service,
-                    onImported: _imported,
-                    onDraftChanged: _openImport,
-                  ),
-                ],
-              ),
-            ),
-        ],
-      );
-    },
-  );
+  Widget _emptyWorkspace(BuildContext context) => _empty(context);
 
   // 状态分类只展示本分类内容，空列表不补放其他分类或创建工作区。
   Widget _emptyStatusWorkspace(BuildContext context) => Align(
@@ -544,6 +463,32 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
         : _selectedStatus == GoalStatus.achieved
         ? '没有已达成的目标'
         : '没有已放弃的目标';
+    if (active) {
+      return AppJourneyHero(
+        key: const Key('goal-empty-state'),
+        title: title,
+        illustrationKey: const ValueKey('goal-empty-illustration-active'),
+        actions: Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            FilledButton.icon(
+              key: const Key('goal-create'),
+              onPressed: _create,
+              icon: const Icon(Icons.add),
+              label: const Text('创建目标'),
+            ),
+            if (showImportAction)
+              OutlinedButton.icon(
+                key: const Key('goal-create-import'),
+                onPressed: _openImport,
+                icon: const Icon(Icons.upload_file_outlined, size: 18),
+                label: const Text('导入文件'),
+              ),
+          ],
+        ),
+      );
+    }
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -560,7 +505,6 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
             illustrationKey: ValueKey(
               'goal-empty-illustration-${_selectedStatus.name}',
             ),
-            details: active ? const _GoalJourneyHint() : null,
             actions: active
                 ? Wrap(
                     spacing: 12,
@@ -578,7 +522,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                         TextButton(
                           key: const Key('goal-create-import'),
                           onPressed: _openImport,
-                          child: const Text('导入大纲'),
+                          child: const Text('导入文件'),
                         ),
                     ],
                   )
@@ -588,90 +532,6 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
       ),
     );
   }
-}
-
-/// 用顺序显现表达目标→行动→记录的关系，不表示已经完成任何一步。
-class _GoalJourneyHint extends StatefulWidget {
-  const _GoalJourneyHint();
-
-  @override
-  State<_GoalJourneyHint> createState() => _GoalJourneyHintState();
-}
-
-class _GoalJourneyHintState extends State<_GoalJourneyHint>
-    with SingleTickerProviderStateMixin {
-  late final _flow = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 640),
-  );
-  bool _started = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _started = true;
-      _flow.value = 1;
-    } else if (!_started && TickerMode.valuesOf(context).enabled) {
-      _started = true;
-      _flow.forward();
-    }
-  }
-
-  @override
-  void dispose() {
-    _flow.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    label: '使用流程：设定目标，拆分行动，回看记录',
-    child: ExcludeSemantics(
-      child: AnimatedBuilder(
-        animation: _flow,
-        builder: (context, _) => Row(
-          children: [
-            for (var index = 0; index < 3; index++) ...[
-              if (index > 0)
-                SizedBox(
-                  width: 24,
-                  child: Opacity(
-                    opacity: ((_flow.value - index * .15) / .6).clamp(0, 1),
-                    child: const Icon(Icons.arrow_forward, size: 16),
-                  ),
-                ),
-              Expanded(
-                child: Opacity(
-                  opacity:
-                      .25 +
-                      .75 * ((_flow.value - index * .15) / .6).clamp(0, 1),
-                  child: Column(
-                    children: [
-                      Icon(
-                        [
-                          Icons.flag_outlined,
-                          Icons.route_outlined,
-                          Icons.auto_stories_outlined,
-                        ][index],
-                        size: 24,
-                        color: AppColors.primary,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        ['目标', '行动', '记录'][index],
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    ),
-  );
 }
 
 /// 目标卡负责选择与阅读；宽屏将目录放在卡片旁，窄屏在下方继续。

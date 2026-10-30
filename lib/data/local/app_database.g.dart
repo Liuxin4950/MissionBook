@@ -3193,6 +3193,21 @@ class $ExecutionEventsTable extends ExecutionEvents
           'CHECK ("submit_optional_evidence" IN (0, 1))',
         ),
       );
+  static const VerificationMeta _isRetrospectiveMeta = const VerificationMeta(
+    'isRetrospective',
+  );
+  @override
+  late final GeneratedColumn<bool> isRetrospective = GeneratedColumn<bool>(
+    'is_retrospective',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_retrospective" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3205,6 +3220,7 @@ class $ExecutionEventsTable extends ExecutionEvents
     reason,
     userReportedResult,
     submitOptionalEvidence,
+    isRetrospective,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3297,6 +3313,15 @@ class $ExecutionEventsTable extends ExecutionEvents
         ),
       );
     }
+    if (data.containsKey('is_retrospective')) {
+      context.handle(
+        _isRetrospectiveMeta,
+        isRetrospective.isAcceptableOrUnknown(
+          data['is_retrospective']!,
+          _isRetrospectiveMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3350,6 +3375,10 @@ class $ExecutionEventsTable extends ExecutionEvents
         DriftSqlType.bool,
         data['${effectivePrefix}submit_optional_evidence'],
       ),
+      isRetrospective: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_retrospective'],
+      )!,
     );
   }
 
@@ -3371,6 +3400,7 @@ class ExecutionEventRow extends DataClass
   final String? reason;
   final String? userReportedResult;
   final bool? submitOptionalEvidence;
+  final bool isRetrospective;
   const ExecutionEventRow({
     required this.id,
     required this.missionId,
@@ -3382,6 +3412,7 @@ class ExecutionEventRow extends DataClass
     this.reason,
     this.userReportedResult,
     this.submitOptionalEvidence,
+    required this.isRetrospective,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3406,6 +3437,7 @@ class ExecutionEventRow extends DataClass
     if (!nullToAbsent || submitOptionalEvidence != null) {
       map['submit_optional_evidence'] = Variable<bool>(submitOptionalEvidence);
     }
+    map['is_retrospective'] = Variable<bool>(isRetrospective);
     return map;
   }
 
@@ -3431,6 +3463,7 @@ class ExecutionEventRow extends DataClass
       submitOptionalEvidence: submitOptionalEvidence == null && nullToAbsent
           ? const Value.absent()
           : Value(submitOptionalEvidence),
+      isRetrospective: Value(isRetrospective),
     );
   }
 
@@ -3458,6 +3491,7 @@ class ExecutionEventRow extends DataClass
       submitOptionalEvidence: serializer.fromJson<bool?>(
         json['submitOptionalEvidence'],
       ),
+      isRetrospective: serializer.fromJson<bool>(json['isRetrospective']),
     );
   }
   @override
@@ -3476,6 +3510,7 @@ class ExecutionEventRow extends DataClass
       'submitOptionalEvidence': serializer.toJson<bool?>(
         submitOptionalEvidence,
       ),
+      'isRetrospective': serializer.toJson<bool>(isRetrospective),
     };
   }
 
@@ -3490,6 +3525,7 @@ class ExecutionEventRow extends DataClass
     Value<String?> reason = const Value.absent(),
     Value<String?> userReportedResult = const Value.absent(),
     Value<bool?> submitOptionalEvidence = const Value.absent(),
+    bool? isRetrospective,
   }) => ExecutionEventRow(
     id: id ?? this.id,
     missionId: missionId ?? this.missionId,
@@ -3509,6 +3545,7 @@ class ExecutionEventRow extends DataClass
     submitOptionalEvidence: submitOptionalEvidence.present
         ? submitOptionalEvidence.value
         : this.submitOptionalEvidence,
+    isRetrospective: isRetrospective ?? this.isRetrospective,
   );
   ExecutionEventRow copyWithCompanion(ExecutionEventsCompanion data) {
     return ExecutionEventRow(
@@ -3532,6 +3569,9 @@ class ExecutionEventRow extends DataClass
       submitOptionalEvidence: data.submitOptionalEvidence.present
           ? data.submitOptionalEvidence.value
           : this.submitOptionalEvidence,
+      isRetrospective: data.isRetrospective.present
+          ? data.isRetrospective.value
+          : this.isRetrospective,
     );
   }
 
@@ -3547,7 +3587,8 @@ class ExecutionEventRow extends DataClass
           ..write('grantedDurationMinutes: $grantedDurationMinutes, ')
           ..write('reason: $reason, ')
           ..write('userReportedResult: $userReportedResult, ')
-          ..write('submitOptionalEvidence: $submitOptionalEvidence')
+          ..write('submitOptionalEvidence: $submitOptionalEvidence, ')
+          ..write('isRetrospective: $isRetrospective')
           ..write(')'))
         .toString();
   }
@@ -3564,6 +3605,7 @@ class ExecutionEventRow extends DataClass
     reason,
     userReportedResult,
     submitOptionalEvidence,
+    isRetrospective,
   );
   @override
   bool operator ==(Object other) =>
@@ -3578,7 +3620,8 @@ class ExecutionEventRow extends DataClass
           other.grantedDurationMinutes == this.grantedDurationMinutes &&
           other.reason == this.reason &&
           other.userReportedResult == this.userReportedResult &&
-          other.submitOptionalEvidence == this.submitOptionalEvidence);
+          other.submitOptionalEvidence == this.submitOptionalEvidence &&
+          other.isRetrospective == this.isRetrospective);
 }
 
 class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
@@ -3592,6 +3635,7 @@ class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
   final Value<String?> reason;
   final Value<String?> userReportedResult;
   final Value<bool?> submitOptionalEvidence;
+  final Value<bool> isRetrospective;
   final Value<int> rowid;
   const ExecutionEventsCompanion({
     this.id = const Value.absent(),
@@ -3604,6 +3648,7 @@ class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
     this.reason = const Value.absent(),
     this.userReportedResult = const Value.absent(),
     this.submitOptionalEvidence = const Value.absent(),
+    this.isRetrospective = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ExecutionEventsCompanion.insert({
@@ -3617,6 +3662,7 @@ class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
     this.reason = const Value.absent(),
     this.userReportedResult = const Value.absent(),
     this.submitOptionalEvidence = const Value.absent(),
+    this.isRetrospective = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        missionId = Value(missionId),
@@ -3634,6 +3680,7 @@ class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
     Expression<String>? reason,
     Expression<String>? userReportedResult,
     Expression<bool>? submitOptionalEvidence,
+    Expression<bool>? isRetrospective,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3651,6 +3698,7 @@ class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
         'user_reported_result': userReportedResult,
       if (submitOptionalEvidence != null)
         'submit_optional_evidence': submitOptionalEvidence,
+      if (isRetrospective != null) 'is_retrospective': isRetrospective,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3666,6 +3714,7 @@ class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
     Value<String?>? reason,
     Value<String?>? userReportedResult,
     Value<bool?>? submitOptionalEvidence,
+    Value<bool>? isRetrospective,
     Value<int>? rowid,
   }) {
     return ExecutionEventsCompanion(
@@ -3681,6 +3730,7 @@ class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
       userReportedResult: userReportedResult ?? this.userReportedResult,
       submitOptionalEvidence:
           submitOptionalEvidence ?? this.submitOptionalEvidence,
+      isRetrospective: isRetrospective ?? this.isRetrospective,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3722,6 +3772,9 @@ class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
         submitOptionalEvidence.value,
       );
     }
+    if (isRetrospective.present) {
+      map['is_retrospective'] = Variable<bool>(isRetrospective.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3741,6 +3794,7 @@ class ExecutionEventsCompanion extends UpdateCompanion<ExecutionEventRow> {
           ..write('reason: $reason, ')
           ..write('userReportedResult: $userReportedResult, ')
           ..write('submitOptionalEvidence: $submitOptionalEvidence, ')
+          ..write('isRetrospective: $isRetrospective, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -10307,6 +10361,7 @@ typedef $$ExecutionEventsTableCreateCompanionBuilder =
       Value<String?> reason,
       Value<String?> userReportedResult,
       Value<bool?> submitOptionalEvidence,
+      Value<bool> isRetrospective,
       Value<int> rowid,
     });
 typedef $$ExecutionEventsTableUpdateCompanionBuilder =
@@ -10321,6 +10376,7 @@ typedef $$ExecutionEventsTableUpdateCompanionBuilder =
       Value<String?> reason,
       Value<String?> userReportedResult,
       Value<bool?> submitOptionalEvidence,
+      Value<bool> isRetrospective,
       Value<int> rowid,
     });
 
@@ -10424,6 +10480,11 @@ class $$ExecutionEventsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get isRetrospective => $composableBuilder(
+    column: $table.isRetrospective,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$MissionsTableFilterComposer get missionId {
     final $$MissionsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -10521,6 +10582,11 @@ class $$ExecutionEventsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isRetrospective => $composableBuilder(
+    column: $table.isRetrospective,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MissionsTableOrderingComposer get missionId {
     final $$MissionsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -10607,6 +10673,11 @@ class $$ExecutionEventsTableAnnotationComposer
 
   GeneratedColumn<bool> get submitOptionalEvidence => $composableBuilder(
     column: $table.submitOptionalEvidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isRetrospective => $composableBuilder(
+    column: $table.isRetrospective,
     builder: (column) => column,
   );
 
@@ -10698,6 +10769,7 @@ class $$ExecutionEventsTableTableManager
                 Value<String?> reason = const Value.absent(),
                 Value<String?> userReportedResult = const Value.absent(),
                 Value<bool?> submitOptionalEvidence = const Value.absent(),
+                Value<bool> isRetrospective = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ExecutionEventsCompanion(
                 id: id,
@@ -10710,6 +10782,7 @@ class $$ExecutionEventsTableTableManager
                 reason: reason,
                 userReportedResult: userReportedResult,
                 submitOptionalEvidence: submitOptionalEvidence,
+                isRetrospective: isRetrospective,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -10724,6 +10797,7 @@ class $$ExecutionEventsTableTableManager
                 Value<String?> reason = const Value.absent(),
                 Value<String?> userReportedResult = const Value.absent(),
                 Value<bool?> submitOptionalEvidence = const Value.absent(),
+                Value<bool> isRetrospective = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ExecutionEventsCompanion.insert(
                 id: id,
@@ -10736,6 +10810,7 @@ class $$ExecutionEventsTableTableManager
                 reason: reason,
                 userReportedResult: userReportedResult,
                 submitOptionalEvidence: submitOptionalEvidence,
+                isRetrospective: isRetrospective,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

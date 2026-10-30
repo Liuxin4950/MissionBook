@@ -191,7 +191,7 @@ void main() {
         heading.style,
         Theme.of(tester.element(find.text(title))).textTheme.titleLarge,
       );
-      expect(heading.textAlign, TextAlign.center);
+      expect(heading.textAlign, status == 'active' ? isNull : TextAlign.center);
       expect(tester.getTopLeft(filter).dy, top);
       expect(find.text('0 个目标'), findsOneWidget);
     }
@@ -209,7 +209,7 @@ void main() {
         tester.element(find.byKey(const Key('goal-import-input'))),
       ).textTheme.bodyLarge,
     );
-    await tester.tap(find.text('收起导入区'));
+    await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('goal-import-input')), findsNothing);
     await tap(tester, 'goal-create');
@@ -247,7 +247,7 @@ void main() {
     }
   });
 
-  testWidgets('切换分类前保护导入草稿，放弃后才隐藏导入区，返回进行中可重新导入', (tester) async {
+  testWidgets('导入页返回保护草稿，放弃后可切换分类并重新导入', (tester) async {
     const draft = '{"尚未保存":"导入草稿"}';
     for (final width in [390.0, 1366.0]) {
       await open(tester, width: width);
@@ -255,7 +255,8 @@ void main() {
         await tap(tester, 'goal-create-import');
       }
       await tester.enterText(find.byKey(const Key('goal-import-input')), draft);
-      await tap(tester, 'goal-filter-paused');
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
       expect(find.text('离开目标导入？'), findsOneWidget);
       await tester.tap(find.text('继续填写'));
       await tester.pumpAndSettle();
@@ -267,9 +268,11 @@ void main() {
             .text,
         draft,
       );
-      await tap(tester, 'goal-filter-achieved');
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('放弃草稿'));
       await tester.pumpAndSettle();
+      await tap(tester, 'goal-filter-achieved');
       expect(find.text('没有已达成的目标'), findsOneWidget);
       expect(find.byKey(const Key('goal-import-input')), findsNothing);
       await tap(tester, 'goal-filter-active');

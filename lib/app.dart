@@ -161,14 +161,17 @@ class _AppState extends State<App> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // inactive 也可能只是权限窗口；只有确实隐藏/后台才停止模型后续步骤。
+    // 后台保留模型请求；麦克风单独结束，不能把切应用等同于用户停止AI。
     if (state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      _assistant.stop();
+        state == AppLifecycleState.paused) {
+      _assistant.setForeground(false);
       unawaited(_assistantVoice.cancel());
     }
-    _foreground = state == AppLifecycleState.resumed;
+    if (state == AppLifecycleState.detached) _assistant.stop();
+    if (state == AppLifecycleState.resumed) _assistant.setForeground(true);
+    _foreground =
+        state == AppLifecycleState.resumed ||
+        state == AppLifecycleState.inactive;
     if (_foreground) {
       unawaited(_scheduleDeadlineCheck());
       // 回到前台对账一次提醒调度（§7.1：只整理提醒，不写业务事实）。

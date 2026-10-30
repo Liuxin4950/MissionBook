@@ -179,16 +179,14 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: const AppTopBar(
       title: '助手设置',
-      maxContentWidth: AppLayout.dashboardMaxWidth,
+      maxContentWidth: AppLayout.formMaxWidth,
     ),
     bottomNavigationBar: SafeArea(
       top: false,
       child: Center(
         heightFactor: 1,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: AppLayout.dashboardMaxWidth,
-          ),
+          constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
           child: Padding(
             padding: EdgeInsets.fromLTRB(
               AppLayout.horizontalPadding(context),
@@ -226,22 +224,34 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       top: false,
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: AppLayout.dashboardMaxWidth,
-          ),
+          constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
           child: ListView(
             padding: AppLayout.pagePadding(context),
             children: [
-              _buildPersonaSection(),
-              const SizedBox(height: AppLayout.sectionGap),
               AdaptiveColumns(
-                minColumnWidth: 340,
+                minColumnWidth: 390,
                 maxColumns: 2,
-                children: [_buildModelSection(), _buildPermissionSection()],
+                spacing: 16,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildModelSection(),
+                      const SizedBox(height: 16),
+                      _buildSpeechSection(),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildPersonaSection(),
+                      const SizedBox(height: 16),
+                      _buildPermissionSection(),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-              _buildSpeechSection(),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               AppSectionCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -266,6 +276,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   );
 
   Widget _buildPersonaSection() => AppSectionCard(
+    padding: const EdgeInsets.all(16),
     child: ExpansionTile(
       key: const Key('assistant-persona-section'),
       tilePadding: EdgeInsets.zero,
@@ -362,6 +373,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   );
 
   Widget _buildModelSection() => AppSectionCard(
+    padding: const EdgeInsets.all(16),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -374,7 +386,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
           items: const [
             DropdownMenuItem(
               value: 'deepseek-chat',
-              child: Text('DeepSeek · Chat Completions'),
+              child: Text('DeepSeek · Chat', overflow: TextOverflow.ellipsis),
             ),
             DropdownMenuItem(
               value: 'deepseek',
@@ -452,7 +464,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
             ? null
             : _testConnection,
         icon: const Icon(Icons.network_check_outlined),
-        label: Text(_testing ? '正在测试…' : '测试已保存配置'),
+        label: Text(_testing ? '正在测试…' : '测试连接'),
       ),
     ],
   );
@@ -522,6 +534,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   ];
 
   Widget _buildPermissionSection() => AppSectionCard(
+    padding: const EdgeInsets.all(16),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -539,7 +552,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                 key: Key('assistant-permission-${mode.name}'),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 4,
+                  vertical: 0,
                 ),
                 leading: Icon(
                   _permission == mode
@@ -559,7 +572,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
           ),
         const SizedBox(height: 8),
         Text(
-          '执行动作（开始、暂停、继续、延长、结束）都属于写入。所有模式保留业务校验、冲突检查和操作结果。更改后点击“保存设置”生效。',
+          '执行与修改都属于写入。各模式均保留业务校验；保存后生效。',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -567,6 +580,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   );
 
   Widget _buildSpeechSection() => AppSectionCard(
+    padding: const EdgeInsets.all(16),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -589,9 +603,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         if (!_transcription) ...[
           const OfflineSpeechModelSection(),
         ] else ...[
-          const Text(
-            '配置支持 OpenAI 兼容音频转写接口的服务。聊天模型 API Key 不会自动用于此服务。录音结束后转写，检查文字后再发送；每次最长 50 秒。',
-          ),
+          const Text('录音结束后转写，最长 50 秒。此服务使用独立的 API Key。'),
           const SizedBox(height: 12),
           TextField(
             controller: _speechEndpoint,

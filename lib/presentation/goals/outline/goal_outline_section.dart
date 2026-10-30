@@ -644,112 +644,111 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                       setState(() => _swipedNodeId = null);
                     }
                   },
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: entry.depth == 0
-                          ? AppColors.surfaceMuted.withValues(alpha: .65)
-                          : null,
-                      borderRadius: BorderRadius.circular(12),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: entry.depth == 0
+                        ? AppColors.surfaceMuted.withValues(alpha: .65)
+                        : null,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: _nodeRowPadding,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: _nodeRowPadding,
-                      ),
-                      // 任务区放在整行下方，不再塞进标题旁的 Expanded 列，展开后能使用整块可用宽度。
-                      child:
-                          widget.missionService != null && widget.goal != null
-                          ? _missionsFor(
-                              node,
-                              leading: treeToggle,
-                              trailing: menu,
-                              annotation: annotation,
-                              onNodeTap: hasChildren ? toggleChildren : null,
-                            )
-                          : GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: hasChildren ? toggleChildren : null,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      SizedBox.square(
-                                        dimension:
-                                            GoalMissionsSection.markerExtent,
-                                        child:
-                                            treeToggle ??
-                                            const Icon(
-                                              Icons.radio_button_unchecked,
-                                              size: 18,
-                                              color: AppColors.outline,
-                                            ),
-                                      ),
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 12,
+                    // 任务区放在整行下方，不再塞进标题旁的 Expanded 列，展开后能使用整块可用宽度。
+                    child: widget.missionService != null && widget.goal != null
+                        ? _missionsFor(
+                            node,
+                            leading: treeToggle,
+                            trailing: menu,
+                            annotation: annotation,
+                            onNodeTap: hasChildren ? toggleChildren : null,
+                          )
+                        : GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: hasChildren ? toggleChildren : null,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox.square(
+                                      dimension:
+                                          GoalMissionsSection.markerExtent,
+                                      child:
+                                          treeToggle ??
+                                          const Icon(
+                                            Icons.radio_button_unchecked,
+                                            size: 18,
+                                            color: AppColors.outline,
                                           ),
-                                          child: Text(
-                                            node.title,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleMedium
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                          ),
+                                    ),
+                                    Expanded(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        child: Text(
+                                          node.title,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                         ),
                                       ),
-                                      menu,
-                                    ],
-                                  ),
-                                  if (annotation.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(left: 48),
-                                      child: Text(
-                                        annotation,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium,
-                                      ),
                                     ),
-                                ],
-                              ),
+                                    menu,
+                                  ],
+                                ),
+                                if (annotation.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 48),
+                                    child: Text(
+                                      annotation,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ),
+                              ],
                             ),
-                    ),
+                          ),
                   ),
                 ),
                 if (_swipedNodeId == node.id && !archived)
                   Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: TextButton.icon(
-                      key: Key('node-swipe-archive-${node.id}'),
-                      onPressed: _busy
-                          ? null
-                          : () {
-                              setState(() => _swipedNodeId = null);
-                              unawaited(
-                                _run(
-                                  () => widget.service.archiveNode(node.id),
-                                  archive: node,
-                                ),
-                              );
-                            },
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.error,
-                        backgroundColor: AppColors.errorSoft,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        key: Key('node-swipe-archive-${node.id}'),
+                        onPressed: _busy
+                            ? null
+                            : () {
+                                setState(() => _swipedNodeId = null);
+                                unawaited(
+                                  _run(
+                                    () => widget.service.archiveNode(node.id),
+                                    archive: node,
+                                  ),
+                                );
+                              },
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                          backgroundColor: AppColors.errorSoft,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
+                        icon: const Icon(Icons.archive_outlined, size: 18),
+                        label: const Text('归档'),
                       ),
-                      icon: const Icon(Icons.archive_outlined, size: 18),
-                      label: const Text('归档'),
                     ),
                   ),
               ],

@@ -25,6 +25,7 @@ class ExecutionEvent {
     this.reason,
     this.userReportedResult,
     this.submitOptionalEvidence,
+    this.isRetrospective = false,
   });
 
   /// 本条事件的唯一编号。
@@ -42,7 +43,7 @@ class ExecutionEvent {
   /// 动作实际发生的时刻，统一使用UTC。
   final DateTime occurredAt;
 
-  /// 仅 START 必填；引用同一任务当时最新的排期版本。
+  /// START或历史补报必填；引用同一任务当时最新的排期版本。
   /// 其他事件为空。
   final String? scheduleRevisionId;
 
@@ -50,7 +51,7 @@ class ExecutionEvent {
   /// 表示本次增加多少分钟，其他事件为空。
   final int? grantedDurationMinutes;
 
-  /// PAUSE 的可选原因，其他事件为空。
+  /// PAUSE的可选原因，或历史补报必须保存的用户依据；其他事件为空。
   /// 结束时的未完成原因以后保存到 FailureRecord。
   final String? reason;
 
@@ -61,4 +62,6 @@ class ExecutionEvent {
   /// true表示稍后提交材料，false表示直接结束；
   /// 其他情况为空，不能用false代替“不适用”。
   final bool? submitOptionalEvidence;
+  // 独立的历史完成自报：没有 START，也不产生专注时长；reason 保存补记依据。
+  final bool isRetrospective;
 }

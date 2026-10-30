@@ -75,6 +75,8 @@ class AssistantOperation {
   String? error;
   MissionDetail? missionBefore;
   String? targetTitle;
+  List<MissionDetail> historyMissions = const [];
+  int historySkippedCount = 0;
   List<MissionPlanConflict> planConflicts = const [];
   Map<String, MissionDetail> planOriginals = const {};
   bool planChecking = false;
@@ -106,6 +108,7 @@ const _systemPrompt = '''
 9. 你不仅能查询，还能创建和修改任务、安排和改期、执行开始/暂停/继续/延长/结束、取消待开始任务、创建和修改目标及节点。用户明确要求操作且参数齐全时调用对应工具，不只口头建议用户去页面操作；参数不足才询问。应用的三档权限由宿主决定，不自行宣称只有查询权限。
 10. 新目标需要分阶段拆解时，先澄清目标范围和已有基础，用 goal_outline_create 整份创建目标与大纲；已有目标用 goal_query/goal_node_create，不能偷偷再建重复目标。大纲不是任务排期，也不代表完成或掌握。
 11. 用户想重新做已结束/已取消任务时，先读取原记录，用 mission_retry 创建关联的新尝试，保留原结果；强制材料任务必须明确本次新截止，不能降低原材料要求。复盘时先读取执行、失败和材料，区分事实与建议；目前没有长期总结或目标记忆保存工具，不能声称已经记住或保存复盘。
+12. 用户明确要求“把今天以前的课表/任务标为完成”等历史补报时，查询目标后使用 mission_complete_history，以今天为 beforeDate；不要对未开始任务调用 END，也不要批量补造 START。该工具按整批预览、权限确认与事务保存，返回实际数量后再告知用户。
 ''';
 
 /// App 级助手控制器：页面只读取快照，运行和会话生命周期长于页面。
@@ -119,6 +122,7 @@ class AssistantController extends ChangeNotifier {
     AgentConfiguration? configuration,
     Map<String, AgentModel> modelOverrides = const {},
     DateTime Function()? clock,
+    this.resumeGrace = const Duration(seconds: 20),
   }) : _sessionStore = sessionStore,
        _settingsStore = settingsStore,
        _missions = missions,
@@ -199,6 +203,70 @@ class AssistantController extends ChangeNotifier {
   bool _closed = false;
   bool _sending = false;
   bool _sendCancelled = false;
+  final Duration resumeGrace;
+  bool _backgrounded = false;
+  bool _connectionInterrupted = false;
+  Timer? _resumeWatchdog;
+
+  String get _progressFingerprint =>
+      '${_transcript.length}:${_transcript.lastOrNull?.id}:${_activity.attempt}:${_activity.toolName}:${_activity.text}:${_activity.thinking}';
+
+  /// 切后台不取消请求；回前台后若模型连接持续无进展，结束旧等待并开放继续入口。
+  void setForeground(bool foreground) {
+    if (_closed) return;
+    _resumeWatchdog?.cancel();
+    if (!foreground) {
+      _backgrounded = true;
+      return;
+    }
+    final returning = _backgrounded;
+    _backgrounded = false;
+    _refreshSnapshot();
+    if (!returning || !isRunning) return;
+    final progress = _progressFingerprint;
+    _resumeWatchdog = Timer(resumeGrace, () {
+      if (_closed ||
+          _backgrounded ||
+          !isRunning ||
+          _pending.isNotEmpty ||
+          _activity.toolName != null ||
+          _progressFingerprint != progress) {
+        return;
+      }
+      _connectionInterrupted = true;
+      stop();
+      _setError('连接已中断，正在结束旧请求；随后可继续本轮');
+    });
+  }
+
+  bool get canContinueInterrupted =>
+      !isBusy &&
+      !needsOutcomeResolution &&
+      const [
+        AgentStopReason.cancelled,
+        AgentStopReason.interrupted,
+        AgentStopReason.failed,
+      ].contains(_session?.lastStopReason);
+
+  Future<void> continueInterrupted() async {
+    if (!canContinueInterrupted) return;
+    _sending = true;
+    _connectionInterrupted = false;
+    _errorMessage = null;
+    _tools.beginTurn();
+    notifyListeners();
+    try {
+      final result = await _requireSession().resume();
+      _errorMessage = result.failure?.message;
+      await _refreshConversations();
+    } catch (error) {
+      _setError('$error');
+    } finally {
+      _sending = false;
+      _refreshSnapshot();
+    }
+  }
+
   bool _configuring = false;
   Completer<void>? _configurationDone;
   Future<void>? _closing;
@@ -207,7 +275,78 @@ class AssistantController extends ChangeNotifier {
   bool get initializing => _initializing;
   bool get isRunning => _sending || (_session?.isRunning ?? false);
   bool get configuring => _configuring;
-  bool get isBusy => isRunning || _configuring;
+  bool get isBusy => isRunning || _configuring || _compacting;
+  String? _contextEstimateKey;
+  int _contextEstimate = 0;
+  int get contextWindowTokens =>
+      (_session?.modelProfile ?? _configuration.profile(modelProfileId))
+          .contextWindowTokens;
+  int get estimatedContextTokens {
+    final session = _session;
+    final profile =
+        session?.modelProfile ?? _configuration.profile(modelProfileId);
+    final rawMessages = session?.contextMessages ?? const <AgentMessage>[];
+    // 工具正在运行时还没有结果，不能把半组调用交给严格的请求编码器。
+    // 完整前缀使用同一估算器；未结束组仅按已收到的内容估算，不添加虚构结果。
+    var completeLength = 0;
+    final pending = <String>{};
+    for (var i = 0; i < rawMessages.length; i++) {
+      final message = rawMessages[i];
+      if (message is AssistantMessage) {
+        pending.addAll(message.toolCalls.map((c) => c.id));
+      }
+      if (message is ToolResultMessage) pending.remove(message.toolCallId);
+      if (pending.isEmpty) completeLength = i + 1;
+    }
+    final messages = rawMessages.take(completeLength).toList();
+    var pendingEstimate = 0.0;
+    for (final message in rawMessages.skip(completeLength)) {
+      final text =
+          message.text +
+          (message is AssistantMessage
+              ? message.toolCalls.map((c) => jsonEncode(c.input)).join()
+              : '');
+      for (final rune in text.runes) {
+        pendingEstimate += rune < 128 ? .4 : .8;
+      }
+    }
+    final prompt = session?.systemPrompt ?? _effectiveSystemPrompt;
+    final key =
+        '${session?.id}:${profile.toJson()}:$prompt:${rawMessages.length}:${rawMessages.firstOrNull?.id}:${rawMessages.lastOrNull?.id}';
+    if (_contextEstimateKey != key) {
+      _contextEstimate = const ApproximateTokenEstimator().estimate(
+        profile,
+        ModelRequest(
+          systemPrompt: prompt,
+          messages: messages,
+          tools: _tools.tools.map((tool) => tool.definition).toList(),
+          maxOutputTokens: session?.outputTokens ?? profile.maxOutputTokens,
+        ),
+      );
+      _contextEstimateKey = key;
+    }
+    return _contextEstimate + pendingEstimate.ceil();
+  }
+
+  bool _compacting = false;
+  bool get compacting => _compacting;
+  Future<ContextCompaction?> compactConversation() async {
+    if (isBusy || _compacting || initializing) throw StateError('请等当前操作完成');
+    if (!hasCredential) throw StateError('请先配置模型');
+    final session = _session;
+    if (session == null || session.transcript.isEmpty) return null;
+    if (session.needsOutcomeResolution) throw StateError('请先核对未确认的操作结果');
+    _compacting = true;
+    notifyListeners();
+    try {
+      return await session.compact();
+    } finally {
+      _compacting = false;
+      _contextEstimateKey = null;
+      if (!_closed) _refreshSnapshot();
+    }
+  }
+
   bool get hasCredential => profileHasCredential(modelProfileId);
   bool profileHasCredential(String id) => id == 'custom'
       ? _settings.hasCustomCredential
@@ -466,6 +605,8 @@ class AssistantController extends ChangeNotifier {
     }
     _sending = true;
     _sendCancelled = false;
+    _connectionInterrupted = false;
+    _resumeWatchdog?.cancel();
     notifyListeners();
     _tools.beginTurn();
     _errorMessage = null;
@@ -485,7 +626,9 @@ class AssistantController extends ChangeNotifier {
       );
       if (_sendCancelled) return null;
       final result = await session.sendMessage(message);
-      _errorMessage = result.failure?.message;
+      _errorMessage = _connectionInterrupted
+          ? '连接中断已恢复，可以继续本轮或发送新消息'
+          : result.failure?.message;
       await _refreshConversations();
       _refreshSnapshot();
       return result;
@@ -565,6 +708,10 @@ class AssistantController extends ChangeNotifier {
       if (input[key] != pending.prepared.input[key]) {
         return '不能在编辑提案时更换操作对象，请取消后重新提出';
       }
+    }
+    if (pending.operation.toolName == 'mission_complete_history' &&
+        input['beforeDate'] != pending.prepared.input['beforeDate']) {
+      return '日期范围变化后需要重新预览，请取消并重新提出';
     }
     final validation = _tools.validate(pending.operation.toolName, input);
     if (validation != null) return validation;
@@ -825,6 +972,11 @@ class AssistantController extends ChangeNotifier {
     operation
       ..input = prepared.input
       ..targetTitle = prepared.snapshot['targetTitle'] as String?
+      ..historyMissions =
+          prepared.snapshot['historyMissions'] as List<MissionDetail>? ??
+          const []
+      ..historySkippedCount =
+          prepared.snapshot['historySkippedCount'] as int? ?? 0
       ..missionBefore = prepared.snapshot['detail'] as MissionDetail?
       ..status = AssistantOperationStatus.waitingConfirmation;
     if (tool.name == 'mission_plan') {
@@ -1076,6 +1228,7 @@ class AssistantController extends ChangeNotifier {
   Future<void> close() => _closing ??= _close();
 
   Future<void> _close() async {
+    _resumeWatchdog?.cancel();
     if (_closed) return;
     _closed = true;
     stop();

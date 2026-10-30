@@ -32,6 +32,7 @@ class ConfiguredAssistantSpeech implements AssistantSpeech, WarmUpSpeech {
   Future<bool> start({
     required void Function(String) onText,
     required VoidCallback onDone,
+    VoidCallback? onProcessing,
     required void Function(String) onError,
   }) async {
     final generation = ++_generation;
@@ -80,7 +81,12 @@ class ConfiguredAssistantSpeech implements AssistantSpeech, WarmUpSpeech {
         genericError: '离线语音识别失败，请重试或改用文字。',
       );
     }
-    return _current!.start(onText: onText, onDone: onDone, onError: onError);
+    return _current!.start(
+      onText: onText,
+      onDone: onDone,
+      onProcessing: onProcessing,
+      onError: onError,
+    );
   }
 
   @override
@@ -128,6 +134,7 @@ class RecordedAssistantSpeech implements AssistantSpeech {
   void Function(String)? _onText;
   void Function(String)? _onError;
   VoidCallback? _onDone;
+  VoidCallback? _onProcessing;
   bool _cancelled = false;
   bool _stopping = false;
   bool _disposed = false;
@@ -136,10 +143,12 @@ class RecordedAssistantSpeech implements AssistantSpeech {
   Future<bool> start({
     required void Function(String) onText,
     required VoidCallback onDone,
+    VoidCallback? onProcessing,
     required void Function(String) onError,
   }) async {
     _onText = onText;
     _onDone = onDone;
+    _onProcessing = onProcessing;
     _onError = onError;
     try {
       if (!await _recorder.hasPermission()) {
@@ -194,6 +203,7 @@ class RecordedAssistantSpeech implements AssistantSpeech {
     if (_cancelled || _stopping || _disposed) return;
     _stopping = true;
     _limit?.cancel();
+    _onProcessing?.call();
     try {
       await _recorder.stop();
       await _subscription?.cancel();
@@ -215,8 +225,8 @@ class RecordedAssistantSpeech implements AssistantSpeech {
         _onError?.call(error is FormatException ? error.message : genericError);
       }
     } finally {
-      if (!_cancelled) _onDone?.call();
       await _dispose();
+      if (!_cancelled) _onDone?.call();
     }
   }
 

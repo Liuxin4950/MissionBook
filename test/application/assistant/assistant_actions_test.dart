@@ -1,3 +1,6 @@
+import 'package:mission_book/domain/entities/historical_completion.dart';
+import 'package:mission_book/domain/entities/mission_ownership.dart';
+import 'package:mission_book/domain/rules/execution_time_rules.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
@@ -87,6 +90,125 @@ void main() {
     }
     fail('没有出现待确认的写入卡片：${controller.errorMessage}');
   }
+
+  Future<String> seedHistory() async {
+    final goal = goals.prepareCreation(title: '秋季课表');
+    await goals.create(goal);
+    for (final date in [
+      '2026-10-20',
+      '2026-10-21',
+      '2026-10-29',
+      '2026-11-01',
+    ]) {
+      await missions.create(
+        title: '课程 $date',
+        scheduledDate: date,
+        timeZone: 'Asia/Shanghai',
+        plannedDurationMinutes: 45,
+        ownership: MissionOwnership(goalId: goal.id),
+      );
+    }
+    return goal.id;
+  }
+
+  test('AI 整批补记历史课表，确认前零写入；保留今天和未来，补记不产生虚构时长', () async {
+    final goalId = await seedHistory();
+    final ai = await controller('mission_complete_history', {
+      'goalId': goalId,
+      'beforeDate': '2026-10-29',
+      'statement': '把今天以前的课程补记为已完成',
+    });
+    final sending = ai.send('把今天以前的课程补记为已完成');
+    await waiting(ai);
+    expect(ai.operations.single.historyMissions, hasLength(2));
+    expect(await db.select(db.executionEvents).get(), isEmpty);
+    expect(ai.confirmProposal('action'), isNull);
+    await sending;
+    expect(ai.operations.single.status, AssistantOperationStatus.succeeded);
+    final finished = await missions.findFinishedSnapshot();
+    expect(finished, hasLength(2));
+    for (final detail in finished) {
+      expect(detail.endReportedCompleted, isTrue);
+      expect(detail.events.single.isRetrospective, isTrue);
+      expect(detail.events.single.occurredAt, now);
+      expect(calculateExecutionTimes(detail.events, now).focus, Duration.zero);
+    }
+    expect(
+      (await missions.findForGoalSnapshot(
+        goalId,
+      )).where((d) => d.events.isEmpty),
+      hasLength(2),
+    );
+  });
+
+  test('补记整批回滚；固定请求重试不重复写入', () async {
+    final goalId = await seedHistory();
+    final originals = (await missions.findForGoalSnapshot(goalId))
+        .where((d) => d.schedule.scheduledDate.compareTo('2026-10-29') < 0)
+        .toList();
+    final request = HistoricalCompletion(
+      id: 'batch',
+      goalId: goalId,
+      beforeDate: '2026-10-29',
+      statement: '用户补报已完成',
+      originals: originals,
+    );
+    await db.customStatement(
+      "CREATE TRIGGER reject_history BEFORE INSERT ON execution_events WHEN NEW.mission_id = '${originals.last.mission.id}' BEGIN SELECT RAISE(ABORT, 'rollback'); END",
+    );
+    await expectLater(missions.completeHistory(request), throwsA(anything));
+    expect(await db.select(db.executionEvents).get(), isEmpty);
+    expect(await missions.findOperationReceipt('batch'), isNull);
+    await db.customStatement('DROP TRIGGER reject_history');
+    await missions.completeHistory(request);
+    await missions.completeHistory(request);
+    expect(await db.select(db.executionEvents).get(), hasLength(2));
+    expect(await missions.findOperationReceipt('batch'), isNotNull);
+  });
+
+  test('历史任务已开始后正常结束；旧预览遇到新执行事实时整批拒绝', () async {
+    final goalId = await seedHistory();
+    var originals = (await missions.findForGoalSnapshot(goalId))
+        .where((d) => d.schedule.scheduledDate.compareTo('2026-10-29') < 0)
+        .toList();
+    final stale = HistoricalCompletion(
+      id: 'stale',
+      goalId: goalId,
+      beforeDate: '2026-10-29',
+      statement: '已完成',
+      originals: originals,
+    );
+    await missions.execute(
+      missions.prepareExecution(
+        detail: originals.last,
+        type: ExecutionEventType.start,
+      ),
+    );
+    await expectLater(missions.completeHistory(stale), throwsA(anything));
+    expect(await db.select(db.executionEvents).get(), hasLength(1));
+    originals = (await missions.findForGoalSnapshot(goalId))
+        .where((d) => d.schedule.scheduledDate.compareTo('2026-10-29') < 0)
+        .toList();
+    await missions.completeHistory(
+      HistoricalCompletion(
+        id: 'fresh',
+        goalId: goalId,
+        beforeDate: '2026-10-29',
+        statement: '已完成',
+        originals: originals,
+      ),
+    );
+    final finished = await missions.findFinishedSnapshot();
+    expect(finished, hasLength(2));
+    expect(
+      finished
+          .singleWhere((d) => d.events.length == 2)
+          .events
+          .last
+          .isRetrospective,
+      isFalse,
+    );
+  });
 
   test('整份大纲可修改后一次确认，保存真实父子关系，不创建任务，重开保留结果', () async {
     final ai = await controller('goal_outline_create', outline);
@@ -297,7 +419,10 @@ void main() {
     final retry = (await missions.findAllDetails()).singleWhere(
       (detail) => detail.mission.sourceMissionId == original.mission.id,
     );
-    expect(retry.mission.verificationPolicy, VerificationPolicy.requiredEvidence);
+    expect(
+      retry.mission.verificationPolicy,
+      VerificationPolicy.requiredEvidence,
+    );
     expect(retry.executionPlan.verificationCriteria, '代码片段');
     expect(retry.schedule.evidenceDeadlineAt, DateTime.utc(2026, 10, 30, 12));
   });

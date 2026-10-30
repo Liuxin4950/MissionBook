@@ -27,6 +27,7 @@ ExecutionEventsCompanion eventToCompanion(ExecutionEvent event) =>
         null => null,
       }),
       submitOptionalEvidence: Value(event.submitOptionalEvidence),
+      isRetrospective: Value(event.isRetrospective),
     );
 
 ExecutionEvent eventFromRow(ExecutionEventRow row) => ExecutionEvent(
@@ -52,6 +53,7 @@ ExecutionEvent eventFromRow(ExecutionEventRow row) => ExecutionEvent(
     _ => throw FormatException('未知报告结果：${row.userReportedResult}'),
   },
   submitOptionalEvidence: row.submitOptionalEvidence,
+  isRetrospective: row.isRetrospective,
 );
 
 FailureRecord failureFromRow(FailureRecordRow row) => FailureRecord(

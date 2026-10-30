@@ -31,6 +31,19 @@ class PausedSettingsStore extends MemoryAssistantSettingsStore {
   }
 }
 
+class BackgroundModel implements AgentModel {
+  final first = Completer<ModelResponse>();
+  int calls = 0;
+  @override
+  Future<ModelResponse> complete(
+    ModelRequest request,
+    CancellationToken cancellation,
+  ) {
+    calls++;
+    return calls == 1 ? first.future : Future.value(textResponse('继续完成了本轮'));
+  }
+}
+
 void main() {
   late AppDatabase database;
   late MissionService missions;
@@ -56,7 +69,10 @@ void main() {
     await database.close();
   });
 
-  AssistantController makeController(ScriptedModel model) {
+  AssistantController makeController(
+    AgentModel model, {
+    Duration resumeGrace = const Duration(seconds: 20),
+  }) {
     final result = AssistantController(
       reader: DriftAssistantReader(database),
       sessionStore: DriftSessionStore(database),
@@ -64,6 +80,7 @@ void main() {
       missions: missions,
       goals: goals,
       modelOverrides: {'deepseek-chat': model, 'deepseek': model},
+      resumeGrace: resumeGrace,
       clock: () => now,
     );
     controller = result;
@@ -84,6 +101,42 @@ void main() {
     }
     throw StateError('等待助手状态超时');
   }
+
+  test('切后台不主动停止健康请求，回前台正常收到结果并可继续发送', () async {
+    final model = BackgroundModel();
+    final ai = makeController(model);
+    await ai.initialize();
+    final sending = ai.send('继续处理');
+    await waitFor(() => model.calls == 1);
+    ai.setForeground(false);
+    expect(ai.isRunning, isTrue);
+    model.first.complete(textResponse('后台请求完成'));
+    await sending;
+    ai.setForeground(true);
+    expect(ai.isBusy, isFalse);
+    await ai.send('下一条');
+    expect(model.calls, 2);
+  });
+
+  test('回前台连接无进展时结束旧等待，继续同一轮不重复用户消息', () async {
+    final model = BackgroundModel();
+    final ai = makeController(
+      model,
+      resumeGrace: const Duration(milliseconds: 20),
+    );
+    await ai.initialize();
+    final sending = ai.send('处理这项请求');
+    await waitFor(() => model.calls == 1);
+    ai.setForeground(false);
+    ai.setForeground(true);
+    await sending.timeout(const Duration(seconds: 2));
+    expect(ai.isBusy, isFalse);
+    expect(ai.canContinueInterrupted, isTrue);
+    await ai.continueInterrupted();
+    expect(ai.transcript.whereType<UserMessage>(), hasLength(1));
+    expect(ai.transcript.whereType<AssistantMessage>().last.text, '继续完成了本轮');
+    expect(ai.isBusy, isFalse);
+  });
 
   test('角色与风格实际进入模型请求，修改后已有会话与重开会话都生效', () async {
     final model = ScriptedModel([

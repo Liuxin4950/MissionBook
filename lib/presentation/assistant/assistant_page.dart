@@ -19,6 +19,7 @@ import 'assistant_markdown.dart';
 import 'assistant_operation_card.dart';
 import 'assistant_scope.dart';
 import 'assistant_settings_page.dart';
+import 'assistant_voice_status.dart';
 
 class AssistantPage extends StatefulWidget {
   const AssistantPage({
@@ -39,7 +40,7 @@ class AssistantPage extends StatefulWidget {
 class _AssistantPageState extends State<AssistantPage> {
   final _input = TextEditingController();
   final _inputFocus = FocusNode();
-  final _scroll = ScrollController();
+  final _scroll = ScrollController(keepScrollOffset: false);
   String? _draftSession;
   bool _followOutput = true;
   bool _scrollScheduled = false;
@@ -322,12 +323,14 @@ class _AssistantPageState extends State<AssistantPage> {
     return NotificationListener<UserScrollNotification>(
       onNotification: (notification) {
         if (_scroll.hasClients) {
-          _followOutput = _scroll.position.extentAfter < 120;
+          _followOutput =
+              _scroll.position.pixels - _scroll.position.minScrollExtent < 120;
         }
         return false;
       },
       child: ListView.separated(
         key: const Key('assistant-conversation-list'),
+        reverse: controller.transcript.isNotEmpty,
         controller: _scroll,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(
@@ -338,7 +341,10 @@ class _AssistantPageState extends State<AssistantPage> {
         ),
         itemCount: children.length,
         separatorBuilder: (_, index) => const SizedBox(height: 12),
-        itemBuilder: (_, index) => children[index],
+        itemBuilder: (_, index) =>
+            children[controller.transcript.isNotEmpty
+                ? children.length - 1 - index
+                : index],
       ),
     );
   }
@@ -352,6 +358,7 @@ class _AssistantPageState extends State<AssistantPage> {
       final canSend =
           (value.text.trim().isNotEmpty || _attachments.isNotEmpty) &&
           !controller.isBusy &&
+          !controller.compacting &&
           !controller.initializing &&
           !_picking &&
           !(_voice?.busy ?? false) &&
@@ -425,6 +432,17 @@ class _AssistantPageState extends State<AssistantPage> {
                       },
                     ),
                   ),
+                if (_recordingVoice && _voice != null) ...[
+                  const SizedBox(height: 8),
+                  AssistantVoiceStatus(
+                    voice: _voice!,
+                    onCancel: () async {
+                      _recordingVoice = false;
+                      await _voice!.cancel();
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                ],
                 TextField(
                   key: const Key('assistant-input'),
                   controller: _input,
@@ -441,6 +459,8 @@ class _AssistantPageState extends State<AssistantPage> {
                       MediaQuery.sizeOf(context).height -
                               MediaQuery.viewInsetsOf(context).bottom <
                           480
+                      ? 1
+                      : MediaQuery.textScalerOf(context).scale(1) >= 1.5
                       ? 2
                       : 5,
                   textInputAction: TextInputAction.send,
@@ -467,37 +487,62 @@ class _AssistantPageState extends State<AssistantPage> {
                   ),
                 Row(
                   children: [
-                    PopupMenuButton<bool>(
+                    PopupMenuButton<String>(
                       key: const Key('assistant-add-attachment'),
-                      tooltip: '添加图片或文件',
+                      tooltip: '附件与快捷指令',
+                      constraints: const BoxConstraints(
+                        minWidth: 188,
+                        maxWidth: 240,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       enabled:
                           !controller.isBusy &&
-                          !_picking &&
-                          _attachments.length < AssistantAttachment.maxCount,
-                      onSelected: _pickAttachment,
+                          !controller.compacting &&
+                          !_picking,
+                      onSelected: _composerAction,
                       icon: _picking
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
+                          ? const SizedBox.square(
+                              dimension: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.add_rounded),
                       itemBuilder: (_) => [
-                        const PopupMenuItem(
-                          value: true,
-                          child: ListTile(
-                            leading: Icon(Icons.image_outlined),
-                            title: Text('添加图片'),
-                            subtitle: Text('PNG、JPEG、WebP、GIF · 每张 4 MiB'),
-                          ),
+                        _composerMenuItem(
+                          'image',
+                          Icons.image_outlined,
+                          '添加图片',
+                          enabled:
+                              _attachments.length <
+                              AssistantAttachment.maxCount,
                         ),
-                        const PopupMenuItem(
-                          value: false,
-                          child: ListTile(
-                            leading: Icon(Icons.description_outlined),
-                            title: Text('添加文本文件'),
-                            subtitle: Text('TXT、Markdown、CSV、JSON 等'),
-                          ),
+                        _composerMenuItem(
+                          'file',
+                          Icons.attach_file,
+                          '添加文件',
+                          enabled:
+                              _attachments.length <
+                              AssistantAttachment.maxCount,
+                        ),
+                        const PopupMenuDivider(height: 8),
+                        _composerMenuItem(
+                          'today',
+                          Icons.today_outlined,
+                          '查看今天安排',
+                        ),
+                        _composerMenuItem(
+                          'plan',
+                          Icons.auto_awesome_outlined,
+                          '帮我规划今天',
+                        ),
+                        _composerMenuItem(
+                          'compact',
+                          Icons.compress_rounded,
+                          '压缩会话',
+                          enabled:
+                              controller.hasCredential &&
+                              controller.transcript.isNotEmpty,
                         ),
                       ],
                     ),
@@ -517,24 +562,19 @@ class _AssistantPageState extends State<AssistantPage> {
                       ),
                     Expanded(
                       child: Text(
-                        _voice?.starting == true
-                            ? '正在准备语音…'
-                            : _voice?.stopping == true
-                            ? '正在转写…'
-                            : _voice?.listening == true
-                            ? '正在听，点击结束'
-                            : _attachments.isEmpty
+                        _attachments.isEmpty
                             ? ''
                             : '${_attachments.length}/${AssistantAttachment.maxCount} 个附件',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
+                    _contextIndicator(controller),
                     IconButton.filled(
                       key: const Key('assistant-send'),
                       tooltip: canStop ? '停止本轮' : '发送',
                       onPressed: action,
                       style: IconButton.styleFrom(
-                        fixedSize: const Size(40, 40),
+                        minimumSize: const Size(48, 48),
                         foregroundColor: colors.onPrimary,
                         backgroundColor: colors.primary,
                         disabledForegroundColor: colors.onSurfaceVariant,
@@ -561,6 +601,97 @@ class _AssistantPageState extends State<AssistantPage> {
       );
     },
   );
+
+  PopupMenuItem<String> _composerMenuItem(
+    String value,
+    IconData icon,
+    String label, {
+    bool enabled = true,
+  }) => PopupMenuItem(
+    value: value,
+    enabled: enabled,
+    height: 44,
+    child: Row(
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        ),
+      ],
+    ),
+  );
+
+  Future<void> _composerAction(String action) async {
+    switch (action) {
+      case 'image':
+        await _pickAttachment(true);
+      case 'file':
+        await _pickAttachment(false);
+      case 'today':
+        await widget.controller.loadLocalSchedule();
+      case 'plan':
+        _usePrompt('帮我规划今天的任务，先查看我的安排。');
+      case 'compact':
+        try {
+          final result = await widget.controller.compactConversation();
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                result == null ? '当前会话较短，暂不需要压缩' : '已压缩上下文，聊天记录已保留',
+              ),
+            ),
+          );
+        } catch (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  error is StateError ? error.message : '压缩未完成，请重试；原聊天记录已保留',
+                ),
+              ),
+            );
+          }
+        }
+    }
+  }
+
+  Widget _contextIndicator(AssistantController controller) {
+    final used = controller.estimatedContextTokens;
+    final limit = controller.contextWindowTokens;
+    final ratio = (used / limit).clamp(0.0, 1.0);
+    final label =
+        '上下文约 ${(ratio * 100).toStringAsFixed(1)}%\n$used / $limit tokens（估算）';
+    return Tooltip(
+      message: label,
+      triggerMode: TooltipTriggerMode.tap,
+      child: Semantics(
+        label: label,
+        child: SizedBox.square(
+          key: const Key('assistant-context-usage'),
+          dimension: 44,
+          child: Center(
+            child: SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(
+                value: ratio,
+                strokeWidth: 3,
+                backgroundColor: AppColors.hairline,
+                color: ratio >= .9
+                    ? AppColors.error
+                    : ratio >= .75
+                    ? AppColors.warning
+                    : AppColors.primary,
+                semanticsLabel: '上下文占用',
+                semanticsValue: '${(ratio * 100).round()}%',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Future<void> _send() async {
     final text = _input.text.trim();
@@ -689,10 +820,10 @@ class _AssistantPageState extends State<AssistantPage> {
       _scrollScheduled = false;
       if (!mounted || !_scroll.hasClients || !_followOutput) return;
       if (!animate || MediaQuery.disableAnimationsOf(context)) {
-        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+        _scroll.jumpTo(_scroll.position.minScrollExtent);
       } else {
         _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
+          _scroll.position.minScrollExtent,
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOutCubic,
         );
@@ -801,6 +932,11 @@ class _ErrorBanner extends StatelessWidget {
           ),
           if (!controller.hasCredential)
             TextButton(onPressed: onSettings, child: const Text('去设置')),
+          if (controller.canContinueInterrupted)
+            TextButton(
+              onPressed: controller.continueInterrupted,
+              child: const Text('继续本轮'),
+            ),
           IconButton(
             tooltip: '关闭错误提示',
             onPressed: controller.clearError,

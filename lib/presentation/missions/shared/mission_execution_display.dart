@@ -248,7 +248,8 @@ class MissionEventTimeline extends StatelessWidget {
                       ExecutionEventType.resume => '继续执行',
                       ExecutionEventType.extend =>
                         '增加 ${event.grantedDurationMinutes} 分钟',
-                      ExecutionEventType.end => '结束执行',
+                      ExecutionEventType.end =>
+                        event.isRetrospective ? '补记已完成' : '结束执行',
                     }, style: Theme.of(context).textTheme.titleSmall),
                     Text(
                       missionLocalTime(

@@ -188,7 +188,7 @@ JOIN mission_schedule_revisions r
  AND r.fixed_start_at + r.planned_duration_minutes * 60000 > i.starts
 JOIN missions m ON m.id=r.mission_id
 WHERE m.cancelled_at IS NULL AND (m.goal_id IS NULL OR m.goal_id <> ?)
- AND NOT EXISTS(SELECT 1 FROM execution_events e WHERE e.mission_id=m.id AND e.type='START')
+ AND NOT EXISTS(SELECT 1 FROM execution_events e WHERE e.mission_id=m.id AND e.type IN ('START','END'))
  AND NOT EXISTS(SELECT 1 FROM mission_schedule_revisions newer
    WHERE newer.mission_id=m.id AND newer.revision_number>r.revision_number)
 LIMIT 1''', variables: args).getSingleOrNull();

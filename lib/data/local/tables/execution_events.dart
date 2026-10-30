@@ -29,14 +29,14 @@ class ExecutionEvents extends Table {
   // 实际操作时刻，保存 UTC 毫秒时间戳；不使用页面计时器累计值。
   IntColumn get occurredAt => integer()();
 
-  // 仅 START 有值。外键保证排期存在；同任务和最新版本在事务内校验。
+  // START或历史补报有值。外键保证排期存在；同任务和最新版本在事务内校验。
   TextColumn get scheduleRevisionId =>
       text().nullable().references(MissionScheduleRevisions, #id)();
 
   // 仅 EXTEND 有值，单位分钟；null 表示这条事件没有增加额度。
   IntColumn get grantedDurationMinutes => integer().nullable()();
 
-  // PAUSE 的可选原因；未完成原因属于后续 FailureRecord，不放在这里。
+  // PAUSE原因或历史完成补报依据；未完成原因仍属于FailureRecord。
   TextColumn get reason => text().nullable()();
 
   // 仅 END 有报告：COMPLETED（完成）或 NOT_COMPLETED（未完成）。
@@ -45,6 +45,9 @@ class ExecutionEvents extends Table {
   // 仅 END + 完成 + 可选材料策略适用。
   // true 为稍后补材料，false 为直接结束，null 为不适用，不能混用。
   BoolColumn get submitOptionalEvidence => boolean().nullable()();
+
+  BoolColumn get isRetrospective =>
+      boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

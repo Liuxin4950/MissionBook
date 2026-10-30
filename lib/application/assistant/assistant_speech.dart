@@ -7,6 +7,7 @@ abstract interface class AssistantSpeech {
   Future<bool> start({
     required void Function(String) onText,
     required VoidCallback onDone,
+    VoidCallback? onProcessing,
     required void Function(String) onError,
   });
   Future<void> stop();
@@ -22,7 +23,7 @@ class AssistantVoiceController extends ChangeNotifier {
   AssistantVoiceController(
     this._speech, {
     this.startTimeout = const Duration(seconds: 15),
-    this.operationTimeout = const Duration(seconds: 40),
+    this.operationTimeout = const Duration(seconds: 70),
     this.listeningLimit = const Duration(seconds: 50),
   });
 
@@ -38,6 +39,9 @@ class AssistantVoiceController extends ChangeNotifier {
   int _generation = 0;
   bool _closed = false;
   Timer? _watchdog;
+  Timer? _ticker;
+  final _elapsed = Stopwatch();
+  int get elapsedSeconds => _elapsed.elapsed.inSeconds;
   Future<void>? _cancellation;
   bool _cancelling = false;
 
@@ -62,6 +66,7 @@ class AssistantVoiceController extends ChangeNotifier {
     starting = true;
     text = '';
     error = null;
+    _elapsed.reset();
     notifyListeners();
     var finished = false;
     bool current() => !_closed && generation == _generation;
@@ -74,10 +79,23 @@ class AssistantVoiceController extends ChangeNotifier {
                 notifyListeners();
               }
             },
+            onProcessing: () {
+              if (!current()) return;
+              _watchdog?.cancel();
+              _ticker?.cancel();
+              _elapsed.stop();
+              listening = false;
+              starting = false;
+              stopping = true;
+              notifyListeners();
+            },
             onDone: () {
               finished = true;
               if (current()) {
                 _watchdog?.cancel();
+                _ticker?.cancel();
+                _elapsed.stop();
+                stopping = false;
                 listening = false;
                 notifyListeners();
               }
@@ -86,6 +104,9 @@ class AssistantVoiceController extends ChangeNotifier {
               finished = true;
               if (current()) {
                 _watchdog?.cancel();
+                _ticker?.cancel();
+                _elapsed.stop();
+                stopping = false;
                 error = value;
                 listening = false;
                 notifyListeners();
@@ -94,9 +115,15 @@ class AssistantVoiceController extends ChangeNotifier {
           )
           .timeout(startTimeout);
       if (!current()) return;
-      listening = available && !finished;
+      listening = available && !finished && !stopping;
       if (!available) error ??= '语音识别不可用或麦克风未获授权，可以重试或改用文字。';
-      if (listening) _watchdog = Timer(listeningLimit, stop);
+      if (listening) {
+        _elapsed.start();
+        _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (current() && listening) notifyListeners();
+        });
+        _watchdog = Timer(listeningLimit, stop);
+      }
     } on TimeoutException {
       if (current()) {
         ++_generation; // 迟到的权限/识别回调不能重新开启这一轮。
@@ -123,6 +150,9 @@ class AssistantVoiceController extends ChangeNotifier {
       return;
     }
     _watchdog?.cancel();
+    _ticker?.cancel();
+    _elapsed.stop();
+    listening = false;
     final generation = _generation;
     bool current() => !_closed && generation == _generation;
     stopping = true;
@@ -165,6 +195,8 @@ class AssistantVoiceController extends ChangeNotifier {
   Future<void> _cancelCurrent({required bool clear}) async {
     ++_generation;
     _watchdog?.cancel();
+    _ticker?.cancel();
+    _elapsed.stop();
     starting = false;
     stopping = false;
     listening = false;
@@ -187,6 +219,8 @@ class AssistantVoiceController extends ChangeNotifier {
     _closed = true;
     ++_generation;
     _watchdog?.cancel();
+    _ticker?.cancel();
+    _elapsed.stop();
     unawaited(cancel());
     super.dispose();
   }

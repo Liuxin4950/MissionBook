@@ -17,6 +17,7 @@ import '../../domain/rules/goal_node_record_rules.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/execution_command.dart';
+import '../../domain/entities/historical_completion.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/evidence.dart';
 import '../../domain/entities/operation_receipt.dart';
@@ -142,6 +143,18 @@ class MissionService {
     // 同 id 的成功重试也通知：第一次可能已保存但返回结果丢失，页面仍需要重读。
     _notify();
     return event;
+  }
+
+  Future<OperationReceiptInfo> completeHistory(
+    HistoricalCompletion request,
+  ) async {
+    final Object source = repository;
+    if (source is! HistoricalCompletionRepository) {
+      throw StateError('当前存储不支持历史补记');
+    }
+    final receipt = await source.completeHistory(request);
+    _notify();
+    return receipt;
   }
 
   Future<List<MissionDetail>> findActive() => repository.findActive();

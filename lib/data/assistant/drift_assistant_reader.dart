@@ -167,7 +167,7 @@ class DriftAssistantReader implements AssistantReader {
     final (table, columns, order) = switch (section) {
       'execution' => (
         'execution_events',
-        'id, sequence, type, occurred_at AS occurredAt, schedule_revision_id AS scheduleRevisionId, granted_duration_minutes AS grantedMinutes, substr(reason,1,500) AS reason, length(reason) AS reasonLength, user_reported_result AS userReportedResult, submit_optional_evidence AS submitOptionalEvidence',
+        'id, sequence, type, is_retrospective AS isRetrospective, occurred_at AS occurredAt, schedule_revision_id AS scheduleRevisionId, granted_duration_minutes AS grantedMinutes, substr(reason,1,500) AS reason, length(reason) AS reasonLength, user_reported_result AS userReportedResult, submit_optional_evidence AS submitOptionalEvidence',
         'sequence',
       ),
       'failures' => (

@@ -15,6 +15,7 @@ class ExecutionCommand {
     this.submitOptionalEvidence,
     this.userReasonCategory,
     this.userReasonText,
+    this.isRetrospective = false,
   });
 
   final String id; // 这次操作的编号，结果未确认时重试复用。
@@ -29,6 +30,7 @@ class ExecutionCommand {
   // 未完成的用户原因保存在 FailureRecord，不混进 END.reason。
   final String? userReasonCategory;
   final String? userReasonText;
+  final bool isRetrospective;
 }
 
 /// 冲突需先刷新事实，不能给旧命令换个序号后盲目重试。

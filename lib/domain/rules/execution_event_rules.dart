@@ -32,9 +32,20 @@ void validateExecutionEvent(
     throw ArgumentError('事件发生时刻必须使用 UTC');
   }
 
+  if (event.isRetrospective) {
+    if (event.type != ExecutionEventType.end ||
+        event.sequence != 1 ||
+        event.userReportedResult != UserReportedResult.completed ||
+        verificationPolicy != VerificationPolicy.selfReport ||
+        event.reason == null ||
+        event.reason!.trim().isEmpty) {
+      throw ArgumentError('历史补记仅适用于无执行记录的自报任务，必须提供完成依据');
+    }
+  }
+
   // 可空类型只约束“允许 null”；这里根据动作进一步约束何时必填。
   // type 是动作类型；ExecutionEventType.start 表示“开始”。
-  if (event.type == ExecutionEventType.start) {
+  if (event.type == ExecutionEventType.start || event.isRetrospective) {
     // revisionId：从事件中取出的排期版本编号；final 表示之后不重新赋值。
     final revisionId = event.scheduleRevisionId;
     if (revisionId == null || revisionId.trim().isEmpty) {
@@ -56,7 +67,9 @@ void validateExecutionEvent(
   }
 
   // pause 表示“暂停”，reason 是暂停原因；!= 表示不等于，&& 表示条件同时成立。
-  if (event.type != ExecutionEventType.pause && event.reason != null) {
+  if (event.type != ExecutionEventType.pause &&
+      !event.isRetrospective &&
+      event.reason != null) {
     throw ArgumentError('只有暂停事件可以携带暂停原因');
   }
 
@@ -343,7 +356,8 @@ _ExecutionState _replayExecutionHistory(
         }
         break;
       case ExecutionEventType.end: // 结束：执行中、暂停均可，之后不再允许动作。
-        if (state != _ExecutionState.running &&
+        if (!(event.isRetrospective && state == _ExecutionState.notStarted) &&
+            state != _ExecutionState.running &&
             state != _ExecutionState.paused) {
           throw ArgumentError('只有执行中或暂停的任务才能结束');
         }

@@ -331,21 +331,29 @@ class _SettingsPageState extends State<SettingsPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AdaptiveColumns(
+        AppSectionCard(
           key: const Key('permission-columns'),
-          minColumnWidth: 270,
-          children: [
-            _PermissionSummary(
-              title: title,
-              description: description,
-              icon: icon,
-            ),
-            if (_capabilityError == null && supported) ...[
-              if (needsNotifications || needsExecutionChannel)
-                _permission(needsNotifications ? '系统通知' : '执行状态通知', false),
-              if (needsExactAlarms) _permission('准时提醒权限', true),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _PermissionSummary(
+                title: title,
+                description: description,
+                icon: icon,
+              ),
+              if (_capabilityError == null && supported) ...[
+                if (needsNotifications || needsExecutionChannel) ...[
+                  const Divider(height: 24),
+                  _permission(needsNotifications ? '系统通知' : '执行状态通知', false),
+                ],
+                if (needsExactAlarms) ...[
+                  const Divider(height: 24),
+                  _permission('准时提醒权限', true),
+                ],
+              ],
             ],
-          ],
+          ),
         ),
         if (_capabilityError != null)
           Padding(
@@ -663,30 +671,46 @@ class _SettingsPageState extends State<SettingsPage>
   /// 只为明确缺少的权限提供授权入口；已允许项在摘要中体现。
   Widget _permission(String title, bool exact) {
     final text = Theme.of(context).textTheme;
-    return AppSectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: AppColors.primarySoft,
-            child: Icon(
-              exact ? Icons.alarm_outlined : Icons.notifications_outlined,
-              color: AppColors.primary,
+    final action = TextButton(
+      key: Key(exact ? 'grant-exact-alarms' : 'grant-notifications'),
+      onPressed: _openingSettings ? null : () => _settings(exact),
+      child: const Text('去设置'),
+    );
+    return LayoutBuilder(
+      builder: (context, box) {
+        final compact =
+            box.maxWidth <
+            300 * MediaQuery.textScalerOf(context).scale(14) / 14;
+        final label = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: text.titleSmall),
+            const SizedBox(height: 4),
+            Text('系统未允许', style: text.bodySmall),
+          ],
+        );
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Icon(
+                exact ? Icons.alarm_outlined : Icons.notifications_outlined,
+                size: 22,
+                color: AppColors.primary,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(title, style: text.titleMedium),
-          const SizedBox(height: 4),
-          Text('系统未允许', style: text.bodyMedium),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            key: Key(exact ? 'grant-exact-alarms' : 'grant-notifications'),
-            onPressed: _openingSettings ? null : () => _settings(exact),
-            child: const Text('去设置'),
-          ),
-        ],
-      ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [label, if (compact) action],
+              ),
+            ),
+            if (!compact) action,
+          ],
+        );
+      },
     );
   }
 }
@@ -704,33 +728,22 @@ class _PermissionSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    return AppSectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 24, color: AppColors.primary),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                backgroundColor: AppColors.primarySoft,
-                child: Icon(icon, color: AppColors.primary),
-              ),
-              const Spacer(),
-              Image.asset(
-                'assets/illustrations/settings-notebook.png',
-                width: 100,
-                height: 70,
-                cacheWidth: 300,
-                fit: BoxFit.contain,
-                excludeFromSemantics: true,
-              ),
+              Text(title, style: text.titleSmall),
+              const SizedBox(height: 4),
+              Text(description, style: text.bodyMedium),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(title, style: text.titleMedium),
-          const SizedBox(height: 8),
-          Text(description, style: text.bodyMedium),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

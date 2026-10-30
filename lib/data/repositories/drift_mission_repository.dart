@@ -6,6 +6,8 @@ import 'drift_goal_repository.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
+import '../../domain/entities/historical_completion.dart';
 
 import '../../domain/entities/execution_plan.dart';
 import '../../domain/entities/mission.dart';
@@ -224,6 +226,7 @@ class DriftMissionRepository
     implements
         MissionRepository,
         MissionQueryRepository,
+        HistoricalCompletionRepository,
         MissionPlanRepository {
   /// 接收应用持有的连接；本仓储不自行创建或关闭数据库。
   DriftMissionRepository(this.database, {this.clock = DateTime.now}) {
@@ -974,6 +977,105 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
   @override
   Future<ExecutionEvent> execute(ExecutionCommand command) => _execute(command);
 
+  @override
+  Future<OperationReceiptInfo> completeHistory(
+    HistoricalCompletion request,
+  ) => database.transaction(() async {
+    if (request.id.trim().isEmpty ||
+        request.statement.trim().isEmpty ||
+        request.originals.isEmpty ||
+        request.originals.length > 10000 ||
+        request.originals.map((d) => d.mission.id).toSet().length !=
+            request.originals.length) {
+      throw ArgumentError('请先预览要补记的任务，并提供完成依据');
+    }
+    validateScheduledDate(request.beforeDate);
+    await _acquireWrite(request.originals.first.mission.id);
+    final fingerprint = sha256
+        .convert(
+          utf8.encode(
+            jsonEncode({
+              'goalId': request.goalId,
+              'beforeDate': request.beforeDate,
+              'statement': request.statement.trim(),
+              'missions': [
+                for (final d in request.originals)
+                  [d.mission.id, d.schedule.id, d.lastSequence],
+              ],
+            }),
+          ),
+        )
+        .toString();
+    final previous = await findOperationReceipt(request.id);
+    if (previous != null) {
+      if (previous.kind != 'mission_complete_history' ||
+          previous.fingerprint != fingerprint) {
+        throw const ExecutionConflict('同一次补记的内容已变化，请重新预览');
+      }
+      return previous;
+    }
+    final now = _now();
+    for (final original in request.originals) {
+      final current = await findDetail(original.mission.id);
+      if (current == null ||
+          current.mission.goalId != request.goalId ||
+          current.schedule.id != original.schedule.id ||
+          current.lastSequence != original.lastSequence ||
+          !const [
+            MissionPhase.notStarted,
+            MissionPhase.running,
+            MissionPhase.paused,
+          ].contains(current.phase) ||
+          current.mission.verificationPolicy != VerificationPolicy.selfReport ||
+          current.schedule.scheduledDate.compareTo(request.beforeDate) >= 0) {
+        throw const ExecutionConflict('预览中的任务已变化，本批未保存，请重新预览');
+      }
+      await _execute(
+        ExecutionCommand(
+          id: '${request.id}:${current.mission.id}',
+          missionId: current.mission.id,
+          expectedSequence: current.lastSequence,
+          type: ExecutionEventType.end,
+          scheduleRevisionId: current.events.isEmpty
+              ? current.schedule.id
+              : null,
+          userReportedResult: UserReportedResult.completed,
+          reason: current.events.isEmpty ? request.statement.trim() : null,
+          isRetrospective: current.events.isEmpty,
+        ),
+        occurredAt: now,
+      );
+    }
+    final result = jsonEncode({
+      'ok': true,
+      'operation': 'mission_complete_history',
+      'goalId': request.goalId,
+      'completedCount': request.originals.length,
+      'beforeDate': request.beforeDate,
+      'recordedAt': now.toIso8601String(),
+      'retrospectiveCount': request.originals
+          .where((d) => d.events.isEmpty)
+          .length,
+      'statement': request.statement.trim(),
+      'references': [
+        {'type': 'goal', 'id': request.goalId, 'title': '查看目标'},
+      ],
+    });
+    await database
+        .into(database.operationReceipts)
+        .insert(
+          OperationReceiptsCompanion.insert(
+            id: request.id,
+            kind: 'mission_complete_history',
+            fingerprint: fingerprint,
+            entityId: request.goalId,
+            resultJson: result,
+            createdAt: now.millisecondsSinceEpoch,
+          ),
+        );
+    return (await findOperationReceipt(request.id))!;
+  });
+
   // 自动开始已持有外层事务写锁，可复用其边界校验时刻；普通操作仍在下方捕获。
   Future<ExecutionEvent> _execute(
     ExecutionCommand command, {
@@ -1027,6 +1129,7 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
             event.reason != reason ||
             event.userReportedResult != command.userReportedResult ||
             event.submitOptionalEvidence != command.submitOptionalEvidence ||
+            event.isRetrospective != command.isRetrospective ||
             (needsFailure &&
                 (oldFailure == null ||
                     oldFailure.userReasonCategory != category ||
@@ -1059,6 +1162,18 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
       }
       // 已取得写锁、重读事实后才捕获时间，精度与持久化统一到毫秒。
       final now = occurredAt ?? _now();
+      if (command.isRetrospective) {
+        final local = tz.TZDateTime.from(
+          now,
+          tz.getLocation(detail.schedule.timeZone),
+        );
+        final today =
+            '${local.year.toString().padLeft(4, '0')}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+        if (command.scheduleRevisionId != detail.schedule.id ||
+            detail.schedule.scheduledDate.compareTo(today) >= 0) {
+          throw const ExecutionConflict('历史补记只能处理今天以前的原排期');
+        }
+      }
       if (command.type == ExecutionEventType.start &&
           detail.schedule.fixedStartAt != null &&
           now.isBefore(detail.schedule.fixedStartAt!)) {
@@ -1079,6 +1194,7 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
         reason: reason,
         userReportedResult: command.userReportedResult,
         submitOptionalEvidence: command.submitOptionalEvidence,
+        isRetrospective: command.isRetrospective,
       );
       // 复用已有唯一推演核心；非法 START/END、取消后开始等均不能写入。
       validateExecutionHistory(detail.mission, [...detail.events, event]);
@@ -1148,7 +1264,9 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
     return database.transaction(() async {
       final rows = await database
           .customSelect(
-            "SELECT DISTINCT mission_id FROM execution_events WHERE type = 'START' AND mission_id ${ended ? 'IN' : 'NOT IN'} (SELECT mission_id FROM execution_events WHERE type = 'END')",
+            ended
+                ? "SELECT DISTINCT mission_id FROM execution_events WHERE type = 'END'"
+                : "SELECT DISTINCT mission_id FROM execution_events WHERE type = 'START' AND mission_id NOT IN (SELECT mission_id FROM execution_events WHERE type = 'END')",
             readsFrom: {database.executionEvents},
           )
           .get();

@@ -54,6 +54,7 @@ class TestSpeech implements AssistantSpeech {
   Future<bool> start({
     required void Function(String) onText,
     required VoidCallback onDone,
+    VoidCallback? onProcessing,
     required void Function(String) onError,
   }) async {
     starts++;
@@ -80,14 +81,18 @@ void main() {
     final font = FontLoader('UiPreview');
     font.addFont(
       File(
-        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+        Platform.isWindows
+            ? 'C:/Windows/Fonts/msyh.ttc'
+            : '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
       ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
     );
     await font.load();
     final codeFont = FontLoader('monospace');
     codeFont.addFont(
       File(
-        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+        Platform.isWindows
+            ? 'C:/Windows/Fonts/msyh.ttc'
+            : '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
       ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
     );
     await codeFont.load();
@@ -155,10 +160,12 @@ void main() {
     bool realDetail = false,
   }) async {
     currentTextScale = textScale;
+    tester.view.resetViewInsets();
     tester.view.physicalSize = Size(width, height);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
     assistant = AssistantController(
       reader: DriftAssistantReader(database),
       sessionStore: DriftSessionStore(database),
@@ -350,6 +357,7 @@ void main() {
     await gesture.up();
     await pumpUntil(tester, () => speech.starts == 1);
     speech.emit!('把这个任务挪到后天，改成45分钟');
+    speech.finish!();
     await tester.pump();
     await tester.tap(find.text('发送'));
     await pumpUntil(
@@ -450,6 +458,7 @@ void main() {
     await tester.tap(find.text('语音'));
     await pumpUntil(tester, () => speech.starts == 1);
     speech.emit!('把这个任务挪到后天，改成45分钟');
+    speech.finish!();
     await tester.pump();
     await capture(tester, '02-voice-transcription');
     await tester.tap(find.text('发送'));
