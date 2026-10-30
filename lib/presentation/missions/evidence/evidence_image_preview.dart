@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 import '../../../core/theme/colors.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 列表只展示有界缩略图；原有字节供独立查看层使用，不另存缩略文件或修改原图。
 class EvidenceImagePreview extends StatelessWidget {
@@ -47,7 +48,12 @@ class EvidenceImagePreview extends StatelessWidget {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppLayout.spaceXl,
+                    AppLayout.spaceSm,
+                    AppLayout.spaceSm,
+                    AppLayout.spaceSm,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -82,7 +88,7 @@ class EvidenceImagePreview extends StatelessWidget {
                   ),
                 ),
                 const Padding(
-                  padding: EdgeInsets.all(20),
+                  padding: EdgeInsets.all(AppLayout.spaceXl),
                   child: Text(
                     '双指缩放 · 拖动查看',
                     style: TextStyle(color: AppColors.textSecondary),
@@ -102,7 +108,7 @@ class EvidenceImagePreview extends StatelessWidget {
     label: '放大图片：$name',
     child: Material(
       color: AppColors.primarySoft,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(AppLayout.radiusMd),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => _open(context),
@@ -126,7 +132,10 @@ class EvidenceImagePreview extends StatelessWidget {
                     color: AppColors.card,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.open_in_full_rounded, size: 16),
+                  child: const Icon(
+                    Icons.open_in_full_rounded,
+                    size: AppLayout.iconSm,
+                  ),
                 ),
               ),
             ],

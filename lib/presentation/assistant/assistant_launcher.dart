@@ -12,6 +12,7 @@ import 'assistant_voice_status.dart';
 import 'assistant_avatar.dart';
 import 'assistant_scope.dart';
 import 'assistant_settings_page.dart';
+import '../../core/theme/app_layout.dart';
 
 /// 业务页面仅提供身份；助手状态、识别和操作不归业务页面持有。
 class AssistantEntryScope extends InheritedWidget {
@@ -375,9 +376,9 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                   child: Material(
                     key: const Key('assistant-voice-bubble'),
                     elevation: 4,
-                    shadowColor: Colors.black26,
+                    shadowColor: AppColors.shadow,
                     color: AppColors.card,
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
                     clipBehavior: Clip.antiAlias,
                     child: _bubbleContent(),
                   ),
@@ -430,10 +431,10 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                   ),
                   child: _opening
                       ? const Padding(
-                          padding: EdgeInsets.all(18),
+                          padding: EdgeInsets.all(AppLayout.spaceLg),
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: AppColors.onPrimary,
                           ),
                         )
                       : Icon(
@@ -442,8 +443,8 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                               : controller.isRunning
                               ? Icons.auto_awesome
                               : assistantAvatarIcon(controller.persona.avatar),
-                          color: Colors.white,
-                          size: 26,
+                          color: AppColors.onPrimary,
+                          size: AppLayout.iconLg,
                         ),
                 ),
               ),
@@ -473,11 +474,13 @@ class AssistantLauncherState extends State<AssistantLauncher> {
               Icon(
                 index == 0 ? Icons.keyboard_outlined : Icons.mic_none,
                 color: AppColors.primary,
-                size: 22,
+                size: AppLayout.iconLg,
               ),
               Text(
                 index == 0 ? '文字' : '语音',
-                style: const TextStyle(fontSize: 12, color: AppColors.primary),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: AppColors.primary),
               ),
             ],
           ),
@@ -524,7 +527,12 @@ class AssistantLauncherState extends State<AssistantLauncher> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 4, 0),
+          padding: const EdgeInsets.fromLTRB(
+            AppLayout.spaceLg,
+            AppLayout.spaceXs,
+            AppLayout.spaceXs,
+            0,
+          ),
           child: Row(
             children: [
               Icon(
@@ -532,9 +540,9 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                     ? Icons.mic_none_rounded
                     : assistantAvatarIcon(controller.persona.avatar),
                 color: AppColors.primary,
-                size: 20,
+                size: AppLayout.iconMd,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppLayout.spaceSm),
               Expanded(
                 child: Text(
                   _recording ? '语音输入' : controller.persona.name,
@@ -546,12 +554,12 @@ class AssistantLauncherState extends State<AssistantLauncher> {
               IconButton(
                 tooltip: '展开同一对话',
                 onPressed: _transitioning ? null : _expand,
-                icon: const Icon(Icons.open_in_full, size: 18),
+                icon: const Icon(Icons.open_in_full, size: AppLayout.iconSm),
               ),
               IconButton(
                 tooltip: '收起气泡',
                 onPressed: _closeBubble,
-                icon: const Icon(Icons.close, size: 20),
+                icon: const Icon(Icons.close, size: AppLayout.iconMd),
               ),
             ],
           ),
@@ -559,14 +567,19 @@ class AssistantLauncherState extends State<AssistantLauncher> {
         Flexible(
           child: SingleChildScrollView(
             key: const Key('assistant-bubble-scroll'),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            padding: const EdgeInsets.fromLTRB(
+              AppLayout.spaceLg,
+              AppLayout.spaceSm,
+              AppLayout.spaceLg,
+              AppLayout.spaceMd,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (_recording) ...[
                   AssistantVoiceStatus(voice: voice),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppLayout.spaceMd),
                   if (voice.text.isNotEmpty ||
                       (!voice.busy && !voice.listening && voice.error == null))
                     AssistantVoiceDraft(voice: voice)
@@ -580,7 +593,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                       style: text.bodyMedium,
                     ),
                   if (voice.error != null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppLayout.spaceSm),
                     Text(
                       voice.error!,
                       style: text.bodyMedium?.copyWith(color: AppColors.error),
@@ -600,7 +613,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                         },
                         icon: const Icon(
                           Icons.settings_voice_outlined,
-                          size: 18,
+                          size: AppLayout.iconSm,
                         ),
                         label: const Text('语音设置'),
                       ),
@@ -614,10 +627,10 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                 ] else ...[
                   if (_sentMessage != null)
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(AppLayout.spaceMd),
                       decoration: BoxDecoration(
                         color: AppColors.primarySoft,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -628,7 +641,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                               color: AppColors.textSecondary,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: AppLayout.spaceXs),
                           Text(
                             _sentMessage!.text,
                             key: const Key('assistant-bubble-request'),
@@ -637,14 +650,15 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                         ],
                       ),
                     ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppLayout.spaceMd),
                   if (reply.isNotEmpty) AssistantMarkdown(text: reply),
                   if (streaming.isNotEmpty && streaming != reply) ...[
-                    if (reply.isNotEmpty) const SizedBox(height: 8),
+                    if (reply.isNotEmpty)
+                      const SizedBox(height: AppLayout.spaceSm),
                     AssistantMarkdown(text: streaming),
                   ],
                   if (operations.isNotEmpty) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppLayout.spaceSm),
                     OutlinedButton.icon(
                       key: const Key('assistant-bubble-operations'),
                       onPressed: _expand,
@@ -652,14 +666,14 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                         waiting
                             ? Icons.fact_check_outlined
                             : Icons.receipt_long_outlined,
-                        size: 18,
+                        size: AppLayout.iconSm,
                       ),
                       label: Text(waiting ? '查看并确认操作' : '查看操作结果'),
                     ),
                   ],
                   if (controller.isRunning)
                     Padding(
-                      padding: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.only(top: AppLayout.spaceSm),
                       child: Row(
                         children: [
                           if (!waiting)
@@ -668,7 +682,8 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
-                          if (!waiting) const SizedBox(width: 8),
+                          if (!waiting)
+                            const SizedBox(width: AppLayout.spaceSm),
                           Expanded(
                             child: Text(
                               waiting ? '等待你确认，本次操作尚未执行' : '正在回复…',
@@ -679,7 +694,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                       ),
                     ),
                   if (controller.errorMessage != null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppLayout.spaceSm),
                     Text(
                       controller.errorMessage!,
                       style: text.bodyMedium?.copyWith(color: AppColors.error),
@@ -695,7 +710,12 @@ class AssistantLauncherState extends State<AssistantLauncher> {
         ),
         const Divider(height: 1),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          padding: const EdgeInsets.fromLTRB(
+            AppLayout.spaceMd,
+            AppLayout.spaceSm,
+            AppLayout.spaceMd,
+            AppLayout.spaceSm,
+          ),
           child: Wrap(
             alignment: WrapAlignment.end,
             spacing: 8,
@@ -710,7 +730,10 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                   FilledButton.icon(
                     key: const Key('assistant-voice-stop'),
                     onPressed: voice.stop,
-                    icon: const Icon(Icons.stop_rounded, size: 18),
+                    icon: const Icon(
+                      Icons.stop_rounded,
+                      size: AppLayout.iconSm,
+                    ),
                     label: const Text('结束录音'),
                   )
                 else if (voice.busy)
@@ -729,7 +752,10 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                             _transitioning
                         ? null
                         : _sendVoice,
-                    icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+                    icon: const Icon(
+                      Icons.arrow_upward_rounded,
+                      size: AppLayout.iconSm,
+                    ),
                     label: const Text('发送'),
                   ),
                 ],

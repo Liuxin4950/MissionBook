@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/app_layout.dart';
 
 /// 应用共用的双按钮确认框。这里只展示文案并返回选择，业务仍由页面处理。
 class AppConfirmDialog extends StatelessWidget {
@@ -42,19 +43,21 @@ class AppConfirmDialog extends StatelessWidget {
     final colors = theme.colorScheme;
     final buttonStyle = theme.textTheme.labelLarge;
     final buttonShape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppLayout.radiusLg),
     );
 
     return Dialog(
       backgroundColor: colors.surfaceContainerLow,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      insetPadding: const EdgeInsets.all(24),
+      insetPadding: const EdgeInsets.all(AppLayout.spaceXxl),
       constraints: const BoxConstraints(maxWidth: 360),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+      ),
       // 高度由内容决定；横屏或大字体时整个内容可以滚动。
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(AppLayout.spaceXxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -63,14 +66,14 @@ class AppConfirmDialog extends StatelessWidget {
               namesRoute: true,
               child: Text(title, style: theme.textTheme.titleLarge),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppLayout.spaceMd),
             Text(
               message,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colors.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppLayout.spaceXxl),
             LayoutBuilder(
               builder: (context, constraints) {
                 // 窄屏或放大字号时改成纵排，给按钮文字留出完整空间。
@@ -82,10 +85,10 @@ class AppConfirmDialog extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: colors.primary,
                     foregroundColor: colors.onPrimary,
-                    minimumSize: const Size(0, 48),
+                    minimumSize: const Size(0, AppLayout.touchTargetMin),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                      horizontal: AppLayout.spaceLg,
+                      vertical: AppLayout.spaceMd,
                     ),
                     textStyle: buttonStyle,
                     shape: buttonShape,
@@ -97,10 +100,10 @@ class AppConfirmDialog extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: colors.primary,
                     side: BorderSide(color: colors.outline),
-                    minimumSize: const Size(0, 48),
+                    minimumSize: const Size(0, AppLayout.touchTargetMin),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                      horizontal: AppLayout.spaceLg,
+                      vertical: AppLayout.spaceMd,
                     ),
                     textStyle: buttonStyle,
                     shape: buttonShape,
@@ -112,7 +115,7 @@ class AppConfirmDialog extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       cancelButton,
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppLayout.spaceMd),
                       confirmButton,
                     ],
                   );
@@ -120,7 +123,7 @@ class AppConfirmDialog extends StatelessWidget {
                 return Row(
                   children: [
                     Expanded(child: cancelButton),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppLayout.spaceMd),
                     Expanded(child: confirmButton),
                   ],
                 );

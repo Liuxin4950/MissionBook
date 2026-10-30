@@ -716,7 +716,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
                               '任务安排',
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: AppLayout.spaceXl),
                             MissionOwnershipField(
                               service: widget.missionService,
                               value: _ownership,
@@ -766,7 +766,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
                               '完成与记录',
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: AppLayout.spaceXl),
                             MissionEvidenceFields(
                               policy: _verificationPolicy,
                               criteriaController: _criteriaController,
@@ -794,7 +794,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
                                 _errorText = null;
                               }),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: AppLayout.spaceMd),
                             const Divider(height: 1),
                             ExpansionTile(
                               key: const Key('mission-plan-toggle'),
@@ -811,7 +811,9 @@ class _MissionFormPageState extends State<MissionFormPage> {
                               children: [
                                 if (widget.retrySource != null)
                                   Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
+                                    padding: const EdgeInsets.only(
+                                      bottom: AppLayout.spaceLg,
+                                    ),
                                     child: Text(
                                       '来自任务：${widget.retrySource!.mission.title}\n保存后创建新的尝试，原记录保持不变。',
                                     ),
@@ -834,7 +836,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 20),
+                                const SizedBox(height: AppLayout.spaceXl),
                                 MissionInputLabel(
                                   label: '执行步骤',
                                   child: TextField(
@@ -849,7 +851,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 20),
+                                const SizedBox(height: AppLayout.spaceXl),
                                 MissionInputLabel(
                                   label: '方案备注',
                                   child: TextField(
@@ -864,7 +866,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 20),
+                                const SizedBox(height: AppLayout.spaceXl),
                                 MissionInputLabel(
                                   label: '任务说明',
                                   child: TextField(
@@ -882,7 +884,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 20),
+                                const SizedBox(height: AppLayout.spaceXl),
                                 MissionInputLabel(
                                   label: '为什么做',
                                   child: TextField(
@@ -900,7 +902,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 24),
+                                const SizedBox(height: AppLayout.spaceXxl),
                               ],
                             ),
                           ],
@@ -933,7 +935,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
                         ).textTheme.bodyMedium?.copyWith(color: colors.error),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppLayout.spaceMd),
                   ],
                   if (_pendingCreation != null && !_isCreated)
                     TextButton(
@@ -942,11 +944,13 @@ class _MissionFormPageState extends State<MissionFormPage> {
                     ),
                   FilledButton(
                     style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
+                      minimumSize: const Size.fromHeight(
+                        AppLayout.touchTargetMin,
+                      ),
                       shape: const StadiumBorder(),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
+                        horizontal: AppLayout.spaceXl,
+                        vertical: AppLayout.spaceMd,
                       ),
                       textStyle: Theme.of(context).textTheme.labelLarge,
                     ),

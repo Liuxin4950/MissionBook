@@ -18,6 +18,7 @@ import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/execution_command.dart';
 import '../evidence/mission_evidence_section.dart';
+import '../../../core/theme/app_layout.dart';
 
 // 入口意图与任务阶段分开：同一已结束任务，从任务列表读详情，从历史读执行记录。
 enum _MissionPageEntry { task, executionDetails, historyRecord, recordDetails }
@@ -434,7 +435,9 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                       ? null
                       : () => _requestRecord(detail),
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
+                    minimumSize: const Size.fromHeight(
+                      AppLayout.actionMinHeight,
+                    ),
                     shape: const StadiumBorder(),
                   ),
                   icon: const Icon(Icons.receipt_long_outlined),
@@ -507,7 +510,9 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                                     action.prepare(ExecutionEventType.start),
                                   ),
                             style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(52),
+                              minimumSize: const Size.fromHeight(
+                                AppLayout.actionMinHeight,
+                              ),
                               shape: const StadiumBorder(),
                             ),
                             icon: const Icon(Icons.play_arrow_rounded),
@@ -545,7 +550,7 @@ class _DetailMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(AppLayout.spaceXxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

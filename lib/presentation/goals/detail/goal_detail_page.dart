@@ -32,6 +32,7 @@ class GoalDetailPage extends StatefulWidget {
 
 class _GoalDetailPageState extends State<GoalDetailPage> {
   late Future<Goal?> _goal;
+  Goal? _lastGoal; // 刷新期间保留最近一次成功内容，避免卸载节点工作区。
   StreamSubscription<void>? _changes;
   bool _busy = false;
 
@@ -59,6 +60,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.service != widget.service ||
         oldWidget.goalId != widget.goalId) {
+      if (oldWidget.goalId != widget.goalId) _lastGoal = null;
       _goal = widget.service.findById(widget.goalId);
       if (oldWidget.service != widget.service) {
         unawaited(_changes?.cancel());
@@ -135,29 +137,32 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
           child: FutureBuilder<Goal?>(
             future: _goal, // FutureBuilder 接收查询结果，等待、失败和成功分别展示。
             builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('暂时无法读取目标'),
-                      TextButton(
-                        onPressed: () => setState(() {
-                          _goal = widget.service.findById(widget.goalId);
-                        }),
-                        child: const Text('重试'),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              final goal = snapshot.data;
+              final waiting = snapshot.connectionState != ConnectionState.done;
+              final goal = snapshot.data ?? _lastGoal;
               if (goal == null) {
+                if (waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('暂时无法读取目标'),
+                        TextButton(
+                          onPressed: () => setState(() {
+                            _goal = widget.service.findById(widget.goalId);
+                          }),
+                          child: const Text('重试'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
                 return const Center(child: Text('未找到这个目标，请返回列表刷新'));
               }
+              // 有最近成功内容时先继续显示，刷新完成后原位替换。
+              _lastGoal = goal;
               final theme = Theme.of(context);
               return SingleChildScrollView(
                 padding: AppLayout.pagePadding(context),
@@ -172,12 +177,14 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                         );
                         final badge = Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                            horizontal: AppLayout.spaceMd,
+                            vertical: AppLayout.spaceSm,
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.primarySoft,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(
+                              AppLayout.radiusXl,
+                            ),
                           ),
                           child: Text(
                             goalStatusLabel(goal.status),
@@ -192,7 +199,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               title,
-                              const SizedBox(height: 12),
+                              const SizedBox(height: AppLayout.spaceMd),
                               badge,
                             ],
                           );
@@ -201,13 +208,13 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(child: title),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: AppLayout.spaceLg),
                             badge,
                           ],
                         );
                       },
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppLayout.spaceMd),
                     Wrap(
                       spacing: 12,
                       runSpacing: 8,
@@ -215,7 +222,10 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                         OutlinedButton.icon(
                           key: const Key('goal-edit'),
                           onPressed: _busy ? null : () => _edit(goal),
-                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            size: AppLayout.iconSm,
+                          ),
                           label: const Text('编辑目标'),
                         ),
                         PopupMenuButton<GoalStatus>(
@@ -248,14 +258,14 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                           ],
                           child: const Padding(
                             padding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
+                              horizontal: AppLayout.spaceMd,
+                              vertical: AppLayout.spaceMd,
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.more_horiz, size: 20),
-                                SizedBox(width: 6),
+                                Icon(Icons.more_horiz, size: AppLayout.iconMd),
+                                SizedBox(width: AppLayout.spaceSm),
                                 Text('更改状态'),
                               ],
                             ),
@@ -267,7 +277,9 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                       ExpansionTile(
                         key: const Key('goal-description-toggle'),
                         tilePadding: EdgeInsets.zero,
-                        childrenPadding: const EdgeInsets.only(bottom: 20),
+                        childrenPadding: const EdgeInsets.only(
+                          bottom: AppLayout.spaceXl,
+                        ),
                         shape: const Border(),
                         collapsedShape: const Border(),
                         expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
@@ -279,9 +291,9 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                               style: theme.textTheme.bodyMedium,
                             ),
                           if (goal.why != null) ...[
-                            const SizedBox(height: 12),
+                            const SizedBox(height: AppLayout.spaceMd),
                             Text('为什么想实现', style: theme.textTheme.titleSmall),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: AppLayout.spaceSm),
                             SelectableText(
                               goal.why!,
                               style: theme.textTheme.bodyMedium,
@@ -289,14 +301,14 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                           ],
                         ],
                       ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: AppLayout.spaceXxl),
                     if (widget.missionService != null) ...[
                       GoalRecordSummary(
                         goalId: goal.id,
                         goals: widget.service,
                         missions: widget.missionService!,
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: AppLayout.spaceXxl),
                     ],
                     GoalOutlineSection(
                       service: widget.service,
@@ -305,7 +317,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                       goalId: goal.id,
                       goalTitle: goal.title,
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppLayout.spaceXxl),
                     Text(
                       '创建于 ${_date(goal.createdAt.toLocal())}',
                       style: theme.textTheme.bodySmall?.copyWith(

@@ -1,3 +1,4 @@
+import '../../core/theme/app_layout.dart';
 import 'package:flutter/material.dart';
 
 /// 四个主页面共用标题基线、说明行和主操作位置，外层使用 AppLayout.pagePadding。
@@ -18,7 +19,7 @@ class AppPageHeader extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 48),
+        constraints: const BoxConstraints(minHeight: AppLayout.touchTargetMin),
         child: Row(
           children: [
             Expanded(
@@ -33,11 +34,14 @@ class AppPageHeader extends StatelessWidget {
               ),
             ),
             if (action != null) ...[
-              const SizedBox(width: 12),
+              const SizedBox(width: AppLayout.spaceMd),
               IconButtonTheme(
                 data: IconButtonThemeData(
                   style: IconButton.styleFrom(
-                    fixedSize: const Size(48, 48),
+                    fixedSize: const Size(
+                      AppLayout.touchTargetMin,
+                      AppLayout.touchTargetMin,
+                    ),
                     shape: const CircleBorder(),
                   ),
                 ),
@@ -51,7 +55,9 @@ class AppPageHeader extends StatelessWidget {
       if (subtitle != null)
         ConstrainedBox(
           key: ValueKey('page-subtitle-$title'),
-          constraints: const BoxConstraints(minHeight: 48),
+          constraints: const BoxConstraints(
+            minHeight: AppLayout.touchTargetMin,
+          ),
           child: Align(alignment: Alignment.centerLeft, child: subtitle),
         ),
     ],

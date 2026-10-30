@@ -102,13 +102,13 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
             ),
             child: ListView(
               shrinkWrap: true,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppLayout.spaceLg),
               children: [
                 Text(
                   '当前任务',
                   style: Theme.of(sheetContext).textTheme.titleLarge,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppLayout.spaceMd),
                 for (final detail in active)
                   ListTile(
                     leading: MissionPhaseIcon(phase: detail.phase),
@@ -155,7 +155,12 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
       return SafeArea(
         top: false,
         bottom: !compact,
-        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        minimum: const EdgeInsets.fromLTRB(
+          AppLayout.spaceLg,
+          AppLayout.spaceSm,
+          AppLayout.spaceLg,
+          AppLayout.spaceSm,
+        ),
         child: Center(
           heightFactor: 1,
           child: ConstrainedBox(
@@ -163,7 +168,7 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
             child: Material(
               color: Theme.of(context).colorScheme.surfaceContainerLow,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(AppLayout.radiusLg),
                 side: BorderSide(
                   color: Theme.of(context).colorScheme.outlineVariant,
                 ),
@@ -177,13 +182,13 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
                       onTap: () => _open(detail),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                          horizontal: AppLayout.spaceMd,
+                          vertical: AppLayout.spaceSm,
                         ),
                         child: Row(
                           children: [
                             MissionPhaseIcon(phase: detail.phase),
-                            const SizedBox(width: 10),
+                            const SizedBox(width: AppLayout.spaceMd),
                             Expanded(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
@@ -220,7 +225,7 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
                     )
                   else
                     const Padding(
-                      padding: EdgeInsets.only(right: 12),
+                      padding: EdgeInsets.only(right: AppLayout.spaceMd),
                       child: Icon(Icons.chevron_right),
                     ),
                 ],

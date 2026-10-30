@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_motion.dart';
 
 /// 等分可用宽度的分类栏。标签允许换行，不把最后一项藏到横向滚动区。
 class AppSegmentedControl<T> extends StatelessWidget {
@@ -19,10 +21,10 @@ class AppSegmentedControl<T> extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(AppLayout.spaceXs),
         child: Row(
           children: [
             for (final entry in options.entries)
@@ -40,14 +42,16 @@ class AppSegmentedControl<T> extends StatelessWidget {
                           backgroundColor: selected == entry.key
                               ? theme.colorScheme.surfaceContainerLow
                               : Colors.transparent,
-                          minimumSize: const Size(0, 48),
+                          minimumSize: const Size(0, AppLayout.touchTargetMin),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 10,
+                            horizontal: AppLayout.spaceSm,
+                            vertical: AppLayout.spaceSm,
                           ),
                           textStyle: theme.textTheme.labelMedium,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(
+                              AppLayout.radiusMd,
+                            ),
                             side: BorderSide(
                               color: selected == entry.key
                                   ? theme.colorScheme.primary
@@ -55,10 +59,10 @@ class AppSegmentedControl<T> extends StatelessWidget {
                             ),
                           ),
                         ).copyWith(
-                          animationDuration:
-                              MediaQuery.disableAnimationsOf(context)
-                              ? Duration.zero
-                              : const Duration(milliseconds: 180),
+                          animationDuration: AppMotion.resolve(
+                            context,
+                            AppMotion.quick,
+                          ),
                         ),
                     child: Text(entry.value, textAlign: TextAlign.center),
                   ),

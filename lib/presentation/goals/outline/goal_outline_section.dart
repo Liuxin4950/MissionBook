@@ -12,6 +12,8 @@ import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/goal.dart';
 import '../../../domain/entities/mission_detail.dart';
 import 'goal_missions_section.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_motion.dart';
 
 const _nodeRowPadding = 4.0;
 
@@ -210,7 +212,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     padding: EdgeInsets.zero,
     decoration: BoxDecoration(
       color: widget.embedded ? AppColors.card : AppColors.background,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
     ),
     child: FutureBuilder<List<GoalNode>>(
       key: ValueKey(widget.goalId),
@@ -221,7 +223,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
             !snapshot.hasData &&
             snapshot.connectionState != ConnectionState.done) {
           return const Padding(
-            padding: EdgeInsets.all(24),
+            padding: EdgeInsets.all(AppLayout.spaceXxl),
             child: Center(child: CircularProgressIndicator()),
           );
         }
@@ -275,10 +277,10 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                   if (!widget.embedded)
                     const Icon(
                       Icons.account_tree_outlined,
-                      size: 20,
+                      size: AppLayout.iconMd,
                       color: AppColors.primary,
                     ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppLayout.spaceSm),
                   Expanded(
                     child: widget.embedded
                         ? const SizedBox.shrink()
@@ -287,7 +289,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                   TextButton.icon(
                     key: Key('node-add-root-${widget.goalId}'),
                     onPressed: _busy ? null : () => _edit(),
-                    icon: const Icon(Icons.add, size: 18),
+                    icon: const Icon(Icons.add, size: AppLayout.iconSm),
                     style: TextButton.styleFrom(
                       textStyle: theme.textTheme.labelMedium,
                     ),
@@ -297,7 +299,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
               ),
             if (_operationError != null)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppLayout.spaceSm,
+                ),
                 child: Semantics(
                   liveRegion: true,
                   child: Text(
@@ -308,21 +312,23 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
               ),
             if (entries.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppLayout.spaceXxl,
+                ),
                 child: Column(
                   children: [
                     const Icon(
                       Icons.route_outlined,
-                      size: 32,
+                      size: AppLayout.iconDisplay,
                       color: AppColors.textSecondary,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppLayout.spaceMd),
                     Text(
                       '把目标分成容易着手的几部分',
                       style: theme.textTheme.titleSmall,
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: AppLayout.spaceSm),
                     Text(
                       '先添加一个节点，需要时再细分。',
                       style: theme.textTheme.bodyMedium,
@@ -355,10 +361,11 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                       width: width,
                       child: AnimatedSize(
                         alignment: Alignment.topLeft,
-                        duration: MediaQuery.disableAnimationsOf(context)
-                            ? Duration.zero
-                            : const Duration(milliseconds: 260),
-                        curve: Curves.easeOutCubic,
+                        duration: AppMotion.resolve(
+                          context,
+                          AppMotion.standard,
+                        ),
+                        curve: AppMotion.curve,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -393,7 +400,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                     showingArchive
                         ? Icons.arrow_back
                         : Icons.inventory_2_outlined,
-                    size: 18,
+                    size: AppLayout.iconSm,
                   ),
                   label: Text(
                     showingArchive ? '返回当前路径' : '已归档节点 · ${archived.length}',
@@ -439,14 +446,14 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
       children: [
         Icon(
           icon,
-          size: 18,
+          size: AppLayout.iconSm,
           color: !enabled
               ? AppColors.onDisabled
               : destructive
               ? AppColors.error
               : AppColors.textSecondary,
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppLayout.spaceMd),
         Flexible(
           child: Text(
             label,
@@ -464,7 +471,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     final menu = PopupMenuButton<_NodeAction>(
       color: AppColors.card,
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+      ),
       key: Key('node-menu-${node.id}'),
       tooltip: '节点操作：${node.title}',
       enabled: !_busy,
@@ -596,13 +605,11 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
             onPressed: toggleChildren,
             icon: AnimatedRotation(
               turns: collapsed ? 0 : .25,
-              duration: MediaQuery.disableAnimationsOf(context)
-                  ? Duration.zero
-                  : const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
+              duration: AppMotion.resolve(context, AppMotion.quick),
+              curve: AppMotion.curve,
               child: const Icon(
                 Icons.chevron_right,
-                size: 20,
+                size: AppLayout.iconMd,
                 color: AppColors.primary,
               ),
             ),
@@ -614,7 +621,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     ].join(' · ');
     return Padding(
       key: Key('node-row-${node.id}'),
-      padding: EdgeInsets.only(top: entry.depth == 0 ? 8 : 0),
+      padding: EdgeInsets.only(top: entry.depth == 0 ? AppLayout.spaceSm : 0),
       child: CustomPaint(
         foregroundPainter: _TreeGuidePainter(
           entry.guides,
@@ -652,7 +659,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                     color: entry.depth == 0
                         ? AppColors.surfaceMuted.withValues(alpha: .65)
                         : null,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppLayout.radiusMd),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -683,23 +690,20 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                                           treeToggle ??
                                           const Icon(
                                             Icons.radio_button_unchecked,
-                                            size: 18,
+                                            size: AppLayout.iconSm,
                                             color: AppColors.outline,
                                           ),
                                     ),
                                     Expanded(
                                       child: Padding(
                                         padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
+                                          vertical: AppLayout.spaceMd,
                                         ),
                                         child: Text(
                                           node.title,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
                                         ),
                                       ),
                                     ),
@@ -708,7 +712,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                                 ),
                                 if (annotation.isNotEmpty)
                                   Padding(
-                                    padding: const EdgeInsets.only(left: 48),
+                                    padding: const EdgeInsets.only(
+                                      left: AppLayout.touchTargetMin,
+                                    ),
                                     child: Text(
                                       annotation,
                                       style: Theme.of(
@@ -723,7 +729,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                 ),
                 if (_swipedNodeId == node.id && !archived)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.only(top: AppLayout.spaceXs),
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: TextButton.icon(
@@ -743,10 +749,15 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                           foregroundColor: AppColors.error,
                           backgroundColor: AppColors.errorSoft,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(
+                              AppLayout.radiusMd,
+                            ),
                           ),
                         ),
-                        icon: const Icon(Icons.archive_outlined, size: 18),
+                        icon: const Icon(
+                          Icons.archive_outlined,
+                          size: AppLayout.iconSm,
+                        ),
                         label: const Text('归档'),
                       ),
                     ),

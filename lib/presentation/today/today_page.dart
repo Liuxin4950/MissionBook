@@ -27,6 +27,8 @@ import '../missions/shared/mission_phase_display.dart';
 import '../missions/shared/mission_phase_icon.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/mission_phase.dart';
+import '../../domain/rules/execution_time_rules.dart';
+import '../missions/shared/mission_execution_display.dart';
 
 // 本页负责加载和导航；日程布局由 ScheduleSection 复用，日期和窗口选择由 display 处理。
 // App 创建一个 MissionService，AppShell 将同一份引用传到这里。
@@ -391,35 +393,35 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                     ),
                   if (widget.fullSchedule)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.only(bottom: AppLayout.spaceLg),
                       child: Text(
                         display.scheduleDateLabel(_selectedDate),
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     )
                   else ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppLayout.spaceLg),
                     _WeekStrip(
                       selectedDate: _selectedDate,
                       today: _today,
                       onSelect: _changeDate,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppLayout.spaceLg),
                   ],
                   // 构建元素
                   _buildContent(),
                   if (!widget.fullSchedule && _pendingEvidence.isNotEmpty) ...[
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppLayout.spaceXxl),
                     Text(
                       '待补材料',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppLayout.spaceSm),
                     Text('其他日期结束的任务也可以从这里打开执行记录，继续补交材料。'),
                     for (final detail in _pendingEvidence)
                       Padding(
                         key: ValueKey('today-pending-${detail.mission.id}'),
-                        padding: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.only(top: AppLayout.spaceSm),
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(detail.mission.title),
@@ -450,7 +452,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     final hasSnapshot = _loadedDate == display.scheduleDateKey(_selectedDate);
     if (_isLoading && !hasSnapshot) {
       return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 48),
+        padding: EdgeInsets.symmetric(vertical: AppLayout.touchTargetMin),
         child: Center(child: CircularProgressIndicator()),
       );
     }
@@ -458,7 +460,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       return Column(
         children: [
           Text(_errorText!),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           OutlinedButton(onPressed: _loadMissions, child: const Text('重新加载')),
         ],
       );
@@ -479,7 +481,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
               onOpenMission: _openDetail,
               onCreate: _openCreate,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: AppLayout.spaceXl),
             _ScheduleOverview(missions: _missions),
           ],
         );
@@ -511,7 +513,10 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                     TextButton.icon(
                       onPressed: _openAllMissions,
                       label: const Text('查看全部'),
-                      icon: const Icon(Icons.chevron_right, size: 18),
+                      icon: const Icon(
+                        Icons.chevron_right,
+                        size: AppLayout.iconSm,
+                      ),
                       iconAlignment: IconAlignment.end,
                     ),
                   ],
@@ -568,13 +573,16 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(flex: 3, child: schedule),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: AppLayout.spaceXl),
                   Expanded(flex: 2, child: side),
                 ],
               )
             else ...[
               schedule,
-              if (!widget.fullSchedule) ...[const SizedBox(height: 20), side],
+              if (!widget.fullSchedule) ...[
+                const SizedBox(height: AppLayout.spaceXl),
+                side,
+              ],
             ],
           ],
         );
@@ -623,14 +631,17 @@ class _TodayHeader extends StatelessWidget {
                   textStyle: theme.textTheme.bodyMedium,
                 ),
                 label: Text(dateLabel),
-                icon: const Icon(Icons.expand_more, size: 20),
+                icon: const Icon(Icons.expand_more, size: AppLayout.iconMd),
                 iconAlignment: IconAlignment.end,
               ),
               if (showTodayShortcut)
                 TextButton.icon(
                   key: const Key('today-return-current-week'),
                   onPressed: onReturnToday,
-                  icon: const Icon(Icons.today_outlined, size: 16),
+                  icon: const Icon(
+                    Icons.today_outlined,
+                    size: AppLayout.iconSm,
+                  ),
                   label: const Text('今天'),
                   style: TextButton.styleFrom(
                     textStyle: theme.textTheme.labelMedium,
@@ -721,13 +732,15 @@ class _WeekStrip extends StatelessWidget {
                           : isToday
                           ? AppColors.primarySoft
                           : Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppLayout.radiusMd),
                       child: InkWell(
                         onTap: () => onSelect(date),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
                         child: Container(
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(
+                              AppLayout.radiusMd,
+                            ),
                             border: isToday
                                 ? Border.all(
                                     color: selected
@@ -740,7 +753,9 @@ class _WeekStrip extends StatelessWidget {
                                   )
                                 : null,
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppLayout.spaceMd,
+                          ),
                           child: Column(
                             children: [
                               FittedBox(
@@ -758,7 +773,7 @@ class _WeekStrip extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: AppLayout.spaceXs),
                               FittedBox(
                                 child: Text(
                                   '${date.day}',
@@ -789,13 +804,24 @@ class _WeekStrip extends StatelessWidget {
 String _missionSemanticsLabel(
   display.TodayMissionItem item, {
   bool isCurrent = false,
-}) => [
-  if (isCurrent) '当前计划时段',
-  item.isFixed ? item.startTime : '自选时间',
-  item.title,
-  item.durationLabel,
-  if (item.timeZoneLabel != null) item.timeZoneLabel!,
-].join('，');
+  required DateTime Function() clock,
+}) {
+  final parts = [
+    if (isCurrent) '当前计划时段',
+    item.isFixed ? item.startTime : '自选时间',
+    item.title,
+    item.durationLabel,
+    if (item.timeZoneLabel != null) item.timeZoneLabel!,
+    if (!item.isCancelled) phaseLabel(item.phase),
+  ];
+  if (item.events.isNotEmpty &&
+      (item.phase == MissionPhase.running ||
+          item.phase == MissionPhase.paused)) {
+    final focus = calculateExecutionTimes(item.events, clock().toUtc()).focus;
+    parts.add('专注 ${focusDuration(focus)}');
+  }
+  return parts.join('，');
+}
 
 /// 自选任务列表；展开状态留在本区域，查询和打开页面交给回调。
 class _FlexibleMissionSection extends StatefulWidget {
@@ -831,9 +857,9 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
         : widget.items.take(_previewCount);
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(AppLayout.radiusXl),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppLayout.spaceXl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -850,7 +876,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                   style: TextButton.styleFrom(
                     textStyle: theme.textTheme.labelMedium,
                   ),
-                  icon: const Icon(Icons.add, size: 18),
+                  icon: const Icon(Icons.add, size: AppLayout.iconSm),
                   label: const Text('添加'),
                 ),
               ],
@@ -906,7 +932,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                         ),
                         icon: Icon(
                           _expanded ? Icons.expand_less : Icons.expand_more,
-                          size: 18,
+                          size: AppLayout.iconSm,
                         ),
                         label: Text(
                           _expanded ? '收起' : '展开全部（${widget.items.length}）',
@@ -939,20 +965,23 @@ class _FlexibleMissionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       key: ValueKey('mission-${item.id}'),
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
       child: _MissionDetailLink(
-        label: _missionSemanticsLabel(item),
+        label: _missionSemanticsLabel(item, clock: clock),
         hint: missionOpenLabel(item.phase),
         onTap: onTap,
         // 留白放在点击容器内部，悬停、按下和键盘焦点的底色都会包住留白。
         // 外层 bottom: 8 只负责行间距，不能替代背景与图标/文字之间的距离。
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppLayout.spaceMd,
+            vertical: AppLayout.spaceSm,
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               MissionPhaseIcon(phase: item.phase),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppLayout.spaceMd),
               Expanded(
                 child: _MissionDetails(item: item, compact: true, clock: clock),
               ),
@@ -992,7 +1021,7 @@ class _MissionDetailLink extends StatelessWidget {
         type: MaterialType.transparency,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
           child: child,
         ),
       ),
@@ -1054,7 +1083,7 @@ class _SectionEmptyHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
       child: Text(
         message,
         style: _todayMetadataStyle(
@@ -1091,9 +1120,9 @@ class _ScheduleOverview extends StatelessWidget {
     ];
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(AppLayout.radiusXl),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppLayout.spaceLg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1101,7 +1130,7 @@ class _ScheduleOverview extends StatelessWidget {
               header: true,
               child: Text('安排概览', style: theme.textTheme.titleMedium),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppLayout.spaceLg),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1111,12 +1140,12 @@ class _ScheduleOverview extends StatelessWidget {
                       children: [
                         Icon(
                           entry.$1,
-                          size: 20,
+                          size: AppLayout.iconMd,
                           color: theme.colorScheme.primary,
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: AppLayout.spaceSm),
                         Text(entry.$2, style: theme.textTheme.titleLarge),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: AppLayout.spaceXs),
                         Text(
                           entry.$3,
                           style: theme.textTheme.bodyMedium,

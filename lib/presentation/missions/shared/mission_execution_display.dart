@@ -57,12 +57,15 @@ class MissionHeading extends StatelessWidget {
     );
     final badge = Container(
       key: const Key('mission-phase'),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppLayout.spaceMd,
+        vertical: AppLayout.spaceSm,
+      ),
       decoration: BoxDecoration(
         color: detail.phase == MissionPhase.running
             ? AppColors.accent
             : AppColors.primarySoft,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
       ),
       child: Text(
         phaseLabel(detail.phase),
@@ -76,14 +79,18 @@ class MissionHeading extends StatelessWidget {
         if (box.maxWidth < 300 * scale) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [title, const SizedBox(height: 12), badge],
+            children: [
+              title,
+              const SizedBox(height: AppLayout.spaceMd),
+              badge,
+            ],
           );
         }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(child: title),
-            const SizedBox(width: 16),
+            const SizedBox(width: AppLayout.spaceLg),
             badge,
           ],
         );
@@ -100,7 +107,7 @@ class MissionHeading extends StatelessWidget {
             context,
           ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppLayout.spaceSm),
         heading,
       ],
     );
@@ -172,7 +179,7 @@ class MissionActionFeedback extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       if (controller.error != null) ...[
-        const SizedBox(height: 16),
+        const SizedBox(height: AppLayout.spaceLg),
         Semantics(
           liveRegion: true,
           child: Text(
@@ -206,7 +213,7 @@ class MissionActionFeedback extends StatelessWidget {
       ],
       if (controller.busy)
         const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
           child: Text('正在保存，请稍候…'),
         ),
     ],
@@ -223,10 +230,10 @@ class MissionEventTimeline extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Text('本次时间线', style: Theme.of(context).textTheme.titleMedium),
-      const SizedBox(height: 16),
+      const SizedBox(height: AppLayout.spaceLg),
       for (final event in detail.events)
         Padding(
-          padding: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.only(bottom: AppLayout.spaceLg),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -237,7 +244,7 @@ class MissionEventTimeline extends StatelessWidget {
                 ExecutionEventType.extend => Icons.more_time,
                 ExecutionEventType.end => Icons.stop_circle_outlined,
               }, color: AppColors.primary),
-              const SizedBox(width: 16),
+              const SizedBox(width: AppLayout.spaceLg),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

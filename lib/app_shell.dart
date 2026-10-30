@@ -226,7 +226,10 @@ class _AppShellState extends State<AppShell> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _buildSideRail(),
-                      const VerticalDivider(width: 1, thickness: 1),
+                      const VerticalDivider(
+                        width: AppLayout.strokeThin,
+                        thickness: AppLayout.strokeThin,
+                      ),
                       Expanded(
                         child: Column(
                           children: [
@@ -306,7 +309,7 @@ class _AppShellState extends State<AppShell> {
       IconData icon,
       IconData selectedIcon,
     ) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceXs),
       child: SizedBox(
         width: expanded ? 176 : 72,
         child: _navigationItem(
@@ -328,7 +331,10 @@ class _AppShellState extends State<AppShell> {
             border: Border(right: BorderSide(color: AppColors.hairline)),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+            padding: const EdgeInsets.symmetric(
+              vertical: AppLayout.spaceLg,
+              horizontal: AppLayout.spaceSm,
+            ),
             child: LayoutBuilder(
               builder: (context, constraints) => SingleChildScrollView(
                 child: ConstrainedBox(
@@ -338,7 +344,12 @@ class _AppShellState extends State<AppShell> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(0, 8, 0, 28),
+                          padding: const EdgeInsets.fromLTRB(
+                            0,
+                            AppLayout.spaceSm,
+                            0,
+                            AppLayout.spaceXxl,
+                          ),
                           child: SizedBox(
                             width: double.infinity,
                             child: Center(
@@ -368,8 +379,8 @@ class _AppShellState extends State<AppShell> {
                         if (widget.assistant != null)
                           Padding(
                             padding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 8,
+                              vertical: AppLayout.spaceMd,
+                              horizontal: AppLayout.spaceSm,
                             ),
                             child: AssistantLauncher(
                               key: _assistantEntry,
@@ -390,22 +401,27 @@ class _AppShellState extends State<AppShell> {
 
   // 导航仍由 _selectedIndex 控制；这里只将标准横条改成当前稿的白色胶囊。
   Widget _buildNavigationBar() {
-    final margin = MediaQuery.sizeOf(context).width < 360 ? 16.0 : 24.0;
+    final margin = AppLayout.horizontalPadding(context);
     return SafeArea(
       top: false,
-      minimum: EdgeInsets.fromLTRB(margin, 8, margin, 12),
+      minimum: EdgeInsets.fromLTRB(
+        margin,
+        AppLayout.spaceSm,
+        margin,
+        AppLayout.spaceMd,
+      ),
       child: Center(
         heightFactor: 1,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 792),
+          constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(40),
+              borderRadius: BorderRadius.circular(AppLayout.radiusPill),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withValues(alpha: 0.07),
-                  blurRadius: 24,
-                  offset: const Offset(0, 4),
+                  blurRadius: AppLayout.shadowBlur,
+                  offset: const Offset(0, AppLayout.shadowOffsetY),
                 ),
               ],
             ),
@@ -414,7 +430,7 @@ class _AppShellState extends State<AppShell> {
               shape: const StadiumBorder(),
               clipBehavior: Clip.antiAlias,
               child: Padding(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.all(AppLayout.spaceXs),
                 child: Row(
                   children: [
                     _navigationItem(
@@ -433,7 +449,9 @@ class _AppShellState extends State<AppShell> {
                     ),
                     if (widget.assistant != null)
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppLayout.spaceXs,
+                        ),
                         child: AssistantLauncher(key: _assistantEntry),
                       ),
                     _navigationItem(
@@ -480,7 +498,7 @@ class _AppShellState extends State<AppShell> {
 
     final iconWidget = Icon(
       selected ? selectedIcon : icon,
-      size: 22,
+      size: AppLayout.iconLg,
       color: foreground,
     );
     final labelWidget = Text(
@@ -496,14 +514,21 @@ class _AppShellState extends State<AppShell> {
     );
     final content = extended
         ? Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            padding: const EdgeInsets.symmetric(
+              vertical: AppLayout.spaceLg,
+              horizontal: AppLayout.spaceMd,
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.start,
-              children: [iconWidget, const SizedBox(width: 8), labelWidget],
+              children: [
+                iconWidget,
+                const SizedBox(width: AppLayout.spaceSm),
+                labelWidget,
+              ],
             ),
           )
         : Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [iconWidget, const SizedBox(height: 2), labelWidget],

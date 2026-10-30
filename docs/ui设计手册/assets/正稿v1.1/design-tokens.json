@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-26",
+  "updated": "2026-10-30",
   "status": "implemented-tokens-device-validation-pending",
   "reference": "../../制作记录/2026-10-26-颜色层级与空态审查.md",
-  "scope": "颜色角色已接入AppColors与AppTheme；其他候选字段保留各自状态，图片不代替设备验收。",
+  "scope": "颜色、形状、间距与动效 token 已接入源码；页面级视觉与设备验收仍待完成。",
   "colors": {
     "background": {
       "hex": "#F7F8F5",
@@ -74,6 +74,97 @@
       "usage": "当前计划时段的浅提示；不表示真实执行",
       "label": "强调浅底",
       "status": "current"
+    },
+    "onPrimary": {
+      "hex": "#FFFFFF",
+      "flutter": "0xFFFFFFFF",
+      "usage": "森林绿主操作上的文字和图标",
+      "label": "主色内容",
+      "status": "current"
+    },
+    "error": {
+      "hex": "#A35448",
+      "flutter": "0xFFA35448",
+      "usage": "校验错误、失败与危险说明",
+      "label": "错误红棕",
+      "status": "current"
+    },
+    "errorSoft": {
+      "hex": "#F8EAE6",
+      "flutter": "0xFFF8EAE6",
+      "usage": "错误提示浅底",
+      "label": "错误浅底",
+      "status": "current"
+    },
+    "warning": {
+      "hex": "#805D28",
+      "flutter": "0xFF805D28",
+      "usage": "需要处理的提醒和权限说明",
+      "label": "提醒棕",
+      "status": "current"
+    },
+    "warningSoft": {
+      "hex": "#F4EBDD",
+      "flutter": "0xFFF4EBDD",
+      "usage": "提醒浅底",
+      "label": "提醒浅底",
+      "status": "current"
+    },
+    "outline": {
+      "hex": "#626A64",
+      "flutter": "0xFF626A64",
+      "usage": "描边按钮和控件边界",
+      "label": "控件边界",
+      "status": "current"
+    },
+    "disabled": {
+      "hex": "#E4E7DF",
+      "flutter": "0xFFE4E7DF",
+      "usage": "禁用控件底色",
+      "label": "禁用底",
+      "status": "current"
+    },
+    "onDisabled": {
+      "hex": "#5E675F",
+      "flutter": "0xFF5E675F",
+      "usage": "禁用控件文字和图标",
+      "label": "禁用内容",
+      "status": "current"
+    },
+    "primaryPressed": {
+      "hex": "#1B3B2F",
+      "flutter": "0xFF1B3B2F",
+      "usage": "保留的森林绿按下态；当前轻量反馈走透明度",
+      "label": "主色按下态",
+      "status": "current"
+    },
+    "shadow": {
+      "hex": "#33000000",
+      "flutter": "0x33000000",
+      "usage": "浮层中性阴影；避免纯黑硬阴影",
+      "label": "浮层阴影",
+      "status": "current"
+    },
+    "launchFar": {
+      "hex": "#E9EDE5",
+      "flutter": "0xFFE9EDE5",
+      "usage": "启动页远山装饰",
+      "label": "启动远山",
+      "status": "current"
+    },
+    "launchMid": {
+      "hex": "#DDE5DA",
+      "flutter": "0xFFDDE5DA",
+      "usage": "启动页中山装饰",
+      "label": "启动中山",
+      "status": "current"
+    },
+    "launchNear": {
+      "hex": "#D0DCCF",
+      "flutter": "0xFFD0DCCF",
+      "usage": "启动页近山装饰",
+      "label": "启动近山",
+      "status": "current"
     }
   },
   "typography": {
@@ -101,7 +192,7 @@
     "navigation": {
       "size": 12,
       "lineHeight": 16,
-      "weight": 400
+      "weight": 500
     },
     "taskShortcutTitle": {
       "size": 16,
@@ -168,7 +259,14 @@
     "feedbackDurationMs": 140,
     "opacityDurationMs": 180,
     "ease": "cubic-bezier(.22,.8,.24,1)",
-    "respectReducedMotion": true
+    "respectReducedMotion": true,
+    "quickMs": 180,
+    "standardMs": 240,
+    "entranceMs": 420,
+    "launchMs": 450,
+    "implementedEase": "cubic-bezier(0.22, 0.8, 0.24, 1)",
+    "reduceMotionHelper": "AppMotion.resolve",
+    "note": "expandDurationMs/feedbackDurationMs 仍是设计目标；当前路由转场尚未使用自定义 360ms。"
   },
   "textPairings": {
     "onBackgroundOrWhite": [
@@ -369,5 +467,60 @@
     "toggleIconSize": 18,
     "toggleTouchHeightMin": 48,
     "supportsTextScaling": true
+  },
+  "shape": {
+    "radiusXs": 4,
+    "radiusSm": 8,
+    "radiusMd": 12,
+    "radiusLg": 16,
+    "radiusXl": 20,
+    "radiusXxl": 24,
+    "radiusPill": 999,
+    "rules": {
+      "inputsAndCode": "radiusMd 12",
+      "buttonsSegmentsAndBubbles": "radiusLg 16",
+      "contentCardsAndOperationCards": "radiusXl 20",
+      "heroDialogsAndSheets": "radiusXxl 24",
+      "pills": "radiusPill / StadiumBorder",
+      "microDecorations": "radiusXs/Sm"
+    },
+    "strokeThin": 1,
+    "strokeFocus": 1.5
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 20,
+    "xxl": 24,
+    "xxxl": 32,
+    "touchTargetMin": 48,
+    "note": "新结构优先使用 4 的倍数；0–5px 为光学微调，76px 为助手悬浮层偏移，104/220 等为内容尺寸；执行页圆环到主按钮至少 40。",
+    "exceptions": "0–5px 为光学微调，76px 为助手悬浮层偏移，104/220 等为图片或内容尺寸；均不作为通用间距 token。",
+    "executionRingGap": 40,
+    "actionMinHeight": 52,
+    "topBarHeight": 64
+  },
+  "icons": {
+    "sm": 18,
+    "md": 20,
+    "lg": 24,
+    "display": 32,
+    "xl": 40,
+    "rules": {
+      "inline": "sm 18",
+      "standard": "md 20",
+      "navigationAndActions": "lg 24",
+      "emptyStateDecoration": "display 32",
+      "heroGlyph": "xl 40"
+    },
+    "note": "品牌标识和头像等图形尺寸属于组件自身，不套用图标 token。"
+  },
+  "shadow": {
+    "blur": 24,
+    "offsetY": 4,
+    "color": "shadow",
+    "note": "仅导航胶囊和助手悬浮层使用轻量阴影，不铺满普通卡片。"
   }
 }

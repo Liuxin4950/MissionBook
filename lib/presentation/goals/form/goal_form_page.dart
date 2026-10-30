@@ -231,7 +231,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                           widget.goal == null ? '你希望做到什么？' : '调整目标内容',
                           style: theme.textTheme.titleLarge,
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: AppLayout.spaceXxl),
                         AppTextField(
                           key: const Key('goal-title-input'),
                           controller: _title,
@@ -246,7 +246,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                               ? '请填写目标名称'
                               : null,
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: AppLayout.spaceXl),
                         AppTextField(
                           key: const Key('goal-description-input'),
                           controller: _description,
@@ -256,7 +256,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                           minLines: 3,
                           maxLines: 8,
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: AppLayout.spaceXl),
                         AppTextField(
                           key: const Key('goal-why-input'),
                           controller: _why,
@@ -266,7 +266,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                           minLines: 2,
                           maxLines: 6,
                         ),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: AppLayout.spaceXxl),
                         if (_error != null) ...[
                           Semantics(
                             liveRegion: true,
@@ -284,7 +284,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                               onPressed: _saving ? null : _adoptLatest,
                               child: const Text('放弃本次修改并读取最新内容'),
                             ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: AppLayout.spaceMd),
                         ],
                       ],
                     ),
@@ -311,7 +311,9 @@ class _GoalFormPageState extends State<GoalFormPage> {
                           ? '创建目标'
                           : '保存修改'),
               ),
-              style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, AppLayout.actionMinHeight),
+              ),
             ),
           ),
         ),

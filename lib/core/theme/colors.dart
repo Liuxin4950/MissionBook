@@ -23,4 +23,8 @@ abstract final class AppColors {
   static const Color errorSoft = Color(0xFFF8EAE6); // 错误浅底
   static const Color warning = Color(0xFF805D28); // 提醒棕
   static const Color warningSoft = Color(0xFFF4EBDD); // 提醒浅底
+  static const Color shadow = Color(0x33000000); // 浮层中性阴影，避免纯黑硬阴影。
+  static const Color launchFar = Color(0xFFE9EDE5); // 启动页远山装饰。
+  static const Color launchMid = Color(0xFFDDE5DA); // 启动页中山装饰。
+  static const Color launchNear = Color(0xFFD0DCCF); // 启动页近山装饰。
 }

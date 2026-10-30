@@ -391,13 +391,13 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
         listKey: const Key('mission-evidence-workspace-list'),
         children: [
           MissionHeading(detail: detail),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppLayout.spaceLg),
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppLayout.spaceXl),
             decoration: BoxDecoration(
               color: AppColors.card,
               border: Border.all(color: AppColors.hairline),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,9 +407,9 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                     const Icon(
                       Icons.timelapse_rounded,
                       color: AppColors.primary,
-                      size: 20,
+                      size: AppLayout.iconMd,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppLayout.spaceSm),
                     Text(
                       '本次专注',
                       style: theme.textTheme.labelLarge?.copyWith(
@@ -418,15 +418,12 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppLayout.spaceSm),
                 Text(
                   focusDuration(times.focus),
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: theme.textTheme.headlineSmall,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppLayout.spaceMd),
                 Text(
                   // 是否报告完成的判定口径统一走 MissionDetail 的派生属性。
                   detail.endReportedCompleted
@@ -439,7 +436,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppLayout.spaceXxl),
           MissionEvidenceSection(
             key: _evidenceKey,
             detail: detail,
@@ -447,7 +444,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             initiallyExpanded: true,
             onChanged: () => unawaited(_refresh()),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppLayout.spaceLg),
           OutlinedButton.icon(
             onPressed: () => openDetailPane<void>(
               context,
@@ -539,7 +536,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             ),
           ),
           if (detail.ownershipInfo != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: AppLayout.spaceSm),
             Text(
               detail.ownershipInfo!.label,
               key: const Key('mission-ownership-path'),
@@ -552,10 +549,10 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
         ),
         if (_report) ...[
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppLayout.spaceXl),
             decoration: BoxDecoration(
               color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -568,13 +565,13 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppLayout.spaceXl),
           Text(
             detail.phase == MissionPhase.paused
                 ? '已暂停，取消报告后仍保持暂停。请选择实际完成情况，确认后才保存。'
                 : '执行状态已变化，本次报告尚未保存。请先查看下方说明。',
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppLayout.spaceLg),
           Wrap(
             spacing: 12,
             runSpacing: 12,
@@ -602,7 +599,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             ],
           ),
           if (_result == UserReportedResult.notCompleted) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: AppLayout.spaceLg),
             DropdownButtonFormField<String>(
               initialValue: _reasonCategory,
               isExpanded: true,
@@ -615,7 +612,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                   ? null
                   : (value) => setState(() => _reasonCategory = value),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppLayout.spaceLg),
             TextField(
               key: const Key('report-reason'),
               controller: _failureReason,
@@ -628,9 +625,9 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           if (_result == UserReportedResult.completed &&
               detail.mission.verificationPolicy ==
                   VerificationPolicy.optionalEvidence) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: AppLayout.spaceXl),
             Text('材料可选', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppLayout.spaceSm),
             Wrap(
               spacing: 12,
               runSpacing: 8,
@@ -653,13 +650,13 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppLayout.spaceSm),
             const Text('确认后结束执行；选择提交时，可以现在整理，也可以稍后补交。'),
           ],
           if (_result == UserReportedResult.completed &&
               detail.mission.verificationPolicy ==
                   VerificationPolicy.requiredEvidence) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: AppLayout.spaceXl),
             Text('报告完成后必须提交材料', style: theme.textTheme.titleMedium),
             if (detail.schedule.evidenceDeadlineAt != null)
               Text(
@@ -675,7 +672,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             paused: !running,
           ),
           if (times.extensionMinutes > 0) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppLayout.spaceMd),
             Center(
               child: Text(
                 '原计划 $original 分钟 · 已增加 ${times.extensionMinutes} 分钟',
@@ -684,26 +681,26 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
               ),
             ),
           ],
-          SizedBox(height: 40 + breathingSpace * .3),
+          SizedBox(height: AppLayout.executionRingGap + breathingSpace * .3),
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: footer,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           Center(
             child: TextButton.icon(
               key: const Key('execution-extend'),
               onPressed: canAct
                   ? () => setState(() => _extend = !_extend)
                   : null,
-              icon: const Icon(Icons.add_rounded, size: 20),
+              icon: const Icon(Icons.add_rounded, size: AppLayout.iconMd),
               label: const Text('延长时间'),
             ),
           ),
           if (_extend) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: AppLayout.spaceLg),
             TextField(
               key: const Key('execution-minutes'),
               controller: _minutes,
@@ -716,7 +713,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                 errorText: _inputError,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppLayout.spaceLg),
             FilledButton(
               onPressed: canAct
                   ? () {
@@ -737,7 +734,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             ),
           ],
           if (showPrompt) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: AppLayout.spaceLg),
             const Text('已达到当前额度，可以结束，也可以增加时间继续。不会自动结束。'),
             TextButton(
               onPressed: canAct
@@ -755,7 +752,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           ],
           if (times.clockBehind)
             const Padding(
-              padding: EdgeInsets.only(top: 16),
+              padding: EdgeInsets.only(top: AppLayout.spaceLg),
               child: Text('系统时间早于上一条记录，请校正系统时间。时长暂按最后记录计算。'),
             ),
           feedback,
@@ -764,7 +761,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             Container(
               decoration: BoxDecoration(
                 color: AppColors.card,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppLayout.radiusLg),
               ),
               child: ExpansionTile(
                 leading: const Icon(Icons.track_changes_rounded),
@@ -775,7 +772,12 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodyMedium,
                 ),
-                childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                childrenPadding: const EdgeInsets.fromLTRB(
+                  AppLayout.spaceLg,
+                  0,
+                  AppLayout.spaceLg,
+                  AppLayout.spaceLg,
+                ),
                 expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
                 shape: const Border(),
                 collapsedShape: const Border(),
@@ -784,7 +786,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                   Text(detail.executionPlan.objective),
                   for (var i = 0; i < detail.executionPlan.steps.length; i++)
                     Padding(
-                      padding: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.only(top: AppLayout.spaceSm),
                       child: Text('${i + 1}. ${detail.executionPlan.steps[i]}'),
                     ),
                   if (detail.executionPlan.notes?.trim().isNotEmpty == true)

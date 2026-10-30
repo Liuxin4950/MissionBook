@@ -54,7 +54,7 @@ class MissionDetailContent extends StatelessWidget {
                           color: AppColors.textSecondary,
                         ),
                       ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppLayout.spaceMd),
                     MissionHeading(detail: detail),
                     const SizedBox(height: AppLayout.sectionGap),
                     _ScheduleCard(schedule: detail.schedule),
@@ -73,12 +73,14 @@ class MissionDetailContent extends StatelessWidget {
                     actionFeedback,
                     if (isCancelling)
                       const Padding(
-                        padding: EdgeInsets.only(bottom: 16),
+                        padding: EdgeInsets.only(bottom: AppLayout.spaceLg),
                         child: Text('正在取消…'),
                       ),
                     if (cancelError != null)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.only(
+                          bottom: AppLayout.spaceLg,
+                        ),
                         child: Semantics(
                           liveRegion: true,
                           child: Text(
@@ -97,7 +99,9 @@ class MissionDetailContent extends StatelessWidget {
                     if (_hasText(mission.why)) ...[
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,
-                        childrenPadding: const EdgeInsets.only(bottom: 20),
+                        childrenPadding: const EdgeInsets.only(
+                          bottom: AppLayout.spaceXl,
+                        ),
                         expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
                         shape: const Border(
                           bottom: BorderSide(color: AppColors.hairline),
@@ -124,7 +128,7 @@ class MissionDetailContent extends StatelessWidget {
                             ),
                           ),
                           if (plan.steps.isNotEmpty) ...[
-                            const SizedBox(height: 20),
+                            const SizedBox(height: AppLayout.spaceXl),
                             for (
                               var index = 0;
                               index < plan.steps.length;
@@ -140,13 +144,13 @@ class MissionDetailContent extends StatelessWidget {
                       ),
                     ),
                     const Divider(height: 1, color: AppColors.hairline),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppLayout.spaceLg),
                     if (mission.verificationPolicy !=
                             VerificationPolicy.selfReport ||
                         _hasText(plan.verificationCriteria))
                       _MaterialRequirementsCard(detail: detail),
                     if (materialSection != null) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppLayout.spaceLg),
                       materialSection!,
                     ],
                     if (_hasText(plan.notes)) ...[
@@ -212,14 +216,22 @@ class _ActionStep extends StatelessWidget {
                 ),
               ),
               if (!last)
-                Expanded(child: Container(width: 1, color: AppColors.hairline)),
+                Expanded(
+                  child: Container(
+                    width: AppLayout.strokeThin,
+                    color: AppColors.hairline,
+                  ),
+                ),
             ],
           ),
         ),
-        const SizedBox(width: 20),
+        const SizedBox(width: AppLayout.spaceXl),
         Expanded(
           child: Padding(
-            padding: EdgeInsets.only(top: 4, bottom: last ? 0 : 24),
+            padding: EdgeInsets.only(
+              top: AppLayout.spaceXs,
+              bottom: last ? 0 : AppLayout.spaceXxl,
+            ),
             child: Text(text, style: Theme.of(context).textTheme.titleMedium),
           ),
         ),
@@ -244,27 +256,30 @@ class _MaterialRequirementsCard extends StatelessWidget {
     final deadline = detail.schedule.evidenceDeadlineAt;
     return Container(
       key: const Key('mission-material-card'),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppLayout.spaceXl,
+        vertical: AppLayout.spaceLg,
+      ),
       decoration: BoxDecoration(
         color: AppColors.primarySoft,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
-            padding: EdgeInsets.only(top: 12),
+            padding: EdgeInsets.only(top: AppLayout.spaceMd),
             child: Icon(
               Icons.attach_file_rounded,
-              size: 28,
+              size: AppLayout.iconLg,
               color: AppColors.primary,
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: AppLayout.spaceLg),
           Expanded(
             child: ExpansionTile(
               tilePadding: EdgeInsets.zero,
-              childrenPadding: const EdgeInsets.only(bottom: 4),
+              childrenPadding: const EdgeInsets.only(bottom: AppLayout.spaceXs),
               initiallyExpanded: true,
               expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
               shape: const Border(),
@@ -277,12 +292,12 @@ class _MaterialRequirementsCard extends StatelessWidget {
                   Text('材料要求', style: theme.textTheme.titleMedium),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
+                      horizontal: AppLayout.spaceMd,
+                      vertical: AppLayout.spaceXs,
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.accent.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(AppLayout.radiusXl),
                     ),
                     child: Text(
                       label,
@@ -311,7 +326,7 @@ class _MaterialRequirementsCard extends StatelessWidget {
                 if (policy == VerificationPolicy.requiredEvidence &&
                     deadline != null) ...[
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
+                    padding: EdgeInsets.symmetric(vertical: AppLayout.spaceMd),
                     child: Divider(height: 1, color: AppColors.hairline),
                   ),
                   Wrap(
@@ -321,7 +336,7 @@ class _MaterialRequirementsCard extends StatelessWidget {
                     children: [
                       const Icon(
                         Icons.access_time,
-                        size: 20,
+                        size: AppLayout.iconMd,
                         color: AppColors.textSecondary,
                       ),
                       Text(
@@ -363,7 +378,7 @@ class _DetailSection extends StatelessWidget {
             header: true,
             child: Text(title, style: Theme.of(context).textTheme.titleMedium),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           DefaultTextStyle.merge(
             style: Theme.of(context).textTheme.bodyMedium,
             child: child,
@@ -427,7 +442,9 @@ class _ScheduleCard extends StatelessWidget {
               children: [
                 time,
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppLayout.spaceLg,
+                  ),
                   child: divider,
                 ),
                 duration,
@@ -442,7 +459,9 @@ class _ScheduleCard extends StatelessWidget {
               children: [
                 Expanded(flex: 2, child: time),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppLayout.spaceMd,
+                  ),
                   child: divider,
                 ),
                 Expanded(child: duration),
@@ -474,8 +493,10 @@ class _ScheduleFact extends StatelessWidget {
     return Row(
       children: [
         // 图标是文字的视觉提示，不单独重复朗读。
-        ExcludeSemantics(child: Icon(icon, size: 24, color: foreground)),
-        const SizedBox(width: 10),
+        ExcludeSemantics(
+          child: Icon(icon, size: AppLayout.iconLg, color: foreground),
+        ),
+        const SizedBox(width: AppLayout.spaceMd),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -484,7 +505,7 @@ class _ScheduleFact extends StatelessWidget {
                 label,
                 style: theme.textTheme.bodyMedium?.copyWith(color: foreground),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppLayout.spaceXs),
               Text(
                 value,
                 style: theme.textTheme.bodyLarge?.copyWith(color: foreground),

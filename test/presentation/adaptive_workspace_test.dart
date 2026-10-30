@@ -394,36 +394,31 @@ void main() {
     }
   });
 
-  testWidgets('宽屏导入与创建并排，缩成窄窗再展开保留同一份导入草稿', (tester) async {
+  testWidgets('独立导入工作区在缩放中保留草稿，返回前确认丢弃', (tester) async {
     for (final goal in await goals.findAll()) {
       await goals.setGoalStatus(goal, GoalStatus.dropped);
     }
     await open(tester, const Size(1280, 900));
     await tester.tap(find.byTooltip('目标'));
     await tester.pumpAndSettle();
-    final createRect = tester.getRect(
-      find.byKey(const Key('goal-empty-state')),
-    );
-    final importRect = tester.getRect(
-      find.byKey(const Key('goal-import-pane')),
-    );
-    expect(importRect.left, greaterThan(createRect.right));
+    await tester.tap(find.byKey(const Key('goal-create-import')));
+    await tester.pumpAndSettle();
     const draft = '{"尚未保存的目标草稿":true}';
     final input = find.byKey(const Key('goal-import-input'));
     await tester.enterText(input, draft);
-    await tester.tap(find.byKey(const Key('goal-filter-paused')));
-    await tester.pumpAndSettle();
-    expect(find.text('离开目标导入？'), findsOneWidget);
-    await tester.tap(find.text('继续填写'));
-    await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(input).controller!.text, draft);
-    expect(find.text('没有已搁置的目标'), findsNothing);
+    expect(find.byKey(const Key('goal-import-section')), findsOneWidget);
     for (final width in [390.0, 768.0, 1536.0]) {
       tester.view.physicalSize = Size(width, 900);
       await tester.pumpAndSettle();
       expect(tester.widget<TextField>(input).controller!.text, draft);
       expect(tester.takeException(), isNull);
     }
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('离开目标导入？'), findsOneWidget);
+    await tester.tap(find.text('继续填写'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(input).controller!.text, draft);
     expect(await goals.findAll(), isEmpty);
     await tester.pumpWidget(const SizedBox.shrink());
   });

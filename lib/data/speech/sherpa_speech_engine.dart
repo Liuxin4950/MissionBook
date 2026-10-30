@@ -33,7 +33,14 @@ class SherpaSpeechEngine {
     final completer = Completer<_EngineResponse>();
     _pending[id] = completer;
     _send!.send(_InitRequest(id, paths.model, paths.tokens));
-    final response = await completer.future;
+    final _EngineResponse response;
+    try {
+      response = await completer.future.timeout(const Duration(seconds: 30));
+    } on TimeoutException {
+      _pending.remove(id);
+      _resetWorker(TimeoutException('离线语音引擎初始化超时'));
+      rethrow;
+    }
     if (response is _Failure) throw StateError(response.message);
     _ready = true;
   }
@@ -58,14 +65,18 @@ class SherpaSpeechEngine {
         // Isolate.spawn 的 onError 通道：识别器初始化出现未捕获异常。
         final error = StateError('离线语音引擎初始化失败：${message.first}');
         if (!ready.isCompleted) ready.completeError(error);
-        _failPending(error);
+        if (!_disposed) _resetWorker(error);
         return;
       }
       if (message == null) {
-        // onExit：worker 已退出。正常情况下 dispose 已先收到回执。
+        // onExit：worker 已退出。下一次准备会重建 isolate，不能永久复用失效状态。
+        if (_disposed) {
+          _failPending(StateError('离线语音引擎已关闭'));
+          return;
+        }
         final error = StateError('离线语音引擎已退出');
         if (!ready.isCompleted) ready.completeError(error);
-        _failPending(error);
+        _resetWorker(error);
       }
     });
     _isolate = await Isolate.spawn(
@@ -85,7 +96,14 @@ class SherpaSpeechEngine {
     final completer = Completer<_EngineResponse>();
     _pending[id] = completer;
     _send!.send(_TranscribeRequest(id, samples));
-    final response = await completer.future;
+    final _EngineResponse response;
+    try {
+      response = await completer.future.timeout(const Duration(seconds: 60));
+    } on TimeoutException {
+      _pending.remove(id);
+      _resetWorker(TimeoutException('离线语音识别超时'));
+      rethrow;
+    }
     if (response is _Text) return response.text;
     throw StateError(response is _Failure ? response.message : '离线语音识别失败');
   }
@@ -108,6 +126,18 @@ class SherpaSpeechEngine {
     _isolate?.kill(priority: Isolate.immediate);
     _receive?.close();
     _failPending(StateError('离线语音引擎已关闭'));
+  }
+
+  /// worker 异常退出或超时后清空连接，下一次 prepare 会重新启动。
+  void _resetWorker(Object error) {
+    _ready = false;
+    _starting = null;
+    _send = null;
+    _isolate?.kill(priority: Isolate.immediate);
+    _isolate = null;
+    _receive?.close();
+    _receive = null;
+    _failPending(error);
   }
 
   void _failPending(Object error) {

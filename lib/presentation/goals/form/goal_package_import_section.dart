@@ -10,6 +10,7 @@ import '../../../application/goals/goal_package_import_service.dart';
 import '../../../domain/entities/goal_package_import.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_text_field.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 原导入区域内完成文件读取、分页预览和确认，支持恢复本机封存草稿。
 class GoalPackageImportSection extends StatefulWidget {
@@ -319,7 +320,12 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
       subtitle: Text(
         '${at == null ? value['scheduledDate']! as String : _time(at, value['timeZone'])} · ${value['plannedDurationMinutes']} 分钟',
       ),
-      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      childrenPadding: const EdgeInsets.fromLTRB(
+        AppLayout.spaceLg,
+        0,
+        AppLayout.spaceLg,
+        AppLayout.spaceLg,
+      ),
       expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('$path'),
@@ -366,28 +372,31 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                     : index == 1
                     ? Icons.preview_outlined
                     : Icons.task_alt,
-                size: 20,
+                size: AppLayout.iconMd,
                 color: _saved || preview != null && index < 2
                     ? Theme.of(context).colorScheme.primary
                     : null,
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: AppLayout.spaceXs),
               Text(label, style: Theme.of(context).textTheme.labelSmall),
             ],
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: AppLayout.spaceXl),
         if (preview == null) ...[
           OutlinedButton.icon(
             key: const Key('goal-import-file'),
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(64),
+              minimumSize: const Size.fromHeight(AppLayout.topBarHeight),
             ),
             onPressed: _busy || _unknown || _restoring ? null : _pick,
-            icon: const Icon(Icons.upload_file_outlined, size: 28),
+            icon: const Icon(
+              Icons.upload_file_outlined,
+              size: AppLayout.iconLg,
+            ),
             label: const Text('选择课表或目标文件'),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           ExpansionTile(
             key: const Key('goal-import-paste-toggle'),
             tilePadding: EdgeInsets.zero,
@@ -415,7 +424,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                   }),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppLayout.spaceSm),
               FilledButton.icon(
                 key: const Key('goal-import-preview'),
                 onPressed:
@@ -487,11 +496,14 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
             spacing: 8,
             children: [
               Chip(
-                avatar: const Icon(Icons.calendar_month, size: 18),
+                avatar: const Icon(
+                  Icons.calendar_month,
+                  size: AppLayout.iconSm,
+                ),
                 label: Text('固定 ${preview.fixedCount}'),
               ),
               const Chip(
-                avatar: Icon(Icons.history, size: 18),
+                avatar: Icon(Icons.history, size: AppLayout.iconSm),
                 label: Text('保留历史计划'),
               ),
             ],
@@ -532,7 +544,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppLayout.spaceMd),
           FilledButton.icon(
             key: const Key('goal-import-confirm'),
             onPressed:
@@ -553,7 +565,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                   : '导入 ${preview.missionCount > 0 ? '${preview.missionCount} 个任务' : '${preview.nodeCount} 个节点'}',
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppLayout.spaceLg),
           Wrap(
             spacing: 8,
             children: [

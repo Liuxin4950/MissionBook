@@ -125,21 +125,34 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
     endpoint: _speechEndpoint.text.trim(),
     model: _speechModel.text.trim(),
   );
-  bool get _valid {
+
+  /// 保存前置校验的可读原因；无错误时返回 null。
+  String? get _validationError {
     try {
       _readSpeechSettings().validate();
-      _readPersona().validate();
-    } catch (_) {
-      return false;
+    } on ArgumentError catch (error) {
+      return _errorText(error);
     }
-    if (_profile != 'custom') return true;
+    try {
+      _readPersona().validate();
+    } on ArgumentError catch (error) {
+      return _errorText(error);
+    }
+    if (_profile != 'custom') return null;
     try {
       _readCustomProfile();
-      return true;
-    } catch (_) {
-      return false;
+      return null;
+    } on ArgumentError catch (error) {
+      return _errorText(error);
     }
   }
+
+  bool get _valid => _validationError == null;
+
+  static String _errorText(Object error) => error
+      .toString()
+      .replaceFirst('Invalid argument(s): ', '')
+      .replaceFirst('Bad state: ', '');
 
   ModelProfile _readCustomProfile() {
     final contextWindow = int.tryParse(_contextWindow.text.trim());
@@ -176,99 +189,116 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: const AppTopBar(
-      title: '助手设置',
-      maxContentWidth: AppLayout.formMaxWidth,
-    ),
-    bottomNavigationBar: SafeArea(
-      top: false,
-      child: Center(
-        heightFactor: 1,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              AppLayout.horizontalPadding(context),
-              8,
-              AppLayout.horizontalPadding(context),
-              12,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_error != null || _result != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Semantics(
-                      liveRegion: true,
-                      child: Text(
-                        _error ?? _result!,
-                        style: TextStyle(
-                          color: _error != null
-                              ? AppColors.error
-                              : AppColors.primary,
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_saving,
+    child: Scaffold(
+      appBar: AppTopBar(
+        title: '助手设置',
+        maxContentWidth: AppLayout.formMaxWidth,
+        canGoBack: !_saving,
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppLayout.horizontalPadding(context),
+                8,
+                AppLayout.horizontalPadding(context),
+                12,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_error != null || _result != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          _error ?? _result!,
+                          style: TextStyle(
+                            color: _error != null
+                                ? AppColors.error
+                                : AppColors.primary,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                _buildSaveActions(),
-              ],
+                  if (_changed && _validationError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          _validationError!,
+                          key: const Key('assistant-settings-validation'),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: AppColors.error),
+                        ),
+                      ),
+                    ),
+                  _buildSaveActions(),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-    body: SafeArea(
-      top: false,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
-          child: ListView(
-            padding: AppLayout.pagePadding(context),
-            children: [
-              AdaptiveColumns(
-                minColumnWidth: 390,
-                maxColumns: 2,
-                spacing: 16,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildModelSection(),
-                      const SizedBox(height: 16),
-                      _buildSpeechSection(),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildPersonaSection(),
-                      const SizedBox(height: 16),
-                      _buildPermissionSection(),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              AppSectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
+            child: ListView(
+              padding: AppLayout.pagePadding(context),
+              children: [
+                AdaptiveColumns(
+                  minColumnWidth: 390,
+                  maxColumns: 2,
+                  spacing: 16,
                   children: [
-                    Text(
-                      '数据与隐私',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildModelSection(),
+                        const SizedBox(height: AppLayout.spaceLg),
+                        _buildSpeechSection(),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'API Key 只保存在这台设备的安全存储中，不进入会话数据库或备份。对话、引用、已发送附件和工具结果会发送给所选模型供应商。录音转写仅把本次录音发送给单独配置的语音服务；音频不保存到会话。MissionBook 不经过自建服务器。',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildPersonaSection(),
+                        const SizedBox(height: AppLayout.spaceLg),
+                        _buildPermissionSection(),
+                      ],
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: AppLayout.spaceLg),
+                AppSectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        '数据与隐私',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: AppLayout.spaceSm),
+                      Text(
+                        'API Key 只保存在这台设备的安全存储中，不进入会话数据库或备份。对话、引用、已发送附件和工具结果会发送给所选模型供应商。录音转写仅把本次录音发送给单独配置的语音服务；音频不保存到会话。MissionBook 不经过自建服务器。',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -276,11 +306,11 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   );
 
   Widget _buildPersonaSection() => AppSectionCard(
-    padding: const EdgeInsets.all(16),
+    padding: const EdgeInsets.all(AppLayout.spaceLg),
     child: ExpansionTile(
       key: const Key('assistant-persona-section'),
       tilePadding: EdgeInsets.zero,
-      childrenPadding: const EdgeInsets.only(top: 16),
+      childrenPadding: const EdgeInsets.only(top: AppLayout.spaceLg),
       leading: CircleAvatar(
         backgroundColor: AppColors.primarySoft,
         child: Icon(assistantAvatarIcon(_avatar), color: AppColors.primary),
@@ -301,7 +331,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
             hintText: '例如：小书、阿青',
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         AdaptiveColumns(
           minColumnWidth: 240,
           maxColumns: 2,
@@ -335,12 +365,12 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppLayout.spaceLg),
         Align(
           alignment: Alignment.centerLeft,
           child: Text('角色图标', style: Theme.of(context).textTheme.titleSmall),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppLayout.spaceSm),
         Align(
           alignment: Alignment.centerLeft,
           child: Wrap(
@@ -353,7 +383,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                 (AssistantAvatar.compass, '指南针'),
               ])
                 ChoiceChip(
-                  avatar: Icon(assistantAvatarIcon(choice.$1), size: 18),
+                  avatar: Icon(
+                    assistantAvatarIcon(choice.$1),
+                    size: AppLayout.iconSm,
+                  ),
                   label: Text(choice.$2),
                   selected: _avatar == choice.$1,
                   onSelected: _saving || _testing || widget.controller.isBusy
@@ -363,7 +396,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         Text(
           '角色决定帮助的侧重点，回答风格决定表达方式；保存后也会应用到已有会话。',
           style: Theme.of(context).textTheme.bodySmall,
@@ -373,12 +406,12 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   );
 
   Widget _buildModelSection() => AppSectionCard(
-    padding: const EdgeInsets.all(16),
+    padding: const EdgeInsets.all(AppLayout.spaceLg),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('模型与凭据', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppLayout.spaceLg),
         DropdownButtonFormField<String>(
           isExpanded: true,
           initialValue: _profile,
@@ -399,7 +432,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               : (value) => setState(() => _profile = value ?? _profile),
         ),
         if (_profile == 'custom') ..._customFields(),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         TextField(
           key: const Key('assistant-credential-input'),
           controller: _credential,
@@ -470,7 +503,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   );
 
   List<Widget> _customFields() => [
-    const SizedBox(height: 12),
+    const SizedBox(height: AppLayout.spaceMd),
     TextField(
       key: const Key('assistant-custom-endpoint'),
       controller: _endpoint,
@@ -480,7 +513,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         hintText: 'https://服务地址/v1/chat/completions',
       ),
     ),
-    const SizedBox(height: 12),
+    const SizedBox(height: AppLayout.spaceMd),
     TextField(
       key: const Key('assistant-custom-model'),
       controller: _model,
@@ -490,7 +523,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         hintText: '供应商提供的模型编号',
       ),
     ),
-    const SizedBox(height: 12),
+    const SizedBox(height: AppLayout.spaceMd),
     DropdownButtonFormField<ModelProtocol>(
       isExpanded: true,
       initialValue: _protocol,
@@ -509,13 +542,13 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
           ? null
           : (value) => setState(() => _protocol = value ?? _protocol),
     ),
-    const SizedBox(height: 12),
+    const SizedBox(height: AppLayout.spaceMd),
     TextField(
       controller: _contextWindow,
       keyboardType: TextInputType.number,
       decoration: const InputDecoration(labelText: '上下文容量（token）'),
     ),
-    const SizedBox(height: 12),
+    const SizedBox(height: AppLayout.spaceMd),
     TextField(
       controller: _outputBudget,
       keyboardType: TextInputType.number,
@@ -534,24 +567,24 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   ];
 
   Widget _buildPermissionSection() => AppSectionCard(
-    padding: const EdgeInsets.all(16),
+    padding: const EdgeInsets.all(AppLayout.spaceLg),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('操作权限', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppLayout.spaceSm),
         for (final mode in AssistantPermissionMode.values)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
             child: Material(
               color: _permission == mode
                   ? AppColors.primarySoft
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppLayout.radiusMd),
               child: ListTile(
                 key: Key('assistant-permission-${mode.name}'),
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+                  horizontal: AppLayout.spaceMd,
                   vertical: 0,
                 ),
                 leading: Icon(
@@ -570,7 +603,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               ),
             ),
           ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppLayout.spaceSm),
         Text(
           '执行与修改都属于写入。各模式均保留业务校验；保存后生效。',
           style: Theme.of(context).textTheme.bodySmall,
@@ -580,12 +613,12 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   );
 
   Widget _buildSpeechSection() => AppSectionCard(
-    padding: const EdgeInsets.all(16),
+    padding: const EdgeInsets.all(AppLayout.spaceLg),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('语音输入', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         DropdownButtonFormField<bool>(
           key: const Key('assistant-speech-mode'),
           initialValue: _transcription,
@@ -599,12 +632,12 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               ? null
               : (value) => setState(() => _transcription = value ?? false),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         if (!_transcription) ...[
           const OfflineSpeechModelSection(),
         ] else ...[
           const Text('录音结束后转写，最长 50 秒。此服务使用独立的 API Key。'),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppLayout.spaceMd),
           TextField(
             controller: _speechEndpoint,
             key: const Key('assistant-speech-endpoint'),
@@ -614,7 +647,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               hintText: 'https://服务地址/v1/audio/transcriptions',
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppLayout.spaceMd),
           TextField(
             controller: _speechModel,
             key: const Key('assistant-speech-model'),
@@ -623,7 +656,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               hintText: '填写服务支持的语音模型',
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppLayout.spaceMd),
           TextField(
             controller: _speechCredential,
             key: const Key('assistant-speech-credential'),
@@ -657,7 +690,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                 child: const Text('清除转写 Key'),
               ),
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           const Text(
             '浏览器运行需要此服务允许跨域请求（CORS）；本机 HTTP 服务仅限 localhost。音频在转写完成或取消后释放。',
           ),
@@ -674,20 +707,23 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       _result = null;
     });
     try {
+      final validation = _validationError;
+      if (validation != null) {
+        setState(() => _error = validation);
+        return;
+      }
+      // 先固定本次输入；等待保存期间即使页面退出，也不再读取已释放的控制器。
       final speech = _readSpeechSettings();
-      speech.validate();
       final persona = _readPersona();
-      persona.validate();
-      if (_profile == 'custom') {
-        final profile = _readCustomProfile();
+      final profile = _profile == 'custom' ? _readCustomProfile() : null;
+      final credential = _credential.text.trim();
+      final speechCredential = _speechCredential.text.trim();
+      if (profile != null) {
         await widget.controller.saveCustomProfile(profile);
       }
-      if (_credential.text.trim().isNotEmpty) {
-        await widget.controller.saveCredential(
-          _credential.text,
-          profileId: _profile,
-        );
-        _credential.clear();
+      if (credential.isNotEmpty) {
+        await widget.controller.saveCredential(credential, profileId: _profile);
+        if (mounted) _credential.clear();
       }
       await widget.controller.selectModelProfile(_profile);
       await widget.controller.setPermissionMode(_permission);
@@ -695,11 +731,9 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       if (_speechChanged) {
         await widget.controller.saveSpeechSettings(
           speech,
-          credential: _speechCredential.text.trim().isEmpty
-              ? null
-              : _speechCredential.text.trim(),
+          credential: speechCredential.isEmpty ? null : speechCredential,
         );
-        _speechCredential.clear();
+        if (mounted) _speechCredential.clear();
       }
       if (mounted) setState(() => _result = '设置已保存');
     } catch (error) {

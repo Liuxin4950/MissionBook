@@ -12,6 +12,7 @@ import '../../application/settings/app_device.dart';
 import '../../core/theme/app_layout.dart';
 import '../../core/theme/colors.dart';
 import '../widgets/app_top_bar.dart';
+import '../../core/theme/app_motion.dart';
 
 /// 从个人页打开的设置工作区，集中管理提醒权限、计划提醒和本地备份。
 class SettingsPage extends StatefulWidget {
@@ -166,7 +167,7 @@ class _SettingsPageState extends State<SettingsPage>
             mainAxisSize: MainAxisSize.min,
             children: [
               const Padding(
-                padding: EdgeInsets.all(16),
+                padding: EdgeInsets.all(AppLayout.spaceLg),
                 child: Text('计划任务提醒时间'),
               ),
               for (final value in [-1, 0, 5, 10, 15, 30, 60])
@@ -235,15 +236,15 @@ class _SettingsPageState extends State<SettingsPage>
                   child: Text('提醒与权限', style: text.titleMedium),
                 ),
                 if (_capabilities != null) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppLayout.spaceXs),
                   Text(
                     '当前平台：${_platformLabel(_capabilities!.effectivePlatform)}',
                     style: text.bodyMedium,
                   ),
                 ],
-                const SizedBox(height: 12),
+                const SizedBox(height: AppLayout.spaceMd),
                 _buildPermissionSection(context),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppLayout.spaceXxl),
                 AdaptiveColumns(
                   key: const Key('settings-columns'),
                   minColumnWidth: 360,
@@ -254,7 +255,7 @@ class _SettingsPageState extends State<SettingsPage>
                     _buildBackupSection(context),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppLayout.spaceXxl),
                 _buildAboutSection(context),
               ],
             ),
@@ -333,7 +334,7 @@ class _SettingsPageState extends State<SettingsPage>
       children: [
         AppSectionCard(
           key: const Key('permission-columns'),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppLayout.spaceLg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -357,7 +358,7 @@ class _SettingsPageState extends State<SettingsPage>
         ),
         if (_capabilityError != null)
           Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.only(top: AppLayout.spaceSm),
             child: Semantics(
               liveRegion: true,
               child: Text(
@@ -378,7 +379,7 @@ class _SettingsPageState extends State<SettingsPage>
             ),
           ),
         if (platform == DevicePlatform.windows) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           Align(
             alignment: Alignment.centerLeft,
             child: OutlinedButton.icon(
@@ -391,7 +392,7 @@ class _SettingsPageState extends State<SettingsPage>
         ],
         if (platform == DevicePlatform.android ||
             platform == DevicePlatform.windows) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: AppLayout.spaceMd),
           AppSectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,7 +401,7 @@ class _SettingsPageState extends State<SettingsPage>
                   platform == DevicePlatform.android ? '执行计时通知' : '执行状态通知',
                   style: text.titleMedium,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppLayout.spaceSm),
                 Text(
                   platform == DevicePlatform.android
                       ? '执行时使用系统通知显示计时与操作，实际显示取决于系统权限。'
@@ -409,7 +410,7 @@ class _SettingsPageState extends State<SettingsPage>
                 ),
                 if (platform == DevicePlatform.android &&
                     capabilities?.islandSupported == true) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppLayout.spaceSm),
                   Text(
                     _islandDescription(capabilities),
                     key: const Key('island-capability-status'),
@@ -449,7 +450,7 @@ class _SettingsPageState extends State<SettingsPage>
           header: true,
           child: Text('计划任务', style: text.titleMedium),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         AppSectionCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -480,7 +481,7 @@ class _SettingsPageState extends State<SettingsPage>
                       : '当前平台尚未接入系统定时提醒，无法配置提前提醒。',
                   style: text.bodyMedium,
                 ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppLayout.spaceSm),
               Text(
                 platform == DevicePlatform.android
                     ? '到点自动开始；系统可安排后台唤醒，受系统权限和省电影响。已有任务执行时保留当前计时。'
@@ -519,7 +520,7 @@ class _SettingsPageState extends State<SettingsPage>
           header: true,
           child: Text('数据', style: text.titleMedium),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         AppSectionCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -533,7 +534,7 @@ class _SettingsPageState extends State<SettingsPage>
                       color: AppColors.primary,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: AppLayout.spaceLg),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,12 +551,12 @@ class _SettingsPageState extends State<SettingsPage>
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppLayout.spaceMd),
               Text(
                 '包含数据库与正式附件；不含草稿、本机资料和提醒偏好。暂不支持恢复导入。',
                 style: text.bodyMedium,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppLayout.spaceMd),
               Align(
                 alignment: Alignment.centerRight,
                 child: FilledButton.icon(
@@ -567,14 +568,17 @@ class _SettingsPageState extends State<SettingsPage>
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.file_download_outlined, size: 20),
+                      : const Icon(
+                          Icons.file_download_outlined,
+                          size: AppLayout.iconMd,
+                        ),
                   label: Text(
                     _exporting ? '正在导出…' : (_backupFailed ? '重试导出' : '导出备份'),
                   ),
                 ),
               ),
               if (_backupMessage != null) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: AppLayout.spaceMd),
                 Semantics(
                   liveRegion: true,
                   child: Text(
@@ -599,7 +603,7 @@ class _SettingsPageState extends State<SettingsPage>
     final text = Theme.of(context).textTheme;
     final content = _about
         ? Padding(
-            padding: const EdgeInsets.only(top: 12),
+            padding: const EdgeInsets.only(top: AppLayout.spaceMd),
             child: Text(
               '把目标落到行动，让记录忠于事实。数据保存在当前设备。强行停止或省电限制可能影响后台提醒。',
               style: text.bodyMedium,
@@ -614,7 +618,7 @@ class _SettingsPageState extends State<SettingsPage>
           header: true,
           child: Text('关于', style: text.titleMedium),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         AppSectionCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -640,7 +644,7 @@ class _SettingsPageState extends State<SettingsPage>
                 content
               else
                 AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
+                  duration: AppMotion.quick,
                   alignment: Alignment.topCenter,
                   child: content,
                 ),
@@ -685,7 +689,7 @@ class _SettingsPageState extends State<SettingsPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title, style: text.titleSmall),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppLayout.spaceXs),
             Text('系统未允许', style: text.bodySmall),
           ],
         );
@@ -693,14 +697,14 @@ class _SettingsPageState extends State<SettingsPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: AppLayout.spaceSm),
               child: Icon(
                 exact ? Icons.alarm_outlined : Icons.notifications_outlined,
-                size: 22,
+                size: AppLayout.iconLg,
                 color: AppColors.primary,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppLayout.spaceMd),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -731,14 +735,14 @@ class _PermissionSummary extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 24, color: AppColors.primary),
-        const SizedBox(width: 12),
+        Icon(icon, size: AppLayout.iconLg, color: AppColors.primary),
+        const SizedBox(width: AppLayout.spaceMd),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: text.titleSmall),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppLayout.spaceXs),
               Text(description, style: text.bodyMedium),
             ],
           ),

@@ -26,8 +26,7 @@ Future<T?> showAdaptiveSheet<T>({
       enableDrag: enableDrag,
       useSafeArea: true,
       constraints:
-          constraints ??
-          const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
+          constraints ?? const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
       backgroundColor: backgroundColor,
     );
   }
@@ -39,7 +38,7 @@ Future<T?> showAdaptiveSheet<T>({
     builder: (dialogContext) => Dialog(
       backgroundColor: backgroundColor ?? AppColors.background,
       clipBehavior: Clip.antiAlias,
-      insetPadding: const EdgeInsets.all(24),
+      insetPadding: const EdgeInsets.all(AppLayout.spaceXxl),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: AppLayout.detailPaneMaxWidth,

@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/colors.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// Android 材料草稿区内直接取景、重拍与确认，失败时保留原草稿。
 class EvidenceCameraPanel extends StatefulWidget {
@@ -161,10 +162,10 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
     final controller = _controller;
     return Container(
       key: const Key('evidence-camera-panel'),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppLayout.spaceLg),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppLayout.radiusXl),
         border: Border.all(color: AppColors.hairline),
       ),
       child: Column(
@@ -174,14 +175,14 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
             '为「${widget.missionTitle}」拍照',
             style: theme.textTheme.titleSmall,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           const Text('照片确认后加入当前草稿，提交材料前不会成为正式记录。'),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppLayout.spaceMd),
           if (_capture != null)
             AspectRatio(
               aspectRatio: 4 / 3,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppLayout.radiusMd),
                 child: Image.memory(_capture!, fit: BoxFit.cover),
               ),
             )
@@ -189,17 +190,17 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
             AspectRatio(
               aspectRatio: controller.value.aspectRatio,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppLayout.radiusMd),
                 child: CameraPreview(controller),
               ),
             )
           else if (_busy)
             const Center(child: CircularProgressIndicator()),
           if (_error != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: AppLayout.spaceSm),
             Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: AppLayout.spaceMd),
           Wrap(
             spacing: 8,
             runSpacing: 8,

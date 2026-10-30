@@ -188,7 +188,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
               onPressed: () => setState(() => _showFilters = !_showFilters),
               icon: Icon(
                 _showFilters ? Icons.tune_rounded : Icons.tune,
-                size: 20,
+                size: AppLayout.iconMd,
               ),
               label: Text(
                 _showFilters
@@ -284,13 +284,13 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                   children: [
                     _dateNavigation(context, today),
                     if (_showFilters) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppLayout.spaceLg),
                       _filters(context, all, todayKey),
                     ],
                     if (!_showFilters &&
                         (_phase != null || _goalId != null || _pastUnstarted))
                       Padding(
-                        padding: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.only(top: AppLayout.spaceSm),
                         child: Text(
                           '筛选：${[if (_phase != null) phaseLabel(_phase!), if (_goalId != null) _goalId!.isEmpty ? '独立任务' : '指定目标', if (_pastUnstarted) '以前未开始'].join(' · ')}',
                           style: Theme.of(context).textTheme.bodyMedium,
@@ -298,13 +298,13 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                       ),
                     if (snapshot.hasError)
                       Padding(
-                        padding: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.only(top: AppLayout.spaceMd),
                         child: TextButton(
                           onPressed: _refresh,
                           child: const Text('刷新失败，当前保留上次读取的任务，点击重试'),
                         ),
                       ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: AppLayout.spaceXl),
                     if (large)
                       _PagedMissionRows(
                         key: ValueKey('$_day|$_phase|$_goalId|$_pastUnstarted'),
@@ -324,16 +324,18 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                           matches,
                           showDate: true,
                         ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppLayout.spaceXxl),
                     AppSectionCard(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
+                        horizontal: AppLayout.spaceLg,
+                        vertical: AppLayout.spaceXs,
                       ),
                       child: ExpansionTile(
                         key: const Key('all-missions-statistics'),
                         tilePadding: EdgeInsets.zero,
-                        childrenPadding: const EdgeInsets.only(bottom: 12),
+                        childrenPadding: const EdgeInsets.only(
+                          bottom: AppLayout.spaceMd,
+                        ),
                         title: Text(
                           '完成统计',
                           style: Theme.of(context).textTheme.titleMedium,
@@ -398,7 +400,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppLayout.spaceSm),
           ],
           AdaptiveColumns(
             minColumnWidth: 420,
@@ -416,7 +418,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 ),
               if (other.isNotEmpty)
                 AppSectionCard(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppLayout.spaceLg),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -427,12 +429,12 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                           '自选任务',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: AppLayout.spaceXs),
                         Text(
                           '按日期安排，时间自由选择',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: AppLayout.spaceMd),
                         for (final detail in other.where(
                           (detail) => detail.phase != MissionPhase.cancelled,
                         ))
@@ -441,12 +443,12 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                       if (other.any(
                         (detail) => detail.phase == MissionPhase.cancelled,
                       )) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppLayout.spaceLg),
                         Text(
                           '已取消 · 不占用时段',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: AppLayout.spaceMd),
                         for (final detail in other.where(
                           (detail) => detail.phase == MissionPhase.cancelled,
                         ))
@@ -498,8 +500,8 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                     style: theme.textTheme.titleSmall,
                   ),
                 ),
-                const SizedBox(width: 4),
-                const Icon(Icons.expand_more, size: 18),
+                const SizedBox(width: AppLayout.spaceXs),
+                const Icon(Icons.expand_more, size: AppLayout.iconSm),
               ],
             ),
           ),
@@ -544,20 +546,24 @@ class _AllMissionsPageState extends State<AllMissionsPage>
       ],
     );
     return AppSectionCard(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(AppLayout.spaceSm),
       child: LayoutBuilder(
         builder: (context, box) {
           if (box.maxWidth >= 640 * MediaQuery.textScalerOf(context).scale(1)) {
             return Row(
               children: [
                 Expanded(child: navigation),
-                const SizedBox(width: 16),
+                const SizedBox(width: AppLayout.spaceLg),
                 shortcuts,
               ],
             );
           }
           return Column(
-            children: [navigation, const SizedBox(height: 4), shortcuts],
+            children: [
+              navigation,
+              const SizedBox(height: AppLayout.spaceXs),
+              shortcuts,
+            ],
           );
         },
       ),
@@ -582,7 +588,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('筛选任务', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppLayout.spaceMd),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -595,7 +601,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                     _day = null;
                     _phase = null;
                   }),
-                  icon: const Icon(Icons.history, size: 18),
+                  icon: const Icon(Icons.history, size: AppLayout.iconSm),
                   label: Text(_pastUnstarted ? '显示全部' : '以前未开始 $pastCount'),
                 ),
               if (_phase != null || _goalId != null || _pastUnstarted)
@@ -609,9 +615,9 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppLayout.spaceMd),
           Text('阶段', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -622,7 +628,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
             ],
           ),
           if (widget.goals != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppLayout.spaceMd),
             FutureBuilder<List<Goal>>(
               future: _goalChoices,
               builder: (context, snapshot) {
@@ -683,15 +689,15 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     final theme = Theme.of(context);
     return Padding(
       key: Key('all-mission-${detail.mission.id}'),
-      padding: EdgeInsets.only(bottom: embedded ? 0 : 8),
+      padding: EdgeInsets.only(bottom: embedded ? 0 : AppLayout.spaceSm),
       child: Material(
         color: embedded ? Colors.transparent : AppColors.card,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           contentPadding: EdgeInsets.symmetric(
-            horizontal: embedded ? 0 : 16,
-            vertical: 6,
+            horizontal: embedded ? 0 : AppLayout.spaceLg,
+            vertical: AppLayout.spaceSm,
           ),
           leading: MissionPhaseIcon(phase: detail.phase),
           title: Text(detail.mission.title, style: theme.textTheme.titleMedium),
@@ -723,21 +729,21 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   }
 
   Widget _empty(BuildContext context) => Container(
-    padding: const EdgeInsets.all(32),
+    padding: const EdgeInsets.all(AppLayout.space3Xl),
     decoration: BoxDecoration(
       color: AppColors.card,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
     ),
     child: Column(
       children: [
         const Icon(
           Icons.filter_alt_off_outlined,
-          size: 32,
+          size: AppLayout.iconDisplay,
           color: AppColors.primary,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         Text('没有符合筛选条件的任务', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 6),
+        const SizedBox(height: AppLayout.spaceSm),
         Text('可以调整日期、阶段或目标。', style: Theme.of(context).textTheme.bodyMedium),
       ],
     ),
@@ -781,19 +787,19 @@ class _AllMissionsPageState extends State<AllMissionsPage>
         DateTime(today.year, today.month, today.day - offset),
     ];
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.only(top: AppLayout.spaceSm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('最近 7 天', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           Text(
             '计划 $planned 项 · 报告完成 $recentCompleted 项',
             style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppLayout.spaceXl),
           Text('近 30 天完成记录', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppLayout.spaceMd),
           LayoutBuilder(
             builder: (context, box) {
               final columns = box.maxWidth >= 420 ? 15 : 10;
@@ -823,7 +829,9 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                                 color: (completedDays[_dateKey(day)] ?? 0) > 0
                                     ? AppColors.primary
                                     : AppColors.primarySoft,
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.circular(
+                                  AppLayout.radiusXs,
+                                ),
                               ),
                             ),
                           ),
@@ -834,7 +842,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
               );
             },
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           Text('深色方格表示当天有完成报告；计划与完成分别计算。', style: theme.textTheme.bodySmall),
         ],
       ),
@@ -872,7 +880,7 @@ class _PagedMissionRowsState extends State<_PagedMissionRows> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('任务量较大，使用分页列表。共 $count 项，每页 50 项；本视图不绘制课表交集。'),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         for (final detail in widget.records.skip(start).take(50))
           widget.buildRow(detail),
         Wrap(

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../../domain/entities/mission.dart';
 import 'mission_schedule_fields.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 任务材料要求输入区。只管理日历展开；草稿值由父页面持有并统一保存。
 class MissionEvidenceFields extends StatefulWidget {
@@ -49,7 +50,7 @@ class _MissionEvidenceFieldsState extends State<MissionEvidenceFields> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('完成后的材料', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         // Wrap 允许窄屏或大字体换行，不挤压三个选项的触控范围。
         Wrap(
           spacing: 8,
@@ -60,14 +61,14 @@ class _MissionEvidenceFieldsState extends State<MissionEvidenceFields> {
             _policyChip(VerificationPolicy.selfReport, '仅自报'),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         Text(switch (widget.policy) {
           VerificationPolicy.optionalEvidence => '可以留下文本或图片，也可以不交。结束时由你决定。',
           VerificationPolicy.requiredEvidence => '报告完成后需要提交材料；未提交时，任务项会提示待补。',
           VerificationPolicy.selfReport => '报告完成情况即可结束，不安排材料环节。',
         }, style: theme.textTheme.bodyMedium),
         if (widget.policy != VerificationPolicy.selfReport) ...[
-          const SizedBox(height: 20),
+          const SizedBox(height: AppLayout.spaceXl),
           MissionInputLabel(
             label: requiredEvidence ? '材料要求' : '材料说明（选填）',
             isRequired: requiredEvidence,
@@ -86,7 +87,7 @@ class _MissionEvidenceFieldsState extends State<MissionEvidenceFields> {
           ),
         ],
         if (requiredEvidence) ...[
-          const SizedBox(height: 20),
+          const SizedBox(height: AppLayout.spaceXl),
           MissionInputLabel(
             label: '提交截止日期',
             fieldSemantics: false,
@@ -101,7 +102,7 @@ class _MissionEvidenceFieldsState extends State<MissionEvidenceFields> {
               style: OutlinedButton.styleFrom(
                 minimumSize: Size.fromHeight(missionInputHeight(context)),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppLayout.radiusLg),
                 ),
               ),
               icon: const Icon(Icons.calendar_today_outlined),
@@ -127,9 +128,9 @@ class _MissionEvidenceFieldsState extends State<MissionEvidenceFields> {
                 setState(() => _calendarExpanded = false);
               },
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppLayout.spaceLg),
           Text('截止时间 · 24小时制', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           LayoutBuilder(
             builder: (context, constraints) {
               final hour = _timeField(
@@ -147,19 +148,23 @@ class _MissionEvidenceFieldsState extends State<MissionEvidenceFields> {
               final scale = MediaQuery.textScalerOf(context).scale(18) / 18;
               if (constraints.maxWidth < 240 * scale) {
                 return Column(
-                  children: [hour, const SizedBox(height: 12), minute],
+                  children: [
+                    hour,
+                    const SizedBox(height: AppLayout.spaceMd),
+                    minute,
+                  ],
                 );
               }
               return Row(
                 children: [
                   Expanded(child: hour),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: AppLayout.spaceLg),
                   Expanded(child: minute),
                 ],
               );
             },
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           Text(
             '按任务时区 ${widget.timeZone} 记录，截止不会自动停止正在执行的任务。',
             style: theme.textTheme.bodyMedium,

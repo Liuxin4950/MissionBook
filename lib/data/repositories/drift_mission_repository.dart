@@ -137,7 +137,7 @@ MissionScheduleRevision scheduleFromRow(MissionScheduleRevisionRow row) {
     throw const FormatException('时间策略与固定开始时刻不一致');
   }
 
-  return MissionScheduleRevision(
+  final schedule = MissionScheduleRevision(
     id: row.id,
     missionId: row.missionId,
     revisionNumber: row.revisionNumber,
@@ -150,6 +150,13 @@ MissionScheduleRevision scheduleFromRow(MissionScheduleRevisionRow row) {
     changeReason: row.changeReason,
     changedAt: DateTime.fromMillisecondsSinceEpoch(row.changedAt, isUtc: true),
   );
+  try {
+    validateMissionSchedule(schedule);
+  } on ArgumentError catch (error) {
+    // 读取损坏的旧库时明确报错，不让坏日期拖到 Widget 解析阶段才崩溃。
+    throw FormatException('排期数据无效：${error.message}');
+  }
+  return schedule;
 }
 
 /// 将排期转换为插入参数，保留日期字符串并将绝对时刻转换为毫秒。

@@ -3,6 +3,7 @@ import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/mission_ownership.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/adaptive_sheet.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 任务表单的可选归属；默认独立创建，用户点击后才读取目标和节点供选择。
 class MissionOwnershipField extends StatefulWidget {
@@ -82,20 +83,22 @@ class _MissionOwnershipFieldState extends State<MissionOwnershipField> {
           ? [label]
           : [info.goal.title, ...info.path.map((node) => node.title)];
       return Padding(
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.only(bottom: AppLayout.spaceXxl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text('任务归属（可选）', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppLayout.spaceSm),
             Material(
               color: Colors.transparent,
               child: InkWell(
                 key: const Key('mission-ownership'),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppLayout.radiusMd),
                 onTap: widget.enabled && !_opening ? _choose : null,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppLayout.spaceSm,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -108,18 +111,20 @@ class _MissionOwnershipFieldState extends State<MissionOwnershipField> {
                               if (i > 0)
                                 const Icon(
                                   Icons.chevron_right,
-                                  size: 16,
+                                  size: AppLayout.iconSm,
                                   color: AppColors.textSecondary,
                                 ),
                               if (info != null && i == names.length - 1)
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
+                                    horizontal: AppLayout.spaceMd,
                                     vertical: 5,
                                   ),
                                   decoration: BoxDecoration(
                                     color: AppColors.accent,
-                                    borderRadius: BorderRadius.circular(20),
+                                    borderRadius: BorderRadius.circular(
+                                      AppLayout.radiusXl,
+                                    ),
                                   ),
                                   child: Text(
                                     names[i],
@@ -140,10 +145,10 @@ class _MissionOwnershipFieldState extends State<MissionOwnershipField> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppLayout.spaceSm),
                       const Icon(
                         Icons.expand_more,
-                        size: 20,
+                        size: AppLayout.iconMd,
                         color: AppColors.primary,
                       ),
                     ],
@@ -153,7 +158,7 @@ class _MissionOwnershipFieldState extends State<MissionOwnershipField> {
             ),
             if (info?.available == false)
               Padding(
-                padding: const EdgeInsets.only(top: 6),
+                padding: const EdgeInsets.only(top: AppLayout.spaceSm),
                 child: Text(
                   '原归属目前不可用于新任务，请选择其他归属或独立任务',
                   style: Theme.of(
@@ -213,7 +218,12 @@ class _OwnershipPickerState extends State<_OwnershipPicker> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppLayout.spaceXl,
+                    AppLayout.spaceMd,
+                    AppLayout.spaceSm,
+                    0,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -231,7 +241,12 @@ class _OwnershipPickerState extends State<_OwnershipPicker> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppLayout.spaceXl,
+                    AppLayout.spaceSm,
+                    AppLayout.spaceXl,
+                    AppLayout.spaceMd,
+                  ),
                   child: TextField(
                     key: const Key('ownership-search'),
                     controller: _search,
@@ -240,13 +255,19 @@ class _OwnershipPickerState extends State<_OwnershipPicker> {
                     onSubmitted: (_) => FocusScope.of(context).unfocus(),
                     decoration: InputDecoration(
                       hintText: '搜索目标或节点',
-                      prefixIcon: const Icon(Icons.search, size: 20),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        size: AppLayout.iconMd,
+                      ),
                       suffixIcon: _search.text.isEmpty
                           ? null
                           : IconButton(
                               tooltip: '清空搜索',
                               onPressed: () => setState(_search.clear),
-                              icon: const Icon(Icons.close, size: 18),
+                              icon: const Icon(
+                                Icons.close,
+                                size: AppLayout.iconSm,
+                              ),
                             ),
                     ),
                   ),
@@ -317,12 +338,19 @@ class _OwnershipPickerState extends State<_OwnershipPicker> {
                       return ListView(
                         keyboardDismissBehavior:
                             ScrollViewKeyboardDismissBehavior.onDrag,
-                        padding: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.only(
+                          bottom: AppLayout.spaceMd,
+                        ),
                         children: [
                           if (showIndependent) _independent(context),
                           if (tokens.isNotEmpty)
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                              padding: const EdgeInsets.fromLTRB(
+                                AppLayout.spaceXl,
+                                AppLayout.spaceMd,
+                                AppLayout.spaceXl,
+                                AppLayout.spaceXs,
+                              ),
                               child: Text(
                                 '找到 ${options.length + (showIndependent ? 1 : 0)} 项',
                                 style: Theme.of(context).textTheme.bodySmall,
@@ -331,7 +359,7 @@ class _OwnershipPickerState extends State<_OwnershipPicker> {
                           if (options.isEmpty &&
                               (tokens.isEmpty || !showIndependent))
                             Padding(
-                              padding: const EdgeInsets.all(20),
+                              padding: const EdgeInsets.all(AppLayout.spaceXl),
                               child: Text(
                                 tokens.isEmpty
                                     ? '暂无正在推进的目标，可以创建独立任务'
@@ -347,8 +375,8 @@ class _OwnershipPickerState extends State<_OwnershipPicker> {
                                     : 'ownership-node-${option.value.goalNodeId}',
                               ),
                               contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 4,
+                                horizontal: AppLayout.spaceXl,
+                                vertical: AppLayout.spaceXs,
                               ),
                               leading: Icon(
                                 option.goal
@@ -381,7 +409,10 @@ class _OwnershipPickerState extends State<_OwnershipPicker> {
 
   Widget _independent(BuildContext context) => ListTile(
     key: const Key('ownership-independent'),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: AppLayout.spaceXl,
+      vertical: AppLayout.spaceXs,
+    ),
     leading: const Icon(Icons.task_alt, color: AppColors.primary),
     title: const Text('独立任务'),
     subtitle: const Text('不关联目标或节点'),

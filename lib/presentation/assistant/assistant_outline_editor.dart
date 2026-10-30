@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../application/assistant/assistant_goal_outline.dart';
+import '../../core/theme/app_layout.dart';
 
 /// 整份目标大纲的草稿编辑，不在编辑过程中写业务数据。
 class AssistantOutlineEditor extends StatefulWidget {
@@ -72,7 +73,7 @@ class _AssistantOutlineEditorState extends State<AssistantOutlineEditor> {
   }
 
   Widget _field(String key, String label, {int lines = 1}) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.only(bottom: AppLayout.spaceMd),
     child: TextField(
       key: ValueKey('outline-field-$key'),
       controller: _fields[key],
@@ -97,7 +98,7 @@ class _AssistantOutlineEditorState extends State<AssistantOutlineEditor> {
         _field('description', '目标说明', lines: 3),
         _field('why', '为什么要做', lines: 2),
         const Text('移除节点会同时移除其子节点；保存提案后仍需确认执行。'),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppLayout.spaceMd),
         for (final node in _nodes.where(
           (node) => !_removed.contains(node['key']),
         ))

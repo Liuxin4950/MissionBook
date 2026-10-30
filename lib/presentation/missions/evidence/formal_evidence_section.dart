@@ -10,6 +10,7 @@ import '../../../domain/entities/mission_detail.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../shared/mission_execution_display.dart';
 import 'evidence_image_preview.dart';
+import '../../../core/theme/app_layout.dart';
 
 String evidenceTypeLabel(EvidenceType type) => switch (type) {
   EvidenceType.text => '文字记录',
@@ -307,11 +308,11 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
     final theme = Theme.of(context);
     return Container(
       key: Key('formal-evidence-${item.id}'),
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(top: AppLayout.spaceMd),
+      padding: const EdgeInsets.all(AppLayout.spaceMd),
       decoration: BoxDecoration(
         color: AppColors.background,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -325,9 +326,9 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                       : item.type == EvidenceType.file
                       ? Icons.attach_file_rounded
                       : Icons.notes_rounded,
-                  size: 18,
+                  size: AppLayout.iconSm,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppLayout.spaceSm),
               ],
               Expanded(
                 child: Text(
@@ -346,7 +347,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                     minHeight: 28,
                   ),
                   padding: EdgeInsets.zero,
-                  iconSize: 18,
+                  iconSize: AppLayout.iconSm,
                   onPressed:
                       _busy ||
                           (item.attachmentStorageKey != null &&
@@ -375,7 +376,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
             ),
           if (item.type == EvidenceType.image &&
               item.attachmentFileName?.isNotEmpty == true) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AppLayout.spaceSm),
             Text(
               item.attachmentFileName!,
               maxLines: 2,
@@ -385,7 +386,8 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
           ],
           if (item.type == EvidenceType.file) _file(item),
           if (item.content?.trim().isNotEmpty == true) ...[
-            if (item.attachmentStorageKey != null) const SizedBox(height: 8),
+            if (item.attachmentStorageKey != null)
+              const SizedBox(height: AppLayout.spaceSm),
             SelectableText(item.content!),
           ],
           if (!widget.compact)
@@ -412,7 +414,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
           ),
         if (draft.type == EvidenceType.file)
           Text('替代文件：${draft.attachmentFileName}'),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppLayout.spaceSm),
         TextField(
           key: const Key('evidence-correction-content'),
           controller: _content,
@@ -425,7 +427,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                 : '附件说明（选填）',
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppLayout.spaceMd),
         Wrap(
           spacing: 8,
           children: [
@@ -469,18 +471,20 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
         key: Key('evidence-section-${_detail.mission.id}'),
         color: widget.compact ? AppColors.background : AppColors.card,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppLayout.radiusXl),
           side: const BorderSide(color: AppColors.hairline),
         ),
         child: Padding(
-          padding: EdgeInsets.all(widget.compact ? 12 : 20),
+          padding: EdgeInsets.all(
+            widget.compact ? AppLayout.spaceMd : AppLayout.spaceXl,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.perm_media_outlined, size: 20),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.perm_media_outlined, size: AppLayout.iconMd),
+                  const SizedBox(width: AppLayout.spaceSm),
                   Expanded(
                     child: Text('任务材料', style: theme.textTheme.titleMedium),
                   ),
@@ -490,7 +494,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppLayout.spaceSm),
               Text(
                 '已提交 ${effective.length} 份材料',
                 style: theme.textTheme.bodySmall,
@@ -525,7 +529,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
               for (final item in others) _item(context, item),
               if (_draft != null)
                 Padding(
-                  padding: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.only(top: AppLayout.spaceMd),
                   child: _editor(context),
                 ),
               if (corrections.isNotEmpty)
@@ -536,7 +540,9 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                   children: [
                     for (final item in _detail.evidence)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.only(
+                          bottom: AppLayout.spaceMd,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [

@@ -197,15 +197,18 @@ class _MissionRecordPageState extends State<MissionRecordPage>
               label: Text('$_refreshError，点击重试'),
             ),
           MissionHeading(detail: detail, showPhase: false),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppLayout.spaceXl),
           Align(
             alignment: Alignment.centerLeft,
             child: Container(
               key: const Key('execution-result'),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppLayout.spaceMd,
+                vertical: AppLayout.spaceSm,
+              ),
               decoration: BoxDecoration(
                 color: AppColors.primarySoft,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
               ),
               child: Text(
                 completed ? '用户报告：已完成' : '用户报告：未完成',
@@ -224,10 +227,10 @@ class _MissionRecordPageState extends State<MissionRecordPage>
                   children: [
                     const Icon(
                       Icons.access_time_rounded,
-                      size: 40,
+                      size: AppLayout.iconXl,
                       color: AppColors.primary,
                     ),
-                    const SizedBox(width: 20),
+                    const SizedBox(width: AppLayout.spaceXl),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,7 +281,10 @@ class _MissionRecordPageState extends State<MissionRecordPage>
               const SizedBox(height: AppLayout.sectionGap),
               Text('未完成原因', style: theme.textTheme.titleMedium),
               if (failure.userReasonCategory != null)
-                Text(failureReasonLabels[failure.userReasonCategory]!),
+                Text(
+                  failureReasonLabels[failure.userReasonCategory] ??
+                      failure.userReasonCategory!,
+                ),
               if (failure.userReasonText?.trim().isNotEmpty == true)
                 Text(failure.userReasonText!),
             ],
@@ -306,7 +312,7 @@ class _SummaryValue extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     children: [
       Text(label, style: Theme.of(context).textTheme.bodyMedium),
-      const SizedBox(height: 4),
+      const SizedBox(height: AppLayout.spaceXs),
       Text(value, style: Theme.of(context).textTheme.titleLarge),
     ],
   );

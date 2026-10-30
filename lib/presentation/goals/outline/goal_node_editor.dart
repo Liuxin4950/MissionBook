@@ -219,14 +219,14 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppLayout.spaceXs),
                 Text(
                   '${editing ? '所属位置' : '添加到'} · ${widget.contextTitle}',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppLayout.spaceXxl),
                 AppTextField(
                   key: const Key('node-title-input'),
                   controller: _title,
@@ -239,7 +239,7 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                   validator: (value) =>
                       value == null || value.trim().isEmpty ? '请填写节点名称' : null,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppLayout.spaceXl),
                 AppTextField(
                   key: const Key('node-description-input'),
                   controller: _description,
@@ -249,7 +249,7 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                   label: '节点说明（选填）',
                   hint: '需要时再补充范围或学习重点',
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppLayout.spaceXxl),
                 if (_error != null) ...[
                   Semantics(
                     liveRegion: true,
@@ -263,14 +263,16 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                       onPressed: _saving ? null : _confirmResult,
                       child: const Text('确认结果并继续编辑'),
                     ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppLayout.spaceMd),
                 ],
                 FilledButton.icon(
                   key: const Key('node-save'),
                   onPressed: _saving ? null : _save,
                   icon: Icon(_saving ? Icons.hourglass_top : Icons.check),
                   label: Text(_saving ? '正在保存…' : (_locked ? '重试保存' : '保存节点')),
-                  style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, AppLayout.actionMinHeight),
+                  ),
                 ),
               ],
             ),

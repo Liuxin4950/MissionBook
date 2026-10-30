@@ -18,6 +18,7 @@ import '../shared/mission_execution_display.dart';
 import 'evidence_image_preview.dart';
 import 'formal_evidence_section.dart';
 import 'evidence_camera_panel.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 同一任务上下文内的材料区域：编辑草稿、一次提交、查看正式材料。
 /// 页面刷新必须保留本组件的 key；草稿只在提交成功或明确丢弃后清除。
@@ -403,7 +404,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
         }
         if (!snapshot.hasData) {
           return const Padding(
-            padding: EdgeInsets.all(16),
+            padding: EdgeInsets.all(AppLayout.spaceLg),
             child: LinearProgressIndicator(),
           );
         }
@@ -460,10 +461,10 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       explicitChildNodes: true,
       child: Container(
         key: Key('evidence-section-${_detail.mission.id}'),
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppLayout.spaceXl),
         decoration: BoxDecoration(
           color: AppColors.primarySoft,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -476,7 +477,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                   : '任务材料',
               style: theme.textTheme.titleMedium,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppLayout.spaceSm),
             if (_canSubmit)
               Text(
                 requiredEvidence
@@ -489,7 +490,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
               ),
             if (_detail.executionPlan.verificationCriteria?.trim().isNotEmpty ==
                 true) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: AppLayout.spaceSm),
               Text(_detail.executionPlan.verificationCriteria!),
             ],
             if (timedOut) const Text('完成报告已保存，强制材料未按时提交。'),
@@ -506,9 +507,9 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                 ),
               ),
             if (_expanded && (_canSubmit || hasDraft)) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: AppLayout.spaceLg),
               const Text('草稿 · 尚未进入正式记录'),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppLayout.spaceMd),
               for (final draft in _drafts) ...[
                 Row(
                   children: [
@@ -531,7 +532,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                     draft.attachmentStorageKey!,
                     draft.attachmentFileName ?? '图片',
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppLayout.spaceMd),
                 ],
                 Semantics(
                   container: true,
@@ -553,7 +554,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                     onChanged: (value) => _updateContent(draft.id, value),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppLayout.spaceXl),
               ],
               if (_canSubmit)
                 Wrap(
@@ -606,7 +607,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                   ],
                 ),
               if (_cameraOpen) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: AppLayout.spaceMd),
                 EvidenceCameraPanel(
                   missionTitle: _detail.mission.title,
                   onConfirmed: _confirmCameraImage,
@@ -629,12 +630,12 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
               ],
               if (_busy)
                 const Padding(
-                  padding: EdgeInsets.only(top: 12),
+                  padding: EdgeInsets.only(top: AppLayout.spaceMd),
                   child: LinearProgressIndicator(),
                 ),
               if (_canSubmit)
                 Padding(
-                  padding: const EdgeInsets.only(top: 16),
+                  padding: const EdgeInsets.only(top: AppLayout.spaceLg),
                   child: FilledButton(
                     key: const Key('evidence-submit'),
                     onPressed: _busy || (_drafts.isEmpty && _pending == null)
@@ -662,7 +663,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                 child: const Text('放弃提交并结束'),
               ),
             if (_error != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: AppLayout.spaceMd),
               Semantics(
                 liveRegion: true,
                 child: Text(
@@ -676,7 +677,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
               ),
             ],
             if (hasFormal) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: AppLayout.spaceLg),
               Text(
                 '已提交 ${_detail.evidence.length} 份材料',
                 style: theme.textTheme.titleSmall,
@@ -685,7 +686,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                 const Divider(height: 24),
                 if (material.type == EvidenceType.image) ...[
                   Text(material.attachmentFileName ?? '图片材料'),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppLayout.spaceSm),
                   _image(
                     material.attachmentStorageKey!,
                     material.attachmentFileName ?? '图片',
@@ -693,7 +694,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                 ],
                 if (material.content?.trim().isNotEmpty == true)
                   SelectableText(material.content!),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppLayout.spaceSm),
                 Text(
                   '提交于 ${missionLocalTime(material.submittedAt, _detail.schedule.timeZone)}',
                   style: theme.textTheme.bodySmall,

@@ -148,7 +148,12 @@ class _DatePickerContentState extends State<_DatePickerContent> {
             .85,
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+        padding: const EdgeInsets.fromLTRB(
+          AppLayout.spaceXl,
+          AppLayout.spaceXl,
+          AppLayout.spaceXl,
+          AppLayout.spaceMd,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -159,13 +164,13 @@ class _DatePickerContentState extends State<_DatePickerContent> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(widget.title, style: text.titleLarge),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppLayout.spaceSm),
                     Text(
                       '${_selected.year}年${_selected.month}月${_selected.day}日',
                       key: const Key('app-date-selected'),
                       style: text.bodyMedium,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppLayout.spaceMd),
                     Wrap(
                       spacing: 8,
                       runSpacing: 4,
@@ -202,16 +207,18 @@ class _DatePickerContentState extends State<_DatePickerContent> {
                             _typing
                                 ? Icons.calendar_month_outlined
                                 : Icons.edit_outlined,
-                            size: 18,
+                            size: AppLayout.iconSm,
                           ),
                           label: Text(_typing ? '选择日历' : '输入日期'),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: AppLayout.spaceXs),
                     if (_typing)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppLayout.spaceLg,
+                        ),
                         child: TextField(
                           key: const Key('app-date-input'),
                           controller: _input,
@@ -237,7 +244,7 @@ class _DatePickerContentState extends State<_DatePickerContent> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppLayout.spaceSm),
             Wrap(
               alignment: WrapAlignment.end,
               spacing: 8,

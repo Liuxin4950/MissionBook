@@ -10,6 +10,8 @@ import '../../domain/entities/mission_phase.dart';
 import '../missions/shared/mission_phase_display.dart';
 import '../missions/shared/mission_live_status.dart';
 import '../widgets/app_visibility.dart';
+import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_motion.dart';
 
 /// 首页窗口和当日完整列表共用一份日程布局；时钟只影响展示，不写执行事实。
 class ScheduleSection extends StatefulWidget {
@@ -168,11 +170,11 @@ class _ScheduleSectionState extends State<ScheduleSection>
                 DateUtils.isSameDay(local, widget.selectedDate))
               Padding(
                 key: const Key('timeline-current-time'),
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
                 child: Row(
                   children: [
                     Text('现在', style: theme.textTheme.bodyMedium),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: AppLayout.spaceSm),
                     Text(
                       '${local.hour.toString().padLeft(2, '0')}:'
                       '${local.minute.toString().padLeft(2, '0')}',
@@ -198,7 +200,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
             else
               AnimatedSize(
                 duration: _motionDuration(context),
-                curve: Curves.easeOutCubic,
+                curve: AppMotion.curve,
                 alignment: Alignment.topCenter,
                 child: Column(
                   children: [
@@ -259,9 +261,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
 }
 
 Duration _motionDuration(BuildContext context) =>
-    MediaQuery.disableAnimationsOf(context)
-    ? Duration.zero
-    : const Duration(milliseconds: 240);
+    AppMotion.resolve(context, AppMotion.standard);
 
 /// 用自然布局连接节点，不测量文字、不按分钟拉伸行高。
 class ScheduleMissionRow extends StatelessWidget {
@@ -324,6 +324,7 @@ class ScheduleMissionRow extends StatelessWidget {
       item.title,
       item.durationLabel,
       if (item.timeZoneLabel != null) item.timeZoneLabel!,
+      if (!item.isCancelled) phaseLabel(item.phase),
     ].join('，');
     return Semantics(
       container: true,
@@ -334,19 +335,19 @@ class ScheduleMissionRow extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: _motionDuration(context),
-        curve: Curves.easeOutCubic,
+        curve: AppMotion.curve,
         decoration: BoxDecoration(
           color: current
               ? colors.tertiaryContainer
               : colors.surfaceContainerLow.withValues(alpha: 0),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppLayout.radiusMd),
         ),
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
             onTap: onTap,
             excludeFromSemantics: true,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppLayout.radiusMd),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final stacked =
@@ -369,7 +370,10 @@ class ScheduleMissionRow extends StatelessWidget {
                       // 中间行连到边界，随内容自然增高，连接处没有间隙。
                       top: isFirst ? timelineEndInset : 0,
                       bottom: isLast ? timelineEndInset : 0,
-                      child: Container(width: 1, color: colors.outlineVariant),
+                      child: Container(
+                        width: AppLayout.strokeThin,
+                        color: colors.outlineVariant,
+                      ),
                     ),
                     Positioned(
                       left: 3,
@@ -390,7 +394,12 @@ class ScheduleMissionRow extends StatelessWidget {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 8, 16),
+                      padding: const EdgeInsets.fromLTRB(
+                        AppLayout.spaceXxl,
+                        AppLayout.spaceLg,
+                        AppLayout.spaceSm,
+                        AppLayout.spaceLg,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -401,7 +410,7 @@ class ScheduleMissionRow extends StatelessWidget {
                                 item.startTime,
                                 style: theme.textTheme.bodyMedium,
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: AppLayout.spaceMd),
                               Expanded(
                                 child: Text(
                                   item.title,
@@ -413,14 +422,16 @@ class ScheduleMissionRow extends StatelessWidget {
                                 ),
                               ),
                               if (!stacked) ...[
-                                const SizedBox(width: 8),
+                                const SizedBox(width: AppLayout.spaceSm),
                                 _StatusLabel(status: status, current: current),
                               ],
                             ],
                           ),
                           if (stacked || !current || item.timeZoneLabel != null)
                             Padding(
-                              padding: const EdgeInsets.only(top: 6),
+                              padding: const EdgeInsets.only(
+                                top: AppLayout.spaceSm,
+                              ),
                               child: Wrap(
                                 spacing: 8,
                                 runSpacing: 4,
@@ -445,7 +456,9 @@ class ScheduleMissionRow extends StatelessWidget {
                             ),
                           if (item.events.isNotEmpty)
                             Padding(
-                              padding: const EdgeInsets.only(top: 6),
+                              padding: const EdgeInsets.only(
+                                top: AppLayout.spaceSm,
+                              ),
                               child: MissionLiveStatus(
                                 phase: item.phase,
                                 events: item.events,
@@ -454,7 +467,7 @@ class ScheduleMissionRow extends StatelessWidget {
                               ),
                             ),
                           if (current) ...[
-                            const SizedBox(height: 12),
+                            const SizedBox(height: AppLayout.spaceMd),
                             TweenAnimationBuilder<double>(
                               tween: Tween(end: progress),
                               duration: _motionDuration(context),
@@ -462,13 +475,15 @@ class ScheduleMissionRow extends StatelessWidget {
                                   LinearProgressIndicator(
                                     value: value,
                                     minHeight: 5,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(
+                                      AppLayout.radiusXs,
+                                    ),
                                     backgroundColor: colors.primary.withValues(
                                       alpha: .08,
                                     ),
                                   ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: AppLayout.spaceSm),
                             Wrap(
                               spacing: 12,
                               runSpacing: 8,
@@ -487,12 +502,14 @@ class ScheduleMissionRow extends StatelessWidget {
                                 DecoratedBox(
                                   decoration: BoxDecoration(
                                     color: colors.primary,
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(
+                                      AppLayout.radiusSm,
+                                    ),
                                   ),
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 10,
+                                      horizontal: AppLayout.spaceLg,
+                                      vertical: AppLayout.spaceMd,
                                     ),
                                     child: Text(
                                       '查看',
@@ -531,10 +548,13 @@ class _StatusLabel extends StatelessWidget {
         color: current
             ? theme.colorScheme.surfaceContainerLow
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppLayout.spaceSm,
+          vertical: 3,
+        ),
         child: Text(
           status,
           style: theme.textTheme.bodyMedium?.copyWith(

@@ -219,18 +219,31 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                 icon: const Icon(Icons.settings_outlined),
               ),
             ),
-            const SizedBox(height: 24),
-            Column(
+            const SizedBox(height: AppLayout.spaceXxl),
+            AdaptiveColumns(
               key: const Key('me-workspace-columns'),
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              minColumnWidth: 400,
+              maxColumns: 2,
+              spacing: AppLayout.spaceXxl,
               children: [
-                _ProfileCard(
-                  profile: _profile,
-                  error: _profileError,
-                  onEdit: _profile == null ? null : _editProfile,
-                  onRetry: _loadProfile,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _ProfileCard(
+                      profile: _profile,
+                      error: _profileError,
+                      onEdit: _profile == null ? null : _editProfile,
+                      onRetry: _loadProfile,
+                    ),
+                    if (_statsError == null && _recentRecords.isNotEmpty) ...[
+                      const SizedBox(height: AppLayout.spaceXxl),
+                      _RecentRecords(
+                        records: _recentRecords,
+                        onOpen: _openRecord,
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 16),
                 _ActivityOverview(
                   stats: _statsError == null ? _stats : null,
                   goals: _statsError == null ? _activeGoals : const [],
@@ -238,10 +251,6 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                   error: _statsError,
                   onRetry: _refreshStats,
                 ),
-                if (_statsError == null && _recentRecords.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  _RecentRecords(records: _recentRecords, onOpen: _openRecord),
-                ],
               ],
             ),
           ],
@@ -283,7 +292,7 @@ class _ProfileCard extends StatelessWidget {
             excludeFromSemantics: true,
           ),
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppLayout.spaceXl),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -296,7 +305,7 @@ class _ProfileCard extends StatelessWidget {
                         color: AppColors.primary,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppLayout.spaceMd),
                     Expanded(
                       child: Text(
                         profile?.name ?? (error == null ? '正在读取资料…' : '本机资料'),
@@ -308,13 +317,16 @@ class _ProfileCard extends StatelessWidget {
                       key: const Key('profile-edit'),
                       tooltip: '编辑资料',
                       onPressed: onEdit,
-                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        size: AppLayout.iconMd,
+                      ),
                     ),
                   ],
                 ),
                 if (profile?.bio.isNotEmpty == true)
                   Padding(
-                    padding: const EdgeInsets.only(top: 12),
+                    padding: const EdgeInsets.only(top: AppLayout.spaceMd),
                     child: Text(profile!.bio, style: text.bodyMedium),
                   ),
                 if (error != null) ...[
@@ -351,7 +363,7 @@ class _RecentRecords extends StatelessWidget {
             header: true,
             child: Text('最近的行动', style: text.titleMedium),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppLayout.spaceSm),
           for (final record in records)
             ListTile(
               key: ValueKey('profile-record-${record.mission.id}'),
@@ -394,7 +406,7 @@ class _ActivityOverview extends StatelessWidget {
             header: true,
             child: Text('我的行动记录', style: text.titleMedium),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppLayout.spaceLg),
           AdaptiveColumns(
             minColumnWidth: 88,
             maxColumns: 3,
@@ -422,15 +434,15 @@ class _ActivityOverview extends StatelessWidget {
           ),
 
           if (goals.isNotEmpty) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: AppLayout.spaceXl),
             const Divider(height: 1),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppLayout.spaceLg),
             Semantics(
               container: true,
               header: true,
               child: Text('进行中的目标', style: text.titleMedium),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppLayout.spaceSm),
             for (final goal in goals)
               ListTile(
                 key: ValueKey('profile-goal-${goal.id}'),
@@ -478,21 +490,24 @@ class _ActivityStat extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppLayout.spaceXs,
+        vertical: AppLayout.spaceSm,
+      ),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 22, color: AppColors.primary),
-          const SizedBox(height: 12),
+          Icon(icon, size: AppLayout.iconLg, color: AppColors.primary),
+          const SizedBox(height: AppLayout.spaceMd),
           Tooltip(
             message: label == '累计专注' ? '仅统计已结束任务的实际专注时间' : label,
             child: Text(label, style: text.bodySmall),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppLayout.spaceXs),
           Text(
             value == null ? '—' : '$value $unit',
             key: ValueKey('profile-stat-$label'),
@@ -575,15 +590,17 @@ class _ProfileEditorState extends State<_ProfileEditor> {
     child: Dialog(
       constraints: const BoxConstraints(maxWidth: 480),
       backgroundColor: AppColors.card,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+      ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(AppLayout.spaceXxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text('编辑本机资料', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppLayout.spaceXxl),
             AppTextField(
               key: const Key('profile-name-input'),
               label: '称呼',
@@ -592,7 +609,7 @@ class _ProfileEditorState extends State<_ProfileEditor> {
               maxLines: 1,
               readOnly: _saving,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: AppLayout.spaceXl),
             AppTextField(
               key: const Key('profile-bio-input'),
               label: '个人简介',
@@ -604,7 +621,7 @@ class _ProfileEditorState extends State<_ProfileEditor> {
             ),
             if (_error != null)
               Padding(
-                padding: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.only(top: AppLayout.spaceMd),
                 child: Semantics(
                   liveRegion: true,
                   child: Text(
@@ -613,7 +630,7 @@ class _ProfileEditorState extends State<_ProfileEditor> {
                   ),
                 ),
               ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppLayout.spaceXxl),
             Wrap(
               alignment: WrapAlignment.end,
               spacing: 12,

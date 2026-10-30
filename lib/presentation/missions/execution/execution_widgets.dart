@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/theme/colors.dart';
 import '../shared/mission_execution_display.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 暂停前可选填原因；取消返回 null，留空确认返回空字符串。
 class ExecutionPauseDialog extends StatefulWidget {
@@ -30,19 +31,21 @@ class _ExecutionPauseDialogState extends State<ExecutionPauseDialog> {
     backgroundColor: AppColors.card,
     surfaceTintColor: Colors.transparent,
     elevation: 0,
-    insetPadding: const EdgeInsets.all(24),
+    insetPadding: const EdgeInsets.all(AppLayout.spaceXxl),
     constraints: const BoxConstraints(maxWidth: 360),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+    ),
     child: SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(AppLayout.spaceXxl),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('暂停任务', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppLayout.spaceMd),
           const Text('需要记录暂停原因吗？可选填，确认后暂停计时。'),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppLayout.spaceLg),
           TextField(
             key: const Key('pause-reason'),
             controller: _reason,
@@ -50,7 +53,7 @@ class _ExecutionPauseDialogState extends State<ExecutionPauseDialog> {
             maxLines: 3,
             decoration: const InputDecoration(labelText: '暂停原因（选填）'),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppLayout.spaceXxl),
           MissionActionPair(
             primary: OutlinedButton(
               key: const Key('pause-cancel'),
@@ -81,12 +84,19 @@ class MissionActionPair extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = ButtonStyle(
-      minimumSize: const WidgetStatePropertyAll(Size(0, 52)),
+      minimumSize: const WidgetStatePropertyAll(
+        Size(0, AppLayout.actionMinHeight),
+      ),
       shape: WidgetStatePropertyAll(
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        ),
       ),
       padding: const WidgetStatePropertyAll(
-        EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        EdgeInsets.symmetric(
+          horizontal: AppLayout.spaceLg,
+          vertical: AppLayout.spaceMd,
+        ),
       ),
     );
     return FilledButtonTheme(
@@ -100,13 +110,17 @@ class MissionActionPair extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
-                children: [primary, const SizedBox(height: 8), secondary],
+                children: [
+                  primary,
+                  const SizedBox(height: AppLayout.spaceSm),
+                  secondary,
+                ],
               );
             }
             return Row(
               children: [
                 Expanded(child: primary),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppLayout.spaceMd),
                 Expanded(child: secondary),
               ],
             );
@@ -154,7 +168,7 @@ class ExecutionFocusRing extends StatelessWidget {
                         paused ? '已暂停' : '正在专注',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppLayout.spaceSm),
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
@@ -168,7 +182,7 @@ class ExecutionFocusRing extends StatelessWidget {
                               ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppLayout.spaceSm),
                       // 将数值和单位作为整体换行，双倍字号下不留下单独的“钟”。
                       Wrap(
                         alignment: WrapAlignment.center,

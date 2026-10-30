@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/colors.dart';
+import '../../core/theme/app_layout.dart';
 
 const journeyArtwork = 'assets/illustrations/journey-garden-v2.png';
 
@@ -18,7 +19,7 @@ class AppJourneyHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(24),
+    borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
     child: ColoredBox(
       color: AppColors.card,
       child: LayoutBuilder(
@@ -36,7 +37,9 @@ class AppJourneyHero extends StatelessWidget {
             excludeFromSemantics: true,
           );
           final words = Padding(
-            padding: EdgeInsets.all(wide ? 32 : 20),
+            padding: EdgeInsets.all(
+              wide ? AppLayout.space3Xl : AppLayout.spaceXl,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -44,16 +47,16 @@ class AppJourneyHero extends StatelessWidget {
                 const Icon(
                   Icons.flag_outlined,
                   color: AppColors.primary,
-                  size: 24,
+                  size: AppLayout.iconLg,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppLayout.spaceMd),
                 Text(title, style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppLayout.spaceSm),
                 Text(
                   '让想做的事，有一条清晰的路。',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppLayout.spaceXl),
                 actions,
               ],
             ),

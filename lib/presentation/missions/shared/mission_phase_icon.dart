@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../domain/entities/mission_phase.dart';
 import 'mission_phase_display.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 列表与当前任务栏共用的阶段标记；固定图标盒，行高仍随文字自然增加。
 class MissionPhaseIcon extends StatelessWidget {
@@ -27,11 +28,11 @@ class MissionPhaseIcon extends StatelessWidget {
         color: phase == MissionPhase.running
             ? colors.secondaryContainer
             : colors.primaryContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
       ),
       child: Icon(
         icon,
-        size: 22,
+        size: AppLayout.iconLg,
         color: colors.primary,
         semanticLabel: phaseLabel(phase),
       ),

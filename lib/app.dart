@@ -40,6 +40,7 @@ import 'domain/notifications/reminder_request.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:path_provider/path_provider.dart';
 import 'presentation/launch/launch_page.dart';
+import 'core/theme/app_motion.dart';
 
 /// 装配本地数据库、任务仓储和业务入口，并提供全局主题及中文界面。
 class App extends StatefulWidget {
@@ -148,7 +149,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // 首帧先呈现品牌页；短暂过渡后才装载四个主页面。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _launchTimer = Timer(const Duration(milliseconds: 450), () {
+      _launchTimer = Timer(AppMotion.launch, () {
         if (mounted) setState(() => _launchComplete = true);
       });
     });
@@ -356,7 +357,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // build 可以重复执行，但这里始终传入已创建的同一个业务对象。
       home: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 100),
+        duration: AppMotion.resolve(context, AppMotion.quick),
         child: _launchComplete
             ? AppShell(
                 key: const ValueKey('app-shell'),

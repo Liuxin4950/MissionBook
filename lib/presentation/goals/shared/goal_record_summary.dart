@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 目标卡和详情共用的真实记录摘要；仅统计有效节点的直接完成报告，不表示掌握程度。
 class GoalRecordSummary extends StatefulWidget {
@@ -116,8 +117,7 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
                   ),
                   Text(
                     '${value.completed}',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: widget.highlighted
                           ? AppColors.accent
                           : AppColors.primary,
@@ -131,7 +131,7 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: AppLayout.spaceMd),
               if (value.total <= 12)
                 Row(
                   children: [
@@ -140,7 +140,7 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
                         child: Container(
                           height: 7,
                           margin: EdgeInsets.only(
-                            right: i == value.total - 1 ? 0 : 4,
+                            right: i == value.total - 1 ? 0 : AppLayout.spaceXs,
                           ),
                           decoration: BoxDecoration(
                             color: i < value.completed
@@ -152,7 +152,9 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
                                           alpha: .24,
                                         )
                                       : AppColors.primarySoft),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(
+                              AppLayout.radiusSm,
+                            ),
                           ),
                         ),
                       ),
@@ -160,7 +162,7 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
                 )
               else
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppLayout.radiusSm),
                   child: LinearProgressIndicator(
                     value: value.completed / value.total,
                     minHeight: 7,

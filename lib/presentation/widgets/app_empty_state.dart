@@ -1,3 +1,4 @@
+import '../../core/theme/app_layout.dart';
 import 'package:flutter/material.dart';
 
 import 'app_illustration.dart';
@@ -21,7 +22,7 @@ class AppEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 24),
+    padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceXxl),
     child: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
@@ -35,7 +36,7 @@ class AppEmptyState extends StatelessWidget {
                 width: 192,
                 height: 128,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppLayout.spaceLg),
             ],
             Text(
               title,
@@ -43,14 +44,17 @@ class AppEmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             if (details != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: AppLayout.spaceMd),
               DefaultTextStyle.merge(
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium,
                 child: details!,
               ),
             ],
-            if (actions != null) ...[const SizedBox(height: 16), actions!],
+            if (actions != null) ...[
+              const SizedBox(height: AppLayout.spaceLg),
+              actions!,
+            ],
           ],
         ),
       ),

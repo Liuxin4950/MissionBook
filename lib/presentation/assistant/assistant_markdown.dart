@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/theme/app_layout.dart';
 
 /// 模型正文按 Markdown 显示；链接由用户点击后打开，图片链接不自动读取文件。
 class AssistantMarkdown extends StatelessWidget {
@@ -26,7 +27,7 @@ class AssistantMarkdown extends StatelessWidget {
           code: theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
           codeblockDecoration: BoxDecoration(
             color: colors.surfaceContainer,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppLayout.radiusMd),
           ),
           tableColumnWidth: const FlexColumnWidth(),
         ),
@@ -35,7 +36,7 @@ class AssistantMarkdown extends StatelessWidget {
         },
         imageBuilder: (uri, title, alt) => TextButton.icon(
           onPressed: () => _openLink(context, uri.toString()),
-          icon: const Icon(Icons.image_outlined, size: 18),
+          icon: const Icon(Icons.image_outlined, size: AppLayout.iconSm),
           label: Text(alt?.isNotEmpty == true ? alt! : title ?? '查看图片链接'),
         ),
       ),

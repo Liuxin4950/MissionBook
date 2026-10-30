@@ -65,7 +65,8 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
                   request.focusMilliseconds!
             : null,
         channelShowBadge: !executing,
-        color: const Color(0xFF214D3E),
+        // 与 AppColors.primary 一致；Android 通知不能引用 Flutter 主题对象。
+        color: const Color(0xFF244D3D),
         subText: executing ? (running ? '正在专注' : '已暂停') : '计划提醒',
         styleInformation: BigTextStyleInformation(
           request.body,

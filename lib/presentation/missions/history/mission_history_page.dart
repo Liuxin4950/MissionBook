@@ -152,7 +152,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppLayout.spaceLg),
                     AppSegmentedControl<bool>(
                       options: const {false: '执行记录', true: '已取消'},
                       selected: _cancelled,
@@ -161,10 +161,10 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                           : const Key('history-finished'),
                       onSelected: _selectCancelled,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: AppLayout.spaceXl),
                     if (waiting)
                       const Padding(
-                        padding: EdgeInsets.all(40),
+                        padding: EdgeInsets.all(AppLayout.space3Xl),
                         child: Center(child: CircularProgressIndicator()),
                       )
                     else if (failed)
@@ -204,7 +204,9 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                         for (final record in records) _day(record),
                       }) ...[
                         Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppLayout.spaceMd,
+                          ),
                           child: Text(
                             day,
                             style: Theme.of(context).textTheme.titleMedium,
@@ -275,19 +277,24 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
     final evidence = _cancelled ? '' : evidenceStatusLabel(detail);
     return Padding(
       key: ValueKey('history-record-${detail.mission.id}'),
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: AppLayout.spaceMd),
       child: Material(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppLayout.radiusXl),
         clipBehavior: Clip.antiAlias,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+          padding: const EdgeInsets.fromLTRB(
+            AppLayout.spaceLg,
+            AppLayout.spaceMd,
+            AppLayout.spaceLg,
+            AppLayout.spaceMd,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               InkWell(
                 onTap: () => _open(detail),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppLayout.radiusMd),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -309,21 +316,19 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                                 : _cancelled
                                 ? Icons.close_rounded
                                 : Icons.remove_rounded,
-                            size: 17,
+                            size: AppLayout.iconSm,
                             color: completed
                                 ? AppColors.onPrimary
                                 : AppColors.primary,
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: AppLayout.spaceMd),
                         Expanded(
                           child: Text(
                             detail.mission.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: theme.textTheme.titleMedium,
                           ),
                         ),
                         const Icon(
@@ -332,7 +337,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppLayout.spaceSm),
                     Wrap(
                       spacing: 10,
                       runSpacing: 4,
@@ -349,7 +354,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                 ),
               ),
               if (images.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: AppLayout.spaceMd),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -370,12 +375,15 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                 ),
               ],
               if (detail.phase == MissionPhase.evidencePending) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: AppLayout.spaceSm),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: () => _open(detail),
-                    icon: const Icon(Icons.attach_file_rounded, size: 18),
+                    icon: const Icon(
+                      Icons.attach_file_rounded,
+                      size: AppLayout.iconSm,
+                    ),
                     label: const Text('打开记录并补交材料'),
                   ),
                 ),

@@ -13,6 +13,7 @@ import '../../missions/record/mission_record_page.dart';
 import '../../missions/execution/mission_execution_page.dart';
 import '../../missions/shared/mission_phase_display.dart';
 import '../../missions/shared/mission_live_status.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 目标或节点下的直接关联任务，操作转入独立任务页面。
 class GoalMissionsSection extends StatefulWidget {
@@ -157,16 +158,18 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     TextButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       minimumSize: const Size(0, 40),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppLayout.spaceSm,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
                       ),
                       textStyle: theme.textTheme.labelMedium,
                     ).copyWith(
                       splashFactory: NoSplash.splashFactory,
                       overlayColor: theme.textButtonTheme.style?.overlayColor,
                     ),
-                icon: const Icon(Icons.add, size: 16),
+                icon: const Icon(Icons.add, size: AppLayout.iconSm),
                 label: Text(
                   widget.node == null && direct.isEmpty ? '直接为目标建任务' : '建任务',
                 ),
@@ -177,7 +180,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
           return createButton == null
               ? const SizedBox.shrink()
               : Padding(
-                  padding: const EdgeInsets.only(top: 12),
+                  padding: const EdgeInsets.only(top: AppLayout.spaceMd),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: createButton,
@@ -200,7 +203,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                       alignment: Alignment.centerLeft,
                       textStyle: theme.textTheme.bodyMedium,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
                       ),
                     ).copyWith(
                       splashFactory: NoSplash.splashFactory,
@@ -213,7 +216,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     const SizedBox(width: 3),
                     Icon(
                       _expanded ? Icons.expand_less : Icons.expand_more,
-                      size: 16,
+                      size: AppLayout.iconSm,
                     ),
                   ],
                 ),
@@ -229,12 +232,14 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     : completed
                     ? Icons.check_circle_outline
                     : Icons.radio_button_unchecked,
-                size: 18,
+                size: AppLayout.iconSm,
                 color: completed ? AppColors.primary : AppColors.outline,
               ),
         );
         return Padding(
-          padding: EdgeInsets.only(top: widget.node == null ? 16 : 0),
+          padding: EdgeInsets.only(
+            top: widget.node == null ? AppLayout.spaceLg : 0,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -249,10 +254,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                         270 * MediaQuery.textScalerOf(context).scale(1);
                     final name = Text(
                       title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
+                      style: theme.textTheme.titleMedium,
                     );
                     if (compact) {
                       return Column(
@@ -265,7 +267,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                               Expanded(
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
+                                    vertical: AppLayout.spaceMd,
                                   ),
                                   child: name,
                                 ),
@@ -274,7 +276,9 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                             ],
                           ),
                           Padding(
-                            padding: const EdgeInsets.only(left: 48),
+                            padding: const EdgeInsets.only(
+                              left: AppLayout.touchTargetMin,
+                            ),
                             child: Wrap(
                               spacing: 10,
                               crossAxisAlignment: WrapCrossAlignment.center,
@@ -295,7 +299,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                               Expanded(
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: 4,
+                                    vertical: AppLayout.spaceXs,
                                   ),
                                   child: Column(
                                     crossAxisAlignment:
@@ -325,7 +329,10 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                   behavior: HitTestBehavior.opaque,
                   onTap: widget.onNodeTap,
                   child: Padding(
-                    padding: const EdgeInsets.only(left: 48, bottom: 4),
+                    padding: const EdgeInsets.only(
+                      left: AppLayout.touchTargetMin,
+                      bottom: AppLayout.spaceXs,
+                    ),
                     child: Text(
                       widget.annotation!,
                       style: theme.textTheme.bodySmall,
@@ -336,7 +343,10 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                 (detail) => detail.phase == MissionPhase.evidencePending,
               ))
                 Padding(
-                  padding: const EdgeInsets.only(left: 48, bottom: 6),
+                  padding: const EdgeInsets.only(
+                    left: AppLayout.touchTargetMin,
+                    bottom: AppLayout.spaceSm,
+                  ),
                   child: Text(
                     '待补材料',
                     style: theme.textTheme.bodyMedium?.copyWith(
@@ -346,7 +356,10 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                 ),
               if (!available)
                 Padding(
-                  padding: const EdgeInsets.only(left: 48, bottom: 8),
+                  padding: const EdgeInsets.only(
+                    left: AppLayout.touchTargetMin,
+                    bottom: AppLayout.spaceSm,
+                  ),
                   child: Text(
                     widget.node?.archivedAt != null
                         ? '已归档 · 恢复后可建任务，原任务仍可办理'
@@ -357,7 +370,12 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
               if (_expanded && direct.isNotEmpty) ...[
                 if (widget.node?.description != null)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppLayout.spaceMd,
+                      AppLayout.spaceSm,
+                      AppLayout.spaceMd,
+                      AppLayout.spaceMd,
+                    ),
                     child: Text(
                       widget.node!.description!,
                       style: theme.textTheme.bodyMedium,
@@ -422,11 +440,14 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
     final date = detail.schedule.scheduledDate;
     return Container(
       key: ValueKey('goal-task-${detail.mission.id}'),
-      margin: const EdgeInsets.only(top: 12, bottom: 4),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(
+        top: AppLayout.spaceMd,
+        bottom: AppLayout.spaceXs,
+      ),
+      padding: const EdgeInsets.all(AppLayout.spaceMd),
       decoration: BoxDecoration(
         border: emphasized ? Border.all(color: AppColors.primary) : null,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppLayout.radiusXl),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -441,7 +462,10 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                 children: [
                   if (!compact)
                     Padding(
-                      padding: const EdgeInsets.only(top: 3, right: 12),
+                      padding: const EdgeInsets.only(
+                        top: 3,
+                        right: AppLayout.spaceMd,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -471,16 +495,13 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                               color: color,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: AppLayout.spaceXs),
                         ],
                         Text(
                           detail.mission.title,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
+                          style: theme.textTheme.titleMedium,
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: AppLayout.spaceSm),
                         Text(
                           '${phaseLabel(detail.phase)} · 计划 ${detail.schedule.plannedDurationMinutes} 分钟',
                           style: theme.textTheme.bodyMedium?.copyWith(
@@ -511,7 +532,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                       detail.phase == MissionPhase.closed
                           ? Icons.history_rounded
                           : Icons.open_in_new_rounded,
-                      size: 18,
+                      size: AppLayout.iconSm,
                       color: AppColors.primary,
                     ),
                   ),

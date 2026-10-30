@@ -31,7 +31,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   // Scaffold.appBar 要求 PreferredSizeWidget，以便在布局前取得顶栏高度。
   // 64 只包含工具栏，系统状态栏的安全区域仍由内部 AppBar 处理。
   @override
-  Size get preferredSize => const Size.fromHeight(64);
+  Size get preferredSize => const Size.fromHeight(AppLayout.topBarHeight);
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +52,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
         return AppBar(
           toolbarHeight: preferredSize.height,
           centerTitle: false,
-          titleSpacing: 12,
+          titleSpacing: AppLayout.spaceMd,
           title: Text(title),
           titleTextStyle: theme.textTheme.titleMedium,
           actions: actions,
@@ -66,7 +66,10 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                 onPressed: canGoBack ? handleBack : null,
                 tooltip: '返回',
                 style: IconButton.styleFrom(
-                  fixedSize: const Size(48, 48),
+                  fixedSize: const Size(
+                    AppLayout.touchTargetMin,
+                    AppLayout.touchTargetMin,
+                  ),
                   padding: EdgeInsets.zero,
                   shape: const CircleBorder(),
                   backgroundColor: colors.primaryContainer,
@@ -75,7 +78,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                 // 浅色返回面使用深色图标，与正文标题保持同一颜色层级。
                 icon: Icon(
                   Icons.arrow_back,
-                  size: 24,
+                  size: AppLayout.iconLg,
                   color: canGoBack ? colors.primary : colors.onSurfaceVariant,
                 ),
               ),

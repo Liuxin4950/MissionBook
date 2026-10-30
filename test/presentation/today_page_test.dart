@@ -412,7 +412,9 @@ void main() {
             : '自选时间';
         // 从任务的完整语义标签定位按钮，避免取到时间轴内部的布局节点。
         final node = tester.getSemantics(
-          find.bySemanticsLabel('$timeLabel，${item.mission.title}，计划 20 分钟'),
+          find.bySemanticsLabel(
+            '$timeLabel，${item.mission.title}，计划 20 分钟，待开始',
+          ),
         );
         expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
         expect(node.getSemanticsData().flagsCollection.isButton, isTrue);
@@ -665,14 +667,14 @@ void main() {
     ]);
     await tester.pumpAndSettle();
     final activeNode = tester.getSemantics(
-      find.bySemanticsLabel('当前计划时段，09:00，$longTitle，计划 20 分钟'),
+      find.bySemanticsLabel('当前计划时段，09:00，$longTitle，计划 20 分钟，待开始'),
     );
     expect(
       activeNode.getSemanticsData().hasAction(SemanticsAction.tap),
       isTrue, // 任务行现在已接通详情入口，读屏也应提供同一个点击动作。
     );
     expect(activeNode.childrenCount, 0);
-    expect(find.bySemanticsLabel('自选时间，自选1，计划 20 分钟'), findsOneWidget);
+    expect(find.bySemanticsLabel('自选时间，自选1，计划 20 分钟，待开始'), findsOneWidget);
     expect(
       tester
           .getSemantics(find.bySemanticsLabel('计划日程'))

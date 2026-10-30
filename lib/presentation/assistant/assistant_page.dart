@@ -20,6 +20,7 @@ import 'assistant_operation_card.dart';
 import 'assistant_scope.dart';
 import 'assistant_settings_page.dart';
 import 'assistant_voice_status.dart';
+import '../../core/theme/app_motion.dart';
 
 class AssistantPage extends StatefulWidget {
   const AssistantPage({
@@ -124,7 +125,7 @@ class _AssistantPageState extends State<AssistantPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: widget.showBack
         ? PreferredSize(
-            preferredSize: const Size.fromHeight(64),
+            preferredSize: const Size.fromHeight(AppLayout.topBarHeight),
             child: ListenableBuilder(
               listenable: widget.controller,
               builder: (context, _) => AppTopBar(
@@ -276,7 +277,7 @@ class _AssistantPageState extends State<AssistantPage> {
       } else if (message is ContextSummaryMessage) {
         children.add(
           Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(bottom: AppLayout.spaceMd),
             child: Text(
               '较早对话已压缩，原始记录仍保留',
               style: Theme.of(context).textTheme.bodySmall,
@@ -291,7 +292,7 @@ class _AssistantPageState extends State<AssistantPage> {
       }
       children.add(
         Padding(
-          padding: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.only(bottom: AppLayout.spaceLg),
           child: Row(
             children: [
               const SizedBox(
@@ -299,7 +300,7 @@ class _AssistantPageState extends State<AssistantPage> {
                 height: 16,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppLayout.spaceSm),
               Expanded(
                 child: Text(
                   controller.operations.any(
@@ -340,7 +341,8 @@ class _AssistantPageState extends State<AssistantPage> {
           20,
         ),
         itemCount: children.length,
-        separatorBuilder: (_, index) => const SizedBox(height: 12),
+        separatorBuilder: (_, index) =>
+            const SizedBox(height: AppLayout.spaceMd),
         itemBuilder: (_, index) =>
             children[controller.transcript.isNotEmpty
                 ? children.length - 1 - index
@@ -380,11 +382,16 @@ class _AssistantPageState extends State<AssistantPage> {
         child: Material(
           color: colors.surface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
             side: const BorderSide(color: AppColors.hairline),
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+            padding: const EdgeInsets.fromLTRB(
+              AppLayout.spaceMd,
+              AppLayout.spaceXs,
+              AppLayout.spaceMd,
+              AppLayout.spaceSm,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -395,13 +402,16 @@ class _AssistantPageState extends State<AssistantPage> {
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: _attachments.length,
-                      separatorBuilder: (_, index) => const SizedBox(width: 8),
+                      separatorBuilder: (_, index) =>
+                          const SizedBox(width: AppLayout.spaceSm),
                       itemBuilder: (context, index) {
                         final file = _attachments[index];
                         return InputChip(
                           avatar: file.isImage
                               ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(
+                                    AppLayout.radiusSm,
+                                  ),
                                   child: Image.memory(
                                     file.bytes,
                                     width: 32,
@@ -412,7 +422,7 @@ class _AssistantPageState extends State<AssistantPage> {
                                 )
                               : const Icon(
                                   Icons.description_outlined,
-                                  size: 20,
+                                  size: AppLayout.iconMd,
                                 ),
                           label: SizedBox(
                             width: 108,
@@ -433,7 +443,7 @@ class _AssistantPageState extends State<AssistantPage> {
                     ),
                   ),
                 if (_recordingVoice && _voice != null) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppLayout.spaceSm),
                   AssistantVoiceStatus(
                     voice: _voice!,
                     onCancel: () async {
@@ -469,8 +479,8 @@ class _AssistantPageState extends State<AssistantPage> {
                     hintText: '描述你想讨论或调整的内容…',
                     filled: false,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 12,
+                      horizontal: AppLayout.spaceXs,
+                      vertical: AppLayout.spaceMd,
                     ),
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
@@ -479,7 +489,7 @@ class _AssistantPageState extends State<AssistantPage> {
                 ),
                 if (_recordingVoice && _voice?.error != null)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
                     child: Text(
                       _voice!.error!,
                       style: const TextStyle(color: AppColors.error),
@@ -495,7 +505,7 @@ class _AssistantPageState extends State<AssistantPage> {
                         maxWidth: 240,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
                       ),
                       enabled:
                           !controller.isBusy &&
@@ -580,7 +590,9 @@ class _AssistantPageState extends State<AssistantPage> {
                         disabledForegroundColor: colors.onSurfaceVariant,
                         disabledBackgroundColor: colors.surfaceContainerHighest,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(
+                            AppLayout.radiusLg,
+                          ),
                         ),
                       ),
                       icon: Icon(
@@ -613,8 +625,8 @@ class _AssistantPageState extends State<AssistantPage> {
     height: 44,
     child: Row(
       children: [
-        Icon(icon, size: 20),
-        const SizedBox(width: 12),
+        Icon(icon, size: AppLayout.iconMd),
+        const SizedBox(width: AppLayout.spaceMd),
         Expanded(
           child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
         ),
@@ -801,7 +813,7 @@ class _AssistantPageState extends State<AssistantPage> {
                       child: Image.memory(file.bytes, fit: BoxFit.contain),
                     )
                   : SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(AppLayout.spaceXl),
                       child: SelectableText(
                         AssistantAttachment.textFile(file.block)!.text,
                       ),
@@ -824,8 +836,8 @@ class _AssistantPageState extends State<AssistantPage> {
       } else {
         _scroll.animateTo(
           _scroll.position.minScrollExtent,
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
+          duration: AppMotion.quick,
+          curve: AppMotion.curve,
         );
       }
     });
@@ -893,7 +905,10 @@ class _ReferenceBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: AppColors.primarySoft,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppLayout.spaceLg,
+        vertical: AppLayout.spaceSm,
+      ),
       child: Text(
         '当前${reference.label} · ${reference.title}${reference.path == null ? '' : '\n${reference.path}'}',
         maxLines: 2,
@@ -914,9 +929,12 @@ class _ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: AppColors.errorSoft,
-    borderRadius: BorderRadius.circular(16),
+    borderRadius: BorderRadius.circular(AppLayout.radiusLg),
     child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppLayout.spaceLg,
+        vertical: AppLayout.spaceSm,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -940,7 +958,7 @@ class _ErrorBanner extends StatelessWidget {
           IconButton(
             tooltip: '关闭错误提示',
             onPressed: controller.clearError,
-            icon: const Icon(Icons.close, size: 18),
+            icon: const Icon(Icons.close, size: AppLayout.iconSm),
           ),
         ],
       ),
@@ -955,9 +973,12 @@ class _CredentialBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: AppColors.accentSoft,
-    borderRadius: BorderRadius.circular(16),
+    borderRadius: BorderRadius.circular(AppLayout.radiusLg),
     child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppLayout.spaceLg,
+        vertical: AppLayout.spaceSm,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -985,7 +1006,7 @@ class _Welcome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 24),
+    padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceXxl),
     child: Column(
       children: [
         const AppIllustration(
@@ -993,25 +1014,25 @@ class _Welcome extends StatelessWidget {
           width: 160,
           height: 136,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppLayout.spaceLg),
         Text(
           '把想法变成可检查的行动',
           style: Theme.of(context).textTheme.titleLarge,
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppLayout.spaceSm),
         Text(
           '${persona.name} · ${persona.role.label} · ${persona.replyStyle.label}',
           style: Theme.of(context).textTheme.bodySmall,
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppLayout.spaceSm),
         Text(
           '创建目标、拆解大纲、安排任务、改期和执行都可以直接告诉我；操作按权限确认，结果关联真实记录。',
           style: Theme.of(context).textTheme.bodyMedium,
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: AppLayout.spaceXl),
         Wrap(
           alignment: WrapAlignment.center,
           spacing: 10,
@@ -1019,7 +1040,7 @@ class _Welcome extends StatelessWidget {
           children: [
             ActionChip(
               key: const Key('assistant-local-today'),
-              avatar: const Icon(Icons.today_outlined, size: 18),
+              avatar: const Icon(Icons.today_outlined, size: AppLayout.iconSm),
               label: const Text('查看今天安排'),
               onPressed: () => onLocalSchedule(),
             ),
@@ -1035,14 +1056,17 @@ class _Welcome extends StatelessWidget {
             ),
             ActionChip(
               key: const Key('assistant-outline-prompt'),
-              avatar: const Icon(Icons.account_tree_outlined, size: 18),
+              avatar: const Icon(
+                Icons.account_tree_outlined,
+                size: AppLayout.iconSm,
+              ),
               label: const Text('拆解学习目标'),
               onPressed: () =>
                   onPrompt('我想创建一个学习目标，并拆成分层大纲：\n目标：\n目前基础：\n希望达到的结果：'),
             ),
             ActionChip(
               key: const Key('assistant-retry-prompt'),
-              avatar: const Icon(Icons.replay_outlined, size: 18),
+              avatar: const Icon(Icons.replay_outlined, size: AppLayout.iconSm),
               label: const Text('复盘并重新安排'),
               onPressed: () => onPrompt(
                 '请先查找我想复盘的已结束或已取消任务，读取真实执行和失败记录，帮我分析改进点；确认任务和新日期后，创建关联的新尝试，保留原记录。\n任务名称：\n新安排：',
@@ -1132,7 +1156,7 @@ class _MessageBubble extends StatelessWidget {
         .map((block) => block.text)
         .join('\n');
     return Padding(
-      padding: EdgeInsets.only(top: isUser ? 8 : 0),
+      padding: EdgeInsets.only(top: isUser ? AppLayout.spaceSm : 0),
       child: LayoutBuilder(
         builder: (context, constraints) => Align(
           alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -1143,17 +1167,19 @@ class _MessageBubble extends StatelessWidget {
                   : constraints.maxWidth.clamp(0, 860),
             ),
             child: Material(
-              color: isUser ? colors.primary : colors.surfaceContainerLow,
+              color: isUser
+                  ? colors.primaryContainer
+                  : colors.surfaceContainerLow,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(AppLayout.radiusLg),
                 side: isUser
                     ? BorderSide.none
                     : const BorderSide(color: AppColors.hairline),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+                  horizontal: AppLayout.spaceLg,
+                  vertical: AppLayout.spaceMd,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1165,7 +1191,10 @@ class _MessageBubble extends StatelessWidget {
                         SelectableText(
                           text,
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: colors.onPrimary, height: 1.5),
+                              ?.copyWith(
+                                color: colors.onPrimaryContainer,
+                                height: 1.5,
+                              ),
                         ),
                     for (final block in message.content)
                       if (AssistantAttachment.textFile(block) case final file?)
@@ -1176,21 +1205,23 @@ class _MessageBubble extends StatelessWidget {
                           child: ExpansionTile(
                             tilePadding: EdgeInsets.zero,
                             textColor: isUser
-                                ? colors.onPrimary
+                                ? colors.onPrimaryContainer
                                 : colors.onSurface,
                             collapsedTextColor: isUser
-                                ? colors.onPrimary
+                                ? colors.onPrimaryContainer
                                 : colors.onSurface,
                             iconColor: isUser
-                                ? colors.onPrimary
+                                ? colors.onPrimaryContainer
                                 : colors.onSurface,
                             collapsedIconColor: isUser
-                                ? colors.onPrimary
+                                ? colors.onPrimaryContainer
                                 : colors.onSurface,
                             title: Text(file.name),
                             leading: Icon(
                               Icons.description_outlined,
-                              color: isUser ? colors.onPrimary : colors.primary,
+                              color: isUser
+                                  ? colors.onPrimaryContainer
+                                  : colors.primary,
                             ),
                             children: [
                               ConstrainedBox(
@@ -1202,7 +1233,7 @@ class _MessageBubble extends StatelessWidget {
                                     file.text,
                                     style: TextStyle(
                                       color: isUser
-                                          ? colors.onPrimary
+                                          ? colors.onPrimaryContainer
                                           : colors.onSurface,
                                     ),
                                   ),
@@ -1213,7 +1244,7 @@ class _MessageBubble extends StatelessWidget {
                         ),
                     for (final block in message.content.whereType<ImageBlock>())
                       Padding(
-                        padding: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.only(top: AppLayout.spaceSm),
                         child: _MessageImage(block: block),
                       ),
                   ],
@@ -1238,9 +1269,12 @@ class _StreamingBubble extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 620),
       child: Material(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppLayout.spaceMd,
+            vertical: AppLayout.spaceMd,
+          ),
           child: AssistantMarkdown(text: text),
         ),
       ),
@@ -1257,7 +1291,7 @@ class _MessageImage extends StatelessWidget {
     if (block.url.startsWith('data:image')) {
       final bytes = base64Decode(block.url.split(',').last);
       return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
         child: InkWell(
           onTap: () => showDialog<void>(
             context: context,
@@ -1265,7 +1299,7 @@ class _MessageImage extends StatelessWidget {
               child: Stack(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(AppLayout.spaceLg),
                     child: InteractiveViewer(
                       child: Image.memory(bytes, fit: BoxFit.contain),
                     ),
@@ -1295,7 +1329,7 @@ class _MessageImage extends StatelessWidget {
     }
     if (block.url.startsWith('http')) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
         child: Image.network(block.url, width: 240, fit: BoxFit.contain),
       );
     }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/app_motion.dart';
 
 /// 空态插画在首次可见时轻轻进入；不循环，也不代表正在保存或执行。
 class AppIllustration extends StatefulWidget {
@@ -21,7 +22,7 @@ class _AppIllustrationState extends State<AppIllustration>
     with SingleTickerProviderStateMixin {
   late final _entrance = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 420),
+    duration: AppMotion.entrance,
   );
   bool _started = false;
 
@@ -55,7 +56,7 @@ class _AppIllustrationState extends State<AppIllustration>
       excludeFromSemantics: true,
     ),
     builder: (context, child) {
-      final progress = Curves.easeOutCubic.transform(_entrance.value);
+      final progress = AppMotion.curve.transform(_entrance.value);
       return Opacity(
         opacity: progress,
         child: Transform.translate(

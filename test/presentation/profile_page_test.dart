@@ -266,10 +266,7 @@ void main() {
     await open(tester, size: const Size(1200, 1000));
     final profile = find.byKey(const Key('profile-card'));
     final overview = find.byKey(const Key('activity-overview'));
-    expect(
-      tester.getRect(overview).top,
-      greaterThan(tester.getRect(profile).bottom),
-    );
+    expect(tester.getRect(overview).top, tester.getRect(profile).top);
     await open(tester, size: const Size(390, 1000), scale: 2);
     expect(
       tester.getRect(overview).top,

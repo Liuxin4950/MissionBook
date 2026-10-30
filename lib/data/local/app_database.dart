@@ -165,6 +165,8 @@ class AppDatabase extends _$AppDatabase {
     },
     // 新建/升级之后、普通查询之前，开启此连接的外键检查。
     beforeOpen: (details) async {
+      // 前台与后台引擎各自持有一个连接；等待写锁而不是立即返回 SQLITE_BUSY。
+      await customStatement('PRAGMA busy_timeout = 5000');
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );

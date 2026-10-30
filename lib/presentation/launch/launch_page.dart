@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/colors.dart';
+import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_typography.dart';
+import '../../core/theme/app_motion.dart';
 
 /// 冷启动时短暂显示的品牌过渡页。
 class LaunchPage extends StatelessWidget {
@@ -42,15 +45,11 @@ class LaunchPage extends StatelessWidget {
                       Text(
                         'Mission Book',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              fontSize: compact ? 30 : 34,
-                              height: 1.2,
-                              letterSpacing: -.8,
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style: compact
+                            ? AppTypography.brandTitleCompact
+                            : AppTypography.brandTitle,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppLayout.spaceSm),
                       Text(
                         '让方向，成为今天的行动。',
                         textAlign: TextAlign.center,
@@ -75,7 +74,7 @@ class LaunchPage extends StatelessWidget {
                             '正在准备今天的旅程…',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: AppLayout.spaceMd),
                           SizedBox(
                             width: 172,
                             height: 3,
@@ -84,14 +83,17 @@ class LaunchPage extends StatelessWidget {
                                 begin: 0,
                                 end: reduceMotion ? 1 : .8,
                               ),
-                              duration: reduceMotion
-                                  ? Duration.zero
-                                  : const Duration(milliseconds: 450),
+                              duration: AppMotion.resolve(
+                                context,
+                                AppMotion.launch,
+                              ),
                               builder: (context, progress, _) =>
                                   LinearProgressIndicator(
                                     value: progress,
                                     minHeight: 3,
-                                    borderRadius: BorderRadius.circular(3),
+                                    borderRadius: BorderRadius.circular(
+                                      AppLayout.radiusXs,
+                                    ),
                                     backgroundColor: AppColors.hairline,
                                     color: AppColors.primary,
                                   ),
@@ -113,9 +115,9 @@ class LaunchPage extends StatelessWidget {
 
 // 山形、路径和节点只承担品牌氛围，不编码任务完成状态。
 class _JourneyPainter extends CustomPainter {
-  static const _far = Color(0xFFE9EDE5);
-  static const _mid = Color(0xFFDDE5DA);
-  static const _near = Color(0xFFD0DCCF);
+  static const _far = AppColors.launchFar;
+  static const _mid = AppColors.launchMid;
+  static const _near = AppColors.launchNear;
 
   @override
   void paint(Canvas canvas, Size size) {

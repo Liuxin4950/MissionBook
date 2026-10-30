@@ -32,7 +32,10 @@ class _IoLocalSpeechBackend implements LocalSpeechBackend {
     if (existing != null) return existing;
     final future = _prepareInternal();
     _prepare = future;
-    return future;
+    // 只缓存进行中的准备；成功后立刻释放，让 worker 退出后下一次调用能重建。
+    return future.whenComplete(() {
+      if (identical(_prepare, future)) _prepare = null;
+    });
   }
 
   Future<bool> _prepareInternal() async {

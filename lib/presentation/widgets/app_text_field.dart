@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/theme/app_layout.dart';
 
 /// 目标与节点表单沿用任务表单的外置标签、输入字号和柔和底色。
 class AppTextField extends StatelessWidget {
@@ -34,7 +35,7 @@ class AppTextField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ExcludeSemantics(child: Text(label, style: theme.textTheme.titleSmall)),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppLayout.spaceSm),
         Semantics(
           label: label,
           child: TextFormField(

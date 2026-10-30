@@ -4,11 +4,27 @@ import 'colors.dart';
 
 /// 全站字号按用途集中定义；页面只选择角色，不再自行填写字号和行高。
 abstract final class AppTypography {
+  /// 启动页品牌字；只用于品牌场景，不进入正文层级。
+  static const brandTitle = TextStyle(
+    fontSize: 34,
+    height: 1.2,
+    letterSpacing: -.8,
+    fontWeight: FontWeight.w700,
+    color: AppColors.textPrimary,
+  );
+  static const brandTitleCompact = TextStyle(
+    fontSize: 30,
+    height: 1.2,
+    letterSpacing: -.8,
+    fontWeight: FontWeight.w700,
+    color: AppColors.textPrimary,
+  );
+
   static const textTheme = TextTheme(
     displaySmall: TextStyle(
       fontSize: 48,
       height: 56 / 48,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w500,
       color: AppColors.textPrimary,
     ), // 执行页专注时长，其余页面不使用这个大数字角色。
     headlineSmall: TextStyle(

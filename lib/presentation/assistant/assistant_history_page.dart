@@ -54,7 +54,10 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
                         : IconButton(
                             tooltip: '清空搜索',
                             onPressed: () => setState(_search.clear),
-                            icon: const Icon(Icons.close, size: 18),
+                            icon: const Icon(
+                              Icons.close,
+                              size: AppLayout.iconSm,
+                            ),
                           ),
                   ),
                 ),
@@ -99,7 +102,12 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
       if (group != previousGroup) {
         rows.add(
           Padding(
-            padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
+            padding: const EdgeInsets.fromLTRB(
+              AppLayout.spaceXs,
+              AppLayout.spaceXl,
+              AppLayout.spaceXs,
+              AppLayout.spaceSm,
+            ),
             child: Text(
               group,
               style: Theme.of(
@@ -113,10 +121,10 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
       final selected = conversation.id == controller.currentSessionId;
       rows.add(
         Padding(
-          padding: const EdgeInsets.only(bottom: 4),
+          padding: const EdgeInsets.only(bottom: AppLayout.spaceXs),
           child: Material(
             color: selected ? AppColors.primarySoft : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppLayout.radiusLg),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               key: ValueKey('assistant-conversation-${conversation.id}'),
@@ -124,16 +132,24 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
                   ? null
                   : () => _open(context, conversation),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
+                padding: const EdgeInsets.fromLTRB(
+                  AppLayout.spaceMd,
+                  AppLayout.spaceMd,
+                  0,
+                  AppLayout.spaceMd,
+                ),
                 child: Row(
                   children: [
                     const CircleAvatar(
                       radius: 20,
                       backgroundColor: AppColors.primarySoft,
                       foregroundColor: AppColors.primary,
-                      child: Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                      child: Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        size: AppLayout.iconMd,
+                      ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppLayout.spaceMd),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,7 +160,7 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: AppLayout.spaceXs),
                           Wrap(
                             spacing: 8,
                             runSpacing: 4,
@@ -158,10 +174,7 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
                                 Text(
                                   '当前',
                                   style: Theme.of(context).textTheme.labelSmall
-                                      ?.copyWith(
-                                        color: AppColors.primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      ?.copyWith(color: AppColors.primary),
                                 ),
                             ],
                           ),
