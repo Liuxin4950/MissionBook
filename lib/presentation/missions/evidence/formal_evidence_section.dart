@@ -8,6 +8,7 @@ import '../../../core/theme/colors.dart';
 import '../../../domain/entities/evidence.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_expansion.dart';
 import '../shared/mission_execution_display.dart';
 import 'evidence_image_preview.dart';
 import '../../../core/theme/app_layout.dart';
@@ -533,10 +534,12 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                   child: _editor(context),
                 ),
               if (corrections.isNotEmpty)
-                ExpansionTile(
+                AppExpansionTile(
                   key: const Key('evidence-correction-history'),
-                  tilePadding: EdgeInsets.zero,
                   title: Text('修正历史 · ${corrections.length} 条'),
+                  childrenPadding: const EdgeInsets.only(
+                    top: AppLayout.spaceSm,
+                  ),
                   children: [
                     for (final item in _detail.evidence)
                       Padding(

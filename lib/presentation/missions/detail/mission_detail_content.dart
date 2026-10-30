@@ -6,6 +6,7 @@ import '../../../core/theme/colors.dart';
 import '../../../domain/entities/mission.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../shared/mission_execution_display.dart';
+import '../../widgets/app_expansion.dart';
 import '../../widgets/page_footer_bar.dart';
 import '../../../domain/entities/mission_schedule_revision.dart';
 
@@ -97,21 +98,27 @@ class MissionDetailContent extends StatelessWidget {
                         child: Text(mission.description!),
                       ),
                     if (_hasText(mission.why)) ...[
-                      ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        childrenPadding: const EdgeInsets.only(
-                          bottom: AppLayout.spaceXl,
-                        ),
-                        expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-                        shape: const Border(
-                          bottom: BorderSide(color: AppColors.hairline),
-                        ),
-                        collapsedShape: const Border(
-                          bottom: BorderSide(color: AppColors.hairline),
-                        ),
-                        title: Text('为什么做', style: theme.textTheme.titleMedium),
+                      Column(
                         children: [
-                          Text(mission.why!, style: theme.textTheme.bodyMedium),
+                          AppExpansionTile(
+                            childrenPadding: const EdgeInsets.only(
+                              top: AppLayout.spaceSm,
+                              bottom: AppLayout.spaceXl,
+                            ),
+                            expandedCrossAxisAlignment:
+                                CrossAxisAlignment.stretch,
+                            title: Text(
+                              '为什么做',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            children: [
+                              Text(
+                                mission.why!,
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 1),
                         ],
                       ),
                       const SizedBox(height: AppLayout.sectionGap),
@@ -277,13 +284,14 @@ class _MaterialRequirementsCard extends StatelessWidget {
           ),
           const SizedBox(width: AppLayout.spaceLg),
           Expanded(
-            child: ExpansionTile(
-              tilePadding: EdgeInsets.zero,
+            child: AppExpansionTile(
+              insetHeader: false,
+              headerPadding: const EdgeInsets.symmetric(
+                vertical: AppLayout.spaceXs,
+              ),
               childrenPadding: const EdgeInsets.only(bottom: AppLayout.spaceXs),
               initiallyExpanded: true,
               expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-              shape: const Border(),
-              collapsedShape: const Border(),
               title: Wrap(
                 spacing: 12,
                 runSpacing: 8,

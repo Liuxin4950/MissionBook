@@ -1,3 +1,7 @@
+import '../../../domain/entities/execution_event.dart';
+import '../../records/record_scope.dart';
+import '../../records/records_page.dart';
+import '../../widgets/app_page_header.dart';
 import '../../widgets/app_segmented_control.dart';
 import '../../widgets/adaptive_columns.dart';
 import 'dart:async';
@@ -144,6 +148,26 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                   padding: AppLayout.pagePadding(context),
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
+                    AppPageHeader(
+                      title: '历史',
+                      showTitle: false,
+                      subtitle: Text(
+                        waiting
+                            ? '读取中…'
+                            : failed
+                            ? '读取失败'
+                            : '${records.length} 条记录',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      action: RecordScope.maybeOf(context) == null
+                          ? null
+                          : const RecordsEntry(
+                              key: Key('history-records-entry'),
+                              label: '全部照片与文字记录',
+                              iconOnly: true,
+                            ),
+                    ),
+                    const SizedBox(height: AppLayout.spaceLg),
                     AppSegmentedControl<bool>(
                       options: const {false: '执行记录', true: '已取消'},
                       selected: _cancelled,
@@ -222,6 +246,9 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
 
   /// 历史按实际发生时刻在设备上的日期回看；排期时区只解释原计划。
   DateTime _localRecordTime(MissionDetail detail) {
+    if (!_cancelled && detail.effectiveOccurrenceDate != null) {
+      return DateTime.parse(detail.effectiveOccurrenceDate!);
+    }
     final instant = _cancelled
         ? detail.mission.cancelledAt!
         : detail.events.last.occurredAt;
@@ -236,8 +263,18 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
   Widget _recordCard(MissionDetail detail) {
     final theme = Theme.of(context);
     final local = _localRecordTime(detail);
-    final clock =
-        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    final claimed = detail.effectiveUserReport;
+    final measuredInstant =
+        detail.events
+            .where((e) => e.type == ExecutionEventType.stop)
+            .firstOrNull
+            ?.occurredAt ??
+        (detail.events.isEmpty ? null : detail.events.last.occurredAt);
+    final displayTime =
+        claimed?.actualStart?.toLocal() ?? measuredInstant?.toLocal() ?? local;
+    final clock = claimed != null && claimed.actualStart == null
+        ? '具体时段未知'
+        : '${displayTime.hour.toString().padLeft(2, '0')}:${displayTime.minute.toString().padLeft(2, '0')}';
     // 是否报告完成的判定口径统一走 MissionDetail 的派生属性。
     final completed = !_cancelled && detail.endReportedCompleted;
     final images = _cancelled
@@ -250,7 +287,9 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
         : completed
         ? '报告完成'
         : '报告未完成';
-    final focus = _cancelled
+    final focus =
+        _cancelled ||
+            !detail.events.any((e) => e.type == ExecutionEventType.start)
         ? null
         : focusDuration(
             calculateExecutionTimes(
@@ -329,7 +368,15 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                         Text(clock, style: theme.textTheme.bodyMedium),
                         Text(status, style: theme.textTheme.bodyMedium),
                         if (focus != null)
-                          Text('专注 $focus', style: theme.textTheme.bodyMedium),
+                          Text(
+                            '应用计时 $focus',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        if (claimed?.duration != null)
+                          Text(
+                            '自报 ${claimed!.duration!.inMinutes} 分钟',
+                            style: theme.textTheme.bodyMedium,
+                          ),
                         if (evidence.isNotEmpty)
                           Text(evidence, style: theme.textTheme.bodyMedium),
                       ],

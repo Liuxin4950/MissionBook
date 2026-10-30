@@ -78,9 +78,7 @@ void main() {
       for (final title in ['今天', '目标', '历史', '我的']) {
         await tester.tap(find.byTooltip(title));
         await tester.pumpAndSettle();
-        final header = title == '历史'
-            ? find.byType(AppSegmentedControl<bool>)
-            : find.byType(AppPageHeader);
+        final header = find.byType(AppPageHeader);
         final point = tester.getTopLeft(header);
         first ??= point;
         expect(point, first, reason: '$title 的工具栏应使用一致页面边距');
@@ -88,6 +86,8 @@ void main() {
         expect(heading, findsNothing);
         if (title == '历史') {
           expect(find.text('执行报告、专注时间与材料'), findsNothing);
+          expect(find.text('0 条记录'), findsOneWidget);
+          expect(find.byType(AppSegmentedControl<bool>), findsOneWidget);
         }
         if (title == '今天') {
           expect(find.byKey(const Key('today-date-picker')), findsOneWidget);

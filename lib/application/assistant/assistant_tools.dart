@@ -1,3 +1,4 @@
+import '../memory/memory_service.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -40,9 +41,12 @@ class AssistantTools {
     required MissionService missions,
     required GoalService goals,
     required AssistantCallResolver resolveCall,
+    List<AgentTool> extraTools = const [],
+    MemoryService? memory,
     DateTime Function()? clock,
     String timeZone = 'Asia/Shanghai',
-  }) : _reader = reader,
+  }) : _memory = memory,
+       _reader = reader,
        _missions = missions,
        _goals = goals,
        _resolveCall = resolveCall,
@@ -174,6 +178,12 @@ class AssistantTools {
             'title': _string('新名称'),
             'description': _string('新说明；空串清空'),
             'why': _string('新原因；空串清空'),
+            'desireLevel': {
+              'type': ['integer', 'null'],
+              'minimum': 1,
+              'maximum': 5,
+              'description': '希望程度1～5；null清空',
+            },
           },
           required: ['goalId'],
         ),
@@ -330,6 +340,7 @@ class AssistantTools {
             'title': _string('目标名称'),
             'description': _string('可选说明'),
             'why': _string('可选原因'),
+            'desireLevel': {'type': 'integer', 'minimum': 1, 'maximum': 5},
           },
           required: ['title'],
         ),
@@ -350,9 +361,93 @@ class AssistantTools {
         _createGoalNode,
       ),
     ];
+    final extras = {for (final t in extraTools) t.definition.name: t};
+    final legacy = List<AgentTool>.of(_tools);
+    _tools.clear();
+    for (final t in legacy) {
+      _tools.add(
+        AgentTool(
+          definition: t.definition,
+          execute: t.execute,
+          readOnly: t.readOnly,
+          exposed: false,
+        ),
+      );
+      final name = canonicalNames[t.definition.name];
+      if (name != null &&
+          !extras.containsKey(name) &&
+          (extraTools.isEmpty ||
+              ![
+                'goal_list',
+                'goal_query',
+                'goal_node_query',
+                'mission_search',
+              ].contains(t.definition.name))) {
+        _tools.add(
+          AgentTool(
+            definition: ToolDefinition(
+              name: name,
+              description: t.definition.description,
+              inputSchema: t.definition.inputSchema,
+            ),
+            execute: t.execute,
+            readOnly: t.readOnly,
+          ),
+        );
+      }
+    }
+    _tools.addAll(
+      extraTools.map(
+        (t) => AgentTool(
+          definition: t.definition,
+          readOnly: t.readOnly,
+          execute: (i, c) async {
+            if (t.readOnly && _readCharacters >= 64000) {
+              return ToolOutput.failure('read_budget', '本轮读取已达上限，请根据现有摘要回答');
+            }
+            final output = await t.execute(i, c);
+            if (t.readOnly) {
+              if (_readCharacters + output.text.length > 64000) {
+                return ToolOutput.failure('read_budget', '本轮剩余读取额度不足，请缩小范围');
+              }
+              _readCharacters += output.text.length;
+            }
+            return output;
+          },
+        ),
+      ),
+    );
   }
+  static const canonicalNames = {
+    'mission_complete_history': 'completeHistory',
+    'goal_outline_create': 'createGoalOutline',
+    'mission_retry': 'retryMission',
+    'mission_plan': 'planMissions',
+    'mission_create': 'createMission',
+    'mission_reschedule': 'rescheduleMission',
+    'mission_update': 'updateMission',
+    'mission_execute': 'executeMission',
+    'mission_cancel': 'cancelMission',
+    'goal_create': 'createGoal',
+    'goal_node_create': 'createGoalNode',
+    'goal_update': 'updateGoal',
+    'goal_node_update': 'updateGoalNode',
+    'schedule_query': 'getSchedule',
+    'mission_query': 'getMission',
+    'goal_list': 'listGoals',
+    'goal_query': 'getGoalDetail',
+    'goal_node_query': 'getGoalNode',
+    'mission_search': 'findMissions',
+    'mission_content': 'getMissionContent',
+    'mission_records': 'getMissionRecords',
+    'evidence_content': 'getMaterial',
+  };
+  static String legacyName(String name) =>
+      canonicalNames.entries.where((e) => e.value == name).firstOrNull?.key ??
+      name;
 
   final AssistantReader _reader;
+  final MemoryService? _memory;
   int _readCharacters = 0;
   void beginTurn() {
     _readCharacters = 0;
@@ -375,6 +470,14 @@ class AssistantTools {
   List<AgentTool> get tools => List.unmodifiable(_tools);
 
   static const writeToolNames = {
+    'startMakeup',
+    'saveRecord',
+    'linkRecord',
+    'reportExecution',
+    'correctExecutionTime',
+    'saveMemory',
+    'forgetMemory',
+    'retryAnalysis',
     'mission_complete_history',
     'goal_outline_create',
     'mission_retry',
@@ -394,7 +497,37 @@ class AssistantTools {
     String toolName,
     Map<String, Object?> input,
   ) async {
+    toolName = legacyName(toolName);
     if (!writeToolNames.contains(toolName)) return PreparedToolCall(input);
+    if ([
+      'reportExecution',
+      'correctExecutionTime',
+      'startMakeup',
+    ].contains(toolName)) {
+      final detail = await _missions.findDetailSnapshot(
+        missionId: input['missionId'] as String,
+      );
+      if (detail == null) throw const ToolRejected('not_found', '任务不存在');
+      return PreparedToolCall(
+        input,
+        snapshot: {'detail': detail, 'targetTitle': detail.mission.title},
+      );
+    }
+    if (toolName == 'forgetMemory' && _memory != null) {
+      final result = await _memory.query(
+        search: input['id'] as String,
+        includeExpired: true,
+      );
+      final target = (result['items'] as List<Map<String, Object?>>)
+          .where((e) => e['id'] == input['id'])
+          .firstOrNull;
+      if (target == null) throw const ToolRejected('not_found', '记忆不存在或已忘记');
+      return PreparedToolCall(
+        input,
+        snapshot: {'targetTitle': target['content']},
+      );
+    }
+
     if (toolName == 'mission_complete_history') {
       final date = input['beforeDate'] as String;
       try {
@@ -538,6 +671,7 @@ class AssistantTools {
   }
 
   String? validate(String toolName, Map<String, Object?> input) {
+    toolName = legacyName(toolName);
     final tool = _tools
         .where((item) => item.definition.name == toolName)
         .firstOrNull;
@@ -586,6 +720,35 @@ class AssistantTools {
     required Map<String, Object?> input,
   }) async {
     const uuid = Uuid();
+    toolName = legacyName(toolName);
+    if (toolName == 'startMakeup') {
+      final detail = await _missions.findDetailSnapshot(
+        missionId: input['missionId'] as String,
+      );
+      return detail?.events.any(
+                (e) => e.id == uuid.v5(Namespace.url.value, idempotencyKey),
+              ) ==
+              true
+          ? ToolOutput.success(
+              jsonEncode({'saved': true, 'missionId': input['missionId']}),
+            )
+          : null;
+    }
+    if ([
+      'startMakeup',
+      'saveRecord',
+      'linkRecord',
+      'reportExecution',
+      'correctExecutionTime',
+      'saveMemory',
+      'forgetMemory',
+      'retryAnalysis',
+    ].contains(toolName)) {
+      final receipt = await _missions.findOperationReceipt(
+        uuid.v5(Namespace.url.value, idempotencyKey),
+      );
+      return receipt == null ? null : ToolOutput.success(receipt.resultJson);
+    }
     switch (toolName) {
       case 'mission_complete_history':
       case 'mission_plan':
@@ -822,6 +985,8 @@ class AssistantTools {
             ? values['description'] as String?
             : goal.description,
         why: values.containsKey('why') ? values['why'] as String? : goal.why,
+        desireLevel: values['desireLevel'] as int?,
+        updateDesire: values.containsKey('desireLevel'),
         operationId: context.idempotencyKey,
       ),
     );
@@ -1200,6 +1365,7 @@ class AssistantTools {
         title: prepared['title'] as String,
         description: prepared['description'] as String?,
         why: prepared['why'] as String?,
+        desireLevel: prepared['desireLevel'] as int?,
         requestId: context.idempotencyKey,
       ),
     );

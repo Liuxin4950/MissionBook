@@ -98,11 +98,13 @@ class DatabaseBackupService implements BackupExporter {
           }),
         ),
       );
-      final evidence = await database.select(database.evidenceRecords).get();
-      for (final row in evidence) {
-        final key = row.attachmentStorageKey;
-        if (key == null) continue;
-        // reader 按现有图片存储规则验证路径；缺失附件使整个导出失败。
+      final references = await database
+          .customSelect(
+            'SELECT attachment_storage_key k FROM records WHERE attachment_storage_key IS NOT NULL UNION SELECT attachment_storage_key FROM evidence_records WHERE attachment_storage_key IS NOT NULL',
+          )
+          .get();
+      for (final row in references) {
+        final key = row.read<String>('k');
         result[key] = await readAttachment(key);
       }
       result['manifest.json'] = Uint8List.fromList(

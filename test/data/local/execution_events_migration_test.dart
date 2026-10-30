@@ -235,7 +235,7 @@ void main() {
       }
     });
 
-    for (final oldVersion in [5, 6, 7, 8, 9, 10, 11, 12, 13]) {
+    for (final oldVersion in [5, 6, 7, 8, 9, 10, 11, 12, 13, 14]) {
       test('v$oldVersion 全表逐字段保留，旧任务独立，关闭重开仍完整', () async {
         final tables = [
           ..._oldTables,
@@ -253,11 +253,20 @@ void main() {
               table: [
                 for (final row
                     in await connection
-                        .customSelect('SELECT * FROM $table ORDER BY id')
+                        .customSelect(
+                          connection is AppDatabase &&
+                                  table == 'evidence_records'
+                              ? _logicalEvidenceSql
+                              : 'SELECT * FROM $table ORDER BY id',
+                        )
                         .get())
                   {
                     for (final entry in row.data.entries)
-                      if (entry.key != 'is_retrospective')
+                      if (![
+                        'is_retrospective',
+                        'record_id',
+                        'desire_level',
+                      ].contains(entry.key))
                         if (table != 'missions' ||
                             !['goal_id', 'goal_node_id'].contains(entry.key))
                           if (table != 'evidence_records' ||
@@ -338,7 +347,7 @@ void main() {
         }
         final upgraded = AppDatabase(executor: NativeDatabase(file));
         try {
-          expect(await _version(upgraded), 14);
+          expect(await _version(upgraded), 15);
           expect(await snapshot(upgraded), before);
           expect(
             await upgraded.select(upgraded.goals).get(),
@@ -373,7 +382,7 @@ void main() {
         final reopened = AppDatabase(executor: NativeDatabase(file));
         try {
           expect(await snapshot(reopened), before);
-          expect(await _version(reopened), 14);
+          expect(await _version(reopened), 15);
         } finally {
           await reopened.close();
         }
@@ -389,7 +398,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 14);
+        expect(await _version(upgraded), 15);
         // v14 重建表的唯一目的：CHECK 放宽接纳 STOP；其余约束必须原样生效。
         await _insertEvent(
           upgraded,
@@ -488,7 +497,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 14);
+        expect(await _version(retry), 15);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -510,7 +519,11 @@ void main() {
           result[table] = [
             for (final row
                 in await connection
-                    .customSelect('SELECT * FROM $table ORDER BY id')
+                    .customSelect(
+                      connection is AppDatabase && table == 'evidence_records'
+                          ? _logicalEvidenceSql
+                          : 'SELECT * FROM $table ORDER BY id',
+                    )
                     .get())
               Map<String, dynamic>.from(row.data)
                 ..remove('is_retrospective')
@@ -556,7 +569,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 14);
+        expect(await _version(upgraded), 15);
         expect(await snapshot(upgraded), before);
         expect(
           (await upgraded.select(upgraded.missions).get()).every(
@@ -622,7 +635,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 14);
+        expect(await _version(upgraded), 15);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -683,7 +696,7 @@ void main() {
       }
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 14);
+        expect(await _version(upgraded), 15);
         expect(await _readOldRows(upgraded), before);
         expect([
           for (final row
@@ -712,7 +725,7 @@ void main() {
 
       final upgraded = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(upgraded), 14);
+        expect(await _version(upgraded), 15);
         expect(await _readOldRows(upgraded), before);
         expect(await upgraded.select(upgraded.executionEvents).get(), isEmpty);
         await upgraded.validateDatabaseSchema();
@@ -750,7 +763,7 @@ void main() {
 
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 14);
+        expect(await _version(reopened), 15);
         expect(await _readOldRows(reopened), before);
         final event = await reopened
             .select(reopened.executionEvents)
@@ -782,7 +795,7 @@ void main() {
       }
       final reopened = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(reopened), 14);
+        expect(await _version(reopened), 15);
         expect(await _readOldRows(reopened), before);
         await reopened.validateDatabaseSchema();
       } finally {
@@ -825,7 +838,7 @@ void main() {
       }
       final retry = AppDatabase(executor: NativeDatabase(file));
       try {
-        expect(await _version(retry), 14);
+        expect(await _version(retry), 15);
         expect(await _readOldRows(retry), before);
         await retry.validateDatabaseSchema();
       } finally {
@@ -868,9 +881,9 @@ void main() {
 
     tearDown(() async => database.close());
 
-    test('v12 新装十二表与索引符合当前定义', () async {
-      expect(await _version(database), 14);
-      expect(database.allTables, hasLength(12));
+    test('v15 新装十八表与索引符合当前定义', () async {
+      expect(await _version(database), 15);
+      expect(database.allTables, hasLength(18));
       await database.validateDatabaseSchema();
       expect(
         (await database.customSelect('PRAGMA foreign_keys').getSingle())
@@ -1058,3 +1071,12 @@ Future<void> _insertEvent(
         ),
       );
 }
+
+// 物理载荷已迁入 records，按旧列投影核对每个旧值，而不是要求重复保存正文。
+const _logicalEvidenceSql =
+    '''SELECT e.id,e.mission_id,e.submission_id,e.type,e.source,
+COALESCE(r.content,e.content) content,COALESCE(r.attachment_storage_key,e.attachment_storage_key) attachment_storage_key,
+COALESCE(r.attachment_file_name,e.attachment_file_name) attachment_file_name,
+COALESCE(r.attachment_mime_type,e.attachment_mime_type) attachment_mime_type,
+COALESCE(r.captured_at,e.captured_at) captured_at,e.submitted_at,e.supersedes_evidence_id
+FROM evidence_records e LEFT JOIN records r ON r.id=e.record_id ORDER BY e.id''';

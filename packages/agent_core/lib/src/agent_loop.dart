@@ -337,8 +337,10 @@ final class AgentLoop {
     }
   }
 
-  List<ToolDefinition> get _definitions =>
-      _tools.values.map((tool) => tool.definition).toList();
+  List<ToolDefinition> get _definitions => _tools.values
+      .where((tool) => tool.exposed)
+      .map((tool) => tool.definition)
+      .toList();
 
   Future<ToolOutput> _executeTool(
     ToolCallBlock call,

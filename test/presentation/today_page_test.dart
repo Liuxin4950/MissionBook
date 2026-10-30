@@ -677,7 +677,10 @@ void main() {
       isTrue, // 任务行现在已接通详情入口，读屏也应提供同一个点击动作。
     );
     expect(activeNode.childrenCount, 0);
-    expect(find.bySemanticsLabel('自选时间，自选1，计划 20 分钟，待开始'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('自选时间，自选1，待处理 · 计划 20 分钟，待开始'),
+      findsOneWidget,
+    );
     expect(
       tester
           .getSemantics(find.bySemanticsLabel('计划日程'))

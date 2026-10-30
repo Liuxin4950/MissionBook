@@ -1,3 +1,4 @@
+import '../../domain/rules/mission_attention_rules.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../domain/entities/mission_schedule_revision.dart';
@@ -26,10 +27,16 @@ String scheduleDateKey(DateTime date) =>
 String scheduleDateLabel(DateTime date) =>
     '${date.month}月${date.day}日 · ${_weekdays[date.weekday - 1]}';
 
+/// 窄屏页头只保留月日；所选星期的完整信息仍在下方周日期栏显示。
+String scheduleDateLabelCompact(DateTime date) => '${date.month}月${date.day}日';
+
 /// 为业务查询结果准备显示文字；自选任务先放未开始，再放执行中、待补和已结束。
 ///
 /// 由 TodayPage._loadMissions 在查询成功后调用一次；不查询或写入数据库。
-TodayMissionGroups groupMissionsForDisplay(List<ScheduledMission> missions) {
+TodayMissionGroups groupMissionsForDisplay(
+  List<ScheduledMission> missions, {
+  DateTime? now,
+}) {
   final fixed = <TodayMissionItem>[];
   final flexible = <TodayMissionItem>[];
   final activeFlexible = <TodayMissionItem>[];
@@ -37,7 +44,7 @@ TodayMissionGroups groupMissionsForDisplay(List<ScheduledMission> missions) {
   final closedFlexible = <TodayMissionItem>[];
   final cancelled = <TodayMissionItem>[];
   for (final mission in missions) {
-    final item = _missionItem(mission);
+    final item = _missionItem(mission, now);
     if (item.isCancelled) {
       cancelled.add(item);
     } else if (item.isFixed) {
@@ -72,11 +79,15 @@ TodayMissionGroups groupMissionsForDisplay(List<ScheduledMission> missions) {
 }
 
 // 一项任务的展示文字集中在这里准备。Widget 只读取字段，不重复转换。
-TodayMissionItem _missionItem(ScheduledMission item) {
+TodayMissionItem _missionItem(ScheduledMission item, DateTime? now) {
   final schedule = item.schedule;
   final isFixed = schedule.timePolicy == TimePolicy.fixed;
   final isCancelled = item.mission.cancelledAt != null;
-  final executionLabel = item.phase == MissionPhase.notStarted
+  final executionLabel =
+      missionAttention(item.phase, schedule, now ?? DateTime.now()) ==
+          MissionAttention.overdue
+      ? '待处理 · '
+      : item.phase == MissionPhase.notStarted
       ? ''
       : '${phaseLabel(item.phase)} · ';
   var startTime = '';

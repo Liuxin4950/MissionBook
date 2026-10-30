@@ -36,10 +36,7 @@ void main() {
   test('三档权限持久化，旧开关迁移保持原行为，转写凭据独立', () async {
     FlutterSecureStorage.setMockInitialValues({});
     const store = SecureAssistantSettingsStore();
-    expect(
-      (await store.load()).permissionMode,
-      AssistantPermissionMode.standard,
-    );
+    expect((await store.load()).permissionMode, AssistantPermissionMode.full);
     for (final mode in AssistantPermissionMode.values) {
       await store.savePermissionMode(mode);
       expect((await store.load()).permissionMode, mode);

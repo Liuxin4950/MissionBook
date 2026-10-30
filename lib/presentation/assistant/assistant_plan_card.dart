@@ -8,6 +8,7 @@ import '../../application/assistant/assistant_plan.dart';
 import '../../core/theme/colors.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../core/theme/app_layout.dart';
+import '../widgets/app_expansion.dart';
 
 /// 一份真实计划的预览、逐项修改与保存结果；窄屏沿阅读顺序纵向排列。
 class AssistantPlanCard extends StatelessWidget {
@@ -403,10 +404,12 @@ class AssistantPlanCard extends StatelessWidget {
               ),
             ),
           if (item['steps'] is List && (item['steps'] as List).isNotEmpty)
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
+            AppExpansionTile(
+              insetHeader: false,
+              headerPadding: const EdgeInsets.symmetric(
+                vertical: AppLayout.spaceXs,
+              ),
               childrenPadding: EdgeInsets.zero,
-              minTileHeight: AppLayout.touchTargetMin,
               title: Text(
                 '行动步骤',
                 style: Theme.of(context).textTheme.labelSmall,

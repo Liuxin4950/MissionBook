@@ -31,7 +31,7 @@ void validateEvidenceDraft(EvidenceDraft item, String missionId) {
               !(item.type == EvidenceType.image &&
                   item.source == EvidenceSource.camera)) ||
           key == null ||
-          !key.startsWith('attachments/$missionId/') ||
+          !key.startsWith('attachments/') ||
           key.split('/').length != 3 ||
           key.contains('..') ||
           key.contains('\\') ||

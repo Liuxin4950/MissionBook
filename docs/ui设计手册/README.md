@@ -1,5 +1,7 @@
 # Mission Book — 当前UI手册
 
+2026-10-31 四个主导航页顶栏统一为 `AppPageHeader` + 右侧图标动作；历史页“全部照片与文字记录”收进右上角照片库图标。同日今天页改为短日期+圆角日期胶囊、无记录时隐藏空入口；设置页移除“我的记录”并改为紧凑行；记录编辑、助手设置和目标导入共用新的设置行与展开行，规则见[颜色与布局规范](颜色与布局规范.md)。本轮浏览器复查：[今天](assets/ui-feedback-20261031/today-final-20261031.png) · [跨周入口](assets/ui-feedback-20261031/today-offweek-20261031.png) · [紧凑设置](assets/ui-feedback-20261031/settings-typography-20261031.png) · [助手设置顶栏](assets/ui-feedback-20261031/assistant-settings-top-20261031.png) · [角色展开](assets/ui-feedback-20261031/assistant-settings-persona-20261031.png) · [导入预览](assets/ui-feedback-20261031/goal-import-final-20261031.png) · [历史顶栏](assets/ui-feedback-20261031/topbar-history-desktop-20261031.png)。
+
 2026-10-30 二级下拉选项已统一白色圆角、轻阴影、内缩选中面/勾选及键盘焦点；[实际浏览器截图](assets/ui-feedback-20261030/unified-dropdown-browser.png)，行为与检查见[反馈记录](../设计/浏览器反馈修复与页面职责-20261030.md)。
 
 assets/正稿v1.1保留各页设计原图，初版输入素材在assets/初稿v1.0。2026-10-26颜色层级与目标工作区已按源码重构，旧原图作为视觉参考，不代表当前大面积配色或宽屏排布；当前实现及真实组件渲染见[本轮审查](制作记录/2026-10-26-颜色层级与空态审查.md)。

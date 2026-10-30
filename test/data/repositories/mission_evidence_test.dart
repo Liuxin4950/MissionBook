@@ -175,7 +175,7 @@ void main() {
     );
   });
 
-  test('可选材料直接结束不欠交，关闭后不能追加首批材料', () async {
+  test('可选材料直接结束不欠交，关闭后可补充且不重开', () async {
     await seed('optional', VerificationPolicy.optionalEvidence);
     await finish('optional', submitOptionalEvidence: false);
     final saved = await detail('optional');
@@ -186,7 +186,7 @@ void main() {
     expect(await repository.findPendingEvidence(), isEmpty);
     await expectLater(
       repository.submitEvidence(batch('optional')),
-      throwsA(isA<EvidenceConflict>()),
+      completion(EvidenceSubmissionResult.submitted),
     );
   });
 
@@ -417,7 +417,7 @@ void main() {
     expect((await detail('b')).evidence, isEmpty);
   });
 
-  test('提交与放弃并发只有一方成功，不能同时有材料和放弃事实', () async {
+  test('提交与放弃并发按先后关闭，放弃后材料作为补充保留', () async {
     for (final submitFirst in [true, false]) {
       final id = submitFirst ? 'submit-first' : 'skip-first';
       await seed(id, VerificationPolicy.optionalEvidence);
@@ -440,14 +440,17 @@ void main() {
             },
           ),
       ]);
-      expect(outcomes.where((success) => success), hasLength(1));
+      expect(
+        outcomes.where((success) => success).length,
+        inInclusiveRange(1, 2),
+      );
       final saved = await detail(id);
       expect(saved.phase, MissionPhase.closed);
-      expect(saved.evidence.isNotEmpty, saved.mission.evidenceWaivedAt == null);
+      expect(saved.evidence, isNotEmpty);
     }
   });
 
-  test('两个独立SQLite连接竞争提交和放弃，数据库边界仍只保留一种结果', () async {
+  test('两个独立SQLite连接竞争提交和放弃，材料保留且关闭结果一致', () async {
     await seed('race', VerificationPolicy.optionalEvidence);
     final source = await detail('race');
     final directory = await Directory.systemTemp.createTemp(
@@ -505,10 +508,13 @@ void main() {
         result(firstRepository.submitEvidence(batch('race'))),
         result(secondRepository.skipOptionalEvidence('race')),
       ]);
-      expect(outcomes.where((success) => success), hasLength(1));
+      expect(
+        outcomes.where((success) => success).length,
+        inInclusiveRange(1, 2),
+      );
       final saved = (await firstRepository.findDetail('race'))!;
       expect(saved.phase, MissionPhase.closed);
-      expect(saved.evidence.isNotEmpty, saved.mission.evidenceWaivedAt == null);
+      expect(saved.evidence, isNotEmpty);
     } finally {
       await first.close();
       await second.close();
@@ -535,17 +541,17 @@ void main() {
     );
   });
 
-  test('恰等于截止时拒绝材料但提交超时事实，重复提交和补算不重复', () async {
+  test('恰等于截止时保留超时并保存补充材料，重复提交和补算不重复', () async {
     await seed('required', VerificationPolicy.requiredEvidence);
     await finish('required');
     now = deadline;
     expect(
       await repository.submitEvidence(batch('required')),
-      EvidenceSubmissionResult.deadlineMissed,
+      EvidenceSubmissionResult.submitted,
     );
     final first = await detail('required');
     expect(first.phase, MissionPhase.closed);
-    expect(first.evidence, isEmpty);
+    expect(first.evidence, hasLength(1));
     expect(first.events.last.userReportedResult, UserReportedResult.completed);
     expect(first.failures.single.trigger, 'EVIDENCE_DEADLINE_MISSED');
     expect(first.failures.single.occurredAt, deadline);
@@ -553,7 +559,7 @@ void main() {
     now = now.add(const Duration(days: 1));
     expect(
       await repository.submitEvidence(batch('required')),
-      EvidenceSubmissionResult.deadlineMissed,
+      EvidenceSubmissionResult.submitted,
     );
     expect(await repository.reconcileEvidenceDeadlines(), 0);
     expect((await detail('required')).failures.single.createdAt, deadline);
@@ -623,7 +629,7 @@ void main() {
     expect(timedOut.phase, MissionPhase.closed);
   });
 
-  test('强制材料不提供跳过；任意策略未完成均保留失败且不收首批材料', () async {
+  test('强制材料不提供跳过；任意策略未完成均保留失败且允许补充', () async {
     for (final policy in VerificationPolicy.values) {
       final id = policy.name;
       await seed(id, policy);
@@ -636,7 +642,7 @@ void main() {
         repository.submitEvidence(
           batch(id, id: 'batch-$id', items: [text('text-$id')]),
         ),
-        throwsA(isA<EvidenceConflict>()),
+        completion(EvidenceSubmissionResult.submitted),
       );
       await expectLater(
         repository.skipOptionalEvidence(id),

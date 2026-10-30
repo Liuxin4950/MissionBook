@@ -15,6 +15,8 @@ import 'tables/goal_nodes.dart';
 import 'tables/import_receipts.dart';
 import 'tables/assistant_sessions.dart';
 import 'tables/operation_receipts.dart';
+import 'tables/record_analysis_tables.dart';
+import 'analysis_triggers.dart';
 
 part 'app_database.g.dart';
 
@@ -35,6 +37,12 @@ part 'app_database.g.dart';
     AssistantSessions,
     AssistantSessionRecords,
     OperationReceipts,
+    Records,
+    UserExecutionReports,
+    AnalysisJobs,
+    AnalysisVersions,
+    MemoryEntries,
+    SearchUsage,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -69,10 +77,14 @@ class AppDatabase extends _$AppDatabase {
 
   // v11 追加助手会话日志与通用操作回执，任务、目标和执行事实保持不变。
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (migrator) async {
+      await migrator.createAll();
+      await installAnalysisTriggers(this);
+    },
     // 首次安装创建全部已注册表、声明的索引和归属触发器。
     // 已有库版本不同时，Drift 调用此回调，并传入旧版本 from 和目标版本 to。
     onUpgrade: (migrator, from, to) async {
@@ -86,6 +98,8 @@ class AppDatabase extends _$AppDatabase {
       // transaction 等待全部结构变更和版本标记成功才提交，异常时一起回滚。
       // createTable 只建表，不会自动建立 @TableIndex 声明的独立索引。
       await transaction(() async {
+        // 先建内容表，使旧材料重建时的外键已有目标；归属表会在下面补齐。
+        if (from < 15) await migrator.createTable(records);
         if (from < 2) {
           await migrator.createTable(executionEvents);
           await migrator.createIndex(executionEventsOneStart);
@@ -160,6 +174,44 @@ class AppDatabase extends _$AppDatabase {
         if (from >= 2 && from < 14) {
           // v14 放宽动作约束，保留事件及唯一索引；没有表引用执行事件。
           await migrator.alterTable(TableMigration(executionEvents));
+        }
+        if (from < 15) {
+          if (from >= 6) await migrator.addColumn(goals, goals.desireLevel);
+          if (from >= 9) {
+            await migrator.alterTable(
+              TableMigration(
+                evidenceRecords,
+                newColumns: [evidenceRecords.recordId],
+              ),
+            );
+          }
+          // 原材料身份、提交时间和文件路径原样保留；只移动正文载荷。
+          await customStatement('''
+            INSERT INTO records (id,type,source,content,attachment_storage_key,
+              attachment_file_name,attachment_mime_type,captured_at,occurred_at,
+              created_at,goal_id,goal_node_id)
+            SELECT e.id,e.type,e.source,e.content,e.attachment_storage_key,
+              e.attachment_file_name,e.attachment_mime_type,e.captured_at,
+              COALESCE(e.captured_at,e.submitted_at),e.submitted_at,m.goal_id,m.goal_node_id
+            FROM evidence_records e JOIN missions m ON m.id=e.mission_id
+          ''');
+          await customStatement('''UPDATE evidence_records SET record_id=id,
+            content=NULL,attachment_storage_key=NULL,attachment_file_name=NULL,
+            attachment_mime_type=NULL,captured_at=NULL''');
+          await migrator.createIndex(recordsScope);
+          await migrator.createIndex(recordsDay);
+          await migrator.createTable(userExecutionReports);
+          await migrator.createTable(analysisJobs);
+          await migrator.createTable(analysisVersions);
+          await migrator.createTable(memoryEntries);
+          await migrator.createTable(searchUsage);
+          await migrator.createIndex(userReportsMission);
+          await migrator.createIndex(analysisJobsDue);
+          await migrator.createIndex(analysisVersionsTarget);
+          await migrator.createIndex(memoryEntriesSource);
+          await migrator.createIndex(memoryEntriesTopic);
+          // 在搬迁之后安装，升级不会给全部历史材料排模型请求。
+          await installAnalysisTriggers(this);
         }
         // Drift 默认在全部开库回调完成后才记版本。把标记与结构一起提交，
         // 避免结构已建好、后续开库中断后，重开仍按 v1 重复创建索引。

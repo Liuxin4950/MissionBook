@@ -1,3 +1,4 @@
+import '../../../domain/entities/mission_phase.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -12,7 +13,6 @@ import '../../../domain/entities/evidence.dart';
 import '../../../domain/entities/failure_record.dart';
 import '../../../domain/entities/mission.dart';
 import '../../../domain/entities/mission_detail.dart';
-import '../../../domain/entities/mission_phase.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../shared/mission_execution_display.dart';
 import 'evidence_image_preview.dart';
@@ -68,7 +68,8 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   bool get busy => _busy;
   bool get _locked => _busy || _pending != null || _cameraOpen;
-  bool get _canSubmit => _detail.phase == MissionPhase.evidencePending;
+  bool get _canSubmit => true;
+  bool get _isPending => _detail.phase == MissionPhase.evidencePending;
   @override
   bool get wantKeepAlive => hasDraft || _busy || _pending != null;
 
@@ -83,7 +84,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
   void initState() {
     super.initState();
     _detail = widget.detail;
-    _expanded = widget.initiallyExpanded;
+    _expanded = widget.initiallyExpanded && _isPending;
     if (_canSubmit) unawaited(_prepareImages());
   }
 
@@ -268,6 +269,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
         setState(() {
           _clearDrafts();
           _receipt = '材料已提交，原始内容已保存。';
+          _expanded = false;
         });
       } else {
         _pending = null;
@@ -446,8 +448,20 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       (item) => item.trigger == evidenceDeadlineMissedTrigger,
     );
     final hasFormal = _detail.evidence.isNotEmpty;
-    if (!_canSubmit && hasFormal && !hasDraft && _pending == null) {
-      return _formalMaterials(context);
+    if (!_isPending && !_expanded && !hasDraft && _pending == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (timedOut) const Text('材料超时'),
+          if (hasFormal) _formalMaterials(context),
+          TextButton.icon(
+            key: Key('evidence-open-${_detail.mission.id}'),
+            onPressed: () => setState(() => _expanded = true),
+            icon: const Icon(Icons.attach_file_outlined),
+            label: Text(hasFormal ? '补充材料' : '添加材料'),
+          ),
+        ],
+      );
     }
     if (!_canSubmit &&
         !hasFormal &&
@@ -470,11 +484,11 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              _canSubmit
+              _isPending
                   ? '执行已结束 · 待提交材料'
                   : timedOut
                   ? '材料超时'
-                  : '任务材料',
+                  : '任务材料 · 补充不改变原结果',
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: AppLayout.spaceSm),
@@ -482,7 +496,9 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
               Text(
                 requiredEvidence
                     ? '按要求提交文字、代码、手动记录、文件或图片，可组合提交。'
-                    : '材料可选；可以提交适合的记录，也可以放弃提交并结束。',
+                    : _isPending
+                    ? '材料可选；可以提交适合的记录，也可以放弃提交并结束。'
+                    : '保存相关材料；任务的执行、完成报告和既有超时结果保持原样。',
               ),
             if (deadline != null && requiredEvidence)
               Text(
@@ -656,7 +672,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                   child: const Text('丢弃草稿'),
                 ),
             ],
-            if (_canSubmit && !requiredEvidence)
+            if (_isPending && !requiredEvidence)
               TextButton(
                 key: const Key('evidence-skip'),
                 onPressed: _locked ? null : _skip,
@@ -676,31 +692,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                 child: const Text('读取最新记录'),
               ),
             ],
-            if (hasFormal) ...[
-              const SizedBox(height: AppLayout.spaceLg),
-              Text(
-                '已提交 ${_detail.evidence.length} 份材料',
-                style: theme.textTheme.titleSmall,
-              ),
-              for (final material in _detail.evidence) ...[
-                const Divider(height: 24),
-                if (material.type == EvidenceType.image) ...[
-                  Text(material.attachmentFileName ?? '图片材料'),
-                  const SizedBox(height: AppLayout.spaceSm),
-                  _image(
-                    material.attachmentStorageKey!,
-                    material.attachmentFileName ?? '图片',
-                  ),
-                ],
-                if (material.content?.trim().isNotEmpty == true)
-                  SelectableText(material.content!),
-                const SizedBox(height: AppLayout.spaceSm),
-                Text(
-                  '提交于 ${missionLocalTime(material.submittedAt, _detail.schedule.timeZone)}',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ],
+            if (hasFormal) _formalMaterials(context),
           ],
         ),
       ),

@@ -19,6 +19,7 @@ import '../shared/mission_phase_display.dart';
 import '../shared/mission_phase_icon.dart';
 import '../shared/mission_live_status.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_expansion.dart';
 import 'mission_timetable.dart';
 import 'timetable_layout.dart';
 
@@ -329,22 +330,24 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                         ),
                     const SizedBox(height: AppLayout.spaceXxl),
                     AppSectionCard(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppLayout.spaceLg,
-                        vertical: AppLayout.spaceXs,
-                      ),
-                      child: ExpansionTile(
+                      padding: EdgeInsets.zero,
+                      child: AppExpansionTile(
                         key: const Key('all-missions-statistics'),
-                        tilePadding: EdgeInsets.zero,
-                        childrenPadding: const EdgeInsets.only(
-                          bottom: AppLayout.spaceMd,
+                        insetHeader: false,
+                        headerPadding: const EdgeInsets.symmetric(
+                          horizontal: AppLayout.spaceLg,
+                          vertical: AppLayout.spaceXs,
+                        ),
+                        childrenPadding: const EdgeInsets.fromLTRB(
+                          AppLayout.spaceLg,
+                          0,
+                          AppLayout.spaceLg,
+                          AppLayout.spaceMd,
                         ),
                         title: Text(
                           '完成统计',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        shape: const Border(),
-                        collapsedShape: const Border(),
                         children: [_statistics(context, all, today)],
                       ),
                     ),
@@ -708,7 +711,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${detail.schedule.scheduledDate} · ${phaseLabel(detail.phase)}',
+                '${detail.schedule.scheduledDate} · ${phaseLabel(detail.phase, schedule: detail.schedule)}',
                 style: theme.textTheme.bodyMedium,
               ),
               if (detail.phase == MissionPhase.running ||

@@ -1,3 +1,5 @@
+import '../records/records_page.dart';
+import '../records/record_scope.dart';
 import '../widgets/app_date_picker.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -176,7 +178,10 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       final pending = await widget.missionService.findPendingEvidence();
       if (!mounted || request != _loadRequest) return;
       // 一次查询只整理一次：分组、换算时区、准备显示文字，再交给三个区域。
-      final missions = display.groupMissionsForDisplay(result);
+      final missions = display.groupMissionsForDisplay(
+        result,
+        now: widget.clock(),
+      );
       setState(() {
         if (_loadedDate != date) _sideSectionsKey = GlobalKey();
         _missions = missions;
@@ -402,6 +407,9 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                   if (!widget.fullSchedule)
                     _TodayHeader(
                       dateLabel: display.scheduleDateLabel(_selectedDate),
+                      compactDateLabel: display.scheduleDateLabelCompact(
+                        _selectedDate,
+                      ),
                       showTodayShortcut: !DateUtils.isSameDay(
                         selectedWeek,
                         currentWeek,
@@ -641,6 +649,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
               )
             else ...[
               schedule,
+              DailyRecordsStrip(date: display.scheduleDateKey(_selectedDate)),
               if (!widget.fullSchedule) ...[
                 const SizedBox(height: AppLayout.spaceXl),
                 side,
@@ -657,6 +666,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
 class _TodayHeader extends StatelessWidget {
   const _TodayHeader({
     required this.dateLabel,
+    required this.compactDateLabel,
     required this.showTodayShortcut,
     required this.onPickDate,
     required this.onCreate,
@@ -665,6 +675,7 @@ class _TodayHeader extends StatelessWidget {
   });
 
   final String dateLabel;
+  final String compactDateLabel;
   final bool showTodayShortcut;
   final VoidCallback onPickDate;
   final VoidCallback onCreate;
@@ -674,40 +685,56 @@ class _TodayHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppPageHeader(
+    final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    return LayoutBuilder(
+      builder: (context, box) {
+        // 页头按实际可用宽度取舍，不绑设备名称：窄屏省去星期与放不下的快捷入口，
+        // 星期仍由下方周日期栏完整显示。
+        final compactDate = box.maxWidth < 402 * scale;
+        final showReturnToday =
+            showTodayShortcut && box.maxWidth >= 330 * scale;
+        return AppPageHeader(
           title: '今天',
           showTitle: false,
           subtitle: Wrap(
-            spacing: 8,
+            spacing: AppLayout.spaceXs,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               TextButton.icon(
                 key: const Key('today-date-picker'),
                 onPressed: onPickDate,
                 style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppLayout.spaceSm,
+                  ),
+                  minimumSize: const Size(0, AppLayout.touchTargetMin),
+                  backgroundColor: AppColors.surfaceMuted,
                   foregroundColor: theme.colorScheme.onSurfaceVariant,
                   alignment: Alignment.centerLeft,
                   textStyle: theme.textTheme.bodyMedium,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                  ),
                 ),
-                label: Text(dateLabel),
-                icon: const Icon(Icons.expand_more, size: AppLayout.iconMd),
+                label: Text(compactDate ? compactDateLabel : dateLabel),
+                icon: const Icon(Icons.expand_more, size: AppLayout.iconSm),
                 iconAlignment: IconAlignment.end,
               ),
-              if (showTodayShortcut)
-                TextButton.icon(
+              if (showReturnToday)
+                IconButton(
                   key: const Key('today-return-current-week'),
+                  tooltip: '回到今天',
                   onPressed: onReturnToday,
+                  style: IconButton.styleFrom(
+                    fixedSize: const Size(
+                      AppLayout.touchTargetMin,
+                      AppLayout.touchTargetMin,
+                    ),
+                    shape: const CircleBorder(),
+                  ),
                   icon: const Icon(
                     Icons.today_outlined,
-                    size: AppLayout.iconSm,
-                  ),
-                  label: const Text('今天'),
-                  style: TextButton.styleFrom(
-                    textStyle: theme.textTheme.labelMedium,
+                    size: AppLayout.iconMd,
                   ),
                 ),
             ],
@@ -715,14 +742,22 @@ class _TodayHeader extends StatelessWidget {
           action: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (RecordScope.maybeOf(context) != null)
+                IconButton(
+                  key: const Key('today-camera-record'),
+                  tooltip: '拍照记录',
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => const RecordEditor(capture: true),
+                    ),
+                  ),
+                  icon: const Icon(Icons.photo_camera_outlined),
+                ),
               IconButton(
                 key: const Key('today-all-missions-entry'),
                 tooltip: '全部任务',
                 onPressed: onOpenAllMissions,
-                icon: const Icon(
-                  Icons.view_list_outlined,
-                  color: AppColors.primary,
-                ),
+                icon: const Icon(Icons.view_list_outlined),
               ),
               IconButton.filled(
                 onPressed: onCreate,
@@ -735,8 +770,8 @@ class _TodayHeader extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }

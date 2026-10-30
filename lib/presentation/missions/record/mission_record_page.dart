@@ -1,3 +1,7 @@
+import '../../../domain/entities/execution_event.dart';
+import '../../records/analysis_panel.dart';
+import '../../records/execution_report_button.dart';
+import '../../records/records_page.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -235,9 +239,19 @@ class _MissionRecordPageState extends State<MissionRecordPage>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('专注时长'),
                           Text(
-                            focusDuration(times.focus),
+                            detail.events.any(
+                                  (e) => e.type == ExecutionEventType.start,
+                                )
+                                ? '应用计时'
+                                : '应用未计时',
+                          ),
+                          Text(
+                            detail.events.any(
+                                  (e) => e.type == ExecutionEventType.start,
+                                )
+                                ? focusDuration(times.focus)
+                                : '未记录',
                             style: theme.textTheme.headlineSmall,
                           ),
                         ],
@@ -289,6 +303,9 @@ class _MissionRecordPageState extends State<MissionRecordPage>
                 Text(failure.userReasonText!),
             ],
           const SizedBox(height: AppLayout.sectionGap),
+          AnalysisPanel(scope: 'mission', id: detail.mission.id),
+          ExecutionReportButton(detail: detail),
+          RecordsEntry(missionId: detail.mission.id),
           MissionEvidenceSection(
             key: ValueKey('record-evidence-${detail.mission.id}'),
             detail: detail,

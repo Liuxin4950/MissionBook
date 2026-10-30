@@ -27,6 +27,7 @@ class DriftGoalRepository implements GoalRepository {
         if (existing.title == goal.title &&
             existing.description == goal.description &&
             existing.why == goal.why &&
+            existing.desireLevel == goal.desireLevel &&
             existing.status == 'ACTIVE' &&
             existing.createdAt == goal.createdAt.millisecondsSinceEpoch &&
             existing.updatedAt == goal.updatedAt.millisecondsSinceEpoch) {
@@ -42,6 +43,7 @@ class DriftGoalRepository implements GoalRepository {
               title: goal.title,
               description: Value(goal.description), // Value(null) 表示明确写入空值。
               why: Value(goal.why),
+              desireLevel: Value(goal.desireLevel),
               status: const Value('ACTIVE'), // 创建只允许 ACTIVE，其他状态随编辑入口实现。
               createdAt: goal.createdAt.millisecondsSinceEpoch,
               updatedAt: goal.updatedAt.millisecondsSinceEpoch,
@@ -82,6 +84,8 @@ class DriftGoalRepository implements GoalRepository {
     required String title,
     String? description,
     String? why,
+    int? desireLevel,
+    bool updateDesire = false,
     String? operationId,
   }) => _withReceipt(
     operationId,
@@ -92,9 +96,16 @@ class DriftGoalRepository implements GoalRepository {
       'title': title,
       'description': description,
       'why': why,
+      'desireLevel': desireLevel,
+      'updateDesire': updateDesire,
     },
-    () =>
-        _updateGoal(expected, title: title, description: description, why: why),
+    () => _updateGoal(
+      expected,
+      title: title,
+      description: description,
+      why: why,
+      desireLevel: updateDesire ? desireLevel : expected.desireLevel,
+    ),
   );
 
   @override
@@ -171,7 +182,11 @@ class DriftGoalRepository implements GoalRepository {
     required String title,
     String? description,
     String? why,
+    int? desireLevel,
   }) async {
+    if (desireLevel != null && (desireLevel < 1 || desireLevel > 5)) {
+      throw ArgumentError('希望程度为1～5');
+    }
     if (title.isEmpty ||
         title != title.trim() ||
         (description != null &&
@@ -186,6 +201,7 @@ class DriftGoalRepository implements GoalRepository {
       if (current.title == title &&
           current.description == description &&
           current.why == why &&
+          current.desireLevel == desireLevel &&
           current.status == expected.status) {
         return; // 上次保存成功但回复丢失时，重试同一内容不会再覆盖或改写时间。
       }
@@ -193,7 +209,8 @@ class DriftGoalRepository implements GoalRepository {
           current.status != expected.status ||
           current.title != expected.title ||
           current.description != expected.description ||
-          current.why != expected.why) {
+          current.why != expected.why ||
+          current.desireLevel != expected.desireLevel) {
         throw StateError('目标已在其他入口修改，请读取最新内容后再编辑');
       }
       await (database.update(
@@ -203,6 +220,7 @@ class DriftGoalRepository implements GoalRepository {
           title: Value(title),
           description: Value(description),
           why: Value(why),
+          desireLevel: Value(desireLevel),
           updatedAt: Value(_nextGoalEditTime(current)),
         ),
       );
@@ -282,6 +300,7 @@ class DriftGoalRepository implements GoalRepository {
             existing.title == goal.title &&
             existing.description == goal.description &&
             existing.why == goal.why &&
+            existing.desireLevel == goal.desireLevel &&
             existing.status == GoalStatus.active &&
             existing.createdAt == goal.createdAt &&
             existing.updatedAt == goal.updatedAt;
@@ -310,6 +329,7 @@ class DriftGoalRepository implements GoalRepository {
               title: goal.title,
               description: Value(goal.description),
               why: Value(goal.why),
+              desireLevel: Value(goal.desireLevel),
               status: const Value('ACTIVE'),
               createdAt: goal.createdAt.millisecondsSinceEpoch,
               updatedAt: goal.updatedAt.millisecondsSinceEpoch,
@@ -620,6 +640,7 @@ class DriftGoalRepository implements GoalRepository {
     title: row.title,
     description: row.description,
     why: row.why,
+    desireLevel: row.desireLevel,
     status: switch (row.status) {
       'ACTIVE' => GoalStatus.active,
       'PAUSED' => GoalStatus.paused,

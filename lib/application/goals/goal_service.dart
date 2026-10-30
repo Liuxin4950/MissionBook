@@ -45,6 +45,7 @@ class GoalService {
     required String title,
     String? description,
     String? why,
+    int? desireLevel,
     String? requestId,
   }) {
     final now = DateTime.fromMillisecondsSinceEpoch(
@@ -58,6 +59,7 @@ class GoalService {
       title: title.trim(),
       description: _optionalText(description),
       why: _optionalText(why),
+      desireLevel: desireLevel,
       status: GoalStatus.active,
       createdAt: now,
       updatedAt: now,
@@ -83,6 +85,8 @@ class GoalService {
     required String title,
     String? description,
     String? why,
+    int? desireLevel,
+    bool updateDesire = false,
     String? operationId,
   }) async {
     final cleanedTitle = title.trim();
@@ -94,6 +98,8 @@ class GoalService {
       title: cleanedTitle,
       description: cleanedDescription,
       why: cleanedWhy,
+      desireLevel: desireLevel,
+      updateDesire: updateDesire,
       operationId: operationId,
     );
     _notify();

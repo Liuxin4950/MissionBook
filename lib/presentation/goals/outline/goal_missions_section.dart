@@ -507,7 +507,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                         ),
                         const SizedBox(height: AppLayout.spaceSm),
                         Text(
-                          '${phaseLabel(detail.phase)} · 计划 ${detail.schedule.plannedDurationMinutes} 分钟',
+                          '${phaseLabel(detail.phase, schedule: detail.schedule)} · 计划 ${detail.schedule.plannedDurationMinutes} 分钟',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: color,
                           ),

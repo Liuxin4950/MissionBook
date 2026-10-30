@@ -215,7 +215,7 @@ void main() {
       AppTheme.light.colorScheme.primary,
     );
     expect(tester.getRect(find.text('任务详情')).left, greaterThan(backRect.right));
-    expect(find.text('待开始'), findsOneWidget);
+    expect(find.text('待处理'), findsOneWidget);
     final badge = tester.getRect(find.byKey(const Key('mission-phase')));
     expect(badge.left, greaterThan(tester.getRect(find.text('阅读二十分钟')).right));
     final start = tester.getRect(find.byKey(const Key('execution-start')));
@@ -287,7 +287,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(find.byType(AppConfirmDialog), findsNothing);
-      expect(find.text('待开始'), findsOneWidget);
+      expect(find.text('待处理'), findsOneWidget);
     }
     expect(repository.cancelIds, isEmpty);
     expect(repository.requests, hasLength(1));
@@ -366,7 +366,7 @@ void main() {
     repository.cancellations.single.completeError(StateError('模拟取消保存失败'));
     await tester.pumpAndSettle();
     expect(find.text('取消失败，请重试'), findsOneWidget);
-    expect(find.text('待开始'), findsOneWidget);
+    expect(find.text('待处理'), findsOneWidget);
     expect(repository.requests, hasLength(1));
     expect(
       tester

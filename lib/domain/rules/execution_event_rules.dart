@@ -35,11 +35,9 @@ void validateExecutionEvent(
   if (event.isRetrospective) {
     if (event.type != ExecutionEventType.end ||
         event.sequence != 1 ||
-        event.userReportedResult != UserReportedResult.completed ||
-        verificationPolicy != VerificationPolicy.selfReport ||
         event.reason == null ||
         event.reason!.trim().isEmpty) {
-      throw ArgumentError('历史补记仅适用于无执行记录的自报任务，必须提供完成依据');
+      throw ArgumentError('补记仅适用于无执行记录的任务，必须提供明确依据');
     }
   }
 
@@ -161,29 +159,54 @@ MissionPhase deriveMissionPhase(
   MissionScheduleRevision schedule,
 ) {
   final state = _replayExecutionHistory(mission, events);
+  // 材料自身校验与任务结果分开，任何阶段都允许保留相关材料。
+  final byId = <String, Evidence>{};
+  final replaced = <String>{};
+  for (final item in evidence) {
+    validateEvidenceDraft(item, mission.id);
+    if (item.missionId != mission.id ||
+        byId.containsKey(item.id) ||
+        item.submissionId.trim().isEmpty ||
+        !item.submittedAt.isUtc) {
+      throw const FormatException('材料身份、所属任务或提交时间不一致');
+    }
+    byId[item.id] = item;
+  }
+  for (final item in evidence) {
+    if (item.supersedesEvidenceId == null) continue;
+    final parent = byId[item.supersedesEvidenceId];
+    if (parent == null ||
+        parent.type != item.type ||
+        !replaced.add(parent.id) ||
+        item.submissionId != item.id ||
+        item.submittedAt.isBefore(parent.submittedAt)) {
+      throw const FormatException('材料修正关系不一致');
+    }
+    final visited = <String>{item.id};
+    Evidence? cursor = parent;
+    while (cursor != null) {
+      if (!visited.add(cursor.id)) throw const FormatException('材料修正不能循环');
+      cursor = byId[cursor.supersedesEvidenceId];
+    }
+  }
   if (state != _ExecutionState.ended) {
-    if (failures.isNotEmpty ||
-        evidence.isNotEmpty ||
-        mission.evidenceWaivedAt != null) {
-      throw const FormatException('未结束或已取消任务不能有材料、放弃或失败事实');
+    if (failures.isNotEmpty || mission.evidenceWaivedAt != null) {
+      throw const FormatException('未结束任务不能有失败或放弃事实');
     }
     return _phaseBeforeEnd(mission, state);
   }
   final end = events.last;
   if (schedule.missionId != mission.id ||
       events.first.scheduleRevisionId != schedule.id) {
-    throw const FormatException('执行开始绑定的排期与当前任务不一致');
+    throw const FormatException('执行绑定的排期与当前任务不一致');
   }
-  final notCompleted =
-      end.userReportedResult == UserReportedResult.notCompleted;
-  if (notCompleted) {
+  if (end.userReportedResult == UserReportedResult.notCompleted) {
     if (failures.length != 1 ||
         failures.single.trigger != userMarkedNotCompletedTrigger ||
         failures.single.missionId != mission.id ||
         failures.single.occurredAt != end.occurredAt ||
-        evidence.isNotEmpty ||
         mission.evidenceWaivedAt != null) {
-      throw const FormatException('未完成报告的失败事实或材料关系不一致');
+      throw const FormatException('未完成报告的失败事实不一致');
     }
     return MissionPhase.closed;
   }
@@ -192,103 +215,45 @@ MissionPhase deriveMissionPhase(
       (mission.verificationPolicy == VerificationPolicy.optionalEvidence &&
           end.submitOptionalEvidence == true);
   if (!needsEvidence) {
-    if (evidence.isNotEmpty ||
-        failures.isNotEmpty ||
-        mission.evidenceWaivedAt != null) {
-      throw const FormatException('直接结束任务不应有后续材料、放弃或失败事实');
+    if (failures.isNotEmpty || mission.evidenceWaivedAt != null) {
+      throw const FormatException('直接结束任务的失败事实不一致');
     }
     return MissionPhase.closed;
   }
-  final waivedAt = mission.evidenceWaivedAt;
-  if (waivedAt != null) {
+  if (mission.evidenceWaivedAt != null) {
     if (mission.verificationPolicy != VerificationPolicy.optionalEvidence ||
-        !waivedAt.isUtc ||
-        waivedAt.isBefore(end.occurredAt) ||
-        evidence.isNotEmpty ||
+        mission.evidenceWaivedAt!.isBefore(end.occurredAt) ||
         failures.isNotEmpty) {
-      throw const FormatException('放弃材料事实与任务不一致');
+      throw const FormatException('放弃材料事实不一致');
     }
     return MissionPhase.closed;
   }
   final deadline = schedule.evidenceDeadlineAt;
   if (mission.verificationPolicy == VerificationPolicy.requiredEvidence &&
       deadline == null) {
-    throw const FormatException('强制材料任务缺少截止时间');
-  }
-  if (evidence.isNotEmpty) {
-    if (failures.isNotEmpty) throw const FormatException('已提交材料不能同时超时');
-    final originals = evidence
-        .where((item) => item.supersedesEvidenceId == null)
-        .toList();
-    if (originals.isEmpty) throw const FormatException('修正材料缺少首次提交记录');
-    final first = originals.first;
-    final ids = <String>{};
-    final byId = <String, Evidence>{};
-    for (final item in evidence) {
-      validateEvidenceDraft(item, mission.id);
-      if (item.missionId != mission.id ||
-          !ids.add(item.id) ||
-          item.submissionId.trim().isEmpty ||
-          !item.submittedAt.isUtc ||
-          item.submittedAt.isBefore(first.submittedAt)) {
-        throw const FormatException('正式材料身份、所属任务或提交时间不一致');
-      }
-      byId[item.id] = item;
-    }
-    if (first.submittedAt.isBefore(end.occurredAt) ||
-        (deadline != null && !first.submittedAt.isBefore(deadline)) ||
-        originals.any(
-          (item) =>
-              item.submissionId != first.submissionId ||
-              item.submittedAt != first.submittedAt,
-        )) {
-      throw const FormatException('首次材料批次或提交时间不一致');
-    }
-    final replaced = <String>{};
-    for (final item in evidence.where(
-      (item) => item.supersedesEvidenceId != null,
-    )) {
-      final parentId = item.supersedesEvidenceId!;
-      final parent = byId[parentId];
-      if (parent == null ||
-          !replaced.add(parentId) ||
-          item.submissionId != item.id ||
-          item.type != parent.type ||
-          item.submittedAt.isBefore(parent.submittedAt)) {
-        throw const FormatException('材料修正关系不一致');
-      }
-      final ancestors = <String>{item.id};
-      Evidence? cursor = parent;
-      while (cursor != null) {
-        if (!ancestors.add(cursor.id)) {
-          throw const FormatException('材料修正不能形成循环');
-        }
-        cursor = cursor.supersedesEvidenceId == null
-            ? null
-            : byId[cursor.supersedesEvidenceId];
-      }
-      if (!ancestors.contains(first.id) &&
-          !ancestors.any((id) => originals.any((root) => root.id == id))) {
-        throw const FormatException('修正材料必须来自首次提交');
-      }
-    }
-    return MissionPhase.closed;
+    throw const FormatException('强制材料缺少截止时间');
   }
   if (failures.isNotEmpty) {
-    final expectedTime = deadline != null && deadline.isAfter(end.occurredAt)
+    final effective = deadline != null && deadline.isAfter(end.occurredAt)
         ? deadline
         : end.occurredAt;
     if (mission.verificationPolicy != VerificationPolicy.requiredEvidence ||
         failures.length != 1 ||
         failures.single.trigger != evidenceDeadlineMissedTrigger ||
         failures.single.missionId != mission.id ||
-        failures.single.occurredAt != expectedTime ||
-        failures.single.createdAt.isBefore(expectedTime)) {
-      throw const FormatException('材料超时事实与任务不一致');
+        failures.single.occurredAt != effective ||
+        failures.single.createdAt.isBefore(effective)) {
+      throw const FormatException('材料超时事实不一致');
     }
     return MissionPhase.closed;
   }
-  return MissionPhase.evidencePending;
+  // 修正不倒写首次提交时间；结束前的正式材料也可以满足要求。
+  final qualified = evidence.any(
+    (e) =>
+        e.supersedesEvidenceId == null &&
+        (deadline == null || e.submittedAt.isBefore(deadline)),
+  );
+  return qualified ? MissionPhase.closed : MissionPhase.evidencePending;
 }
 
 // 唯一的时间线推演核心；名称前的 _ 表示仅本规则库内部使用。

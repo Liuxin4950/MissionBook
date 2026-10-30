@@ -25,6 +25,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
   final _title = TextEditingController();
   final _description = TextEditingController();
   final _why = TextEditingController();
+  int? _desire;
   Goal? _pending; // 首次保存时固定请求；失败重试继续使用同一份内容。
   Goal? _editingExpected;
   Goal? _latestConflict;
@@ -41,6 +42,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
       _title.text = widget.goal!.title;
       _description.text = widget.goal!.description ?? '';
       _why.text = widget.goal!.why ?? '';
+      _desire = widget.goal!.desireLevel;
     }
   }
 
@@ -60,6 +62,8 @@ class _GoalFormPageState extends State<GoalFormPage> {
           title: _title.text,
           description: _description.text,
           why: _why.text,
+          desireLevel: _desire,
+          updateDesire: true,
         );
         if (mounted) Navigator.of(context).pop(_editingExpected!.id);
       } else {
@@ -67,6 +71,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
           title: _title.text,
           description: _description.text,
           why: _why.text,
+          desireLevel: _desire,
         ); // ??= 只在首次请求时赋值，重试不重新生成目标编号。
         await widget.service.create(_pending!);
         if (mounted) Navigator.of(context).pop(_pending!.id);
@@ -98,6 +103,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
             saved.title == _title.text.trim() &&
             saved.description == _optional(_description.text) &&
             saved.why == _optional(_why.text) &&
+            saved.desireLevel == _desire &&
             saved.status == expected.status) {
           Navigator.of(context).pop(saved.id); // 写入成功但回复丢失时，不再重复更新。
         } else if (saved != null &&
@@ -105,6 +111,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
             saved.title == expected.title &&
             saved.description == expected.description &&
             saved.why == expected.why &&
+            saved.desireLevel == expected.desireLevel &&
             saved.status == expected.status) {
           setState(() {
             _editResultUnknown = false; // 确认先前没有写入，继续保留用户这次填写的草稿。
@@ -143,6 +150,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
       _title.text = latest.title;
       _description.text = latest.description ?? '';
       _why.text = latest.why ?? '';
+      _desire = latest.desireLevel;
       _latestConflict = null;
       _editResultUnknown = false;
       _error = null;
@@ -163,10 +171,12 @@ class _GoalFormPageState extends State<GoalFormPage> {
     final hasInput = _editingExpected == null
         ? _title.text.isNotEmpty ||
               _description.text.isNotEmpty ||
-              _why.text.isNotEmpty
+              _why.text.isNotEmpty ||
+              _desire != null
         : _title.text != widget.goal!.title ||
               _optional(_description.text) != widget.goal!.description ||
-              _optional(_why.text) != widget.goal!.why;
+              _optional(_why.text) != widget.goal!.why ||
+              _desire != widget.goal!.desireLevel;
     if (hasInput) {
       _closing = true;
       final discard = await AppConfirmDialog.show(
@@ -267,6 +277,22 @@ class _GoalFormPageState extends State<GoalFormPage> {
                           maxLines: 6,
                         ),
                         const SizedBox(height: AppLayout.spaceXxl),
+                        DropdownButtonFormField<int>(
+                          initialValue: _desire ?? 0,
+                          decoration: const InputDecoration(labelText: '希望程度'),
+                          items: [
+                            const DropdownMenuItem(
+                              value: 0,
+                              child: Text('未设置'),
+                            ),
+                            for (var i = 1; i <= 5; i++)
+                              DropdownMenuItem(value: i, child: Text('$i / 5')),
+                          ],
+                          onChanged: _saving
+                              ? null
+                              : (v) =>
+                                    setState(() => _desire = v == 0 ? null : v),
+                        ),
                         if (_error != null) ...[
                           Semantics(
                             liveRegion: true,

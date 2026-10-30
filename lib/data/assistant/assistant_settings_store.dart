@@ -70,7 +70,7 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
               ? AssistantPermissionMode.full
               : autoApprove == 'false'
               ? AssistantPermissionMode.relaxed
-              : AssistantPermissionMode.standard),
+              : AssistantPermissionMode.full),
     );
   }
 
@@ -80,6 +80,7 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
       'DEEPSEEK_API_KEY',
       'MISSIONBOOK_CUSTOM_API_KEY',
       'MISSIONBOOK_TRANSCRIPTION_API_KEY',
+      'MISSIONBOOK_TAVILY_API_KEY',
     ].contains(credentialKey)) {
       return null;
     }
@@ -94,6 +95,7 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
       'DEEPSEEK_API_KEY',
       'MISSIONBOOK_CUSTOM_API_KEY',
       'MISSIONBOOK_TRANSCRIPTION_API_KEY',
+      'MISSIONBOOK_TAVILY_API_KEY',
     ].contains(credentialKey)) {
       throw ArgumentError('未知凭据标识：$credentialKey');
     }

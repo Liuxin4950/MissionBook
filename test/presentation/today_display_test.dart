@@ -85,7 +85,7 @@ void main() {
     expect(result.cancelled.first.startTime, '10:00');
     expect(result.cancelled.first.durationLabel, '已取消 · 计划 25 分钟');
     expect(result.cancelled.last.startTime, '');
-    expect(result.flexible.first.durationLabel, '计划 25 分钟');
+    expect(result.flexible.first.durationLabel, '待处理 · 计划 25 分钟');
     expect(source, hasLength(6));
     expect(source[1].mission.title, '任务 cancelled-fixed');
     expect(() => result.fixed.clear(), throwsUnsupportedError);

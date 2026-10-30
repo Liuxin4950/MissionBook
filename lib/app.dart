@@ -1,3 +1,13 @@
+import 'application/memory/memory_service.dart';
+import 'application/records/record_service.dart';
+import 'application/analysis/analysis_service.dart';
+import 'application/web/web_service.dart';
+import 'data/repositories/drift_record_repository.dart';
+import 'data/analysis/drift_analysis_store.dart';
+import 'data/assistant/drift_unified_reader.dart';
+import 'data/web/web_settings_store.dart';
+import 'data/web/public_http_client.dart';
+import 'presentation/records/record_scope.dart';
 import 'application/settings/motion_settings.dart';
 import 'data/settings/motion_settings_store.dart';
 import 'presentation/widgets/motion_settings_scope.dart';
@@ -59,6 +69,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   // late 表示这些属性稍后初始化。
   // final 表示初始化后不再换成另一个对象。
   late final AssistantController _assistant;
+  late final RecordService _records;
+  late final MemoryService _memory;
+  late final AnalysisService _analysis;
+  late final WebService _web;
   late final AssistantVoiceController _assistantVoice;
   late final AppDatabase _database; // 定义数据库连接器
   late final MissionService _missionService; // 业务操作对象
@@ -112,13 +126,32 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       filePicker: goal_file_platform.createGoalFilePicker(),
       packages: packages,
     );
+    _memory = MemoryService(DriftRecordRepository(_database));
+    _records = RecordService(DriftRecordRepository(_database), _missionService);
+    final analysisStore = DriftAnalysisStore(_database);
+    _web = WebService(
+      settings: const SecureWebSettings(),
+      quota: DriftSearchQuota(_database),
+      fetchClient: publicHttpClient,
+    );
     _assistant = AssistantController(
       reader: DriftAssistantReader(_database),
+      records: _records,
+      memory: _memory,
+      analysis: analysisStore,
+      unifiedReader: DriftUnifiedReader(_database),
+      web: _web,
       sessionStore: DriftSessionStore(_database),
       settingsStore: const SecureAssistantSettingsStore(),
       missions: _missionService,
       goals: _goalService,
     );
+    _analysis = AnalysisService(
+      store: analysisStore,
+      model: _assistant.analyze,
+      mainBusy: () => _assistant.isRunning,
+    );
+    unawaited(_analysis.start());
     _assistantVoice = AssistantVoiceController(
       ConfiguredAssistantSpeech(const SecureAssistantSettingsStore()),
       operationTimeout: const Duration(seconds: 60),
@@ -180,6 +213,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         state == AppLifecycleState.resumed ||
         state == AppLifecycleState.inactive;
     if (_foreground) {
+      _analysis.wake();
       unawaited(_scheduleDeadlineCheck());
       // 回到前台对账一次提醒调度（§7.1：只整理提醒，不写业务事实）。
       unawaited(_refreshNotifications());
@@ -358,7 +392,13 @@ class _AppState extends State<App> with WidgetsBindingObserver {
           goals: _goalService,
           backup: _backupService,
           device: _device,
-          child: child!,
+          child: RecordScope(
+            service: _records,
+            memory: _memory,
+            analysis: _analysis,
+            web: _web,
+            child: child!,
+          ),
         ),
       ),
       debugShowCheckedModeBanner: false,
@@ -402,8 +442,9 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     _motionSettings.dispose();
     _assistantVoice.dispose();
     unawaited(
-      _assistant.close().then((_) {
+      _assistant.close().then((_) async {
         _assistant.dispose();
+        await _analysis.dispose();
         return _database.close();
       }),
     );

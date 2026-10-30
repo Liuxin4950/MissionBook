@@ -10,6 +10,7 @@ import 'assistant_plan_card.dart';
 import 'assistant_outline_editor.dart';
 import '../../application/assistant/assistant_goal_outline.dart';
 import '../../core/theme/app_layout.dart';
+import '../widgets/app_expansion.dart';
 
 class AssistantOperationCard extends StatefulWidget {
   const AssistantOperationCard({
@@ -133,8 +134,12 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                   AssistantOperationStatus.failed,
                   AssistantOperationStatus.cancelled,
                 ].contains(operation.status))
-                  ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
+                  AppExpansionTile(
+                    insetHeader: false,
+                    headerPadding: const EdgeInsets.symmetric(
+                      vertical: AppLayout.spaceXs,
+                    ),
+                    childrenPadding: EdgeInsets.zero,
                     title: Text(
                       operation.missionBefore?.mission.title ??
                           operation.targetTitle ??
@@ -169,8 +174,14 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                     ],
                   ),
                   if (operation.historyMissions.isNotEmpty)
-                    ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
+                    AppExpansionTile(
+                      insetHeader: false,
+                      headerPadding: const EdgeInsets.symmetric(
+                        vertical: AppLayout.spaceXs,
+                      ),
+                      childrenPadding: const EdgeInsets.only(
+                        top: AppLayout.spaceSm,
+                      ),
                       title: const Text('查看本批任务'),
                       children: [
                         for (final detail in operation.historyMissions.take(20))
@@ -267,6 +278,21 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
       'evidenceDeadlineLocal': '材料截止',
       'beforeDate': '早于日期',
       'statement': '补记依据',
+      'content': '记录内容',
+      'recordId': '记录',
+      'missionId': '任务编号',
+      'id': '条目编号',
+      'occurrenceDate': '实际发生日期',
+      'actualStart': '实际开始',
+      'actualEnd': '实际结束',
+      'basis': '用户依据',
+      'completed': '用户完成报告',
+      'evidenceDeadlineAt': '补做材料截止',
+      'desireLevel': '希望程度',
+      'kind': '记忆类型',
+      'certainty': '确认性质',
+      'expiresAt': '适用期限',
+      'closing': '阶段收尾总结',
     };
     for (final entry in operation.input.entries) {
       final label = labels[entry.key];
@@ -445,47 +471,42 @@ class _ReadResultCard extends StatelessWidget {
     return Padding(
       key: ValueKey('assistant-read-${operation.callId}'),
       padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(
-            horizontal: AppLayout.spaceMd,
-          ),
-          childrenPadding: const EdgeInsets.fromLTRB(
-            AppLayout.spaceMd,
-            0,
-            AppLayout.spaceMd,
-            AppLayout.spaceMd,
-          ),
-          minTileHeight: AppLayout.touchTargetMin,
-          visualDensity: VisualDensity.compact,
-          shape: const Border(),
-          collapsedShape: const Border(),
-          leading: running
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Icon(
-                  failed ? Icons.error_outline : Icons.check_circle_outline,
-                  size: AppLayout.iconSm,
-                  color: failed ? colors.error : colors.primary,
-                ),
-          title: Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: failed ? colors.error : colors.onSurfaceVariant,
-            ),
-          ),
-          children: [
-            _ResultDetails(
-              operation: operation,
-              onOpenReference: onOpenReference,
-              inlineData: true,
-            ),
-          ],
+      child: AppExpansionTile(
+        insetHeader: false,
+        headerPadding: const EdgeInsets.symmetric(
+          horizontal: AppLayout.spaceMd,
+          vertical: AppLayout.spaceXs,
         ),
+        childrenPadding: const EdgeInsets.fromLTRB(
+          AppLayout.spaceMd,
+          0,
+          AppLayout.spaceMd,
+          AppLayout.spaceMd,
+        ),
+        leading: running
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                failed ? Icons.error_outline : Icons.check_circle_outline,
+                size: AppLayout.iconSm,
+                color: failed ? colors.error : colors.primary,
+              ),
+        title: Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: failed ? colors.error : colors.onSurfaceVariant,
+          ),
+        ),
+        children: [
+          _ResultDetails(
+            operation: operation,
+            onOpenReference: onOpenReference,
+            inlineData: true,
+          ),
+        ],
       ),
     );
   }
@@ -547,8 +568,11 @@ class _ResultDetails extends StatelessWidget {
           if (inlineData)
             _rawData(context, decoded)
           else
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
+            AppExpansionTile(
+              insetHeader: false,
+              headerPadding: const EdgeInsets.symmetric(
+                vertical: AppLayout.spaceXs,
+              ),
               childrenPadding: EdgeInsets.zero,
               title: Text(
                 '查看返回数据',
@@ -650,6 +674,10 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
         if (_draft['type'] == 'PAUSE') 'reason',
       },
       'mission_complete_history' => {'statement'},
+      'saveRecord' || 'saveMemory' => {'content'},
+      'reportExecution' ||
+      'correctExecutionTime' => {'occurrenceDate', 'actualStart', 'actualEnd'},
+      'startMakeup' => {'evidenceDeadlineAt'},
       _ => {},
     };
   }
@@ -673,6 +701,11 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
         'notes',
         'evidenceDeadlineLocal',
         'statement',
+        'content',
+        'occurrenceDate',
+        'actualStart',
+        'actualEnd',
+        'evidenceDeadlineAt',
       ])
         key: TextEditingController(text: _textValue(_draft[key])),
     };
@@ -699,6 +732,15 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (['saveRecord', 'saveMemory'].contains(tool))
+          _field('content', '内容', maxLines: 6),
+        if (['reportExecution', 'correctExecutionTime'].contains(tool)) ...[
+          _field('occurrenceDate', '实际发生日期 YYYY-MM-DD'),
+          _field('actualStart', '实际开始 ISO8601，未知留空'),
+          _field('actualEnd', '实际结束 ISO8601，未知留空'),
+        ],
+        if (tool == 'startMakeup')
+          _field('evidenceDeadlineAt', '新的材料截止 ISO8601'),
         if ([
           'mission_create',
           'mission_update',
@@ -852,6 +894,13 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
           return;
         }
         _draft[key] = value;
+      } else if ([
+            'actualStart',
+            'actualEnd',
+            'evidenceDeadlineAt',
+          ].contains(key) &&
+          text.isEmpty) {
+        _draft.remove(key);
       } else if (key == 'steps') {
         _draft[key] = text
             .split('\n')
@@ -900,6 +949,19 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
 }
 
 String _toolLabel(String name) => switch (name) {
+  'getGoal' => '读取目标与分层摘要',
+  'getRecord' => '读取记录',
+  'getMemory' => '读取助手记忆',
+  'saveRecord' => '保存记录',
+  'linkRecord' => '关联记录材料',
+  'reportExecution' => '补记执行情况',
+  'correctExecutionTime' => '更正实际日期与时段',
+  'startMakeup' => '现在补做并保留原排期',
+  'saveMemory' => '保存助手记忆',
+  'forgetMemory' => '忘记指定记忆',
+  'retryAnalysis' => '更新分析摘要',
+  'searchWeb' => '搜索实时信息',
+  'fetchWeb' => '读取来源网页',
   'mission_complete_history' => '批量补记历史完成',
   'goal_outline_create' => '创建目标与分层大纲',
   'mission_retry' => '安排新的尝试',

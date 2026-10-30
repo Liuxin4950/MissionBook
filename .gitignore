@@ -115,3 +115,6 @@ app.*.map.json
 
 # 离线语音模型体积大，不进入 Git；获取方式见 assets/models/sensevoice/README.md
 /assets/models/sensevoice/*.onnx
+
+# 独立 agent_core 验证产物
+/packages/agent_core/build/

@@ -1,3 +1,5 @@
+import '../../records/records_page.dart';
+import '../../records/analysis_panel.dart';
 import 'dart:async';
 import '../../assistant/assistant_launcher.dart';
 
@@ -654,6 +656,8 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (!collapsed) RecordsEntry(nodeId: node.id, label: '节点相关记录'),
+                if (!collapsed) AnalysisPanel(scope: 'node', id: node.id),
                 DecoratedBox(
                   decoration: BoxDecoration(
                     color: entry.depth == 0

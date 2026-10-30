@@ -21,6 +21,7 @@ import '../../../domain/entities/goal_node.dart';
 import '../../../domain/entities/mission_ownership.dart';
 import '../../../domain/entities/mission_creation.dart';
 import '../../../domain/entities/execution_plan.dart';
+import '../../widgets/app_expansion.dart';
 
 /// 创建、编辑或再次尝试任务，共用排期、材料要求及未保存输入保护。
 // Widget 描述页面配置；可变化的输入与资源交给下面的 State 管理。
@@ -796,16 +797,16 @@ class _MissionFormPageState extends State<MissionFormPage> {
                             ),
                             const SizedBox(height: AppLayout.spaceMd),
                             const Divider(height: 1),
-                            ExpansionTile(
+                            AppExpansionTile(
                               key: const Key('mission-plan-toggle'),
-                              tilePadding: EdgeInsets.zero,
                               title: Text(
                                 '详细方案（选填）',
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               initiallyExpanded: _isEditing || _isRetry,
-                              shape: const Border(),
-                              collapsedShape: const Border(),
+                              childrenPadding: const EdgeInsets.only(
+                                top: AppLayout.spaceMd,
+                              ),
                               expandedCrossAxisAlignment:
                                   CrossAxisAlignment.stretch,
                               children: [

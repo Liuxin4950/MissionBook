@@ -39,6 +39,12 @@ abstract final class AppTheme {
       textColor: AppColors.textPrimary,
       collapsedTextColor: AppColors.textPrimary,
     ),
+    // 原生 ListTile/展开头的点击反馈收进圆角，不再出现整条方角激活底。
+    listTileTheme: const ListTileThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(AppLayout.radiusMd)),
+      ),
+    ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: AppColors.textPrimary,
@@ -118,6 +124,24 @@ abstract final class AppTheme {
       padding: const EdgeInsets.symmetric(
         horizontal: AppLayout.spaceSm,
         vertical: AppLayout.spaceSm,
+      ),
+    ),
+    // 原生 AlertDialog 也使用确认框的白色面、24圆角和统一标题层级。
+    dialogTheme: DialogThemeData(
+      backgroundColor: AppColors.card,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+      ),
+      insetPadding: const EdgeInsets.all(AppLayout.spaceXxl),
+      titleTextStyle: AppTypography.textTheme.titleLarge,
+      contentTextStyle: AppTypography.textTheme.bodyMedium,
+      actionsPadding: const EdgeInsets.fromLTRB(
+        AppLayout.spaceXxl,
+        0,
+        AppLayout.spaceXxl,
+        AppLayout.spaceXxl,
       ),
     ),
     bottomSheetTheme: const BottomSheetThemeData(

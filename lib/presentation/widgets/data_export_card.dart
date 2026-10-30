@@ -77,61 +77,87 @@ class _DataExportCardState extends State<DataExportCard> {
       label: Text(_exporting ? '正在导出…' : (_backupFailed ? '重试导出' : '导出备份')),
     );
     return AppSectionCard(
-      padding: const EdgeInsets.all(AppLayout.spaceLg),
+      padding: EdgeInsets.zero,
       child: LayoutBuilder(
         builder: (context, box) {
           final inline =
-              box.maxWidth >= 400 * MediaQuery.textScalerOf(context).scale(1);
+              box.maxWidth >= 340 * MediaQuery.textScalerOf(context).scale(1);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.archive_outlined,
-                    size: AppLayout.iconLg,
-                    color: AppColors.textSecondary,
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 56),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppLayout.spaceLg,
+                    vertical: AppLayout.spaceSm,
                   ),
-                  const SizedBox(width: AppLayout.spaceLg),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('本地备份', style: text.titleMedium),
-                        Text('目标、任务、材料与助手会话', style: text.bodyMedium),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.archive_outlined,
+                        size: AppLayout.iconMd,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: AppLayout.spaceMd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('本地备份', style: text.titleMedium),
+                            Text('目标、任务、材料与助手会话', style: text.bodyMedium),
+                          ],
+                        ),
+                      ),
+                      if (inline) ...[
+                        const SizedBox(width: AppLayout.spaceSm),
+                        action,
                       ],
-                    ),
+                    ],
                   ),
-                  if (inline) ...[
-                    const SizedBox(width: AppLayout.spaceSm),
-                    action,
-                  ],
-                ],
+                ),
               ),
-              const SizedBox(height: AppLayout.spaceMd),
-              Text(
-                '不含 API Key、未发送草稿、本机资料和提醒偏好。暂不支持恢复导入。',
-                style: text.bodyMedium,
+              if (!inline)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppLayout.spaceLg,
+                    0,
+                    AppLayout.spaceLg,
+                    AppLayout.spaceSm,
+                  ),
+                  child: Align(alignment: Alignment.centerLeft, child: action),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppLayout.spaceLg,
+                  0,
+                  AppLayout.spaceLg,
+                  AppLayout.spaceMd,
+                ),
+                child: Text('不含 API Key 与未发送草稿；暂不支持恢复。', style: text.bodySmall),
               ),
-              if (!inline) ...[
-                const SizedBox(height: AppLayout.spaceSm),
-                Align(alignment: Alignment.centerLeft, child: action),
-              ],
-              if (_backupMessage != null) ...[
-                const SizedBox(height: AppLayout.spaceMd),
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    _backupMessage!,
-                    key: const Key('backup-result'),
-                    style: text.bodyMedium?.copyWith(
-                      color: _backupFailed
-                          ? AppColors.error
-                          : AppColors.textSecondary,
+              if (_backupMessage != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppLayout.spaceLg,
+                    0,
+                    AppLayout.spaceLg,
+                    AppLayout.spaceMd,
+                  ),
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _backupMessage!,
+                      key: const Key('backup-result'),
+                      style: text.bodyMedium?.copyWith(
+                        color: _backupFailed
+                            ? AppColors.error
+                            : AppColors.textSecondary,
+                      ),
                     ),
                   ),
                 ),
-              ],
             ],
           );
         },

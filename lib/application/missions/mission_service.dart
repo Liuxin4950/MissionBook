@@ -23,6 +23,7 @@ import '../../domain/entities/evidence.dart';
 import '../../domain/entities/operation_receipt.dart';
 import '../../domain/entities/mission_plan.dart';
 import '../../domain/repositories/mission_plan_repository.dart';
+import '../../domain/repositories/mission_makeup_repository.dart';
 import '../../domain/rules/evidence_rules.dart';
 import '../../domain/rules/mission_creation_rules.dart';
 import '../../domain/rules/scheduled_execution_rules.dart';
@@ -94,6 +95,18 @@ class MissionService {
   Stream<void> get changes => _changes.stream;
   Future<void> dispose() => _changes.close();
 
+  /// 记录和任务材料共用附件提交锁，清理不会删除尚在提交的记录附件。
+  Future<void> commitRecordAttachment(
+    EvidenceDraft draft,
+    Future<void> Function() save,
+  ) => _withAttachmentCommit(() async {
+    final key = draft.attachmentStorageKey;
+    if (key != null) await _imageService.read(key);
+    await save();
+    _preparedImageKeys.remove(key);
+    _notify();
+  });
+
   // notify 意为“通知”；这是我们自己定义的方法，_ 表示仅本 Dart 库内部使用。
   // 调用者必须先等仓储成功返回。add 会让已监听页面的回调随后收到一次信号。
   void _notify() {
@@ -145,6 +158,23 @@ class MissionService {
     final event = await repository.execute(command);
     _notify();
     return event;
+  }
+
+  Future<void> startMakeup(
+    MissionDetail original,
+    String commandId, {
+    DateTime? evidenceDeadlineAt,
+  }) async {
+    final store = repository;
+    if (store is! MissionMakeupRepository) {
+      throw UnsupportedError('当前仓储不支持现在补做');
+    }
+    await (store as MissionMakeupRepository).startMakeup(
+      original,
+      commandId,
+      evidenceDeadlineAt: evidenceDeadlineAt,
+    );
+    _notify();
   }
 
   Future<OperationReceiptInfo> completeHistory(

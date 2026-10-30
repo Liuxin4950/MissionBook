@@ -14,6 +14,7 @@ import '../widgets/app_page_header.dart';
 import '../widgets/app_illustration.dart';
 import '../widgets/app_section_card.dart';
 import '../widgets/adaptive_columns.dart';
+import '../widgets/app_expansion.dart';
 import '../widgets/app_top_bar.dart';
 import 'assistant_history_page.dart';
 import 'assistant_markdown.dart';
@@ -1366,49 +1367,45 @@ class _MessageBubble extends StatelessWidget {
                         ),
                     for (final block in message.content)
                       if (AssistantAttachment.textFile(block) case final file?)
-                        Theme(
-                          data: Theme.of(
-                            context,
-                          ).copyWith(dividerColor: Colors.transparent),
-                          child: ExpansionTile(
-                            tilePadding: EdgeInsets.zero,
-                            textColor: isUser
-                                ? colors.onPrimaryContainer
-                                : colors.onSurface,
-                            collapsedTextColor: isUser
-                                ? colors.onPrimaryContainer
-                                : colors.onSurface,
-                            iconColor: isUser
-                                ? colors.onPrimaryContainer
-                                : colors.onSurface,
-                            collapsedIconColor: isUser
-                                ? colors.onPrimaryContainer
-                                : colors.onSurface,
-                            title: Text(file.name),
-                            leading: Icon(
-                              Icons.description_outlined,
-                              color: isUser
-                                  ? colors.onPrimaryContainer
-                                  : colors.primary,
-                            ),
-                            children: [
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxHeight: 240,
+                        AppExpansionTile(
+                          insetHeader: false,
+                          headerPadding: const EdgeInsets.symmetric(
+                            vertical: AppLayout.spaceXs,
+                          ),
+                          childrenPadding: EdgeInsets.zero,
+                          iconColor: isUser
+                              ? colors.onPrimaryContainer
+                              : colors.onSurface,
+                          title: Text(
+                            file.name,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: isUser
+                                      ? colors.onPrimaryContainer
+                                      : colors.onSurface,
                                 ),
-                                child: SingleChildScrollView(
-                                  child: SelectableText(
-                                    file.text,
-                                    style: TextStyle(
-                                      color: isUser
-                                          ? colors.onPrimaryContainer
-                                          : colors.onSurface,
-                                    ),
+                          ),
+                          leading: Icon(
+                            Icons.description_outlined,
+                            color: isUser
+                                ? colors.onPrimaryContainer
+                                : colors.primary,
+                          ),
+                          children: [
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 240),
+                              child: SingleChildScrollView(
+                                child: SelectableText(
+                                  file.text,
+                                  style: TextStyle(
+                                    color: isUser
+                                        ? colors.onPrimaryContainer
+                                        : colors.onSurface,
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                     for (final block in message.content.whereType<ImageBlock>())
                       Padding(

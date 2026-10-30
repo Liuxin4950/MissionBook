@@ -68,7 +68,7 @@ class MissionHeading extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
       ),
       child: Text(
-        phaseLabel(detail.phase),
+        phaseLabel(detail.phase, schedule: detail.schedule),
         style: Theme.of(context).textTheme.titleSmall,
       ),
     );

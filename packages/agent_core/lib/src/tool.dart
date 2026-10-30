@@ -74,11 +74,13 @@ final class AgentTool {
     required this.definition,
     required this.execute,
     this.readOnly = false,
+    this.exposed = true,
   }) : _schema = JsonSchema.create(definition.inputSchema);
 
   final ToolDefinition definition;
   final ToolHandler execute; // 接入 App 时在这里调用已有 Service。
   final bool readOnly; // 只读工具的执行异常可安全回传；写工具的未知结果仍要核对。
+  final bool exposed; // 兼容旧会话的别名可执行，但不占新请求的工具目录。
   final JsonSchema _schema;
 
   String? validateInput(Map<String, Object?> input) {

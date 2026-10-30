@@ -16,6 +16,7 @@ class AppTextField extends StatelessWidget {
     this.textInputAction,
     this.validator,
     this.inputFormatters,
+    this.onChanged,
   });
   final String label;
   final String hint;
@@ -27,6 +28,7 @@ class AppTextField extends StatelessWidget {
   final TextInputAction? textInputAction;
   final FormFieldValidator<String>? validator;
   final List<TextInputFormatter>? inputFormatters;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +49,7 @@ class AppTextField extends StatelessWidget {
             textInputAction: textInputAction,
             validator: validator,
             inputFormatters: inputFormatters,
+            onChanged: onChanged,
             style: theme.textTheme.bodyLarge,
             decoration: InputDecoration(hintText: hint),
           ),

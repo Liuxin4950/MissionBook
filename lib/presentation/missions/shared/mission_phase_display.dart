@@ -1,17 +1,30 @@
+import '../../../domain/entities/mission_schedule_revision.dart';
+import '../../../domain/rules/mission_attention_rules.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/failure_record.dart';
 
 /// 页面、列表和读屏使用同一套阶段文案；这些文字不作为数据库事实保存。
-String phaseLabel(MissionPhase phase) => switch (phase) {
-  MissionPhase.notStarted => '待开始',
-  MissionPhase.running => '执行中',
-  MissionPhase.paused => '已暂停',
-  MissionPhase.reportPending => '待确认',
-  MissionPhase.closed => '已结束',
-  MissionPhase.cancelled => '已取消',
-  MissionPhase.evidencePending => '待补材料',
-};
+String phaseLabel(
+  MissionPhase phase, {
+  MissionScheduleRevision? schedule,
+  DateTime? now,
+}) {
+  if (schedule != null &&
+      missionAttention(phase, schedule, now ?? DateTime.now()) ==
+          MissionAttention.overdue) {
+    return '待处理';
+  }
+  return switch (phase) {
+    MissionPhase.notStarted => '待开始',
+    MissionPhase.running => '执行中',
+    MissionPhase.paused => '已暂停',
+    MissionPhase.reportPending => '待确认',
+    MissionPhase.closed => '已结束',
+    MissionPhase.cancelled => '已取消',
+    MissionPhase.evidencePending => '待补材料',
+  };
+}
 
 /// 从同一次任务查询的正式事实准备材料提示，避免“完成报告”遮盖待补材料。
 String evidenceStatusLabel(MissionDetail detail) {

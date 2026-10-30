@@ -29,7 +29,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('系统当前要求减少动效，日期切换直接完成。'), findsOneWidget);
+    expect(find.text('系统要求减少动效'), findsOneWidget);
     expect(
       AppMotion.resolve(
         tester.element(find.byType(SettingsPage)),

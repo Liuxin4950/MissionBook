@@ -19,6 +19,7 @@ import '../../../domain/rules/execution_time_rules.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/app_visibility.dart';
+import '../../widgets/app_expansion.dart';
 import '../shared/mission_action_controller.dart';
 import '../shared/mission_execution_display.dart';
 import '../record/mission_record_page.dart';
@@ -814,7 +815,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                 color: AppColors.card,
                 borderRadius: BorderRadius.circular(AppLayout.radiusLg),
               ),
-              child: ExpansionTile(
+              child: AppExpansionTile(
                 leading: const Icon(Icons.track_changes_rounded),
                 title: Text('当前目标', style: theme.textTheme.titleSmall),
                 subtitle: Text(
@@ -825,13 +826,11 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                 ),
                 childrenPadding: const EdgeInsets.fromLTRB(
                   AppLayout.spaceLg,
-                  0,
+                  AppLayout.spaceSm,
                   AppLayout.spaceLg,
                   AppLayout.spaceLg,
                 ),
                 expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-                shape: const Border(),
-                collapsedShape: const Border(),
                 children: [
                   // 摘要可以收起，展开后保留完整目标，长文本不会丢失。
                   Text(detail.executionPlan.objective),

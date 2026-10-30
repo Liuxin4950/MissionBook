@@ -54,6 +54,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
   StreamSubscription<void>? _missionChanges;
   StreamSubscription<void>? _goalChanges;
   int _statsGeneration = 0;
+  int _reportedMinutes = 0;
   bool _editing = false;
   bool _openingStandalonePage = false;
 
@@ -94,10 +95,12 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
       final missions = await widget.missions.findFinished();
       var focus = Duration.zero;
       var ended = 0;
+      var reported = Duration.zero;
       for (final mission in missions) {
         if (mission.events.isNotEmpty &&
             mission.events.last.type == ExecutionEventType.end) {
           ended++;
+          reported += mission.effectiveUserReport?.duration ?? Duration.zero;
           focus += calculateExecutionTimes(
             mission.events,
             mission.events.last.occurredAt,
@@ -118,6 +121,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
             )
             .take(2)
             .toList();
+        _reportedMinutes = reported.inMinutes;
         _stats = (
           goals: activeGoals.length,
           ended: ended,
@@ -213,7 +217,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                 '个人资料与行动概览',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
-              action: IconButton.filledTonal(
+              action: IconButton(
                 key: const Key('me-settings'),
                 tooltip: '设置',
                 onPressed: _settings,
@@ -247,6 +251,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                 ),
                 _ActivityOverview(
                   stats: _statsError == null ? _stats : null,
+                  reportedMinutes: _reportedMinutes,
                   goals: _statsError == null ? _activeGoals : const [],
                   onOpenGoal: _openGoal,
                   error: _statsError,
@@ -383,12 +388,14 @@ class _RecentRecords extends StatelessWidget {
 class _ActivityOverview extends StatelessWidget {
   const _ActivityOverview({
     required this.stats,
+    this.reportedMinutes = 0,
     required this.goals,
     required this.onOpenGoal,
     required this.error,
     required this.onRetry,
   });
   final ({int goals, int ended, int minutes})? stats;
+  final int reportedMinutes;
   final List<Goal> goals;
   final ValueChanged<Goal> onOpenGoal;
   final String? error;
@@ -434,6 +441,7 @@ class _ActivityOverview extends StatelessWidget {
             ],
           ),
 
+          Text('用户自报时长 $reportedMinutes 分钟 · 与应用计时分别统计，不相加'),
           if (goals.isNotEmpty) ...[
             const SizedBox(height: AppLayout.spaceXl),
             const Divider(height: 1),

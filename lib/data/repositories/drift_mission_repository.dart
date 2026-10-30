@@ -1,3 +1,6 @@
+import '../../domain/entities/user_execution_report.dart';
+import 'package:uuid/uuid.dart';
+import '../../domain/repositories/mission_makeup_repository.dart';
 import 'dart:convert';
 import '../../domain/entities/mission_ownership.dart';
 import '../../domain/entities/operation_receipt.dart';
@@ -235,7 +238,66 @@ class DriftMissionRepository
         MissionRepository,
         MissionQueryRepository,
         HistoricalCompletionRepository,
+        MissionMakeupRepository,
         MissionPlanRepository {
+  /// 改为今天自选并开始，同一事务保留旧排期，避免过期固定任务立刻再次STOP。
+  @override
+  Future<ExecutionEvent> startMakeup(
+    MissionDetail original,
+    String commandId, {
+    DateTime? evidenceDeadlineAt,
+  }) => database.transaction(() async {
+    await _acquireWrite(original.mission.id);
+    final current = (await findDetail(original.mission.id))!;
+    final saved = current.events.where((e) => e.id == commandId).firstOrNull;
+    if (saved != null) return saved;
+    if (current.phase != MissionPhase.notStarted ||
+        current.lastSequence != original.lastSequence ||
+        current.schedule.id != original.schedule.id) {
+      throw const ExecutionConflict('任务已变化，请刷新后再补做');
+    }
+    final now = _now();
+    final local = tz.TZDateTime.from(
+      now,
+      tz.getLocation(current.schedule.timeZone),
+    );
+    final deadline = evidenceDeadlineAt ?? current.schedule.evidenceDeadlineAt;
+    if (current.mission.verificationPolicy ==
+            VerificationPolicy.requiredEvidence &&
+        (deadline == null || !deadline.isAfter(now))) {
+      throw ArgumentError('现在补做需要确认新的材料截止时间');
+    }
+    final schedule = MissionScheduleRevision(
+      id: const Uuid().v5(Namespace.url.value, 'makeup:$commandId'),
+      missionId: current.mission.id,
+      revisionNumber: current.schedule.revisionNumber + 1,
+      scheduledDate:
+          '${local.year.toString().padLeft(4, '0')}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}',
+      timeZone: current.schedule.timeZone,
+      plannedDurationMinutes: current.schedule.plannedDurationMinutes,
+      evidenceDeadlineAt: deadline,
+      changedAt: now,
+      changeReason: '用户现在补做；保留原排期 ${current.schedule.id}',
+    );
+    await edit(
+      original: current,
+      title: current.mission.title,
+      objective: current.executionPlan.objective,
+      schedule: schedule,
+      verificationPolicy: current.mission.verificationPolicy,
+      verificationCriteria: current.executionPlan.verificationCriteria,
+    );
+    return execute(
+      ExecutionCommand(
+        id: commandId,
+        missionId: current.mission.id,
+        expectedSequence: 0,
+        type: ExecutionEventType.start,
+        scheduleRevisionId: schedule.id,
+      ),
+    );
+  });
+
   /// 接收应用持有的连接；本仓储不自行创建或关闭数据库。
   DriftMissionRepository(this.database, {this.clock = DateTime.now}) {
     tzdata.initializeTimeZones();
@@ -286,6 +348,13 @@ class DriftMissionRepository
                   (row) => OrderingTerm.asc(row.id),
                 ]))
               .get();
+      final userRows = await (database.select(
+        database.userExecutionReports,
+      )..where((t) => t.missionId.isIn(ids))).get();
+      final userByMission = <String, List<UserExecutionReport>>{};
+      for (final r in userRows) {
+        (userByMission[r.missionId] ??= []).add(userReportFromRow(r));
+      }
       final scheduleByMission = {
         for (final row in scheduleRows) row.missionId: row,
       };
@@ -299,7 +368,7 @@ class DriftMissionRepository
       for (final row in failureRows) {
         (failures[row.missionId] ??= []).add(failureFromRow(row));
       }
-      for (final row in evidenceRows) {
+      for (final row in await hydrateEvidenceRows(database, evidenceRows)) {
         (evidence[row.missionId] ??= []).add(evidenceFromRow(row));
       }
       for (final row in page) {
@@ -337,6 +406,7 @@ class DriftMissionRepository
         );
         result.add(
           MissionDetail(
+            userReports: userByMission[row.id] ?? const [],
             mission: mission,
             schedule: schedule,
             executionPlan: plan,
@@ -521,7 +591,7 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
     // 显式在读取事实前执行写语句，字段值不变；同库连接受 SQLite 写锁约束。
     // 当前 Native/Wasm 驱动也使用 BEGIN IMMEDIATE，不能误认为 transaction 默认都为延迟事务。
     await database.customStatement(
-      'UPDATE missions SET updated_at = updated_at WHERE id = ?',
+      'UPDATE missions SET updated_at = updated_at WHERE id = ? AND 0',
       [missionId],
     );
   }
@@ -732,7 +802,10 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
       )..where((table) => table.submissionId.equals(submission.id))).get();
       // 先认出已经成功的原批次，之后才检查 CLOSED/截止；成功重试不得被新状态误拒绝。
       if (rows.isNotEmpty) {
-        final saved = rows.map(evidenceFromRow).toList();
+        final saved = (await hydrateEvidenceRows(
+          database,
+          rows,
+        )).map(evidenceFromRow).toList();
         final byId = {for (final item in saved) item.id: item};
         if (saved.length != submission.items.length ||
             saved.any((item) => item.missionId != submission.missionId) ||
@@ -749,25 +822,13 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
       }
       final detail = await findDetail(submission.missionId);
       if (detail == null) throw const EvidenceConflict('任务不存在，请刷新');
-      if (detail.failures.any(
-        (item) => item.trigger == evidenceDeadlineMissedTrigger,
-      )) {
-        return EvidenceSubmissionResult.deadlineMissed;
-      }
-      if (detail.phase != MissionPhase.evidencePending) {
-        throw const EvidenceConflict('任务已不再待补材料，请重新读取记录');
-      }
       final now = _now();
-      final end = detail.events.last;
-      if (now.isBefore(end.occurredAt)) {
-        throw const EvidenceConflict('系统时间早于结束记录，请校正后重试');
-      }
-      if (detail.mission.verificationPolicy ==
+      // 超时仍保存补充材料，原失败事实保留；提交时刻不使用拍摄时刻。
+      if (detail.phase == MissionPhase.evidencePending &&
+          detail.mission.verificationPolicy ==
               VerificationPolicy.requiredEvidence &&
           !now.isBefore(detail.schedule.evidenceDeadlineAt!)) {
-        await _insertEvidenceDeadline(detail, end, now);
-        // 正常返回让 transaction 提交超时事实，不把它与拒绝提交一起回滚。
-        return EvidenceSubmissionResult.deadlineMissed;
+        await _insertEvidenceDeadline(detail, detail.events.last, now);
       }
       for (final draft in submission.items) {
         final item = Evidence(
@@ -784,9 +845,7 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
           capturedAt: draft.capturedAt,
           supersedesEvidenceId: null,
         );
-        await database
-            .into(database.evidenceRecords)
-            .insert(evidenceToCompanion(item));
+        await insertEvidence(database, item);
       }
       return EvidenceSubmissionResult.submitted;
     });
@@ -807,7 +866,9 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
         database.evidenceRecords,
       )..where((table) => table.id.equals(draft.id))).getSingleOrNull();
       if (existing != null) {
-        final saved = evidenceFromRow(existing);
+        final saved = evidenceFromRow(
+          (await hydrateEvidenceRows(database, [existing])).single,
+        );
         if (saved.missionId != correction.missionId ||
             saved.submissionId != draft.id ||
             !sameEvidenceInput(saved, draft)) {
@@ -817,7 +878,7 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
         return saved;
       }
       final detail = await findDetail(correction.missionId);
-      if (detail == null || detail.phase != MissionPhase.closed) {
+      if (detail == null) {
         throw const EvidenceConflict('任务没有可修正的正式材料，请刷新');
       }
       final original = detail.effectiveEvidence.where(
@@ -844,9 +905,7 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
         capturedAt: draft.capturedAt,
         supersedesEvidenceId: draft.supersedesEvidenceId,
       );
-      await database
-          .into(database.evidenceRecords)
-          .insert(evidenceToCompanion(saved));
+      await insertEvidence(database, saved);
       return saved;
     });
   }
@@ -905,7 +964,7 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
         .customSelect(
           'SELECT m.id AS mission_id FROM execution_events e '
           'JOIN missions m ON m.id = e.mission_id '
-          "JOIN execution_events s ON s.mission_id = m.id AND s.type = 'START' "
+          "JOIN execution_events s ON s.mission_id = m.id AND (s.type = 'START' OR s.is_retrospective = 1) "
           'JOIN mission_schedule_revisions r ON r.id = s.schedule_revision_id '
           'WHERE m.verification_policy = ? '
           'AND m.cancelled_at IS NULL '
@@ -940,10 +999,13 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
 
   @override
   Future<Set<String>> referencedAttachmentKeys() async {
-    final rows = await (database.select(
-      database.evidenceRecords,
-    )..where((table) => table.attachmentStorageKey.isNotNull())).get();
-    return {for (final row in rows) row.attachmentStorageKey!};
+    final rows = await database
+        .customSelect(
+          'SELECT attachment_storage_key AS k FROM records WHERE attachment_storage_key IS NOT NULL '
+          'UNION SELECT attachment_storage_key FROM evidence_records WHERE attachment_storage_key IS NOT NULL',
+        )
+        .get();
+    return {for (final row in rows) row.read<String>('k')};
   }
 
   @override
@@ -1233,8 +1295,8 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
         final today =
             '${local.year.toString().padLeft(4, '0')}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
         if (command.scheduleRevisionId != detail.schedule.id ||
-            detail.schedule.scheduledDate.compareTo(today) >= 0) {
-          throw const ExecutionConflict('历史补记只能处理今天以前的原排期');
+            detail.schedule.scheduledDate.compareTo(today) > 0) {
+          throw const ExecutionConflict('补记不能处理未来排期');
         }
       }
       if (command.type == ExecutionEventType.start &&
@@ -1285,7 +1347,12 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
           event.userReportedResult == UserReportedResult.completed &&
           detail.mission.verificationPolicy ==
               VerificationPolicy.requiredEvidence &&
-          !now.isBefore(detail.schedule.evidenceDeadlineAt!)) {
+          !now.isBefore(detail.schedule.evidenceDeadlineAt!) &&
+          !detail.evidence.any(
+            (e) =>
+                e.supersedesEvidenceId == null &&
+                e.submittedAt.isBefore(detail.schedule.evidenceDeadlineAt!),
+          )) {
         await _insertEvidenceDeadline(detail, event, now);
       }
       return event;
@@ -1355,6 +1422,12 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
             _ => 2,
           };
           return priority(a.phase).compareTo(priority(b.phase));
+        }
+        if (ended) {
+          final dateOrder = (b.effectiveOccurrenceDate ?? '').compareTo(
+            a.effectiveOccurrenceDate ?? '',
+          );
+          if (dateOrder != 0) return dateOrder;
         }
         final timeOrder = b.events.last.occurredAt.compareTo(
           a.events.last.occurredAt,
@@ -1737,7 +1810,10 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
       );
       // 查询中的坏历史在 Future 内报错，由页面显示读取失败，不等到排版时崩溃。
       final evidence = List<Evidence>.unmodifiable(
-        evidenceRows.map(evidenceFromRow),
+        (await hydrateEvidenceRows(
+          database,
+          evidenceRows,
+        )).map(evidenceFromRow),
       );
       // 读取时同步复查材料配置口径；数据被外部损坏时明确报错，不默默显示。
       validateEvidenceRequirement(
@@ -1747,7 +1823,13 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
       );
       deriveMissionPhase(mission, events, failures, evidence, schedule);
       // ⑤ 打包成一次查询结果，不新增一张详情表，也不向数据库写入阶段。
+      final reportRows =
+          await (database.select(database.userExecutionReports)
+                ..where((t) => t.missionId.equals(missionId))
+                ..orderBy([(t) => OrderingTerm.asc(t.reportedAt)]))
+              .get();
       return MissionDetail(
+        userReports: reportRows.map(userReportFromRow).toList(),
         mission: mission,
         schedule: schedule,
         executionPlan: executionPlan,
@@ -2033,3 +2115,23 @@ String _editFingerprint({
   };
   return sha256.convert(utf8.encode(jsonEncode(input))).toString();
 }
+
+UserExecutionReport userReportFromRow(UserExecutionReportRow r) =>
+    UserExecutionReport(
+      id: r.id,
+      missionId: r.missionId,
+      occurrenceDate: r.occurrenceDate,
+      timeZoneId: r.timeZoneId,
+      basis: r.basis,
+      actualStart: r.actualStart == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(r.actualStart!, isUtc: true),
+      actualEnd: r.actualEnd == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(r.actualEnd!, isUtc: true),
+      reportedAt: DateTime.fromMillisecondsSinceEpoch(
+        r.reportedAt,
+        isUtc: true,
+      ),
+      supersedesId: r.supersedesId,
+    );

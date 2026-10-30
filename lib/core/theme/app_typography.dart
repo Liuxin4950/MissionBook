@@ -52,11 +52,11 @@ abstract final class AppTypography {
       color: AppColors.textPrimary,
     ), // 表单外置标签。
     bodyLarge: TextStyle(
-      fontSize: 15,
-      height: 22 / 15,
+      fontSize: 14,
+      height: 20 / 14,
       fontWeight: FontWeight.w400,
       color: AppColors.textPrimary,
-    ), // 输入值和详情计划主值。
+    ), // 输入值和详情计划主值；与正文同档，靠颜色和位置区分。
     bodyMedium: TextStyle(
       fontSize: 14,
       height: 20 / 14,
@@ -70,10 +70,10 @@ abstract final class AppTypography {
       color: AppColors.textSecondary,
     ), // 年份、时区等短辅助标识。
     labelLarge: TextStyle(
-      fontSize: 16,
-      height: 24 / 16,
+      fontSize: 14,
+      height: 20 / 14,
       fontWeight: FontWeight.w600,
-    ), // 主操作和整页次级操作；颜色由按钮的状态主题处理。
+    ), // 主操作和整页次级操作；比行标题小一档，避免按钮字号压过内容。
     labelMedium: TextStyle(
       fontSize: 14,
       height: 20 / 14,

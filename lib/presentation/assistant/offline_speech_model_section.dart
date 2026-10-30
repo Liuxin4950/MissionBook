@@ -97,7 +97,7 @@ class _OfflineSpeechModelSectionState extends State<OfflineSpeechModelSection> {
   @override
   Widget build(BuildContext context) {
     if (!_store.supported) {
-      return const Text('当前仅 Android 支持离线语音；Windows 和浏览器可使用文字或录音转写服务。');
+      return const Text('离线语音仅 Android 可用。');
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

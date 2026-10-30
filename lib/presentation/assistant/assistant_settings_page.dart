@@ -1,3 +1,5 @@
+import '../records/context_settings_page.dart';
+import '../records/record_scope.dart';
 import '../widgets/app_dropdown_form_field.dart';
 import 'package:flutter/material.dart';
 import 'package:agent_core/agent_core.dart';
@@ -11,7 +13,9 @@ import '../../core/theme/app_layout.dart';
 import '../../core/theme/colors.dart';
 import '../widgets/adaptive_columns.dart';
 import '../widgets/app_confirm_dialog.dart';
+import '../widgets/app_expansion.dart';
 import '../widgets/app_section_card.dart';
+import '../widgets/app_settings_row.dart';
 import '../widgets/app_top_bar.dart';
 
 class AssistantSettingsPage extends StatefulWidget {
@@ -293,16 +297,45 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
             child: ListView(
               padding: AppLayout.pagePadding(context),
               children: [
-                Text(
-                  '让助手按你的方式工作',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: AppLayout.spaceSm),
-                Text(
-                  '连接模型，选择角色与语音方式，并决定哪些操作需要确认。',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: AppLayout.spaceXxl),
+                if (RecordScope.maybeOf(context) != null) ...[
+                  AppSectionCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        AppSettingsRow(
+                          key: const Key('assistant-memory-entry'),
+                          icon: Icons.psychology_outlined,
+                          title: '助手记忆',
+                          subtitle: '查看与管理',
+                          onTap: () => Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => const MemoryPage(),
+                            ),
+                          ),
+                        ),
+                        if (RecordScope.maybeOf(context)?.web != null) ...[
+                          const Divider(
+                            height: 1,
+                            indent: AppLayout.spaceLg,
+                            endIndent: AppLayout.spaceLg,
+                          ),
+                          AppSettingsRow(
+                            key: const Key('assistant-web-settings-entry'),
+                            icon: Icons.travel_explore,
+                            title: '联网搜索',
+                            subtitle: '搜索与网页读取设置',
+                            onTap: () => Navigator.of(context).push<void>(
+                              MaterialPageRoute(
+                                builder: (_) => const WebSettingsPage(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppLayout.spaceLg),
+                ],
                 AdaptiveColumns(
                   minColumnWidth: 390,
                   maxColumns: 2,
@@ -336,19 +369,11 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                     const SizedBox(height: AppLayout.spaceLg),
                   ],
                 AppSectionCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        '数据与隐私',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: AppLayout.spaceSm),
-                      Text(
-                        'API Key 只保存在这台设备的安全存储中，不进入会话数据库或备份。对话、引用、已发送附件和工具结果会发送给所选模型供应商。录音转写仅把本次录音发送给单独配置的语音服务；音频不保存到会话。MissionBook 不经过自建服务器。',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
+                  padding: EdgeInsets.zero,
+                  child: AppSettingsRow(
+                    icon: Icons.shield_outlined,
+                    title: '数据与隐私',
+                    subtitle: 'API Key 仅保存在本机；对话会发送给所选模型供应商。',
                   ),
                 ),
               ],
@@ -360,19 +385,22 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   );
 
   Widget _buildPersonaSection() => AppSectionCard(
-    padding: const EdgeInsets.all(AppLayout.spaceLg),
-    child: ExpansionTile(
+    padding: EdgeInsets.zero,
+    child: AppExpansionTile(
       key: const Key('assistant-persona-section'),
-      tilePadding: EdgeInsets.zero,
-      childrenPadding: const EdgeInsets.only(top: AppLayout.spaceLg),
       leading: CircleAvatar(
         backgroundColor: AppColors.primarySoft,
         child: Icon(assistantAvatarIcon(_avatar), color: AppColors.primary),
       ),
-      title: Text('角色与风格', style: Theme.of(context).textTheme.titleMedium),
+      title: const Text('角色与风格'),
       subtitle: Text(
         '${_personaName.text.trim().isEmpty ? '助手' : _personaName.text.trim()} · ${_role.label} · ${_replyStyle.label}',
-        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+      childrenPadding: const EdgeInsets.fromLTRB(
+        AppLayout.spaceLg,
+        AppLayout.spaceSm,
+        AppLayout.spaceLg,
+        AppLayout.spaceLg,
       ),
       children: [
         TextField(
@@ -618,7 +646,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
           ? null
           : (value) => setState(() => _images = value),
     ),
-    const Text('完整地址必须与所选协议一致；容量和图片能力以供应商说明为准。保存不会发起模型请求。'),
+    const Text('地址需与协议一致；保存不会发起模型请求。'),
   ];
 
   Widget _buildPermissionSection() => AppSectionCard(
@@ -659,11 +687,6 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               ),
             ),
           ),
-        const SizedBox(height: AppLayout.spaceSm),
-        Text(
-          '执行与修改都属于写入。各模式均保留业务校验；保存后生效。',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
       ],
     ),
   );
@@ -692,7 +715,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         if (!_transcription) ...[
           const OfflineSpeechModelSection(),
         ] else ...[
-          const Text('录音结束后转写，最长 50 秒。此服务使用独立的 API Key。'),
+          const Text('录音最长 50 秒，使用独立 API Key。'),
           const SizedBox(height: AppLayout.spaceMd),
           TextField(
             controller: _speechEndpoint,
@@ -747,9 +770,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               ),
             ),
           const SizedBox(height: AppLayout.spaceSm),
-          const Text(
-            '浏览器运行需要此服务允许跨域请求（CORS）；本机 HTTP 服务仅限 localhost。音频在转写完成或取消后释放。',
-          ),
+          const Text('浏览器需服务允许 CORS；本机 HTTP 仅限 localhost。'),
         ],
       ],
     ),

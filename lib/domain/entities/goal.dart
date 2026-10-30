@@ -11,18 +11,23 @@ class Goal {
     required this.updatedAt,
     this.description,
     this.why,
+    this.desireLevel,
   });
 
   final String id; // 全局唯一身份；改名后仍是同一个目标。
   final String title; // 已去除首尾空白的非空名称。
   final String? description; // 目标说明；不填为 null。
   final String? why; // 希望实现它的原因；不填为 null。
+  final int? desireLevel; // 希望程度，1～5；未填写为空。
   final GoalStatus status; // 初始为 active（正在推进）。
   final DateTime createdAt; // UTC 创建时刻。
   final DateTime updatedAt; // UTC 最近修改时刻。
 
   /// 在真正写入前检查创建约束，防止绕过表单的调用保存非法目标。
   void validateForCreation() {
+    if (desireLevel != null && (desireLevel! < 1 || desireLevel! > 5)) {
+      throw ArgumentError('希望程度为1～5');
+    }
     if (id.trim().isEmpty || id != id.trim()) {
       throw ArgumentError('目标编号不能为空或带有首尾空白');
     }

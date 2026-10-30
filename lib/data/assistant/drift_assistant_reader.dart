@@ -177,7 +177,7 @@ class DriftAssistantReader implements AssistantReader {
       ),
       'evidence' => (
         'evidence_records',
-        'id, type, source, substr(content,1,500) AS contentPreview, length(content) AS contentLength, attachment_file_name AS attachmentFileName, attachment_mime_type AS attachmentMimeType, submitted_at AS submittedAt, supersedes_evidence_id AS supersedesEvidenceId, NOT EXISTS(SELECT 1 FROM evidence_records n WHERE n.supersedes_evidence_id = evidence_records.id) AS isCurrent',
+        'id, type, source, substr(COALESCE(content,(SELECT content FROM records r WHERE r.id=evidence_records.record_id)),1,500) AS contentPreview, length(COALESCE(content,(SELECT content FROM records r WHERE r.id=evidence_records.record_id))) AS contentLength, COALESCE(attachment_file_name,(SELECT attachment_file_name FROM records r WHERE r.id=evidence_records.record_id)) AS attachmentFileName, COALESCE(attachment_mime_type,(SELECT attachment_mime_type FROM records r WHERE r.id=evidence_records.record_id)) AS attachmentMimeType, submitted_at AS submittedAt, supersedes_evidence_id AS supersedesEvidenceId, NOT EXISTS(SELECT 1 FROM evidence_records n WHERE n.supersedes_evidence_id = evidence_records.id) AS isCurrent',
         'submitted_at, id',
       ),
       _ => throw ArgumentError('不支持的记录范围'),
@@ -237,7 +237,7 @@ class DriftAssistantReader implements AssistantReader {
     _checkOffset(offset);
     final row = await database
         .customSelect(
-          'SELECT id, mission_id AS missionId, type, source, substr(content, ?, $chunkSize) AS text, length(content) AS total, supersedes_evidence_id AS supersedesEvidenceId FROM evidence_records WHERE id = ?',
+          'SELECT id, mission_id AS missionId, type, source, substr(COALESCE(content,(SELECT content FROM records r WHERE r.id=evidence_records.record_id)), ?, $chunkSize) AS text, length(COALESCE(content,(SELECT content FROM records r WHERE r.id=evidence_records.record_id))) AS total, supersedes_evidence_id AS supersedesEvidenceId FROM evidence_records WHERE id = ?',
           variables: [Variable<int>(offset + 1), Variable<String>(evidenceId)],
         )
         .getSingleOrNull();

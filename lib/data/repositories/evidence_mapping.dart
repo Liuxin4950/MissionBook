@@ -2,6 +2,70 @@ import 'package:drift/drift.dart';
 import '../../domain/entities/evidence.dart';
 import '../local/app_database.dart';
 
+/// 旧列仅用于旧库/旧导入兼容，业务查询统一从记录还原材料投影。
+Future<List<EvidenceRow>> hydrateEvidenceRows(
+  AppDatabase database,
+  Iterable<EvidenceRow> input,
+) async {
+  final rows = input.toList();
+  final ids = rows.map((e) => e.recordId).whereType<String>().toSet();
+  if (ids.isEmpty) return rows;
+  final records = await (database.select(
+    database.records,
+  )..where((t) => t.id.isIn(ids))).get();
+  final byId = {for (final r in records) r.id: r};
+  return rows.map((e) {
+    if (e.recordId == null) return e;
+    final r = byId[e.recordId];
+    if (r == null) throw const FormatException('材料引用的记录不存在');
+    return e.copyWith(
+      content: Value(r.content),
+      attachmentStorageKey: Value(r.attachmentStorageKey),
+      attachmentFileName: Value(r.attachmentFileName),
+      attachmentMimeType: Value(r.attachmentMimeType),
+      capturedAt: Value(r.capturedAt),
+    );
+  }).toList();
+}
+
+Future<void> insertEvidence(AppDatabase database, Evidence item) async {
+  final payload = evidenceToCompanion(item);
+  final mission = await (database.select(
+    database.missions,
+  )..where((t) => t.id.equals(item.missionId))).getSingle();
+  await database
+      .into(database.records)
+      .insert(
+        RecordsCompanion.insert(
+          id: item.id,
+          type: payload.type.value,
+          source: payload.source.value,
+          content: payload.content,
+          attachmentStorageKey: payload.attachmentStorageKey,
+          attachmentFileName: payload.attachmentFileName,
+          attachmentMimeType: payload.attachmentMimeType,
+          capturedAt: payload.capturedAt,
+          occurredAt:
+              (item.capturedAt ?? item.submittedAt).millisecondsSinceEpoch,
+          createdAt: item.submittedAt.millisecondsSinceEpoch,
+          goalId: Value(mission.goalId),
+          goalNodeId: Value(mission.goalNodeId),
+        ),
+      );
+  await database
+      .into(database.evidenceRecords)
+      .insert(
+        payload.copyWith(
+          recordId: Value(item.id),
+          content: const Value(null),
+          attachmentStorageKey: const Value(null),
+          attachmentFileName: const Value(null),
+          attachmentMimeType: const Value(null),
+          capturedAt: const Value(null),
+        ),
+      );
+}
+
 /// 存储层把稳定文本/UTC 毫秒转换成业务类型，未知值立即报错。
 Evidence evidenceFromRow(EvidenceRow row) => Evidence(
   id: row.id,

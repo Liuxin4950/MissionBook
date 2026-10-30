@@ -15,12 +15,16 @@ class EvidenceCameraPanel extends StatefulWidget {
     required this.onConfirmed,
     required this.onChooseFile,
     required this.onCancel,
+    this.fullScreen = false,
+    this.onBack,
   });
 
   final String missionTitle;
   final Future<void> Function(Uint8List bytes, DateTime capturedAt) onConfirmed;
   final VoidCallback onChooseFile;
   final VoidCallback onCancel;
+  final bool fullScreen;
+  final VoidCallback? onBack;
 
   @override
   State<EvidenceCameraPanel> createState() => _EvidenceCameraPanelState();
@@ -128,6 +132,7 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+    if (mounted && widget.fullScreen && _capture != null) await _confirm();
   }
 
   Future<void> _confirm() async {
@@ -160,6 +165,106 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final controller = _controller;
+    if (widget.fullScreen) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          const ColoredBox(color: Colors.black),
+          if (controller != null && controller.value.isInitialized)
+            LayoutBuilder(
+              builder: (context, box) {
+                final size = controller.value.previewSize!;
+                final portrait =
+                    MediaQuery.orientationOf(context) == Orientation.portrait;
+                return ClipRect(
+                  child: FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                      width: portrait ? size.height : size.width,
+                      height: portrait ? size.width : size.height,
+                      child: CameraPreview(controller),
+                    ),
+                  ),
+                );
+              },
+            )
+          else if (_busy)
+            const Center(child: CircularProgressIndicator()),
+          if (_error != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+          SafeArea(
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: IconButton.filledTonal(
+                    tooltip: '返回',
+                    onPressed: _busy
+                        ? null
+                        : (widget.onBack ?? widget.onCancel),
+                    icon: const Icon(Icons.arrow_back),
+                  ),
+                ),
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 20,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      TextButton(
+                        onPressed: _busy ? null : widget.onChooseFile,
+                        child: const Text(
+                          '选择图片',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      IconButton.filled(
+                        key: const Key('evidence-camera-shoot'),
+                        tooltip: '拍照',
+                        iconSize: 44,
+                        padding: const EdgeInsets.all(16),
+                        onPressed: _busy || controller == null ? null : _shoot,
+                        icon: const Icon(Icons.camera_alt),
+                      ),
+                      TextButton(
+                        key: const Key('camera-text-only'),
+                        onPressed: _busy ? null : widget.onCancel,
+                        child: const Text(
+                          '不记录图片',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (controller == null && !_busy)
+                  Positioned(
+                    bottom: 100,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: TextButton(
+                        onPressed: _start,
+                        child: const Text('重试相机'),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
     return Container(
       key: const Key('evidence-camera-panel'),
       padding: const EdgeInsets.all(AppLayout.spaceLg),

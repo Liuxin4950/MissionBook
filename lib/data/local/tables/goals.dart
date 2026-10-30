@@ -9,6 +9,9 @@ class Goals extends Table {
   )(); // 数据库也拒绝空名称；完整输入清理由业务入口负责。
   TextColumn get description => text().nullable()(); // 未填写说明时保存 null。
   TextColumn get why => text().nullable()(); // 用户为什么希望实现这个目标，可不填。
+  IntColumn get desireLevel => integer().nullable().customConstraint(
+    'CHECK (desire_level BETWEEN 1 AND 5)',
+  )();
   TextColumn get status =>
       text().withDefault(const Constant('ACTIVE'))(); // 稳定文本。
   IntColumn get createdAt => integer()(); // UTC 时刻，单位为 Unix 毫秒。

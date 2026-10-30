@@ -259,7 +259,7 @@ void main() {
     final semantics = tester.ensureSemantics();
 
     await open(tester, reduceMotion: true);
-    final scope = find.textContaining('不含 API Key、未发送草稿、本机资料和提醒偏好');
+    final scope = find.textContaining('不含 API Key 与未发送草稿');
     await tester.scrollUntilVisible(
       scope,
       250,
@@ -267,7 +267,7 @@ void main() {
     );
     await tester.ensureVisible(scope);
     expect(scope, findsOneWidget);
-    expect(find.textContaining('暂不支持恢复导入'), findsOneWidget);
+    expect(find.textContaining('暂不支持恢复'), findsOneWidget);
     final about = find.byKey(const Key('about-toggle'));
     await tester.scrollUntilVisible(
       about,
@@ -278,7 +278,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(about);
     await tester.pumpAndSettle();
-    expect(find.textContaining('强行停止或省电限制'), findsOneWidget);
+    expect(find.textContaining('把目标落到行动，让记录忠于事实'), findsOneWidget);
     expect(find.byType(AnimatedSize), findsNothing);
     expect(tester.takeException(), isNull);
     semantics.dispose();

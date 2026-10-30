@@ -1,3 +1,6 @@
+import '../../records/analysis_panel.dart';
+import '../../records/execution_report_button.dart';
+import '../../records/records_page.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_content.dart';
 import 'dart:async';
 import '../../assistant/assistant_launcher.dart';
@@ -452,13 +455,20 @@ class _MissionDetailPageState extends State<MissionDetailPage>
               }
               return MissionDetailContent(
                 detail: detail,
-                materialSection: MissionEvidenceSection(
-                  key: ValueKey('detail-evidence-${detail.mission.id}'),
-                  detail: detail,
-                  service: widget.missionService,
-                  initiallyExpanded:
-                      detail.phase == MissionPhase.evidencePending,
-                  onChanged: _retry,
+                materialSection: Column(
+                  children: [
+                    AnalysisPanel(scope: 'mission', id: detail.mission.id),
+                    ExecutionReportButton(detail: detail),
+                    RecordsEntry(missionId: detail.mission.id),
+                    MissionEvidenceSection(
+                      key: ValueKey('detail-evidence-${detail.mission.id}'),
+                      detail: detail,
+                      service: widget.missionService,
+                      initiallyExpanded:
+                          detail.phase == MissionPhase.evidencePending,
+                      onChanged: _retry,
+                    ),
+                  ],
                 ),
                 actionFeedback: MissionActionFeedback(
                   controller: action,

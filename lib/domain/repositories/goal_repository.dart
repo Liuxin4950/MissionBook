@@ -13,6 +13,8 @@ abstract interface class GoalRepository {
     required String title,
     String? description,
     String? why,
+    int? desireLevel,
+    bool updateDesire = false,
     String? operationId,
   });
   Future<void> setGoalStatus(Goal expected, GoalStatus status);

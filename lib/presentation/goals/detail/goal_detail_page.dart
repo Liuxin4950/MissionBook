@@ -1,3 +1,5 @@
+import '../../records/analysis_panel.dart';
+import '../../records/records_page.dart';
 import 'dart:async';
 import '../../assistant/assistant_launcher.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +12,7 @@ import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_expansion.dart';
 import '../form/goal_form_page.dart';
 import '../outline/goal_outline_section.dart';
 import '../shared/goal_record_summary.dart';
@@ -215,6 +218,8 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                       },
                     ),
                     const SizedBox(height: AppLayout.spaceMd),
+                    AnalysisPanel(scope: 'goal', id: goal.id),
+                    RecordsEntry(goalId: goal.id, label: '目标相关记录'),
                     Wrap(
                       spacing: 12,
                       runSpacing: 8,
@@ -274,14 +279,12 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                       ],
                     ),
                     if (goal.description != null || goal.why != null)
-                      ExpansionTile(
+                      AppExpansionTile(
                         key: const Key('goal-description-toggle'),
-                        tilePadding: EdgeInsets.zero,
                         childrenPadding: const EdgeInsets.only(
+                          top: AppLayout.spaceSm,
                           bottom: AppLayout.spaceXl,
                         ),
-                        shape: const Border(),
-                        collapsedShape: const Border(),
                         expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
                         title: Text('目标说明', style: theme.textTheme.bodyMedium),
                         children: [

@@ -253,7 +253,10 @@ void main() {
     await pumpUntilFound(tester, find.text('材料超时'));
     expect(find.text('材料超时'), findsOneWidget);
     expect(find.text('到期后也要保留的草稿'), findsOneWidget);
-    expect(find.byKey(const Key('evidence-submit')), findsNothing);
+    expect(
+      find.byKey(const Key('evidence-submit')),
+      findsOneWidget,
+    ); // 超时仍可追加补充材料。
     expect(
       (await repository.findDetail(detail.mission.id))!.failures,
       hasLength(1),
@@ -782,7 +785,10 @@ void main() {
     await pumpUntilFound(tester, find.text('材料超时'));
     expect(find.text('超时也不能直接丢掉的草稿'), findsOneWidget);
     expect(find.text('材料超时'), findsOneWidget);
-    expect(find.byKey(const Key('evidence-submit')), findsNothing);
+    expect(
+      find.byKey(const Key('evidence-submit')),
+      findsOneWidget,
+    ); // 超时仍可追加补充材料。
     expect((await repository.findDetail(detail.mission.id))!.evidence, isEmpty);
   });
 
