@@ -471,6 +471,10 @@ void main() {
       find.byKey(const Key('assistant-persona-name')),
       '小书',
     );
+    await tester.enterText(
+      find.byKey(const Key('assistant-user-address')),
+      '小刘',
+    );
     await tester.tap(find.byKey(const Key('assistant-reply-style')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('耐心讲解').last);
@@ -481,6 +485,7 @@ void main() {
     await pumpUntil(tester, () => assistant.persona.name == '小书');
     expect(assistant.persona.replyStyle, AssistantReplyStyle.explanatory);
     expect(assistant.persona.avatar, AssistantAvatar.book);
+    expect(assistant.persona.userAddress, '小刘');
     expect(tester.takeException(), isNull);
   });
 

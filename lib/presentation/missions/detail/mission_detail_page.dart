@@ -1,8 +1,12 @@
 import '../../records/analysis_panel.dart';
 import '../../records/execution_report_button.dart';
 import '../../records/records_page.dart';
+import '../../records/record_scope.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_content.dart';
 import 'dart:async';
+import 'package:timezone/timezone.dart' as tz;
+import '../../../domain/rules/mission_attention_rules.dart';
+import '../../widgets/app_visibility.dart';
 import '../../assistant/assistant_launcher.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';
@@ -11,6 +15,7 @@ import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_section_card.dart';
 import '../form/mission_form_page.dart';
 import '../shared/mission_action_controller.dart';
 import '../shared/mission_execution_display.dart';
@@ -79,11 +84,18 @@ class _MissionDetailPageState extends State<MissionDetailPage>
   MissionActionController? _action;
   bool _redirecting = false;
   bool _isOpeningRecord = false;
+  bool _isReporting = false;
+  String? _promptedOverdueScheduleId;
+  Timer? _attentionTimer;
   StreamSubscription<void>? _changes;
   int _lastReadChangeRevision = -1;
 
   bool get _isCancelBusy =>
-      _isConfirmingCancel || _isCancelling || _isEditing || _isExecuting;
+      _isConfirmingCancel ||
+      _isCancelling ||
+      _isEditing ||
+      _isExecuting ||
+      _isReporting;
 
   @override
   void initState() {
@@ -107,9 +119,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed &&
-        !_isCancelBusy &&
-        _action?.pending == null) {
+    if (isAppVisible(state) && !_isCancelBusy && _action?.pending == null) {
       _retry();
     }
   }
@@ -146,6 +156,9 @@ class _MissionDetailPageState extends State<MissionDetailPage>
       _resetAction();
       _redirecting = false;
       _isOpeningRecord = false;
+      _isReporting = false;
+      _promptedOverdueScheduleId = null;
+      _attentionTimer?.cancel();
       unawaited(_changes?.cancel());
       _listenChanges();
       _detail = _readDetail();
@@ -332,6 +345,78 @@ class _MissionDetailPageState extends State<MissionDetailPage>
     } finally {
       if (mounted && request == _cancelRequest) {
         setState(() => _isOpeningRecord = false);
+        _retry();
+      }
+    }
+  }
+
+  bool _isOverdue(MissionDetail detail) =>
+      missionAttention(
+        detail.phase,
+        detail.schedule,
+        widget.missionService.currentTime,
+      ) ==
+      MissionAttention.overdue;
+
+  // 计划边界只触发重读和确认入口，不生成 START、STOP 或 END。
+  void _watchAttentionBoundary(MissionDetail detail) {
+    _attentionTimer?.cancel();
+    if (detail.phase != MissionPhase.notStarted || _isOverdue(detail)) return;
+    final schedule = detail.schedule;
+    final date = DateTime.parse(schedule.scheduledDate);
+    final boundary =
+        schedule.fixedStartAt?.add(
+          Duration(minutes: schedule.plannedDurationMinutes),
+        ) ??
+        tz.TZDateTime(
+          tz.getLocation(schedule.timeZone),
+          date.year,
+          date.month,
+          date.day + 1,
+        );
+    final delay = boundary.difference(widget.missionService.currentTime);
+    if (delay <= Duration.zero) return;
+    _attentionTimer = Timer(delay, () {
+      if (mounted &&
+          !_isCancelBusy &&
+          ModalRoute.of(context)?.isCurrent == true &&
+          isAppVisible(WidgetsBinding.instance.lifecycleState)) {
+        _retry();
+      }
+    });
+  }
+
+  void _promptOverdue(MissionDetail detail) {
+    if (!_isOverdue(detail) ||
+        RecordScope.maybeOf(context) == null ||
+        _promptedOverdueScheduleId == detail.schedule.id ||
+        _isCancelBusy) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          _isCancelBusy ||
+          detail.mission.id != widget.missionId ||
+          ModalRoute.of(context)?.isCurrent != true ||
+          _promptedOverdueScheduleId == detail.schedule.id) {
+        return;
+      }
+      _promptedOverdueScheduleId = detail.schedule.id;
+      unawaited(_requestReport(detail));
+    });
+  }
+
+  Future<void> _requestReport(MissionDetail detail) async {
+    if (_isCancelBusy || _action?.canAct == false) return;
+    final request = _cancelRequest;
+    setState(() => _isReporting = true);
+    try {
+      await showExecutionReportSheet(context, detail);
+    } finally {
+      if (mounted && request == _cancelRequest) {
+        setState(() => _isReporting = false);
+        // 报告弹层关闭后读事务结果，不能把默认勾选当作已完成。
+        _retry();
       }
     }
   }
@@ -354,6 +439,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
 
   @override
   void dispose() {
+    _attentionTimer?.cancel();
     unawaited(_changes?.cancel());
     WidgetsBinding.instance.removeObserver(this);
     _resetAction();
@@ -412,6 +498,12 @@ class _MissionDetailPageState extends State<MissionDetailPage>
               }
               final action = _actionsFor(detail);
               final notStarted = detail.phase == MissionPhase.notStarted;
+              final overdue = _isOverdue(detail);
+              final ended = detail.events.any(
+                (e) => e.type == ExecutionEventType.end,
+              );
+              _watchAttentionBoundary(detail);
+              _promptOverdue(detail);
               final disabled = _isCancelBusy || !action.canAct;
               Widget? auxiliaryAction;
               if (widget._entry == _MissionPageEntry.executionDetails &&
@@ -421,9 +513,12 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                   onPressed: _isCancelBusy
                       ? null
                       : () => Navigator.of(context).pop(),
-                  child: Text(
-                    detail.phase == MissionPhase.closed ? '查看执行记录' : '返回执行任务',
-                  ),
+                  child: Text(switch (detail.phase) {
+                    MissionPhase.reportPending => '返回完成确认',
+                    MissionPhase.evidencePending => '返回补充材料',
+                    MissionPhase.closed => '查看执行记录',
+                    _ => '返回执行任务',
+                  }),
                 );
               } else if (widget._entry == _MissionPageEntry.recordDetails &&
                   detail.phase == MissionPhase.closed) {
@@ -455,21 +550,43 @@ class _MissionDetailPageState extends State<MissionDetailPage>
               }
               return MissionDetailContent(
                 detail: detail,
-                materialSection: Column(
-                  children: [
-                    AnalysisPanel(scope: 'mission', id: detail.mission.id),
-                    ExecutionReportButton(detail: detail),
-                    RecordsEntry(missionId: detail.mission.id),
-                    MissionEvidenceSection(
-                      key: ValueKey('detail-evidence-${detail.mission.id}'),
-                      detail: detail,
-                      service: widget.missionService,
-                      initiallyExpanded:
-                          detail.phase == MissionPhase.evidencePending,
-                      onChanged: _retry,
-                    ),
-                  ],
-                ),
+                materialSection: ended || detail.phase == MissionPhase.cancelled
+                    ? Column(
+                        children: [
+                          if (ended) ...[
+                            AppSectionCard(
+                              padding: EdgeInsets.zero,
+                              child: AnalysisPanel(
+                                scope: 'mission',
+                                id: detail.mission.id,
+                              ),
+                            ),
+                            const SizedBox(height: AppLayout.spaceMd),
+                          ],
+                          ExecutionReportButton(
+                            detail: detail,
+                            enabled: !disabled,
+                            onPressed: () => _requestReport(detail),
+                          ),
+                          const SizedBox(height: AppLayout.spaceMd),
+                          RecordsEntry(
+                            missionId: detail.mission.id,
+                            onReturn: _retry,
+                          ),
+                          const SizedBox(height: AppLayout.spaceMd),
+                          MissionEvidenceSection(
+                            key: ValueKey(
+                              'detail-evidence-${detail.mission.id}',
+                            ),
+                            detail: detail,
+                            service: widget.missionService,
+                            initiallyExpanded:
+                                detail.phase == MissionPhase.evidencePending,
+                            onChanged: _retry,
+                          ),
+                        ],
+                      )
+                    : null,
                 actionFeedback: MissionActionFeedback(
                   controller: action,
                   onRetry: () => _submit(action.pending!),
@@ -486,21 +603,30 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (overdue) ...[
+                            const Text('计划时段已过，请确认完成情况，也可以改期或现在补做。'),
+                            const SizedBox(height: AppLayout.spaceSm),
+                            ExecutionReportButton(
+                              detail: detail,
+                              enabled: !disabled,
+                              onPressed: () => _requestReport(detail),
+                            ),
+                          ],
                           // 基础维护动作直接可见，不藏进更多菜单；开始后由独立页面接管。
                           Wrap(
                             alignment: WrapAlignment.center,
                             spacing: 16,
                             runSpacing: 8,
                             children: [
-                              TextButton.icon(
+                              OutlinedButton.icon(
                                 key: const Key('edit-mission'),
                                 onPressed: disabled
                                     ? null
                                     : () => _requestEdit(detail),
                                 icon: const Icon(Icons.edit_outlined),
-                                label: const Text('修改任务'),
+                                label: Text(overdue ? '改期 / 修改任务' : '修改任务'),
                               ),
-                              TextButton.icon(
+                              OutlinedButton.icon(
                                 key: const Key('cancel-mission'),
                                 onPressed: disabled ? null : _requestCancel,
                                 icon: const Icon(Icons.close_rounded),
@@ -508,34 +634,43 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                               ),
                             ],
                           ),
-                          FilledButton.icon(
-                            key: const Key('execution-start'),
-                            onPressed:
-                                disabled ||
-                                    (detail.schedule.fixedStartAt?.isAfter(
-                                          DateTime.now(),
+                          if (overdue && RecordScope.maybeOf(context) != null)
+                            MakeupExecutionButton(
+                              key: ValueKey(
+                                'makeup-${detail.mission.id}-${detail.schedule.id}',
+                              ),
+                              detail: detail,
+                              enabled: !disabled,
+                            )
+                          else
+                            FilledButton.icon(
+                              key: const Key('execution-start'),
+                              onPressed:
+                                  disabled ||
+                                      (detail.schedule.fixedStartAt?.isAfter(
+                                            widget.missionService.currentTime,
+                                          ) ??
+                                          false)
+                                  ? null
+                                  : () => _submit(
+                                      action.prepare(ExecutionEventType.start),
+                                    ),
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(
+                                  AppLayout.actionMinHeight,
+                                ),
+                                shape: const StadiumBorder(),
+                              ),
+                              icon: const Icon(Icons.play_arrow_rounded),
+                              label: Text(
+                                (detail.schedule.fixedStartAt?.isAfter(
+                                          widget.missionService.currentTime,
                                         ) ??
                                         false)
-                                ? null
-                                : () => _submit(
-                                    action.prepare(ExecutionEventType.start),
-                                  ),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(
-                                AppLayout.actionMinHeight,
+                                    ? '到点自动开始'
+                                    : '开始任务',
                               ),
-                              shape: const StadiumBorder(),
                             ),
-                            icon: const Icon(Icons.play_arrow_rounded),
-                            label: Text(
-                              (detail.schedule.fixedStartAt?.isAfter(
-                                        DateTime.now(),
-                                      ) ??
-                                      false)
-                                  ? '到点自动开始'
-                                  : '开始任务',
-                            ),
-                          ),
                         ],
                       )
                     : auxiliaryAction,
@@ -567,7 +702,7 @@ class _DetailMessage extends StatelessWidget {
           children: [
             Semantics(liveRegion: true, child: Text(message)),
             if (onRetry != null)
-              TextButton(onPressed: onRetry, child: const Text('重新读取')),
+              OutlinedButton(onPressed: onRetry, child: const Text('重新读取')),
           ],
         ),
       ),

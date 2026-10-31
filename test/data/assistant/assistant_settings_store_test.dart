@@ -13,6 +13,7 @@ void main() {
     await store.savePersona(
       const AssistantPersona(
         name: '小书',
+        userAddress: '小刘',
         role: AssistantRole.coach,
         replyStyle: AssistantReplyStyle.explanatory,
         avatar: AssistantAvatar.book,
@@ -20,6 +21,12 @@ void main() {
     );
     final restored = (await store.load()).persona;
     expect(restored.name, '小书');
+    expect(restored.userAddress, '小刘');
+    expect(AssistantPersona.fromJson({'name': '旧配置'}).userAddress, isEmpty);
+    await expectLater(
+      store.savePersona(const AssistantPersona(userAddress: '含有\n换行')),
+      throwsArgumentError,
+    );
     expect(restored.role, AssistantRole.coach);
     expect(restored.replyStyle, AssistantReplyStyle.explanatory);
     expect(restored.avatar, AssistantAvatar.book);

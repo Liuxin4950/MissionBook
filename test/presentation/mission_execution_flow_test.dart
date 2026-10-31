@@ -122,7 +122,13 @@ void main() {
     final confirm = tester.widget<FilledButton>(
       find.byKey(const Key('report-confirm')),
     );
-    expect(confirm.onPressed, isNull);
+    expect(confirm.onPressed, isNotNull);
+    expect(
+      tester
+          .widget<ChoiceChip>(find.byKey(const Key('report-completed')))
+          .selected,
+      isTrue,
+    );
     // 标准手机宽度下，双按钮标签完整放进一行，避免尾部单字换行挤出胶囊。
     for (final key in ['report-confirm', 'report-cancel']) {
       final label = find.descendant(
@@ -135,7 +141,6 @@ void main() {
         lessThanOrEqualTo(paragraph.size.width + .5),
       );
     }
-    await tap(tester, 'report-completed');
     await tap(tester, 'report-confirm');
     detail = (await repository.findDetail('a'))!;
     expect(detail.phase, MissionPhase.closed);

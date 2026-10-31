@@ -467,7 +467,12 @@ class DriftRecordRepository implements RecordRepository, MemoryRepository {
       [scope, id],
     );
     return {
-      'state': jobs.isEmpty ? 'not_requested' : jobs.single['status'],
+      'state': jobs.isEmpty
+          ? 'not_requested'
+          : (jobs.single['status'] as String).replaceFirst('manual_', ''),
+      'manual':
+          jobs.isNotEmpty &&
+          (jobs.single['status'] as String).startsWith('manual_'),
       if (jobs.isNotEmpty) 'error': jobs.single['error'],
       if (versions.isNotEmpty) ...versions.single,
       'stale':
@@ -620,7 +625,7 @@ class DriftRecordRepository implements RecordRepository, MemoryRepository {
             as int;
     final result = page(
       await rows(
-        'SELECT * FROM memory_entries WHERE $clause ORDER BY user_edited DESC,updated_at DESC,id LIMIT 20 OFFSET ?',
+        'SELECT *, (SELECT title FROM goals WHERE goals.id=memory_entries.goal_id) AS goalTitle FROM memory_entries WHERE $clause ORDER BY user_edited DESC,updated_at DESC,id LIMIT 20 OFFSET ?',
         [...args, offset],
       ),
       count,
@@ -652,10 +657,10 @@ class DriftRecordRepository implements RecordRepository, MemoryRepository {
       }
     }
     final jobs = await rows(
-      "SELECT target_id,status,error FROM analysis_jobs WHERE scope='memory' AND status IN ('failed','blocked') ORDER BY available_at LIMIT 20",
+      "SELECT target_id,status,error FROM analysis_jobs WHERE scope='memory' AND status IN ('failed','blocked','manual_failed','manual_blocked') ORDER BY available_at LIMIT 20",
     );
     final pending = (await rows(
-      "SELECT COUNT(*) n FROM analysis_jobs WHERE scope='memory' AND status IN ('pending','running')",
+      "SELECT COUNT(*) n FROM analysis_jobs WHERE scope='memory' AND status IN ('pending','running','manual_pending','manual_running')",
     )).single['n'];
     result['extraction'] = {'pending': pending, 'retriable': jobs};
     return result;

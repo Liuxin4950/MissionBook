@@ -152,6 +152,7 @@ void main() {
     await assistant.savePersona(
       const AssistantPersona(
         name: '小书',
+        userAddress: '小刘',
         role: AssistantRole.coach,
         replyStyle: AssistantReplyStyle.explanatory,
         avatar: AssistantAvatar.book,
@@ -159,6 +160,7 @@ void main() {
     );
     await assistant.send('讲讲事务');
     expect(model.requests.last.systemPrompt, contains('小书'));
+    expect(model.requests.last.systemPrompt, contains('用户希望被称为 "小刘"'));
     expect(
       model.requests.last.systemPrompt,
       contains(AssistantRole.coach.instruction),
@@ -173,6 +175,7 @@ void main() {
     await assistant.send('继续');
     expect(model.requests.last.systemPrompt, contains('小书'));
     expect(model.requests.last.systemPrompt, contains('不能改变工具权限'));
+    expect(model.requests.last.systemPrompt, contains('小刘'));
   });
 
   test('真实日期查询经工具返回，快捷查询不依赖模型', () async {

@@ -12,10 +12,12 @@ import '../widgets/adaptive_columns.dart';
 import '../widgets/app_confirm_dialog.dart';
 import '../widgets/app_dropdown_form_field.dart';
 import '../widgets/app_section_card.dart';
+import '../widgets/app_settings_row.dart';
 import '../widgets/app_segmented_control.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/app_top_bar.dart';
 import 'record_scope.dart';
+import 'analysis_panel.dart';
 
 /// 各页面共用同一记录列表、编辑器和关联选择器。
 class RecordsPage extends StatefulWidget {
@@ -997,7 +999,6 @@ class _RecordDetailState extends State<RecordDetail> {
             return const Center(child: CircularProgressIndicator());
           }
           final r = (s.data!['items'] as List<Map<String, Object?>>).first;
-          final a = r['analysis'] as Map<String, Object?>;
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
@@ -1037,7 +1038,7 @@ class _RecordDetailState extends State<RecordDetail> {
               if (r['mission_id'] == null &&
                   r['contentTruncated'] != true &&
                   _contentOffset == 0)
-                TextButton(
+                OutlinedButton(
                   onPressed: () async {
                     final input = TextEditingController(
                       text: r['content'] as String? ?? '',
@@ -1121,16 +1122,9 @@ class _RecordDetailState extends State<RecordDetail> {
                   child: const Text('补关联'),
                 ),
               const Divider(),
-              Text(_analysisLabel(a)),
-              if (a['content'] != null) SelectableText(a['content'] as String),
-              if (a['error'] != null) Text(a['error'] as String),
-              TextButton(
-                onPressed: () async {
-                  await scope.analysis.store.retry('record', widget.id);
-                  scope.analysis.wake();
-                  load();
-                },
-                child: const Text('生成 / 重试摘要'),
+              AppSectionCard(
+                padding: EdgeInsets.zero,
+                child: AnalysisPanel(scope: 'record', id: widget.id),
               ),
             ],
           );
@@ -1150,23 +1144,29 @@ class RecordsEntry extends StatelessWidget {
     this.date,
     this.label = '查看记录',
     this.iconOnly = false,
+    this.onReturn,
   });
   final String? goalId, nodeId, missionId, date;
   final String label;
   final bool iconOnly; // 主导航页顶栏只保留图标，名称由 Tooltip 与读屏提供。
+  final VoidCallback? onReturn;
   @override
   Widget build(BuildContext context) {
     if (RecordScope.maybeOf(context) == null) return const SizedBox.shrink();
-    void open() => Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => RecordsPage(
-          goalId: goalId,
-          nodeId: nodeId,
-          missionId: missionId,
-          date: date,
+    Future<void> open() async {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => RecordsPage(
+            goalId: goalId,
+            nodeId: nodeId,
+            missionId: missionId,
+            date: date,
+          ),
         ),
-      ),
-    );
+      );
+      if (context.mounted) onReturn?.call();
+    }
+
     if (iconOnly) {
       return IconButton(
         onPressed: open,
@@ -1174,10 +1174,13 @@ class RecordsEntry extends StatelessWidget {
         icon: const Icon(Icons.photo_library_outlined),
       );
     }
-    return TextButton.icon(
-      onPressed: open,
-      icon: const Icon(Icons.photo_library_outlined),
-      label: Text(label),
+    return AppSectionCard(
+      padding: EdgeInsets.zero,
+      child: AppSettingsRow(
+        onTap: open,
+        icon: Icons.photo_library_outlined,
+        title: label,
+      ),
     );
   }
 }

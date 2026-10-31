@@ -2,6 +2,7 @@ import '../../../domain/entities/execution_event.dart';
 import '../../records/analysis_panel.dart';
 import '../../records/execution_report_button.dart';
 import '../../records/records_page.dart';
+import '../../records/record_scope.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -194,7 +195,7 @@ class _MissionRecordPageState extends State<MissionRecordPage>
         footer: MissionRetryButton(source: detail, service: service),
         children: [
           if (_refreshError != null)
-            TextButton.icon(
+            OutlinedButton.icon(
               key: const Key('record-refresh-retry'),
               onPressed: _refresh,
               icon: const Icon(Icons.refresh),
@@ -303,9 +304,17 @@ class _MissionRecordPageState extends State<MissionRecordPage>
                 Text(failure.userReasonText!),
             ],
           const SizedBox(height: AppLayout.sectionGap),
-          AnalysisPanel(scope: 'mission', id: detail.mission.id),
-          ExecutionReportButton(detail: detail),
-          RecordsEntry(missionId: detail.mission.id),
+          if (RecordScope.maybeOf(context) != null) ...[
+            AppSectionCard(
+              padding: EdgeInsets.zero,
+              child: AnalysisPanel(scope: 'mission', id: detail.mission.id),
+            ),
+            const SizedBox(height: AppLayout.spaceMd),
+            ExecutionReportButton(detail: detail),
+            const SizedBox(height: AppLayout.spaceMd),
+            RecordsEntry(missionId: detail.mission.id),
+            const SizedBox(height: AppLayout.spaceMd),
+          ],
           MissionEvidenceSection(
             key: ValueKey('record-evidence-${detail.mission.id}'),
             detail: detail,

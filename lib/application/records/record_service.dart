@@ -66,7 +66,7 @@ class RecordService {
     UserReportedResult? result,
     bool? submitOptionalEvidence,
   }) async {
-    report.validate(DateTime.now().toUtc());
+    report.validate(missions.currentTime.toUtc());
     await repository.reportExecution(
       report,
       expectedSequence: detail.lastSequence,

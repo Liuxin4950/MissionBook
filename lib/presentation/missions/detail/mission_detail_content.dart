@@ -70,6 +70,16 @@ class MissionDetailContent extends StatelessWidget {
                           style: theme.textTheme.bodyMedium,
                         ),
                       ),
+                    if (cancelledAt != null)
+                      _DetailSection(
+                        title: '取消时间',
+                        child: Text(
+                          _localTimeLabel(
+                            cancelledAt,
+                            detail.schedule.timeZone,
+                          ),
+                        ),
+                      ),
                     // 这里只展示动作提交反馈；计时、报告和结果由各自页面承担。
                     actionFeedback,
                     if (isCancelling)
@@ -163,18 +173,6 @@ class MissionDetailContent extends StatelessWidget {
                     if (_hasText(plan.notes)) ...[
                       const SizedBox(height: AppLayout.sectionGap),
                       _DetailSection(title: '补充说明', child: Text(plan.notes!)),
-                    ],
-                    if (cancelledAt != null) ...[
-                      const SizedBox(height: AppLayout.sectionGap),
-                      _DetailSection(
-                        title: '取消时间',
-                        child: Text(
-                          _localTimeLabel(
-                            cancelledAt,
-                            detail.schedule.timeZone,
-                          ),
-                        ),
-                      ),
                     ],
                   ],
                 ),

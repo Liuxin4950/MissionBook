@@ -87,6 +87,12 @@ void main() {
     expect(find.textContaining('计划时间已到，计时已停止'), findsOneWidget);
     expect(find.text('30:00'), findsOneWidget);
     expect(find.text('继续执行'), findsNothing);
+    expect(
+      tester
+          .widget<ChoiceChip>(find.byKey(const Key('report-completed')))
+          .selected,
+      isTrue,
+    );
     await tap(tester, find.byKey(const Key('report-cancel')));
     expect(find.text('确认完成情况'), findsOneWidget);
     expect(find.byKey(const Key('execution-extend')), findsNothing);
@@ -95,7 +101,12 @@ void main() {
       MissionPhase.reportPending,
     );
     await tap(tester, find.byKey(const Key('execution-end')));
-    await tap(tester, find.byKey(const Key('report-completed')));
+    expect(
+      tester
+          .widget<ChoiceChip>(find.byKey(const Key('report-completed')))
+          .selected,
+      isTrue,
+    );
     await tap(tester, find.byKey(const Key('report-evidence-submit')));
     await tap(tester, find.byKey(const Key('report-confirm')));
     expect(
@@ -114,6 +125,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('待确认'), findsOneWidget);
     expect(find.byKey(const Key('report-confirm')), findsOneWidget);
+    expect(
+      tester
+          .widget<ChoiceChip>(find.byKey(const Key('report-completed')))
+          .selected,
+      isTrue,
+    );
     final detail = (await service.findDetail(missionId: id))!;
     expect(detail.events.last.type, ExecutionEventType.stop);
     expect(detail.endReportedCompleted, isFalse);

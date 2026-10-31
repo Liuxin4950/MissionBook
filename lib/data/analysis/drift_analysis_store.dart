@@ -14,30 +14,37 @@ class DriftAnalysisStore implements AnalysisStore {
   @override
   Future<void> recover() async {
     await db.customStatement(
-      "UPDATE analysis_jobs SET status='pending' WHERE status='running'",
+      "UPDATE analysis_jobs SET status=CASE WHEN status='manual_running' THEN 'manual_pending' ELSE 'pending' END WHERE status IN ('running','manual_running')",
     );
   }
 
   @override
   Future<void> resumeBlocked() async {
     await db.customStatement(
-      "UPDATE analysis_jobs SET status='pending',attempts=0,available_at=0,error=NULL WHERE status='blocked'",
+      "UPDATE analysis_jobs SET status=CASE WHEN status='manual_blocked' THEN 'manual_pending' ELSE 'pending' END,attempts=0,available_at=0,error=NULL WHERE status IN ('blocked','manual_blocked')",
     );
   }
 
   @override
-  Future<AnalysisWork?> claim() => db.transaction(() async {
+  Future<AnalysisWork?> claim({
+    Set<String>? automaticScopes,
+  }) => db.transaction(() async {
     await records.lock();
     final now = DateTime.now().millisecondsSinceEpoch;
     final rows = await records.rows(
-      "SELECT * FROM analysis_jobs WHERE (status='pending' OR status='failed') AND attempts<5 AND available_at<=? ORDER BY CASE scope WHEN 'record' THEN 0 WHEN 'mission' THEN 1 WHEN 'node' THEN 2 WHEN 'goal' THEN 3 ELSE 4 END, available_at LIMIT 1",
-      [now],
+      "SELECT * FROM analysis_jobs WHERE ((status IN ('pending','failed') AND ${automaticScopes == null
+          ? '1=1'
+          : automaticScopes.isEmpty
+          ? '0=1'
+          : 'scope IN (${List.filled(automaticScopes.length, '?').join(',')})'}) OR status IN ('manual_pending','manual_failed')) AND attempts<5 AND available_at<=? ORDER BY CASE scope WHEN 'record' THEN 0 WHEN 'mission' THEN 1 WHEN 'node' THEN 2 WHEN 'goal' THEN 3 ELSE 4 END, available_at LIMIT 1",
+      [...?automaticScopes, now],
     );
     if (rows.isEmpty) return null;
     final r = rows.single;
+    final manual = (r['status'] as String).startsWith('manual_');
     await db.customStatement(
-      "UPDATE analysis_jobs SET status='running' WHERE scope=? AND target_id=?",
-      [r['scope'], r['target_id']],
+      'UPDATE analysis_jobs SET status=? WHERE scope=? AND target_id=?',
+      [manual ? 'manual_running' : 'running', r['scope'], r['target_id']],
     );
     return AnalysisWork(
       r['scope'] as String,
@@ -45,6 +52,7 @@ class DriftAnalysisStore implements AnalysisStore {
       r['source_version'] as int,
       r['closing'] == 1,
       r['attempts'] as int,
+      manual,
     );
   });
   @override
@@ -238,7 +246,7 @@ class DriftAnalysisStore implements AnalysisStore {
       [w.scope, w.id],
     );
     if (rows.single['source_version'] != w.version ||
-        rows.single['status'] != 'running') {
+        rows.single['status'] != (w.manual ? 'manual_running' : 'running')) {
       return false;
     }
     await db
@@ -282,7 +290,7 @@ class DriftAnalysisStore implements AnalysisStore {
       );
     }
     for (final t in targets) {
-      await retry(t['scope'] as String, t['id'] as String);
+      await retry(t['scope'] as String, t['id'] as String, manual: false);
     }
   }
 
@@ -301,19 +309,20 @@ class DriftAnalysisStore implements AnalysisStore {
         )
         .millisecondsSinceEpoch;
     await db.customStatement(
-      'UPDATE analysis_jobs SET status=?,error=?,attempts=attempts+?,available_at=? WHERE scope=? AND target_id=? AND source_version=? AND status=\'running\'',
+      'UPDATE analysis_jobs SET status=?,error=?,attempts=attempts+?,available_at=? WHERE scope=? AND target_id=? AND source_version=? AND status=?',
       [
-        blocked
+        '${w.manual ? 'manual_' : ''}${blocked
             ? 'blocked'
             : interrupted
             ? 'pending'
-            : 'failed',
+            : 'failed'}',
         message,
         interrupted ? 0 : 1,
         next,
         w.scope,
         w.id,
         w.version,
+        w.manual ? 'manual_running' : 'running',
       ],
     );
   }
@@ -323,6 +332,7 @@ class DriftAnalysisStore implements AnalysisStore {
     String scope,
     String id, {
     bool closing = false,
+    bool manual = true,
     String? operationId,
   }) => records.command(
     operationId,
@@ -330,15 +340,20 @@ class DriftAnalysisStore implements AnalysisStore {
     id,
     {'scope': scope, 'closing': closing},
     {'queued': true},
-    () => _retry(scope, id, closing: closing),
+    () => _retry(scope, id, closing: closing, manual: manual),
   );
-  Future<void> _retry(String scope, String id, {bool closing = false}) async {
+  Future<void> _retry(
+    String scope,
+    String id, {
+    bool closing = false,
+    bool manual = true,
+  }) async {
     if (!['record', 'mission', 'node', 'goal', 'memory'].contains(scope)) {
       throw ArgumentError('分析对象类型无效');
     }
     await db.customStatement(
-      "INSERT INTO analysis_jobs(scope,target_id,source_version,status,attempts,available_at,closing) VALUES(?,?,1,'pending',0,0,?) ON CONFLICT(scope,target_id) DO UPDATE SET source_version=source_version+1,status='pending',attempts=0,available_at=0,error=NULL,closing=MAX(closing,excluded.closing)",
-      [scope, id, closing ? 1 : 0],
+      "INSERT INTO analysis_jobs(scope,target_id,source_version,status,attempts,available_at,closing) VALUES(?,?,1,?,0,0,?) ON CONFLICT(scope,target_id) DO UPDATE SET source_version=source_version+1,status=excluded.status,attempts=0,available_at=0,error=NULL,closing=MAX(closing,excluded.closing)",
+      [scope, id, manual ? 'manual_pending' : 'pending', closing ? 1 : 0],
     );
   }
 

@@ -142,7 +142,10 @@ void main() {
   testWidgets('补记入口明确确认完成与日期，无START计时，并可再次更正时间', (tester) async {
     await missions.create(
       title: '上午课程',
-      scheduledDate: DateTime.now().toIso8601String().substring(0, 10),
+      scheduledDate: DateTime.now()
+          .subtract(const Duration(days: 1))
+          .toIso8601String()
+          .substring(0, 10),
       timeZone: 'Asia/Shanghai',
       plannedDurationMinutes: 45,
     );
@@ -151,14 +154,18 @@ void main() {
     await tester.pumpWidget(
       app(Scaffold(body: ExecutionReportButton(detail: d))),
     );
-    await tester.tap(find.text('补记完成 / 记录未执行'));
+    await tester.tap(find.text('确认完成情况'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('修改日期、时段或补充说明'));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.widgetWithText(TextField, '依据 / 更正说明（必填）'),
+      find.widgetWithText(TextField, '补充说明（可不填）'),
       '我上午已经完成这节课程',
     );
-    await tester.ensureVisible(find.text('确认实际情况并保存'));
-    await tester.tap(find.text('确认实际情况并保存'));
+    await tester.ensureVisible(
+      find.byKey(const Key('execution-report-confirm')),
+    );
+    await tester.tap(find.byKey(const Key('execution-report-confirm')));
     await tester.pumpAndSettle();
     final saved = (await missions.findDetailSnapshot(missionId: id))!;
     expect(saved.events, hasLength(1));
@@ -195,15 +202,16 @@ void main() {
     await tester.pumpWidget(app(const MemoryPage()));
     await tester.pumpAndSettle();
     expect(find.text('喜欢上午学习'), findsOneWidget);
-    await tester.tap(find.text('更正'));
+    await tester.tap(find.byTooltip('更正记忆'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).first, '更喜欢晚上学习');
-    await tester.tap(find.text('保存'));
+    await tester.enterText(find.byKey(const Key('memory-content')), '更喜欢晚上学习');
+    await tester.ensureVisible(find.byKey(const Key('memory-save')));
+    await tester.tap(find.byKey(const Key('memory-save')));
     await tester.pumpAndSettle();
     expect(find.text('更喜欢晚上学习'), findsOneWidget);
-    await tester.tap(find.text('忘记'));
+    await tester.tap(find.byTooltip('忘记记忆'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, '忘记').last);
+    await tester.tap(find.widgetWithText(OutlinedButton, '忘记').last);
     await tester.pumpAndSettle();
     expect(await memory.core(), '[]');
     expect((await db.select(db.memoryEntries).get()).single.forgotten, true);

@@ -46,17 +46,24 @@ class AssistantPersona {
     this.role = AssistantRole.assistant,
     this.replyStyle = AssistantReplyStyle.concise,
     this.avatar = AssistantAvatar.spark,
+    this.userAddress = '',
   });
   final String name;
   final AssistantRole role;
   final AssistantReplyStyle replyStyle;
   final AssistantAvatar avatar;
+  // 用户希望助手怎样称呼自己；留空沿用自然称呼，不另存一份记忆事实。
+  final String userAddress;
 
   void validate() {
     if (name.trim().isEmpty ||
         name.trim().runes.length > 24 ||
         RegExp(r'[\x00-\x1f\x7f]').hasMatch(name)) {
       throw ArgumentError('角色名称请填写 1–24 个字符，不包含换行或控制字符');
+    }
+    if (userAddress.trim().runes.length > 24 ||
+        RegExp(r'[\x00-\x1f\x7f]').hasMatch(userAddress)) {
+      throw ArgumentError('称呼最多 24 个字符，不包含换行或控制字符');
     }
   }
 
@@ -65,11 +72,15 @@ class AssistantPersona {
     'role': role.name,
     'replyStyle': replyStyle.name,
     'avatar': avatar.name,
+    'userAddress': userAddress.trim(),
   };
 
   factory AssistantPersona.fromJson(Map<String, Object?> value) {
     final persona = AssistantPersona(
       name: value['name'] is String ? value['name'] as String : '助手',
+      userAddress: value['userAddress'] is String
+          ? value['userAddress'] as String
+          : '',
       role:
           AssistantRole.values
               .where((role) => role.name == value['role'])

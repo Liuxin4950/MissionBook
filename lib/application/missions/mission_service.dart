@@ -51,6 +51,8 @@ class MissionService {
   final EvidenceImageService? _images;
   // 所有“现在几点”都从这里取，不再散落 DateTime.now()，时钟回拨测试才可控。
   final DateTime Function() _clock;
+  // 页面按同一业务时钟判断计划边界，测试和仓储不再使用不同的“现在”。
+  DateTime get currentTime => _clock();
   Future<void>? _imageInitialization;
   final _preparedImageKeys = <String>{}; // 当前会话准备的副本，删除草稿不能删正式引用。
   Future<void>? _attachmentCommitQueue;

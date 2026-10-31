@@ -64,7 +64,8 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
   int? _reportSequence;
   Duration? _reportFocus;
   int? _promptedBudget;
-  UserReportedResult? _result;
+  // 默认选中只影响报告草稿，仍需用户明确点击确认才保存 END。
+  UserReportedResult _result = UserReportedResult.completed;
   bool _submitOptionalEvidence = false;
   String? _reasonCategory;
   String? _inputError;
@@ -315,7 +316,8 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
     if (_action.locked || _closingReport) return;
     _closingReport = true;
     final hasDraft =
-        _result != null ||
+        _result == UserReportedResult.notCompleted ||
+        _submitOptionalEvidence ||
         _reasonCategory != null ||
         _failureReason.text.trim().isNotEmpty;
     final discard =
@@ -331,7 +333,8 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
     if (!mounted || !discard) return;
     setState(() {
       _report = false;
-      _result = null;
+      _result = UserReportedResult.completed;
+      _submitOptionalEvidence = false;
       _reasonCategory = null;
       _failureReason.clear();
       _inputError = null;
@@ -351,7 +354,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
   }
 
   void _confirmReport() {
-    if (!_action.canAct || _result == null || _reportSequence == null) return;
+    if (!_action.canAct || _reportSequence == null) return;
     final prepared = widget.service.prepareExecution(
       detail: _action.detail,
       type: ExecutionEventType.end,
@@ -525,7 +528,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
         ? MissionActionPair(
             primary: FilledButton(
               key: const Key('report-confirm'),
-              onPressed: canAct && _result != null ? _confirmReport : null,
+              onPressed: canAct ? _confirmReport : null,
               // 按钮只表达动作；“取消后保持暂停”的解释留在正文，避免双按钮挤成多行。
               child: const Text('确认结束', textAlign: TextAlign.center),
             ),
@@ -742,7 +745,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           const SizedBox(height: AppLayout.spaceSm),
           if (detail.phase != MissionPhase.reportPending)
             Center(
-              child: TextButton.icon(
+              child: OutlinedButton.icon(
                 key: const Key('execution-extend'),
                 onPressed: canAct
                     ? () => setState(() => _extend = !_extend)
@@ -788,7 +791,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           if (showPrompt) ...[
             const SizedBox(height: AppLayout.spaceLg),
             const Text('已达到当前额度，可以结束，也可以增加时间继续。不会自动结束。'),
-            TextButton(
+            OutlinedButton(
               onPressed: canAct
                   ? () => setState(() {
                       _promptedBudget = budget;
@@ -797,7 +800,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                   : null,
               child: const Text('继续并增加时间'),
             ),
-            TextButton(
+            OutlinedButton(
               onPressed: () => setState(() => _promptedBudget = budget),
               child: const Text('暂不处理'),
             ),

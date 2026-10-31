@@ -14,6 +14,8 @@ import '../../../domain/entities/failure_record.dart';
 import '../../../domain/entities/mission.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_section_card.dart';
+import '../../widgets/app_settings_row.dart';
 import '../shared/mission_execution_display.dart';
 import 'evidence_image_preview.dart';
 import 'formal_evidence_section.dart';
@@ -454,11 +456,14 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
         children: [
           if (timedOut) const Text('材料超时'),
           if (hasFormal) _formalMaterials(context),
-          TextButton.icon(
-            key: Key('evidence-open-${_detail.mission.id}'),
-            onPressed: () => setState(() => _expanded = true),
-            icon: const Icon(Icons.attach_file_outlined),
-            label: Text(hasFormal ? '补充材料' : '添加材料'),
+          AppSectionCard(
+            padding: EdgeInsets.zero,
+            child: AppSettingsRow(
+              key: Key('evidence-open-${_detail.mission.id}'),
+              onTap: () => setState(() => _expanded = true),
+              icon: Icons.attach_file_outlined,
+              title: hasFormal ? '补充材料' : '添加材料',
+            ),
           ),
         ],
       );
@@ -639,7 +644,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                   _imageError!,
                   style: TextStyle(color: theme.colorScheme.error),
                 ),
-                TextButton(
+                OutlinedButton(
                   onPressed: _prepareImages,
                   child: const Text('重试图片准备'),
                 ),
@@ -661,7 +666,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                   ),
                 ),
               if (hasDraft)
-                TextButton(
+                OutlinedButton(
                   onPressed: _busy
                       ? null
                       : () async {
@@ -673,7 +678,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                 ),
             ],
             if (_isPending && !requiredEvidence)
-              TextButton(
+              OutlinedButton(
                 key: const Key('evidence-skip'),
                 onPressed: _locked ? null : _skip,
                 child: const Text('放弃提交并结束'),
@@ -687,7 +692,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                   style: TextStyle(color: theme.colorScheme.error),
                 ),
               ),
-              TextButton(
+              OutlinedButton(
                 onPressed: _busy ? null : _readLatest,
                 child: const Text('读取最新记录'),
               ),

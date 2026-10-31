@@ -268,7 +268,7 @@ void main() {
     final repository = DetailRepository();
     await openLoadedDetail(tester, repository);
     final action = tester
-        .widget<TextButton>(find.byKey(const Key('cancel-mission')))
+        .widget<OutlinedButton>(find.byKey(const Key('cancel-mission')))
         .onPressed!;
     action();
     action();
@@ -327,7 +327,7 @@ void main() {
     expect(find.text('正在取消…'), findsOneWidget);
     expect(
       tester
-          .widget<TextButton>(find.byKey(const Key('cancel-mission')))
+          .widget<OutlinedButton>(find.byKey(const Key('cancel-mission')))
           .onPressed,
       isNull,
     );
@@ -370,7 +370,7 @@ void main() {
     expect(repository.requests, hasLength(1));
     expect(
       tester
-          .widget<TextButton>(find.byKey(const Key('cancel-mission')))
+          .widget<OutlinedButton>(find.byKey(const Key('cancel-mission')))
           .onPressed,
       isNotNull,
     );
@@ -520,20 +520,23 @@ void main() {
       tester.getTopLeft(find.text('计划')).dy,
       greaterThan(tester.getBottomLeft(find.text('10月22日 18:00')).dy),
     );
+    // 取消事实已前移到排期之后，先核对它，再向下阅读方案和材料截止。
+    await tester.scrollUntilVisible(
+      find.text('2026-10-22 18:00'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('2026-10-22 18:00'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('为什么做'),
       220,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('为什么做'));
     await tester.pumpAndSettle();
     expect(find.text('理解数据的调用过程'), findsOneWidget);
-    for (final label in [
-      '从任务编号开始',
-      '读回当前排期与方案',
-      '2026-10-23 18:00',
-      '2026-10-22 18:00',
-    ]) {
+    for (final label in ['从任务编号开始', '读回当前排期与方案', '2026-10-23 18:00']) {
       await tester.scrollUntilVisible(
         find.text(label),
         180,

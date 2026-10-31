@@ -34,6 +34,9 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   late final _personaName = TextEditingController(
     text: widget.controller.persona.name,
   );
+  late final _userAddress = TextEditingController(
+    text: widget.controller.persona.userAddress,
+  );
   late AssistantRole _role = widget.controller.persona.role;
   late AssistantReplyStyle _replyStyle = widget.controller.persona.replyStyle;
   late AssistantAvatar _avatar = widget.controller.persona.avatar;
@@ -101,6 +104,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
     for (final field in [
       _credential,
       _personaName,
+      _userAddress,
       _endpoint,
       _model,
       _contextWindow,
@@ -150,6 +154,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
     _profile = controller.modelProfileId;
     _permission = controller.permissionMode;
     _personaName.text = controller.persona.name;
+    _userAddress.text = controller.persona.userAddress;
     _role = controller.persona.role;
     _replyStyle = controller.persona.replyStyle;
     _avatar = controller.persona.avatar;
@@ -232,11 +237,13 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       _speechChanged;
   bool get _personaChanged =>
       _personaName.text.trim() != widget.controller.persona.name ||
+      _userAddress.text.trim() != widget.controller.persona.userAddress ||
       _role != widget.controller.persona.role ||
       _replyStyle != widget.controller.persona.replyStyle ||
       _avatar != widget.controller.persona.avatar;
   AssistantPersona _readPersona() => AssistantPersona(
     name: _personaName.text.trim(),
+    userAddress: _userAddress.text.trim(),
     role: _role,
     replyStyle: _replyStyle,
     avatar: _avatar,
@@ -305,6 +312,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
     widget.controller.removeListener(_fieldChanged);
     _credential.dispose();
     _personaName.dispose();
+    _userAddress.dispose();
     _speechEndpoint.dispose();
     _speechModel.dispose();
     _speechCredential.dispose();
@@ -406,8 +414,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                           AppSettingsRow(
                             key: const Key('assistant-memory-entry'),
                             icon: Icons.psychology_outlined,
-                            title: '助手记忆',
-                            subtitle: '查看与管理',
+                            title: 'AI 日记本',
+                            subtitle: '查看助手记住的偏好、事实与约束',
                             onTap: () => Navigator.of(context).push<void>(
                               MaterialPageRoute(
                                 builder: (_) => const MemoryPage(),
@@ -432,6 +440,22 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                               ),
                             ),
                           ],
+                          const Divider(
+                            height: 1,
+                            indent: AppLayout.spaceLg,
+                            endIndent: AppLayout.spaceLg,
+                          ),
+                          AppSettingsRow(
+                            key: const Key('assistant-analysis-settings-entry'),
+                            icon: Icons.auto_awesome_outlined,
+                            title: '自动总结',
+                            subtitle: '按记录、任务、节点和目标分别设置',
+                            onTap: () => Navigator.of(context).push<void>(
+                              MaterialPageRoute(
+                                builder: (_) => const AnalysisSettingsPage(),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -513,6 +537,17 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
           decoration: const InputDecoration(
             labelText: '角色名称',
             hintText: '例如：小书、阿青',
+          ),
+        ),
+        const SizedBox(height: AppLayout.spaceMd),
+        TextField(
+          key: const Key('assistant-user-address'),
+          controller: _userAddress,
+          enabled: !_saving && !_testing && !widget.controller.isBusy,
+          maxLength: 24,
+          decoration: const InputDecoration(
+            labelText: '对我的称呼',
+            hintText: '例如：小刘；留空使用自然称呼',
           ),
         ),
         const SizedBox(height: AppLayout.spaceMd),

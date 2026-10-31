@@ -371,7 +371,7 @@ List<AgentTool> contextTools({
     ),
     tool(
       'retryAnalysis',
-      '按需补全历史分析或重试失败分析。closing=true仅用于用户明确要求节点收尾总结，不改变节点状态。',
+      '排入分析队列，默认遵守各层自动总结设置。用户明确要求手动生成时提供 basis 为本轮用户原话，才可在关闭自动总结时执行。closing=true仅用于用户明确要求节点收尾，不改变节点状态。',
       {
         'scope': {
           'type': 'string',
@@ -379,14 +379,17 @@ List<AgentTool> contextTools({
         },
         'id': s('对象稳定ID'),
         'closing': flag,
-        'basis': s('阶段收尾的用户原话'),
+        'basis': s('用户明确要求手动总结或阶段收尾的原话；自主补全时不填'),
       },
       (i, c) async {
-        if (i['closing'] == true) explicitBasis(i['basis'] as String? ?? '');
+        final basis = i['basis'] as String? ?? '';
+        final manual = basis.trim().isNotEmpty;
+        if (manual || i['closing'] == true) explicitBasis(basis);
         await analysis.retry(
           i['scope'] as String,
           i['id'] as String,
           closing: i['closing'] == true,
+          manual: manual,
           operationId: commandId(c),
         );
         return {'queued': true};
