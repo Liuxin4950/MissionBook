@@ -1,3 +1,4 @@
+import '../../application/errors/user_error_message.dart';
 import 'package:flutter/material.dart';
 
 import '../../application/assistant/assistant_controller.dart';
@@ -71,9 +72,11 @@ Future<void> openAssistant(
     await showAssistantConversation(context);
   } catch (error) {
     if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('暂时无法打开助手：$error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(userErrorMessage(error, fallback: '暂时无法打开助手，请重试')),
+        ),
+      );
     }
   }
 }

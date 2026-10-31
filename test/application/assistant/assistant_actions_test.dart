@@ -125,7 +125,7 @@ void main() {
     expect(ai.confirmProposal('action'), isNull);
     await sending;
     expect(ai.operations.single.status, AssistantOperationStatus.succeeded);
-    final finished = await missions.findFinishedSnapshot();
+    final finished = await missions.findFinished();
     expect(finished, hasLength(2));
     for (final detail in finished) {
       expect(detail.endReportedCompleted, isTrue);
@@ -134,16 +134,14 @@ void main() {
       expect(calculateExecutionTimes(detail.events, now).focus, Duration.zero);
     }
     expect(
-      (await missions.findForGoalSnapshot(
-        goalId,
-      )).where((d) => d.events.isEmpty),
+      (await missions.findForGoal(goalId)).where((d) => d.events.isEmpty),
       hasLength(2),
     );
   });
 
   test('补记整批回滚；固定请求重试不重复写入', () async {
     final goalId = await seedHistory();
-    final originals = (await missions.findForGoalSnapshot(goalId))
+    final originals = (await missions.findForGoal(goalId))
         .where((d) => d.schedule.scheduledDate.compareTo('2026-10-29') < 0)
         .toList();
     final request = HistoricalCompletion(
@@ -168,7 +166,7 @@ void main() {
 
   test('历史任务已开始后正常结束；旧预览遇到新执行事实时整批拒绝', () async {
     final goalId = await seedHistory();
-    var originals = (await missions.findForGoalSnapshot(goalId))
+    var originals = (await missions.findForGoal(goalId))
         .where((d) => d.schedule.scheduledDate.compareTo('2026-10-29') < 0)
         .toList();
     final stale = HistoricalCompletion(
@@ -186,7 +184,7 @@ void main() {
     );
     await expectLater(missions.completeHistory(stale), throwsA(anything));
     expect(await db.select(db.executionEvents).get(), hasLength(1));
-    originals = (await missions.findForGoalSnapshot(goalId))
+    originals = (await missions.findForGoal(goalId))
         .where((d) => d.schedule.scheduledDate.compareTo('2026-10-29') < 0)
         .toList();
     await missions.completeHistory(
@@ -198,7 +196,7 @@ void main() {
         originals: originals,
       ),
     );
-    final finished = await missions.findFinishedSnapshot();
+    final finished = await missions.findFinished();
     expect(finished, hasLength(2));
     expect(
       finished
@@ -394,9 +392,7 @@ void main() {
     );
     await missions.createPrepared(request);
     await missions.cancel(missionId: request.mission.id);
-    original = (await missions.findDetailSnapshot(
-      missionId: request.mission.id,
-    ))!;
+    original = (await missions.findDetail(missionId: request.mission.id))!;
     ai = await controller('mission_retry', {
       'missionId': original.mission.id,
       'scheduledDate': '2026-10-30',

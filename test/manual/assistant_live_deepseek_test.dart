@@ -115,9 +115,7 @@ void main() {
         expect(proposal.input['missionId'], id);
         expect(proposal.input['scheduledDate'], '2026-10-31');
         expect(
-          (await missions.findDetailSnapshot(
-            missionId: id,
-          ))!.schedule.scheduledDate,
+          (await missions.findDetail(missionId: id))!.schedule.scheduledDate,
           '2026-10-30',
         );
         expect(
@@ -130,7 +128,7 @@ void main() {
         expect(assistant.confirmProposal(proposal.callId), isNull);
         final moved = await moving;
         expect(moved?.reason, AgentStopReason.completed);
-        final saved = (await missions.findDetailSnapshot(missionId: id))!;
+        final saved = (await missions.findDetail(missionId: id))!;
         expect(saved.schedule.scheduledDate, '2026-10-31');
         expect(saved.schedule.plannedDurationMinutes, 40);
         final sessionId = assistant.currentSessionId;

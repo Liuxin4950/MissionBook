@@ -1,3 +1,4 @@
+import '../../domain/entities/analysis_scope.dart';
 import '../memory/memory_service.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/execution_command.dart';
@@ -230,7 +231,7 @@ List<AgentTool> contextTools({
           explicitBasis(basis);
           final d =
               snapshot?.call(c.callId)['detail'] as MissionDetail? ??
-              await records.missions.findDetailSnapshot(
+              await records.missions.findDetail(
                 missionId: i['missionId'] as String,
               );
           if (d == null) throw ArgumentError('任务不存在');
@@ -295,7 +296,7 @@ List<AgentTool> contextTools({
       (i, c) async {
         final d =
             snapshot?.call(c.callId)['detail'] as MissionDetail? ??
-            await records.missions.findDetailSnapshot(
+            await records.missions.findDetail(
               missionId: i['missionId'] as String,
             );
         if (d == null) throw ArgumentError('任务不存在');
@@ -386,7 +387,7 @@ List<AgentTool> contextTools({
         final manual = basis.trim().isNotEmpty;
         if (manual || i['closing'] == true) explicitBasis(basis);
         await analysis.retry(
-          i['scope'] as String,
+          AnalysisScope.parse(i['scope'] as String),
           i['id'] as String,
           closing: i['closing'] == true,
           manual: manual,

@@ -151,7 +151,10 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
         builder: (_) => GoalFormPage(service: widget.service),
       ); // 表单保存成功才返回目标编号，放弃填写返回 null。
       if (!mounted) return;
-      if (id != null) _selectStatus(GoalStatus.active);
+      if (id != null) {
+        await _selectStatus(GoalStatus.active);
+        if (!mounted) return;
+      }
       _refresh();
       if (id != null) {
         ScaffoldMessenger.of(
@@ -355,8 +358,8 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
             : box.maxWidth;
         return Wrap(
           key: const Key('goal-workspace'),
-          spacing: 20,
-          runSpacing: 20,
+          spacing: AppLayout.spaceXl,
+          runSpacing: AppLayout.spaceXl,
           children: [
             SizedBox(
               key: const Key('goal-library-pane'),
@@ -416,6 +419,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                           missionService: widget.missionService,
                           goal: visible.firstWhere(
                             (goal) => goal.id == _outlineGoal!.id,
+                            orElse: () => _outlineGoal!,
                           ),
                           goalId: _outlineGoal!.id,
                           goalTitle: _outlineGoal!.title,

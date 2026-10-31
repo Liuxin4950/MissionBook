@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
-import 'package:mission_book/application/assistant/assistant_plan.dart';
+import 'package:mission_book/application/assistant/assistant_schedule.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
@@ -14,7 +14,7 @@ import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/mission_creation.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
-import 'package:mission_book/domain/entities/mission_plan.dart';
+import 'package:mission_book/domain/entities/schedule_proposal.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 
 import '../../support/assistant_fakes.dart';
@@ -23,7 +23,7 @@ void main() {
   late AppDatabase database;
   late MissionService missions;
   late GoalService goals;
-  late AssistantPlanService plans;
+  late AssistantScheduleService plans;
   AssistantController? controller;
   final now = DateTime.utc(2026, 10, 29, 0);
 
@@ -34,7 +34,7 @@ void main() {
       clock: () => now,
     );
     goals = GoalService(DriftGoalRepository(database));
-    plans = AssistantPlanService(
+    plans = AssistantScheduleService(
       missions: missions,
       clock: () => now,
       timeZone: 'Asia/Shanghai',
@@ -76,7 +76,7 @@ void main() {
     return request;
   }
 
-  Future<MissionPlan> build(
+  Future<ScheduleProposal> build(
     List<Map<String, Object?>> items, {
     String id = 'plan-request',
   }) async {
@@ -107,9 +107,7 @@ void main() {
     expect(await missions.checkPlan(plan), isEmpty);
     final receipt = await missions.applyPlan(plan);
     expect(jsonDecode(receipt.resultJson)['savedCount'], 2);
-    final moved = (await missions.findDetailSnapshot(
-      missionId: original.mission.id,
-    ))!;
+    final moved = (await missions.findDetail(missionId: original.mission.id))!;
     expect(moved.schedule.scheduledDate, '2026-10-30');
     expect(moved.executionPlan.id, original.plan.id);
     expect((await missions.applyPlan(plan)).resultJson, receipt.resultJson);
@@ -128,7 +126,7 @@ void main() {
     expect(await missions.checkPlan(crossing), isNotEmpty);
     await expectLater(
       missions.applyPlan(crossing),
-      throwsA(isA<MissionPlanConflictException>()),
+      throwsA(isA<ScheduleConflictException>()),
     );
     final internal = await build([
       createRow('one', start: '09:00'),
@@ -137,7 +135,7 @@ void main() {
     expect(await missions.checkPlan(internal), hasLength(2));
     await expectLater(
       missions.applyPlan(internal),
-      throwsA(isA<MissionPlanConflictException>()),
+      throwsA(isA<ScheduleConflictException>()),
     );
     expect(await database.select(database.missions).get(), hasLength(1));
     final adjacent = await build([
@@ -157,7 +155,7 @@ void main() {
     await seed('后来新增的安排', start: '09:20');
     await expectLater(
       missions.applyPlan(plan),
-      throwsA(isA<MissionPlanConflictException>()),
+      throwsA(isA<ScheduleConflictException>()),
     );
     expect(await database.select(database.missions).get(), hasLength(1));
     expect(await missions.findOperationReceipt(plan.id), isNull);
@@ -174,9 +172,7 @@ void main() {
         'scheduledDate': '2026-10-30',
       },
     ]);
-    final detail = (await missions.findDetailSnapshot(
-      missionId: existing.mission.id,
-    ))!;
+    final detail = (await missions.findDetail(missionId: existing.mission.id))!;
     await missions.execute(
       missions.prepareExecution(detail: detail, type: ExecutionEventType.start),
     );
@@ -185,9 +181,7 @@ void main() {
       throwsA(isA<MissionEditConflict>()),
     );
     expect(await database.select(database.missions).get(), hasLength(1));
-    final saved = (await missions.findDetailSnapshot(
-      missionId: existing.mission.id,
-    ))!;
+    final saved = (await missions.findDetail(missionId: existing.mission.id))!;
     expect(saved.schedule.id, existing.schedule.id);
     expect(saved.events, hasLength(1));
     expect(await missions.findOperationReceipt(plan.id), isNull);
@@ -247,7 +241,7 @@ void main() {
     );
     final operation = assistant.operations.single;
     expect(await database.select(database.missions).get(), isEmpty);
-    final items = AssistantPlanService.rows(operation.input)..removeLast();
+    final items = AssistantScheduleService.rows(operation.input)..removeLast();
     items.first['title'] = '用户改过的名称';
     expect(
       assistant.updateProposal('batch', {...operation.input, 'items': items}),
@@ -272,7 +266,7 @@ void main() {
       AssistantOperationStatus.succeeded,
     );
     expect(
-      AssistantPlanService.rows(assistant.operations.single.input),
+      AssistantScheduleService.rows(assistant.operations.single.input),
       hasLength(2),
     );
     expect(jsonDecode(assistant.operations.single.output!)['savedCount'], 2);

@@ -112,7 +112,7 @@ void main() {
       body: TextButton(
         onPressed: () => Navigator.of(
           context,
-        ).push(MaterialPageRoute(builder: (_) => child)),
+        ).push(MaterialPageRoute<void>(builder: (_) => child)),
         child: const Text('打开表单'),
       ),
     ),

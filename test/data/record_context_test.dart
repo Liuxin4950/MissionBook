@@ -1,3 +1,5 @@
+import 'package:mission_book/data/repositories/drift_memory_repository.dart';
+import 'package:mission_book/domain/entities/analysis_scope.dart';
 import 'package:mission_book/application/memory/memory_service.dart';
 import 'package:agent_core/agent_core.dart';
 import 'package:mission_book/application/assistant/context_tools.dart';
@@ -87,7 +89,7 @@ void main() {
     bool completed = true,
   }) async {
     final detail = (await repo.findDetail(id))!;
-    await records.reportExecution(
+    await repo.reportExecution(
       UserExecutionReport(
         id: reportId,
         missionId: id,
@@ -394,7 +396,7 @@ void main() {
     );
     final input = await DriftAnalysisStore(
       db,
-    ).input(AnalysisWork('goal', goal.id, 1, false));
+    ).input(AnalysisWork(AnalysisScope.goal, goal.id, 1, false));
     expect(input.facts['directMissionCount'], 30);
     expect(input.items, isEmpty);
   });
@@ -414,7 +416,7 @@ void main() {
     final tools = contextTools(
       reader: DriftUnifiedReader(db),
       records: service,
-      memory: MemoryService(records),
+      memory: MemoryService(DriftMemoryRepository(db)),
       analysis: store,
       analyze: (p, {imageKey, mime, json = false}) async => '摘要',
       web: WebService(
@@ -448,7 +450,7 @@ void main() {
       reader: DriftAssistantReader(db),
       missions: missions,
       goals: goals,
-      memory: MemoryService(records),
+      memory: MemoryService(DriftMemoryRepository(db)),
       extraTools: tools,
       resolveCall: (_) => throw StateError('未准备'),
     );
@@ -514,7 +516,7 @@ void main() {
         );
     final store = DriftAnalysisStore(db);
     final job = (await store.claim())!;
-    expect(job.scope, 'memory');
+    expect(job.scope, AnalysisScope.memory);
     final input = await store.input(job);
     expect(input.facts['userMessage'], '我喜欢上午学习。');
     await store.saveMemoryCandidates(
@@ -538,12 +540,16 @@ void main() {
         ],
       }),
     );
-    final core = await records.coreMemory();
+    final core = await DriftMemoryRepository(db, clock: () => now).coreMemory();
     expect(core, contains('喜欢上午学习'));
     expect(core, isNot(contains('模型猜测')));
     final entries =
-        (await records.queryMemory())['items'] as List<Map<String, Object?>>;
-    await records.forgetMemory(
+        (await DriftMemoryRepository(
+              db,
+              clock: () => now,
+            ).queryMemory())['items']
+            as List<Map<String, Object?>>;
+    await DriftMemoryRepository(db, clock: () => now).forgetMemory(
       entries.firstWhere((e) => e['content'] == '喜欢上午学习')['id'] as String,
     );
     await store.saveMemoryCandidates(
@@ -560,13 +566,16 @@ void main() {
         ],
       }),
     );
-    expect(await records.coreMemory(), isNot(contains('喜欢上午学习')));
+    expect(
+      await DriftMemoryRepository(db, clock: () => now).coreMemory(),
+      isNot(contains('喜欢上午学习')),
+    );
   });
   test('新事实使分析版本失效，旧请求迟到拒绝发布；恢复中断队列', () async {
     final id = await seed();
     await db.delete(db.analysisJobs).go();
     final store = DriftAnalysisStore(db);
-    await store.retry('mission', id);
+    await store.retry(AnalysisScope.mission, id);
     final old = (await store.claim())!;
     await report(id);
     expect(await store.publish(old, '过期结论', const [], 0), isFalse);
@@ -575,7 +584,10 @@ void main() {
     final recovered = (await store.claim())!;
     expect(recovered.version, current.version);
     expect(await store.publish(recovered, '只评价本任务来源', const [], 1), isTrue);
-    expect((await records.analysis('mission', id))['state'], 'ready');
+    expect(
+      (await records.analysis(AnalysisScope.mission, id))['state'],
+      'ready',
+    );
   });
   test('分层汇总20项分批，任务评价不带全局记忆，主会话优先', () async {
     final goal = goals.prepareCreation(title: '大目标');
@@ -610,7 +622,10 @@ void main() {
     await worker.drain();
     await worker.dispose();
     expect(prompts, hasLength(4));
-    expect((await records.analysis('goal', goal.id))['coverage'], 45);
+    expect(
+      (await records.analysis(AnalysisScope.goal, goal.id))['coverage'],
+      45,
+    );
   });
   test('记忆去重、过期、更正、忘记与来源墓碑，核心载入有界', () async {
     Map<String, Object?> memory(
@@ -628,11 +643,26 @@ void main() {
       'conflictKey': key,
       'expiresAt': expiry,
     };
-    await records.saveMemory(memory('m1', '喜欢上午学习'));
-    await records.saveMemory(memory('m2', '喜欢上午学习', source: '另一个会话'));
-    expect((await records.queryMemory())['total'], 1);
-    await records.saveMemory(memory('m1', '更喜欢晚上学习'), userEdited: true);
-    await records.saveMemory(
+    await DriftMemoryRepository(
+      db,
+      clock: () => now,
+    ).saveMemory(memory('m1', '喜欢上午学习'));
+    await DriftMemoryRepository(
+      db,
+      clock: () => now,
+    ).saveMemory(memory('m2', '喜欢上午学习', source: '另一个会话'));
+    expect(
+      (await DriftMemoryRepository(
+        db,
+        clock: () => now,
+      ).queryMemory())['total'],
+      1,
+    );
+    await DriftMemoryRepository(
+      db,
+      clock: () => now,
+    ).saveMemory(memory('m1', '更喜欢晚上学习'), userEdited: true);
+    await DriftMemoryRepository(db, clock: () => now).saveMemory(
       memory(
         'm3',
         '下周考试',
@@ -641,17 +671,32 @@ void main() {
         source: '临时约束',
       ),
     );
-    expect(await records.coreMemory(), contains('更喜欢晚上学习'));
-    expect(await records.coreMemory(), isNot(contains('下周考试')));
-    await records.forgetMemory('m1');
-    await records.saveMemory(memory('m4', '喜欢上午学习'));
-    expect((await records.queryMemory())['total'], 0);
+    expect(
+      await DriftMemoryRepository(db, clock: () => now).coreMemory(),
+      contains('更喜欢晚上学习'),
+    );
+    expect(
+      await DriftMemoryRepository(db, clock: () => now).coreMemory(),
+      isNot(contains('下周考试')),
+    );
+    await DriftMemoryRepository(db, clock: () => now).forgetMemory('m1');
+    await DriftMemoryRepository(
+      db,
+      clock: () => now,
+    ).saveMemory(memory('m4', '喜欢上午学习'));
+    expect(
+      (await DriftMemoryRepository(
+        db,
+        clock: () => now,
+      ).queryMemory())['total'],
+      0,
+    );
     for (var i = 0; i < 30; i++) {
-      await records.saveMemory(
+      await DriftMemoryRepository(db, clock: () => now).saveMemory(
         memory('core$i', '有效偏好$i', source: 'source$i', key: 'key$i'),
       );
     }
-    final core = await records.coreMemory();
+    final core = await DriftMemoryRepository(db, clock: () => now).coreMemory();
     expect(core.length, lessThanOrEqualTo(2000));
     expect(jsonDecode(core) as List, hasLength(10));
   });
@@ -681,5 +726,114 @@ void main() {
       ),
       MissionAttention.overdue,
     );
+  });
+  test('关联既有记录复用材料截止与重试规则，正文只保存一次', () async {
+    final id = await seed(policy: VerificationPolicy.requiredEvidence);
+    await report(id);
+    await records.saveRecord(
+      const EvidenceDraft(
+        id: 'late-note',
+        type: EvidenceType.text,
+        source: EvidenceSource.user,
+        content: '补充的午餐记录',
+      ),
+    );
+    now = now.add(const Duration(hours: 2));
+    await records.linkRecord('late-note', missionId: id);
+    await records.linkRecord('late-note', missionId: id);
+    expect(
+      await repo.attachRecordEvidence('late-note', id),
+      EvidenceSubmissionResult.deadlineMissed,
+    );
+    final saved = (await repo.findDetail(id))!;
+    expect(saved.failures, hasLength(1));
+    expect(saved.evidence, hasLength(1));
+    expect(saved.evidence.single.content, '补充的午餐记录');
+    expect((await db.select(db.records).get()).single.id, 'late-note');
+    expect(
+      (await db.select(db.evidenceRecords).get()).single.recordId,
+      'late-note',
+    );
+  });
+
+  test('旧执行报告不能回滚独立结算的 STOP，重读后可确认完成', () async {
+    final start = now.add(const Duration(minutes: 1));
+    final creation = missions.prepareCreation(
+      title: '到点结束',
+      scheduledDate: '2026-10-30',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 30,
+      timePolicy: TimePolicy.fixed,
+      fixedStartAt: start,
+    );
+    await missions.createPrepared(creation);
+    now = start;
+    var original = (await repo.findDetail(creation.mission.id))!;
+    await missions.execute(
+      missions.prepareExecution(
+        detail: original,
+        type: ExecutionEventType.start,
+      ),
+    );
+    original = (await repo.findDetail(creation.mission.id))!;
+    now = start.add(const Duration(minutes: 31));
+    final declaration = UserExecutionReport(
+      id: 'stale-report',
+      missionId: creation.mission.id,
+      occurrenceDate: '2026-10-30',
+      timeZoneId: 'Asia/Shanghai',
+      basis: '用户确认已经完成',
+    );
+    await expectLater(
+      missions.reportExecution(
+        declaration,
+        expectedSequence: original.lastSequence,
+        scheduleId: original.schedule.id,
+        result: UserReportedResult.completed,
+      ),
+      throwsA(isA<EvidenceConflict>()),
+    );
+    final stopped = (await repo.findDetail(creation.mission.id))!;
+    expect(stopped.phase, MissionPhase.reportPending);
+    expect(stopped.events.map((e) => e.type), [
+      ExecutionEventType.start,
+      ExecutionEventType.stop,
+    ]);
+    expect(await db.select(db.userExecutionReports).get(), isEmpty);
+    await missions.reportExecution(
+      declaration,
+      expectedSequence: stopped.lastSequence,
+      scheduleId: stopped.schedule.id,
+      result: UserReportedResult.completed,
+    );
+    expect(
+      (await repo.findDetail(creation.mission.id))!.phase,
+      MissionPhase.closed,
+    );
+  });
+
+  test('已提交时间声明在时钟回拨后仍按原回执幂等确认', () async {
+    final id = await seed();
+    final original = (await repo.findDetail(id))!;
+    final declaration = UserExecutionReport(
+      id: 'clock-report',
+      missionId: id,
+      occurrenceDate: '2026-10-30',
+      timeZoneId: 'Asia/Shanghai',
+      actualStart: now.subtract(const Duration(hours: 1)),
+      actualEnd: now.subtract(const Duration(minutes: 30)),
+      basis: '用户确认实际执行时间',
+    );
+    Future<void> save() => missions.reportExecution(
+      declaration,
+      expectedSequence: original.lastSequence,
+      scheduleId: original.schedule.id,
+      result: UserReportedResult.completed,
+    );
+    await save();
+    now = now.subtract(const Duration(hours: 2));
+    await save();
+    expect(await db.select(db.userExecutionReports).get(), hasLength(1));
+    expect((await repo.findDetail(id))!.events, hasLength(1));
   });
 }

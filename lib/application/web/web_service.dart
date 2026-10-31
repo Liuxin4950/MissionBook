@@ -119,7 +119,7 @@ class WebService {
         'creditsReserved': 1,
         'results': results
             .take(5)
-            .whereType<Map>()
+            .whereType<Map<String, dynamic>>()
             .map(
               (r) => {
                 'title': r['title'],

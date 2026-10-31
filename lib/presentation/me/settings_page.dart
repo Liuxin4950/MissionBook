@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../application/notifications/app_notification_service.dart';
 import '../widgets/adaptive_sheet.dart';
 import '../widgets/app_section_card.dart';
+import '../widgets/app_section_header.dart';
 import '../widgets/app_settings_row.dart';
 import '../widgets/data_export_card.dart';
 import '../assistant/assistant_scope.dart';
@@ -229,25 +230,12 @@ class _SettingsPageState extends State<SettingsPage>
     );
   }
 
-  /// 设置分区使用更轻的标签，避免标题与行内容争层级。
-  Widget _sectionHeader(String title) => Semantics(
-    container: true,
-    header: true,
-    child: Text(
-      title,
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-        color: AppColors.textSecondary,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-  );
-
   /// 统一分区节奏：标签 → 8 → 卡片 → 20；行内容由卡片自己的行组件控制。
   Widget _section(String title, {required Widget child, bool card = true}) =>
       Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _sectionHeader(title),
+          AppSectionHeader(title, subtle: true),
           const SizedBox(height: AppLayout.spaceSm),
           if (card)
             AppSectionCard(padding: EdgeInsets.zero, child: child)

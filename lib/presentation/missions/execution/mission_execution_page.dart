@@ -22,7 +22,7 @@ import '../../widgets/app_visibility.dart';
 import '../../widgets/app_expansion.dart';
 import '../shared/mission_action_controller.dart';
 import '../shared/mission_execution_display.dart';
-import '../record/mission_record_page.dart';
+import '../record/mission_record_workspace.dart';
 import '../detail/mission_detail_page.dart';
 import '../evidence/mission_evidence_section.dart';
 
@@ -188,8 +188,10 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
       context,
       label: '执行记录',
       replace: DetailPaneReplace.top,
-      builder: (_) =>
-          MissionRecordPage(detail: _action.detail, service: widget.service),
+      builder: (_) => MissionRecordWorkspace(
+        detail: _action.detail,
+        service: widget.service,
+      ),
     );
   }
 
@@ -264,7 +266,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
     if (!succeeded) {
       if (_action.stale) {
         try {
-          final latest = await widget.service.findDetailSnapshot(
+          final latest = await widget.service.findDetailAndReconcile(
             missionId: _action.detail.mission.id,
           );
           if (mounted && latest?.phase == MissionPhase.reportPending) {
@@ -486,7 +488,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             onPressed: () => openDetailPane<void>(
               context,
               label: '执行记录',
-              builder: (_) => MissionRecordPage(
+              builder: (_) => MissionRecordWorkspace(
                 detail: _action.detail,
                 service: widget.service,
               ),
@@ -623,8 +625,8 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           ),
           const SizedBox(height: AppLayout.spaceLg),
           Wrap(
-            spacing: 12,
-            runSpacing: 12,
+            spacing: AppLayout.spaceMd,
+            runSpacing: AppLayout.spaceMd,
             children: [
               ChoiceChip(
                 key: const Key('report-completed'),
@@ -679,8 +681,8 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
             Text('材料可选', style: theme.textTheme.titleMedium),
             const SizedBox(height: AppLayout.spaceSm),
             Wrap(
-              spacing: 12,
-              runSpacing: 8,
+              spacing: AppLayout.spaceMd,
+              runSpacing: AppLayout.spaceSm,
               children: [
                 ChoiceChip(
                   key: const Key('report-evidence-skip'),

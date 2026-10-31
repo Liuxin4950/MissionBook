@@ -172,8 +172,8 @@ class _DatePickerContentState extends State<_DatePickerContent> {
                     ),
                     const SizedBox(height: AppLayout.spaceMd),
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
+                      spacing: AppLayout.spaceSm,
+                      runSpacing: AppLayout.spaceXs,
                       children: [
                         OutlinedButton(
                           key: const Key('app-date-today'),
@@ -247,7 +247,7 @@ class _DatePickerContentState extends State<_DatePickerContent> {
             const SizedBox(height: AppLayout.spaceSm),
             Wrap(
               alignment: WrapAlignment.end,
-              spacing: 8,
+              spacing: AppLayout.spaceSm,
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),

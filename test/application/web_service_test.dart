@@ -184,7 +184,7 @@ void main() {
       }).single.address,
       '1.1.1.1',
     );
-    for (final response in [
+    for (final response in <Map<String, Object?>>[
       {
         'Status': 0,
         'Answer': [

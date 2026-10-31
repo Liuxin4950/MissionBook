@@ -1,11 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import '../widgets/app_empty_state.dart';
+import 'empty_schedule.dart';
 import '../widgets/app_section_card.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import 'today_display.dart' as display;
+import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/mission_phase.dart';
 import '../missions/shared/mission_phase_display.dart';
 import '../missions/shared/mission_live_status.dart';
@@ -116,7 +117,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
     final theme = Theme.of(context);
     final local = tz.TZDateTime.from(
       _now,
-      tz.getLocation(display.todayScheduleTimeZone),
+      tz.getLocation(defaultScheduleTimeZone),
     );
     // 常规手机最多四项，小屏/大字体减少窗口项数；内容始终自然增高，不裁字。
     final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
@@ -138,10 +139,10 @@ class _ScheduleSectionState extends State<ScheduleSection>
             Wrap(
               alignment: WrapAlignment.spaceBetween,
               crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
+              spacing: AppLayout.spaceSm,
               children: [
                 Wrap(
-                  spacing: 12,
+                  spacing: AppLayout.spaceMd,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     if (!widget.fullList)
@@ -184,18 +185,9 @@ class _ScheduleSectionState extends State<ScheduleSection>
                 ),
               ),
             if (items.isEmpty)
-              AppEmptyState(
-                title: '这一天还没有固定任务',
-                asset: widget.illustrateEmpty
-                    ? 'assets/illustrations/day-plan.png'
-                    : null,
-                actions: widget.onCreate == null
-                    ? null
-                    : FilledButton.icon(
-                        onPressed: widget.onCreate,
-                        icon: const Icon(Icons.add),
-                        label: const Text('新建任务'),
-                      ),
+              EmptySchedule(
+                illustrate: widget.illustrateEmpty,
+                onCreate: widget.onCreate,
               )
             else
               AnimatedSize(
@@ -226,7 +218,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
               ),
             if (widget.fullList && widget.items.length > 50)
               Wrap(
-                spacing: 8,
+                spacing: AppLayout.spaceSm,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   TextButton(
@@ -433,8 +425,8 @@ class ScheduleMissionRow extends StatelessWidget {
                                 top: AppLayout.spaceSm,
                               ),
                               child: Wrap(
-                                spacing: 8,
-                                runSpacing: 4,
+                                spacing: AppLayout.spaceSm,
+                                runSpacing: AppLayout.spaceXs,
                                 children: [
                                   if (stacked)
                                     _StatusLabel(
@@ -485,8 +477,8 @@ class ScheduleMissionRow extends StatelessWidget {
                             ),
                             const SizedBox(height: AppLayout.spaceSm),
                             Wrap(
-                              spacing: 12,
-                              runSpacing: 8,
+                              spacing: AppLayout.spaceMd,
+                              runSpacing: AppLayout.spaceSm,
                               alignment: WrapAlignment.spaceBetween,
                               crossAxisAlignment: WrapCrossAlignment.center,
                               children: [

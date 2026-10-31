@@ -4,6 +4,7 @@ import '../../core/theme/app_layout.dart';
 import '../widgets/app_confirm_dialog.dart';
 import '../widgets/app_empty_state.dart';
 import '../widgets/app_section_card.dart';
+import '../widgets/app_section_header.dart';
 import '../widgets/app_settings_row.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/app_info_sheet.dart';
@@ -199,10 +200,7 @@ class _WebSettingsPageState extends State<WebSettingsPage> {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    Text(
-                                      '搜索服务',
-                                      style: theme.textTheme.titleMedium,
-                                    ),
+                                    const AppSectionHeader('搜索服务'),
                                     const SizedBox(height: AppLayout.spaceLg),
                                     TextField(
                                       key: const Key('web-api-key'),

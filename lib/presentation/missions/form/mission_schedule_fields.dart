@@ -253,7 +253,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
           ),
         const SizedBox(height: AppLayout.spaceSm),
         Text(
-          widget.timeZone == 'Asia/Shanghai'
+          widget.timeZone == defaultScheduleTimeZone
               ? '排期时区：上海（Asia/Shanghai）'
               : '排期时区：$widget.timeZone',
           style: Theme.of(context).textTheme.bodySmall,

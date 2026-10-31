@@ -6,55 +6,91 @@ import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
 import 'speech_model_store_base.dart';
 
+part 'speech_worker_protocol.dart';
+part 'sherpa_worker.dart';
+
 /// SenseVoice 的常驻 worker isolate。
 ///
 /// FFI 识别器和音频流只存在于 worker 内；主 isolate 只发送模型路径和 PCM，
 /// 接收文字。所有请求串行执行，避免多个 decode 同时占用 CPU。
 class SherpaSpeechEngine {
+  SherpaSpeechEngine({
+    this.workerMain = _engineMain,
+    this.initializationTimeout = const Duration(seconds: 30),
+    this.transcriptionTimeout = const Duration(seconds: 60),
+    this.shutdownTimeout = const Duration(seconds: 3),
+  });
+
+  // worker 入口可注入，测试生命周期时不依赖设备模型和原生 FFI。
+  final void Function(SendPort) workerMain;
+  final Duration initializationTimeout;
+  final Duration transcriptionTimeout;
+  final Duration shutdownTimeout;
   Isolate? _isolate;
   ReceivePort? _receive;
   SendPort? _send;
-  final _pending = <int, Completer<_EngineResponse>>{};
+  final _pending = <int, Completer<SpeechWorkerResponse>>{};
   int _nextId = 0;
   bool _ready = false;
   bool _disposed = false;
   Future<void>? _starting;
+  Future<void>? _preparing;
+  Future<void>? _disposing;
+  Completer<SendPort>? _handshake;
+  int _generation = 0;
 
-  Future<void> prepare(SpeechModelPaths paths) async {
-    if (_disposed) throw StateError('离线语音引擎已关闭');
-    if (_ready) return;
+  /// 并发准备共用一次模型初始化；失败后可重试，关闭后的实例不能复活。
+  Future<void> prepare(SpeechModelPaths paths) {
+    if (_disposed) return Future.error(StateError('离线语音引擎已关闭'));
+    if (_ready) return Future.value();
+    final pending = _preparing;
+    if (pending != null) return pending;
+    late final Future<void> future;
+    future = _prepare(paths).whenComplete(() {
+      if (identical(_preparing, future)) _preparing = null;
+    });
+    _preparing = future;
+    return future;
+  }
+
+  Future<void> _prepare(SpeechModelPaths paths) async {
     try {
       await (_starting ??= _start());
     } catch (_) {
       _starting = null; // 允许下一次语音重试，而不是永久沿用一次启动失败。
       rethrow;
     }
+    if (_disposed || _send == null) throw StateError('离线语音引擎已关闭');
     final id = _nextId++;
-    final completer = Completer<_EngineResponse>();
+    final completer = Completer<SpeechWorkerResponse>();
     _pending[id] = completer;
-    _send!.send(_InitRequest(id, paths.model, paths.tokens));
-    final _EngineResponse response;
+    _send!.send(SpeechModelInitRequest(id, paths.model, paths.tokens));
+    final SpeechWorkerResponse response;
     try {
-      response = await completer.future.timeout(const Duration(seconds: 30));
+      response = await completer.future.timeout(initializationTimeout);
     } on TimeoutException {
       _pending.remove(id);
       _resetWorker(TimeoutException('离线语音引擎初始化超时'));
       rethrow;
     }
-    if (response is _Failure) throw StateError(response.message);
+    if (response is SpeechWorkerFailure) throw StateError(response.message);
+    if (_disposed) throw StateError('离线语音引擎已关闭');
     _ready = true;
   }
 
   Future<void> _start() async {
+    final generation = _generation;
     final receive = ReceivePort();
     _receive = receive;
     final ready = Completer<SendPort>();
+    _handshake = ready;
     receive.listen((message) {
+      if (generation != _generation) return;
       if (message is SendPort) {
         if (!ready.isCompleted) ready.complete(message);
         return;
       }
-      if (message is _EngineResponse) {
+      if (message is SpeechWorkerResponse) {
         final completer = _pending.remove(message.id);
         if (completer != null && !completer.isCompleted) {
           completer.complete(message);
@@ -79,57 +115,93 @@ class SherpaSpeechEngine {
         _resetWorker(error);
       }
     });
-    _isolate = await Isolate.spawn(
-      _engineMain,
-      receive.sendPort,
-      onError: receive.sendPort,
-      onExit: receive.sendPort,
-      debugName: 'missionbook-asr',
-    );
-    _send = await ready.future;
+    final spawn =
+        Isolate.spawn(
+          workerMain,
+          receive.sendPort,
+          onError: receive.sendPort,
+          onExit: receive.sendPort,
+          debugName: 'missionbook-asr',
+        ).then<void>((isolate) {
+          if (_disposed || generation != _generation) {
+            isolate.kill(priority: Isolate.immediate);
+            throw StateError('离线语音引擎已关闭');
+          }
+          _isolate = isolate;
+        });
+    final connected = ready.future.then<void>((port) {
+      if (_disposed || generation != _generation) {
+        throw StateError('离线语音引擎已关闭');
+      }
+      _send = port;
+    });
+    try {
+      // 同时监听握手与 spawn 的错误；dispose 不会留下尚未被等待的错误 Future。
+      await Future.wait([
+        spawn,
+        connected,
+      ], eagerError: true).timeout(initializationTimeout);
+    } catch (error) {
+      if (generation == _generation) _resetWorker(error);
+      rethrow;
+    }
   }
 
   Future<String> transcribe(Float32List samples) async {
     if (_disposed) throw StateError('离线语音引擎已关闭');
     if (!_ready) throw StateError('离线语音模型未准备');
     final id = _nextId++;
-    final completer = Completer<_EngineResponse>();
+    final completer = Completer<SpeechWorkerResponse>();
     _pending[id] = completer;
-    _send!.send(_TranscribeRequest(id, samples));
-    final _EngineResponse response;
+    _send!.send(SpeechTranscribeRequest(id, samples));
+    final SpeechWorkerResponse response;
     try {
-      response = await completer.future.timeout(const Duration(seconds: 60));
+      response = await completer.future.timeout(transcriptionTimeout);
     } on TimeoutException {
       _pending.remove(id);
       _resetWorker(TimeoutException('离线语音识别超时'));
       rethrow;
     }
-    if (response is _Text) return response.text;
-    throw StateError(response is _Failure ? response.message : '离线语音识别失败');
+    if (response is SpeechTextResult) return response.text;
+    throw StateError(
+      response is SpeechWorkerFailure ? response.message : '离线语音识别失败',
+    );
   }
 
-  Future<void> dispose() async {
-    if (_disposed) return;
+  Future<void> dispose() => _disposing ??= _dispose();
+
+  Future<void> _dispose() async {
     _disposed = true;
+    _ready = false;
+    final closed = StateError('离线语音引擎已关闭');
+    final handshake = _handshake;
+    if (handshake != null && !handshake.isCompleted) {
+      handshake.completeError(closed);
+    }
+    _failPending(closed);
     final send = _send;
     if (send != null) {
       final id = _nextId++;
-      final completer = Completer<_EngineResponse>();
+      final completer = Completer<SpeechWorkerResponse>();
       _pending[id] = completer;
-      send.send(_DisposeRequest(id));
+      send.send(SpeechWorkerDisposeRequest(id));
       try {
-        await completer.future.timeout(const Duration(seconds: 3));
+        await completer.future.timeout(shutdownTimeout);
       } catch (_) {
         // 关闭阶段不再等待异常 worker。
       }
     }
-    _isolate?.kill(priority: Isolate.immediate);
-    _receive?.close();
-    _failPending(StateError('离线语音引擎已关闭'));
+    _resetWorker(closed);
   }
 
   /// worker 异常退出或超时后清空连接，下一次 prepare 会重新启动。
   void _resetWorker(Object error) {
+    _generation++;
+    final handshake = _handshake;
+    _handshake = null;
+    if (handshake != null && !handshake.isCompleted) {
+      handshake.completeError(error);
+    }
     _ready = false;
     _starting = null;
     _send = null;
@@ -145,115 +217,5 @@ class SherpaSpeechEngine {
       if (!completer.isCompleted) completer.completeError(error);
     }
     _pending.clear();
-  }
-}
-
-class _InitRequest {
-  const _InitRequest(this.id, this.model, this.tokens);
-  final int id;
-  final String model;
-  final String tokens;
-}
-
-class _TranscribeRequest {
-  const _TranscribeRequest(this.id, this.samples);
-  final int id;
-  final Float32List samples;
-}
-
-class _DisposeRequest {
-  const _DisposeRequest(this.id);
-  final int id;
-}
-
-sealed class _EngineResponse {
-  const _EngineResponse(this.id);
-  final int id;
-}
-
-class _Ready extends _EngineResponse {
-  const _Ready(super.id);
-}
-
-class _Text extends _EngineResponse {
-  const _Text(super.id, this.text);
-  final String text;
-}
-
-class _Failure extends _EngineResponse {
-  const _Failure(super.id, this.message);
-  final String message;
-}
-
-void _engineMain(SendPort main) {
-  final receive = ReceivePort();
-  // 每个 isolate 有独立的 FFI 绑定；必须在 worker 内初始化。
-  sherpa.initBindings();
-  main.send(receive.sendPort);
-
-  sherpa.OfflineRecognizer? recognizer;
-  receive.listen((message) {
-    try {
-      if (message is _InitRequest) {
-        final config = sherpa.OfflineRecognizerConfig(
-          model: sherpa.OfflineModelConfig(
-            senseVoice: sherpa.OfflineSenseVoiceModelConfig(
-              model: message.model,
-              language: 'zh',
-              useInverseTextNormalization: true,
-            ),
-            tokens: message.tokens,
-            numThreads: 2,
-            debug: false,
-          ),
-        );
-        final next = sherpa.OfflineRecognizer(config);
-        final old = recognizer;
-        recognizer = next;
-        old?.free();
-        try {
-          _decode(next, Float32List(1600));
-        } catch (_) {
-          // 预热失败不影响真正识别。
-        }
-        main.send(_Ready(message.id));
-      } else if (message is _TranscribeRequest) {
-        final current = recognizer;
-        if (current == null) {
-          main.send(_Failure(message.id, '离线语音模型未初始化'));
-          return;
-        }
-        if (message.samples.isEmpty) {
-          main.send(_Text(message.id, ''));
-          return;
-        }
-        final text = _decode(current, message.samples);
-        main.send(_Text(message.id, text));
-      } else if (message is _DisposeRequest) {
-        recognizer?.free();
-        recognizer = null;
-        Isolate.exit(main, _Text(message.id, ''));
-      }
-    } catch (error) {
-      final id = message is _InitRequest
-          ? message.id
-          : message is _TranscribeRequest
-          ? message.id
-          : message is _DisposeRequest
-          ? message.id
-          : -1;
-      main.send(_Failure(id, '$error'));
-    }
-  });
-}
-
-String _decode(sherpa.OfflineRecognizer recognizer, Float32List samples) {
-  final stream = recognizer.createStream();
-  try {
-    stream.acceptWaveform(samples: samples, sampleRate: 16000);
-    recognizer.decode(stream);
-    return recognizer.getResult(stream).text.trim();
-  } finally {
-    stream.free();
   }
 }

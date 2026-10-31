@@ -1,3 +1,4 @@
+import '../../../domain/entities/analysis_scope.dart';
 import '../../records/records_page.dart';
 import '../../records/analysis_panel.dart';
 import 'dart:async';
@@ -84,15 +85,15 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
 
   void _loadMissions() {
     _directMissions.clear();
-    _missionsByNode = widget.missionService?.findForGoal(widget.goalId).then((
-      records,
-    ) {
-      final groups = <String?, List<MissionDetail>>{};
-      for (final detail in records) {
-        (groups[detail.mission.goalNodeId] ??= []).add(detail);
-      }
-      return groups;
-    });
+    _missionsByNode = widget.missionService
+        ?.findForGoalAndReconcile(widget.goalId)
+        .then((records) {
+          final groups = <String?, List<MissionDetail>>{};
+          for (final detail in records) {
+            (groups[detail.mission.goalNodeId] ??= []).add(detail);
+          }
+          return groups;
+        });
     _missionsByNode?.ignore();
   }
 
@@ -657,7 +658,8 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (!collapsed) RecordsEntry(nodeId: node.id, label: '节点相关记录'),
-                if (!collapsed) AnalysisPanel(scope: 'node', id: node.id),
+                if (!collapsed)
+                  AnalysisPanel(scope: AnalysisScope.node, id: node.id),
                 DecoratedBox(
                   decoration: BoxDecoration(
                     color: entry.depth == 0
@@ -678,55 +680,61 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                             annotation: annotation,
                             onNodeTap: hasChildren ? toggleChildren : null,
                           )
-                        : GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: hasChildren ? toggleChildren : null,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SizedBox.square(
-                                      dimension:
-                                          GoalMissionsSection.markerExtent,
-                                      child:
-                                          treeToggle ??
-                                          const Icon(
-                                            Icons.radio_button_unchecked,
-                                            size: AppLayout.iconSm,
-                                            color: AppColors.outline,
+                        : Semantics(
+                            button: hasChildren,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(
+                                AppLayout.radiusMd,
+                              ),
+                              onTap: hasChildren ? toggleChildren : null,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      SizedBox.square(
+                                        dimension:
+                                            GoalMissionsSection.markerExtent,
+                                        child:
+                                            treeToggle ??
+                                            const Icon(
+                                              Icons.radio_button_unchecked,
+                                              size: AppLayout.iconSm,
+                                              color: AppColors.outline,
+                                            ),
+                                      ),
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: AppLayout.spaceMd,
                                           ),
-                                    ),
-                                    Expanded(
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: AppLayout.spaceMd,
-                                        ),
-                                        child: Text(
-                                          node.title,
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleMedium,
+                                          child: Text(
+                                            node.title,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.titleMedium,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    menu,
-                                  ],
-                                ),
-                                if (annotation.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      left: AppLayout.touchTargetMin,
-                                    ),
-                                    child: Text(
-                                      annotation,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                    ),
+                                      menu,
+                                    ],
                                   ),
-                              ],
+                                  if (annotation.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: AppLayout.touchTargetMin,
+                                      ),
+                                      child: Text(
+                                        annotation,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                   ),

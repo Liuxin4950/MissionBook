@@ -49,7 +49,9 @@ class MissionActionController extends ChangeNotifier {
       await service.execute(command);
       // 当前操作页自己重读。服务的广播还会让其他页面各自查询所需的数据；
       // 两者共用数据库事实，不是把本页的 detail 直接复制给其他页面。
-      final latest = await service.findDetail(missionId: detail.mission.id);
+      final latest = await service.findDetailAndReconcile(
+        missionId: detail.mission.id,
+      );
       if (latest == null) throw const ExecutionConflict('任务不存在，请返回列表');
       detail = latest;
       pending = null;
@@ -90,7 +92,9 @@ class MissionActionController extends ChangeNotifier {
     busy = true;
     _changed();
     try {
-      final latest = await service.findDetail(missionId: detail.mission.id);
+      final latest = await service.findDetailAndReconcile(
+        missionId: detail.mission.id,
+      );
       if (latest == null) throw StateError('任务不存在');
       detail = latest;
       pending = null;

@@ -1,6 +1,6 @@
 # 页面代码在哪里
 
-更新：2026-10-29。按功能找页面，进入页面文件后，再沿它使用的组件阅读。
+更新：2026-10-31。按功能找页面，进入页面文件后，再沿它使用的组件阅读。
 
 ## 先找到要修改的功能
 
@@ -25,7 +25,7 @@
 | 暂停、继续、延长、结束报告 | [missions/execution/mission_execution_page.dart](missions/execution/mission_execution_page.dart) | 执行动作、报告草稿、计时重绘和导航 |
 | 独立执行任务页面 | [missions/execution/mission_execution_page.dart](missions/execution/mission_execution_page.dart) | 今天、目标、全部任务及底部当前任务快捷栏共用同一页，不在列表内嵌执行区 |
 | 执行页圆环、底部双按钮布局 | [missions/execution/execution_widgets.dart](missions/execution/execution_widgets.dart) | 展示页面传入的时长和按钮，不保存执行事实 |
-| 查看一次任务的执行结果和时间线 | [missions/record/mission_record_page.dart](missions/record/mission_record_page.dart) | 展示结束后的只读记录 |
+| 查看一次任务的执行结果和时间线 | [missions/record/mission_record_workspace.dart](missions/record/mission_record_workspace.dart) | 单任务事件、用户声明、材料及结果工作区 |
 | 目标列表与新建入口 | [goals/list/goals_page.dart](goals/list/goals_page.dart) | 查询正式目标、卡内展开路径、创建和详情导航 |
 | 目标分类、编辑与状态 | [goals/list/goals_page.dart](goals/list/goals_page.dart)、[goals/detail/goal_detail_page.dart](goals/detail/goal_detail_page.dart) | 筛选四种状态、编辑文字、搁置、达成、放弃与恢复 |
 | JSON 目标大纲导入 | [goals/form/goal_import_section.dart](goals/form/goal_import_section.dart) | 原位选文件/粘贴、校验、完整树预览、明确确认后一次保存 |
@@ -37,11 +37,11 @@
 | 添加和编辑节点 | [goals/outline/goal_node_editor.dart](goals/outline/goal_node_editor.dart) | 原位底部填写框，固定创建请求、失败重试和草稿保护 |
 | 浏览已结束与已取消任务 | [missions/history/mission_history_page.dart](missions/history/mission_history_page.dart) | 查询历史列表，打开对应记录或详情 |
 | 我的：系统权限、本地备份、关于 | [me/me_page.dart](me/me_page.dart) | 查询设备能力，发起正式备份，展示保存反馈和安装版本 |
-| 助手主页面、对话、快捷本地查询与输入 | [assistant/assistant_page.dart](assistant/assistant_page.dart) | 读取控制器快照，组合会话、提案/回执与输入；**草稿，尚未接入 AppShell** |
+| 助手主页面、对话、快捷本地查询与输入 | [assistant/assistant_page.dart](assistant/assistant_page.dart) | 读取控制器快照，组合会话、提案/回执与输入；已接入主导航 |
 | 助手可编辑操作卡片与只读查询结果 | [assistant/assistant_operation_card.dart](assistant/assistant_operation_card.dart) | 按真实工具状态显示确认、取消、失败、未知结果和对象入口 |
-| 助手会话历史 | [assistant/assistant_history_page.dart](assistant/assistant_history_page.dart) | 切换、改名、删除会话；**草稿，当前静态检查未通过** |
-| 助手模型、凭据与操作权限 | [assistant/assistant_settings_page.dart](assistant/assistant_settings_page.dart) | 安全存储凭据、选择 DeepSeek 协议、连接测试与自动执行开关；**草稿，未接通设备验收** |
-| 任务/目标内问助手与对象跳转 | [assistant/assistant_scope.dart](assistant/assistant_scope.dart) | 提供控制器，复用 DetailPane 打开助手和真实任务/目标；**尚未装配** |
+| 助手会话历史 | [assistant/assistant_history_page.dart](assistant/assistant_history_page.dart) | 切换、改名、删除会话 |
+| 助手模型、凭据与操作权限 | [assistant/assistant_settings_page.dart](assistant/assistant_settings_page.dart) | 安全存储凭据、选择 DeepSeek 协议、连接测试与自动执行开关；设备验收单独记录 |
+| 任务/目标内问助手与对象跳转 | [assistant/assistant_scope.dart](assistant/assistant_scope.dart) | 提供控制器，复用 DetailPane 打开助手和真实任务/目标；已装配 |
 
 `form` 是“表单”：创建、修改和重试新建共同使用，因此没有只叫 `create`。
 `detail` 是详情，`execution` 是执行，`record` 是一条记录，`history` 是历史列表。
@@ -73,7 +73,7 @@ goals/
 | --- | --- |
 | [mission_action_controller.dart](missions/shared/mission_action_controller.dart) | 统一提交开始、暂停、继续、延长和结束；管理等待、冲突及同一操作重试 |
 | [mission_execution_display.dart](missions/shared/mission_execution_display.dart) | 共用标题、页面正文布局、动作反馈、事件时间线及时间文字转换 |
-| [mission_phase_icon.dart](missions/shared/mission_phase_icon.dart) | 今天、自选、全部与当前任务栏共用的六阶段图标 |
+| [mission_phase_icon.dart](missions/shared/mission_phase_icon.dart) | 今天、自选、全部与当前任务栏共用的七阶段图标 |
 | [mission_phase_display.dart](missions/shared/mission_phase_display.dart) | 统一阶段文案和打开任务的提示 |
 | [mission_live_status.dart](missions/shared/mission_live_status.dart) | 列表实时时长标签，定时重绘，不每秒查询或写库 |
 | [active_missions_bar.dart](missions/shared/active_missions_bar.dart) | 跨日期显示当前运行或暂停的任务 |
@@ -91,7 +91,7 @@ goals/
 
 ## 状态应该去哪里找
 
-- **任务阶段与真实时长**：由 domain 规则读取已保存事件及材料/失败/放弃事实计算；schema v5 保存正式材料，草稿不参与阶段。
+- **任务阶段与真实时长**：由 domain 规则读取已保存事件及材料/失败/放弃事实计算；正式材料通过记录内容及材料引用保存，草稿不参与阶段。
 - **整页查询、保存与返回保护**：在对应的 `*_page.dart` 中。广播只触发重查，保存仍经过同一个 MissionService。
 - **提交等待、冲突、原操作重试**：在 `MissionActionController` 中。
 - **区域内部交互**：日历是否展开在 `MissionScheduleFields`；自选列表是否展开在今天页文件内的 `_FlexibleMissionSection`。
@@ -99,7 +99,7 @@ goals/
 
 目录归类用于解决“文件平铺太多，找不到页面”；拆文件用于解决具体的复杂度问题。普通页面组件优先留在页面文件中，不因行数或区域数量拆文件；状态变量很多、交互复杂或独立性很高时，才考虑独立文件。显示转换函数明显遮挡页面主流程时，可像 today_display.dart 一样单独放置。今天页保留 today_page.dart、today_display.dart、schedule_section.dart 三个文件。
 
-业务调用链继续看[任务页面与执行状态流转](../../docs/教学/任务页面与执行状态流转.md)。
+业务调用链继续看[任务与材料调用链](../../docs/架构/前端/任务与材料/总览.md)。
 
 
 ## 个人资料与设置
@@ -108,9 +108,11 @@ goals/
 - [me/settings_page.dart](me/settings_page.dart)：按实际平台和提醒能力展示权限、执行通知与计划提醒，提供备份及关于；返回个人页。
 - [local_profile.dart](../application/settings/local_profile.dart)：本机资料值对象；[AppDevice](../application/settings/app_device.dart) 提供资料读写和系统能力，平台实现在 `data/settings`，不增加领域表。
 
-## Agent 页面当前边界
+## 助手与记录页面的当前组织
 
-`presentation/assistant/` 是 2026-10-29 分支草稿。页面颜色、字号、顶栏、卡片、按钮和详情导航都读取现有主题与公共组件，但 AppShell 仍是四个主页面，`AssistantScope` 尚未包入工作区，任务/目标详情也没有“问助手”入口。`flutter analyze --no-pub` 当前报告助手历史/设置引用不存在的函数与类型、主页面输入框使用了不支持的 `border` 参数等问题；因此这些文件不能作为已交付页面引用。先按[Agent 接入 App](../../docs/设计/Agent接入App.md#7-实施顺序与验收)完成装配和检查，再记录实际视觉与设备验收。
+助手已接入主导航与任务/目标详情。主页面按输入、会话提示、欢迎区和消息气泡拆 part，仍由页面 state 管理生命周期；控制器和工具职责见[助手与总结](../../docs/架构/前端/助手与总结/总览.md)。真实设备与模型验收范围见[整改记录](../../docs/审查/2026-10-31-全局样式与架构整改.md)。
+
+独立记录库入口在 `records/records_page.dart`，编辑、关联、详情及每日条带在所属 part 内；单任务工作区为 `missions/record/mission_record_workspace.dart`。两者含义见[术语](../../docs/架构/术语.md)。
 
 ### 2026-10-26 图形引导与工作区
 

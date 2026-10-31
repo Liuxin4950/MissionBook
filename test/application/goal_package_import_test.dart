@@ -9,8 +9,9 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_package_repository.dart';
 import 'package:mission_book/domain/entities/goal_package_import.dart';
 
-Future<String> sample() =>
-    File('docs/设计/目标计划导入/examples/课标试运行.goal-package.v1.json').readAsString();
+Future<String> sample() => File(
+  'docs/历史文档/设计/目标计划导入/examples/课标试运行.goal-package.v1.json',
+).readAsString();
 
 void main() {
   late AppDatabase db;
@@ -128,7 +129,7 @@ BEGIN SELECT RAISE(ABORT, 'research import failure'); END
 
   test('旧大纲仍创建目标和节点，不生成任务', () async {
     final text = await File(
-      'docs/设计/目标计划导入/examples/仅大纲.goal-outline.v1.json',
+      'docs/历史文档/设计/目标计划导入/examples/仅大纲.goal-outline.v1.json',
     ).readAsString();
     final preview = await service.prepare(GoalImportSource.text(text));
     expect(preview.isOutline, isTrue);

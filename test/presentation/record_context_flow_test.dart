@@ -1,3 +1,4 @@
+import 'package:mission_book/data/repositories/drift_memory_repository.dart';
 import 'package:mission_book/application/memory/memory_service.dart';
 import 'package:mission_book/presentation/records/context_settings_page.dart';
 import 'package:drift/native.dart';
@@ -40,7 +41,7 @@ void main() {
   Widget app(Widget home) => MaterialApp(
     builder: (c, child) => RecordScope(
       service: records,
-      memory: MemoryService(DriftRecordRepository(db)),
+      memory: MemoryService(DriftMemoryRepository(db)),
       analysis: analysis,
       child: child!,
     ),
@@ -82,7 +83,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, '删除').last);
+    await tester.tap(find.widgetWithText(OutlinedButton, '删除'));
     await tester.pumpAndSettle();
     expect(find.text('可删除的记录'), findsNothing);
     await tester.drag(find.text('正式任务材料'), const Offset(-100, 0));
@@ -132,7 +133,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('午餐任务'));
     await tester.pumpAndSettle();
-    final detail = (await missions.findDetailSnapshot(missionId: mission.id))!;
+    final detail = (await missions.findDetail(missionId: mission.id))!;
     expect(detail.phase, MissionPhase.notStarted);
     expect(detail.evidence.single.content, '午餐：米饭和蔬菜');
     expect(detail.events, isEmpty);
@@ -150,7 +151,7 @@ void main() {
       plannedDurationMinutes: 45,
     );
     final id = (await db.select(db.missions).get()).single.id;
-    final d = (await missions.findDetailSnapshot(missionId: id))!;
+    final d = (await missions.findDetail(missionId: id))!;
     await tester.pumpWidget(
       app(Scaffold(body: ExecutionReportButton(detail: d))),
     );
@@ -167,7 +168,7 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('execution-report-confirm')));
     await tester.pumpAndSettle();
-    final saved = (await missions.findDetailSnapshot(missionId: id))!;
+    final saved = (await missions.findDetail(missionId: id))!;
     expect(saved.events, hasLength(1));
     expect(saved.events.single.isRetrospective, isTrue);
     expect(saved.effectiveUserReport!.basis, '我上午已经完成这节课程');
@@ -190,7 +191,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets('全局记忆页面查看、更正和忘记走同一业务入口', (tester) async {
-    final memory = MemoryService(DriftRecordRepository(db));
+    final memory = MemoryService(DriftMemoryRepository(db));
     await memory.save({
       'id': 'ui-memory',
       'kind': 'preference',

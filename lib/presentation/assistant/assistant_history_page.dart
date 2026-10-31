@@ -1,3 +1,4 @@
+import '../../application/errors/user_error_message.dart';
 import 'package:flutter/material.dart';
 
 import '../../application/assistant/assistant_controller.dart';
@@ -162,8 +163,8 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
                           ),
                           const SizedBox(height: AppLayout.spaceXs),
                           Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
+                            spacing: AppLayout.spaceSm,
+                            runSpacing: AppLayout.spaceXs,
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               Text(
@@ -236,9 +237,11 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
       if (context.mounted) Navigator.of(context).pop();
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(userErrorMessage(error, fallback: '会话操作未完成，请重试')),
+          ),
+        );
       }
     }
   }
@@ -256,9 +259,11 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
       await controller.renameConversation(conversation.id, title);
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(userErrorMessage(error, fallback: '会话操作未完成，请重试')),
+          ),
+        );
       }
     }
   }
@@ -279,9 +284,11 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
       await controller.deleteConversation(conversation.id);
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(userErrorMessage(error, fallback: '会话操作未完成，请重试')),
+          ),
+        );
       }
     }
   }
@@ -330,13 +337,6 @@ class _RenameConversationDialogState extends State<_RenameConversationDialog> {
       ValueListenableBuilder<TextEditingValue>(
         valueListenable: _input,
         builder: (context, value, _) => FilledButton(
-          style: FilledButton.styleFrom(
-            foregroundColor: AppColors.onPrimary,
-            iconColor: AppColors.onPrimary,
-            backgroundColor: AppColors.primary,
-            disabledForegroundColor: AppColors.onDisabled,
-            disabledBackgroundColor: AppColors.disabled,
-          ),
           onPressed:
               value.text.trim().isEmpty || value.text.trim() == widget.title
               ? null

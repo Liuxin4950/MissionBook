@@ -1,7 +1,10 @@
+import '../repositories/drift_repository_support.dart';
+import '../../domain/entities/analysis_scope.dart';
 import 'package:timezone/timezone.dart' as tz;
+import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/rules/mission_attention_rules.dart';
 import '../../application/assistant/unified_reader.dart';
-import '../../domain/rules/mission_projection.dart';
+import '../../application/missions/mission_projection.dart';
 import '../local/app_database.dart';
 import '../repositories/drift_record_repository.dart';
 import '../repositories/drift_mission_repository.dart';
@@ -69,9 +72,12 @@ class DriftUnifiedReader implements UnifiedReader {
         [offset],
       );
       for (final item in items) {
-        item['analysis'] = await records.analysis('goal', item['id'] as String);
+        item['analysis'] = await records.analysis(
+          AnalysisScope.goal,
+          item['id'] as String,
+        );
       }
-      return DriftRecordRepository.page(items, total, offset);
+      return DriftRepositorySupport.page(items, total, offset);
     }
     final resolved = await resolve('goals', goal);
     if (resolved['id'] == null) return resolved;
@@ -127,14 +133,14 @@ class DriftUnifiedReader implements UnifiedReader {
         ).findDetail(item['id'] as String);
         if (d != null) item.addAll(missionProjection(d, DateTime.now()));
         item['analysis'] = await records.analysis(
-          'mission',
+          AnalysisScope.mission,
           item['id'] as String,
         );
       }
       return {
         'goal': root,
         'nodeId': nodeId,
-        ...DriftRecordRepository.page(items, count, offset),
+        ...DriftRepositorySupport.page(items, count, offset),
       };
     }
     final condition =
@@ -150,16 +156,19 @@ class DriftUnifiedReader implements UnifiedReader {
       [...args, offset],
     );
     for (final n in nodes) {
-      n['analysis'] = await records.analysis('node', n['id'] as String);
+      n['analysis'] = await records.analysis(
+        AnalysisScope.node,
+        n['id'] as String,
+      );
     }
     return {
       'goal': root,
       'analysis': await records.analysis(
-        nodeId == null ? 'goal' : 'node',
+        nodeId == null ? AnalysisScope.goal : AnalysisScope.node,
         nodeId ?? goalId,
       ),
       'nodeId': nodeId,
-      'nodes': DriftRecordRepository.page(nodes, total, offset),
+      'nodes': DriftRepositorySupport.page(nodes, total, offset),
       'missions':
           nodeId == null
                 ? await enhance(
@@ -214,7 +223,7 @@ class DriftUnifiedReader implements UnifiedReader {
     final d = (await DriftMissionRepository(db).findDetail(r['id'] as String))!;
     return {
       ...missionProjection(d, DateTime.now().toUtc()),
-      'analysis': await records.analysis('mission', d.mission.id),
+      'analysis': await records.analysis(AnalysisScope.mission, d.mission.id),
       'execution': await legacy.records(
         d.mission.id,
         'execution',
@@ -259,7 +268,7 @@ class DriftUnifiedReader implements UnifiedReader {
   String _today() {
     final d = tz.TZDateTime.from(
       DateTime.now(),
-      tz.getLocation('Asia/Shanghai'),
+      tz.getLocation(defaultScheduleTimeZone),
     );
     return '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }

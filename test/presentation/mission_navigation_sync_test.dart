@@ -18,7 +18,7 @@ import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
 import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
 import 'package:mission_book/presentation/missions/shared/mission_live_status.dart';
-import 'package:mission_book/presentation/missions/record/mission_record_page.dart';
+import 'package:mission_book/presentation/missions/record/mission_record_workspace.dart';
 
 void main() {
   late AppDatabase database;
@@ -140,7 +140,7 @@ void main() {
     await tap(tester, 'execution-end');
     await tap(tester, 'report-completed');
     await tap(tester, 'report-confirm');
-    expect(find.byType(MissionRecordPage), findsOneWidget);
+    expect(find.byType(MissionRecordWorkspace), findsOneWidget);
     expect(find.byKey(const Key('execution-ring')), findsNothing);
     expect(find.byKey(const Key('execution-toggle')), findsNothing);
     expect(find.text('03:00'), findsOneWidget);
@@ -155,12 +155,12 @@ void main() {
     expect(find.byType(MissionDetailPage), findsOneWidget);
     expect(find.text('行动方案'), findsOneWidget);
     expect(find.text('自选时间'), findsOneWidget);
-    expect(find.byType(MissionRecordPage), findsNothing);
+    expect(find.byType(MissionRecordWorkspace), findsNothing);
     expect(find.byKey(const Key('edit-mission')), findsNothing);
     expect(find.byKey(const Key('cancel-mission')), findsNothing);
     final finishedDetailState = tester.state(find.byType(MissionDetailPage));
     await tap(tester, 'detail-view-record');
-    expect(find.byType(MissionRecordPage), findsOneWidget);
+    expect(find.byType(MissionRecordWorkspace), findsOneWidget);
     final returnToTask = tester
         .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.info_outline))
         .onPressed!;
@@ -178,9 +178,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('同步任务'));
     await tester.pumpAndSettle();
-    expect(find.byType(MissionRecordPage), findsOneWidget);
+    expect(find.byType(MissionRecordWorkspace), findsOneWidget);
     expect(find.byKey(const Key('execution-summary')), findsOneWidget);
-    final historyRecordState = tester.state(find.byType(MissionRecordPage));
+    final historyRecordState = tester.state(
+      find.byType(MissionRecordWorkspace),
+    );
     final openDetails = tester
         .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.info_outline))
         .onPressed!;
@@ -192,7 +194,7 @@ void main() {
     expect(find.byKey(const Key('detail-view-record')), findsNothing);
     await tap(tester, 'detail-return-record');
     expect(
-      tester.state(find.byType(MissionRecordPage)),
+      tester.state(find.byType(MissionRecordWorkspace)),
       same(historyRecordState),
     );
     await tester.tap(find.byTooltip('返回'));
@@ -278,17 +280,17 @@ void main() {
       home: MissionDetailPage(missionId: missionId, missionService: service),
     );
     expect(find.byType(MissionDetailPage), findsOneWidget);
-    expect(find.byType(MissionRecordPage), findsNothing);
+    expect(find.byType(MissionRecordWorkspace), findsNothing);
     expect(find.byType(MissionExecutionPage), findsNothing);
     expect(find.text('行动方案'), findsOneWidget);
     expect(find.text('已结束'), findsOneWidget);
     expect(find.byKey(const Key('mission-material-card')), findsNothing);
     await tap(tester, 'detail-view-record');
-    expect(find.byType(MissionRecordPage), findsOneWidget);
+    expect(find.byType(MissionRecordWorkspace), findsOneWidget);
     await tap(tester, 'mission-retry');
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
-    expect(find.byType(MissionRecordPage), findsOneWidget);
+    expect(find.byType(MissionRecordWorkspace), findsOneWidget);
     expect(await database.select(database.missions).get(), hasLength(1));
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
@@ -312,7 +314,7 @@ void main() {
     expect(find.byType(MissionDetailPage), findsOneWidget);
     expect(find.text('已结束'), findsOneWidget);
     await tap(tester, 'detail-return-execution');
-    expect(find.byType(MissionRecordPage), findsOneWidget);
+    expect(find.byType(MissionRecordWorkspace), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.byType(AppShell), findsOneWidget);
@@ -333,7 +335,7 @@ void main() {
     await act(ExecutionEventType.end, report: UserReportedResult.completed);
     await tester.pumpAndSettle();
     expect(find.text('尚未保存的输入'), findsOneWidget);
-    expect(find.byType(MissionRecordPage), findsNothing);
+    expect(find.byType(MissionRecordWorkspace), findsNothing);
     expect(
       tester
           .widget<FilledButton>(find.byKey(const Key('report-confirm')))
@@ -344,7 +346,7 @@ void main() {
     await tap(tester, 'report-cancel');
     await tester.tap(find.text('放弃报告'));
     await tester.pumpAndSettle();
-    expect(find.byType(MissionRecordPage), findsOneWidget);
+    expect(find.byType(MissionRecordWorkspace), findsOneWidget);
     expect(find.text('用户报告：已完成'), findsOneWidget);
     expect((await repository.findDetail(missionId))!.failures, isEmpty);
     await tester.pumpWidget(const SizedBox.shrink());

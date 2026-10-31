@@ -168,11 +168,12 @@ class _DataExportCardState extends State<DataExportCard> {
                               onPressed: _showDetails,
                               tooltip: '备份说明',
                               icon: const Icon(Icons.priority_high_rounded),
-                              iconSize: 14,
+                              iconSize: AppLayout.iconSm,
                               style: IconButton.styleFrom(
                                 foregroundColor: AppColors.textSecondary,
-                                minimumSize: const Size(36, 36),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                minimumSize: const Size.square(
+                                  AppLayout.touchTargetMin,
+                                ),
                                 padding: EdgeInsets.zero,
                               ),
                             ),

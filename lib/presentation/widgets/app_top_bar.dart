@@ -57,8 +57,8 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
           titleTextStyle: theme.textTheme.titleMedium,
           actions: actions,
           actionsPadding: EdgeInsets.only(right: inset),
-          // 返回按钮与正文共用左右边距；标准24、窄屏16，加上48触控宽度。
-          leadingWidth: inset + 48,
+          // 返回按钮与正文共用左右边距；标准24、窄屏16，加上最小触控宽度。
+          leadingWidth: inset + AppLayout.touchTargetMin,
           leading: Padding(
             padding: EdgeInsets.only(left: inset),
             child: Center(

@@ -9,8 +9,8 @@ class PageFooterBar extends StatelessWidget {
   const PageFooterBar({
     super.key,
     required this.child,
-    this.topPadding = 8,
-    this.bottomPadding = 16,
+    this.topPadding = AppLayout.spaceSm,
+    this.bottomPadding = AppLayout.spaceLg,
     this.maxContentWidth = AppLayout.maxPageWidth,
   });
 

@@ -1,3 +1,4 @@
+import '../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_layout.dart';
@@ -93,14 +94,16 @@ class _MemoryPageState extends State<MemoryPage> {
     }
   }
 
-  Future<void> retry(List jobs) async {
+  Future<void> retry(List<Map<String, Object?>> jobs) async {
     setState(() => _retrying = true);
     try {
       final scope = RecordScope.maybeOf(context)!;
       for (final job in jobs) {
-        await scope.analysis.store.retry('memory', job['target_id'] as String);
+        await scope.analysis.requestManual(
+          AnalysisScope.memory,
+          job['target_id'] as String,
+        );
       }
-      scope.analysis.wake();
       if (mounted) load();
     } catch (_) {
       if (mounted) setState(() => _error = '重新整理失败，请稍后重试');
@@ -223,8 +226,11 @@ class _MemoryPageState extends State<MemoryPage> {
               }
               final data = snapshot.data!;
               final items = data['items'] as List<Map<String, Object?>>;
-              final extraction = data['extraction'] as Map?;
-              final jobs = extraction?['retriable'] as List? ?? const [];
+              final extraction = data['extraction'] as Map<String, dynamic>?;
+              final jobs =
+                  (extraction?['retriable'] as List<dynamic>? ?? const [])
+                      .whereType<Map<String, Object?>>()
+                      .toList();
               return ListView(
                 padding: AppLayout.pagePadding(context),
                 children: [

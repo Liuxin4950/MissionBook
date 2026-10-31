@@ -296,7 +296,9 @@ final class _DriftSessionHandle implements SessionHandle {
             isUtc: true,
           ),
           type: row.type,
-          data: Map<String, Object?>.from(jsonDecode(row.data) as Map),
+          data: Map<String, Object?>.from(
+            jsonDecode(row.data) as Map<String, dynamic>,
+          ),
           version: row.version,
           ignorable: row.ignorable,
         ),

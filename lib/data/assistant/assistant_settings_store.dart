@@ -30,7 +30,9 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
     final custom = customJson == null
         ? null
         : ModelProfile.fromJson(
-            Map<String, Object?>.from(jsonDecode(customJson) as Map),
+            Map<String, Object?>.from(
+              jsonDecode(customJson) as Map<String, dynamic>,
+            ),
           );
     final customKey = await resolveCredential('MISSIONBOOK_CUSTOM_API_KEY');
     final autoApprove = await _storage.read(key: _autoApproveKey);
@@ -48,7 +50,9 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
       persona: personaJson == null
           ? const AssistantPersona()
           : AssistantPersona.fromJson(
-              Map<String, Object?>.from(jsonDecode(personaJson) as Map),
+              Map<String, Object?>.from(
+                jsonDecode(personaJson) as Map<String, dynamic>,
+              ),
             ),
       hasTranscriptionCredential:
           await resolveCredential('MISSIONBOOK_TRANSCRIPTION_API_KEY') != null,

@@ -138,7 +138,7 @@ class _AssistantOutlineEditorState extends State<AssistantOutlineEditor> {
           ),
         Wrap(
           alignment: WrapAlignment.end,
-          spacing: 8,
+          spacing: AppLayout.spaceSm,
           children: [
             TextButton(onPressed: widget.onCancel, child: const Text('取消修改')),
             FilledButton(onPressed: _save, child: const Text('保存提案')),

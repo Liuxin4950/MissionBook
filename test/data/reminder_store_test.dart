@@ -118,8 +118,8 @@ void main() {
   test('旧设置文件默认提前10分钟，新选择持久化且非法值不覆盖', () async {
     await file.writeAsString(
       jsonEncode({
-        'preferences': {},
-        'notificationIds': {},
+        'preferences': <String, Object?>{},
+        'notificationIds': <String, Object?>{},
         'nextNotificationId': 1,
       }),
     );

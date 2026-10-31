@@ -22,7 +22,7 @@ import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/goals/list/goals_page.dart';
 import 'package:mission_book/presentation/missions/shared/mission_phase_icon.dart';
-import 'package:mission_book/presentation/missions/record/mission_record_page.dart';
+import 'package:mission_book/presentation/missions/record/mission_record_workspace.dart';
 import 'package:mission_book/presentation/goals/detail/goal_detail_page.dart';
 import 'package:mission_book/presentation/me/settings_page.dart';
 import 'package:mission_book/presentation/me/me_page.dart';
@@ -153,7 +153,7 @@ void main() {
       await tapKey(tester, 'profile-record-$id');
       expect(
         tester
-            .widget<MissionRecordPage>(find.byType(MissionRecordPage))
+            .widget<MissionRecordWorkspace>(find.byType(MissionRecordWorkspace))
             .detail
             .mission
             .id,
@@ -175,22 +175,25 @@ void main() {
     expect(find.byType(MissionDetailPage), findsNothing);
     expect(
       tester
-          .widget<MissionRecordPage>(find.byType(MissionRecordPage))
+          .widget<MissionRecordWorkspace>(find.byType(MissionRecordWorkspace))
           .detail
           .mission
           .id,
       secondId,
     );
     // 缩到单列仍保留同一记录实例，返回后可以打开另一条。
-    final recordState = tester.state(find.byType(MissionRecordPage));
+    final recordState = tester.state(find.byType(MissionRecordWorkspace));
     tester.view.physicalSize = const Size(390, 844);
     await tester.pumpAndSettle();
-    expect(tester.state(find.byType(MissionRecordPage)), same(recordState));
+    expect(
+      tester.state(find.byType(MissionRecordWorkspace)),
+      same(recordState),
+    );
     await tapBack(tester);
     await tapKey(tester, 'profile-record-$missionId');
     expect(
       tester
-          .widget<MissionRecordPage>(find.byType(MissionRecordPage))
+          .widget<MissionRecordWorkspace>(find.byType(MissionRecordWorkspace))
           .detail
           .mission
           .id,
@@ -198,7 +201,7 @@ void main() {
     );
     await tapBack(tester);
     expect(controller.entries, isEmpty);
-    expect(find.byType(MissionRecordPage), findsNothing);
+    expect(find.byType(MissionRecordWorkspace), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -222,7 +225,7 @@ void main() {
         goal.id,
       );
       await tapKey(tester, 'profile-record-$missionId');
-      expect(find.byType(MissionRecordPage), findsOneWidget);
+      expect(find.byType(MissionRecordWorkspace), findsOneWidget);
       tester
           .state<ScrollableState>(
             find
@@ -271,7 +274,7 @@ void main() {
     await tapKey(tester, 'profile-record-$missionId');
     await tester.tap(find.text('离开'));
     await tester.pumpAndSettle();
-    expect(find.byType(MissionRecordPage), findsOneWidget);
+    expect(find.byType(MissionRecordWorkspace), findsOneWidget);
     expect((await goals.findById(goal.id))!.title, '有草稿的目标');
     final controller = tester
         .widget<DetailPaneHost>(find.byType(DetailPaneHost))

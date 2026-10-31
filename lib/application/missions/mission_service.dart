@@ -5,6 +5,7 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../domain/entities/mission.dart';
+import '../../domain/entities/user_execution_report.dart';
 import '../../domain/entities/mission_ownership.dart';
 import '../../domain/entities/mission_creation.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
@@ -18,11 +19,12 @@ import '../../domain/entities/scheduled_mission.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/execution_command.dart';
 import '../../domain/entities/historical_completion.dart';
+import '../../domain/repositories/historical_completion_repository.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/evidence.dart';
 import '../../domain/entities/operation_receipt.dart';
-import '../../domain/entities/mission_plan.dart';
-import '../../domain/repositories/mission_plan_repository.dart';
+import '../../domain/entities/schedule_proposal.dart';
+import '../../domain/repositories/schedule_proposal_repository.dart';
 import '../../domain/repositories/mission_makeup_repository.dart';
 import '../../domain/rules/evidence_rules.dart';
 import '../../domain/rules/mission_creation_rules.dart';
@@ -162,6 +164,26 @@ class MissionService {
     return event;
   }
 
+  /// 用户补记/时间更正也由任务命令保存；STOP 先独立结算，避免旧快照回滚到期事实。
+  Future<void> reportExecution(
+    UserExecutionReport report, {
+    required int expectedSequence,
+    required String scheduleId,
+    UserReportedResult? result,
+    bool? submitOptionalEvidence,
+  }) async {
+    final stopped = await repository.reconcileScheduledEnds();
+    if (stopped.isNotEmpty) _notify();
+    await repository.reportExecution(
+      report,
+      expectedSequence: expectedSequence,
+      scheduleId: scheduleId,
+      result: result,
+      submitOptionalEvidence: submitOptionalEvidence,
+    );
+    _notify();
+  }
+
   Future<void> startMakeup(
     MissionDetail original,
     String commandId, {
@@ -196,17 +218,18 @@ class MissionService {
       repository.findGoalChoices();
   Future<MissionOwnershipInfo?> findOwnershipInfo(MissionOwnership ownership) =>
       repository.findOwnershipInfo(ownership);
-  Future<List<MissionDetail>> findForGoal(String goalId) async {
+
+  /// 读取目标下任务前先补算材料截止；可能写入超时失败事实。
+  Future<List<MissionDetail>> findForGoalAndReconcile(String goalId) async {
     await reconcileEvidenceDeadlines();
     return repository.findForGoal(goalId);
   }
 
   /// Agent 快照只读取事实，不触发截止补算或其他维护写入。
-  Future<List<MissionDetail>> findForGoalSnapshot(String goalId) =>
+  Future<List<MissionDetail>> findForGoal(String goalId) =>
       repository.findForGoal(goalId);
 
-  Future<List<MissionDetail>> findFinishedSnapshot() =>
-      repository.findFinished();
+  Future<List<MissionDetail>> findFinished() => repository.findFinished();
 
   Future<OperationReceiptInfo?> findOperationReceipt(String operationId) {
     final Object source = repository;
@@ -216,7 +239,8 @@ class MissionService {
     return Future.value(null);
   }
 
-  Future<List<MissionDetail>> findFinished() async {
+  /// 读取已结束任务前先补算材料截止；可能写入超时失败事实。
+  Future<List<MissionDetail>> findFinishedAndReconcile() async {
     await reconcileEvidenceDeadlines();
     return repository.findFinished();
   }
@@ -234,10 +258,15 @@ class MissionService {
   void refreshAfterExternalCommit() => _notify();
 
   /// “全部任务”复用详情事实及截止补算，不建立第二套阶段判断。
-  Future<List<MissionDetail>> findAllDetails() async {
+  Future<List<MissionDetail>> findAllDetailsAndReconcile() async {
     await reconcileEvidenceDeadlines();
     return repository.findAllDetails();
   }
+
+  /// 纯查询：需要补记到期事实时显式调用 AndReconcile 入口。
+  Future<List<MissionDetail>> findAllDetails() => repository.findAllDetails();
+  Future<List<MissionDetail>> findPendingEvidence() =>
+      repository.findPendingEvidence();
 
   Future<PlannedMissionSnapshot> findPlannedSnapshot() async {
     final Object source = repository;
@@ -298,7 +327,7 @@ class MissionService {
     return count;
   }
 
-  Future<List<MissionDetail>> findPendingEvidence() async {
+  Future<List<MissionDetail>> findPendingEvidenceAndReconcile() async {
     await reconcileEvidenceDeadlines();
     return repository.findPendingEvidence();
   }
@@ -448,10 +477,9 @@ class MissionService {
       }
     }
     final result = await repository.submitEvidence(submission);
-    if (result == EvidenceSubmissionResult.submitted) {
-      for (final item in submission.items) {
-        _preparedImageKeys.remove(item.attachmentStorageKey);
-      }
+    // 两种结果都已保存材料，预先生成的附件不再属于待清理草稿。
+    for (final item in submission.items) {
+      _preparedImageKeys.remove(item.attachmentStorageKey);
     }
     _notify();
     return result;
@@ -566,39 +594,20 @@ class MissionService {
     _notify();
   }
 
-  // 创建和编辑共用输入规则；时区与固定时刻在同一个入口校验。
+  // 创建和编辑共用领域规则；时区与固定时刻只在规则文件维护一次。
   void _validateSchedule({
     required String scheduledDate,
     required String timeZone,
     required int plannedDurationMinutes,
     required TimePolicy timePolicy,
     required DateTime? fixedStartAt,
-  }) {
-    if (plannedDurationMinutes <= 0) {
-      throw ArgumentError('计划时长必须大于 0 分钟');
-    }
-    validateScheduledDate(scheduledDate);
-    final tz.Location location;
-    try {
-      location = tz.getLocation(timeZone);
-    } on tz.LocationNotFoundException {
-      throw ArgumentError('时区名称无效');
-    }
-    if (timePolicy == TimePolicy.fixed) {
-      if (fixedStartAt == null) {
-        throw ArgumentError('固定时间任务必须填写开始时刻');
-      }
-      final localStart = tz.TZDateTime.from(fixedStartAt, location);
-      final parts = scheduledDate.split('-');
-      if (localStart.year != int.parse(parts[0]) ||
-          localStart.month != int.parse(parts[1]) ||
-          localStart.day != int.parse(parts[2])) {
-        throw ArgumentError('固定开始时刻必须属于所选计划日期');
-      }
-    } else if (fixedStartAt != null) {
-      throw ArgumentError('自选时间任务不能包含固定开始时刻');
-    }
-  }
+  }) => validateMissionScheduleFields(
+    scheduledDate: scheduledDate,
+    timeZone: timeZone,
+    plannedDurationMinutes: plannedDurationMinutes,
+    timePolicy: timePolicy,
+    fixedStartAt: fixedStartAt?.toUtc(),
+  );
 
   /// 详情页传入当前任务编号；等待仓储事务完成，页面才能显示取消结果。
   Future<void> cancel({required String missionId, String? operationId}) async {
@@ -776,28 +785,30 @@ class MissionService {
   }
 
   /// 计划卡传入完整提案，只检查排期；最终保存仍会在事务内重新检查。
-  Future<List<MissionPlanConflict>> checkPlan(MissionPlan plan) {
+  Future<List<ScheduleConflict>> checkPlan(ScheduleProposal plan) {
     _validatePlan(plan);
     final source = repository;
-    if (source is! MissionPlanRepository) {
+    if (source is! ScheduleProposalRepository) {
       throw StateError('当前任务存储不支持整份计划保存');
     }
-    return (source as MissionPlanRepository).checkPlan(plan);
+    return (source as ScheduleProposalRepository).checkPlan(plan);
   }
 
   /// 一次提交只发一次页面刷新；事务失败时不产生部分任务或排期版本。
-  Future<OperationReceiptInfo> applyPlan(MissionPlan plan) async {
+  Future<OperationReceiptInfo> applyPlan(ScheduleProposal plan) async {
     final source = repository;
-    if (source is! MissionPlanRepository) {
+    if (source is! ScheduleProposalRepository) {
       throw StateError('当前任务存储不支持整份计划保存');
     }
     _validatePlan(plan);
-    final receipt = await (source as MissionPlanRepository).applyPlan(plan);
+    final receipt = await (source as ScheduleProposalRepository).applyPlan(
+      plan,
+    );
     _notify();
     return receipt;
   }
 
-  void _validatePlan(MissionPlan plan) {
+  void _validatePlan(ScheduleProposal plan) {
     for (final item in plan.items) {
       validateMissionSchedule(item.schedule);
       if (item.creation != null) validateMissionCreation(item.creation!);
@@ -816,7 +827,8 @@ class MissionService {
   ///
   /// 无效输入以 ArgumentError 结束 Future，仓储错误继续向上传递。
   /// 今天页的 _loadMissions 提供所选日期，并等待此 Future 后显示结果。
-  Future<List<ScheduledMission>> findScheduledOn({
+  /// 读取某日任务前先补算材料截止；可能写入超时失败事实。
+  Future<List<ScheduledMission>> findScheduledOnAndReconcile({
     required String scheduledDate,
   }) async {
     validateScheduledDate(scheduledDate);
@@ -826,9 +838,9 @@ class MissionService {
     return missions;
   }
 
-  Future<List<ScheduledMission>> findScheduledSnapshotOn({
+  Future<List<ScheduledMission>> findScheduledOn({
     required String scheduledDate,
-  }) {
+  }) async {
     validateScheduledDate(scheduledDate);
     return repository.findScheduledOn(scheduledDate);
   }
@@ -836,7 +848,9 @@ class MissionService {
   /// 按编号读取任务详情；不存在返回 null，读取或转换失败通过 Future 传出错误。
   ///
   /// missionId 来自用户点击的那条任务，不用标题或列表位置代替唯一编号。
-  Future<MissionDetail?> findDetail({required String missionId}) async {
+  Future<MissionDetail?> findDetailAndReconcile({
+    required String missionId,
+  }) async {
     if (missionId.trim().isEmpty) {
       throw ArgumentError('任务编号不能为空');
     }
@@ -852,7 +866,7 @@ class MissionService {
     return detail;
   }
 
-  Future<MissionDetail?> findDetailSnapshot({required String missionId}) {
+  Future<MissionDetail?> findDetail({required String missionId}) async {
     if (missionId.trim().isEmpty) {
       throw ArgumentError('任务编号不能为空');
     }

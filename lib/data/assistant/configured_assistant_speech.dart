@@ -295,7 +295,7 @@ Future<String> transcribeAudio(
     buffer.add(bytes);
   }
   final data = jsonDecode(utf8.decode(buffer.takeBytes()));
-  final text = data is Map ? data['text'] : null;
+  final text = data is Map<String, dynamic> ? data['text'] : null;
   if (text is! String || text.trim().isEmpty) {
     throw const FormatException('转写服务没有返回文字，请检查录音后重试');
   }

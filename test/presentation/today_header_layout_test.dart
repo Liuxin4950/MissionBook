@@ -1,3 +1,4 @@
+import 'package:mission_book/data/repositories/drift_memory_repository.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -45,7 +46,7 @@ void main() {
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
     builder: (context, child) => RecordScope(
       service: records,
-      memory: MemoryService(DriftRecordRepository(db)),
+      memory: MemoryService(DriftMemoryRepository(db)),
       analysis: analysis,
       child: child!,
     ),

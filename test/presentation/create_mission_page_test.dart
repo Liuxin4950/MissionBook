@@ -1,3 +1,4 @@
+import '../support/unused_mission_writes.dart';
 import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'package:mission_book/domain/entities/execution_command.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
@@ -21,7 +22,7 @@ import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
 DateTime _formClock() => DateTime.utc(2031, 12, 31, 16, 5);
 
 // 用可控制完成时机的仓储替代磁盘，验证页面确实等待业务保存结果。
-class PendingRepository implements MissionRepository {
+class PendingRepository with UnusedMissionWrites implements MissionRepository {
   @override
   Future<List<String>> reconcileScheduledEnds() async => [];
 

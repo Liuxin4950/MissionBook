@@ -1,3 +1,4 @@
+import '../support/unused_mission_writes.dart';
 import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'package:mission_book/domain/entities/execution_command.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
@@ -19,7 +20,7 @@ import 'package:mission_book/presentation/missions/detail/mission_detail_page.da
 import 'package:mission_book/presentation/widgets/app_confirm_dialog.dart';
 
 // 由测试决定读取何时完成，才能观察等待、失败、重试、离页和乱序返回。
-class DetailRepository implements MissionRepository {
+class DetailRepository with UnusedMissionWrites implements MissionRepository {
   @override
   Future<List<String>> reconcileScheduledEnds() async => [];
 

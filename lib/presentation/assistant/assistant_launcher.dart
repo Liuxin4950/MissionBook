@@ -1,3 +1,4 @@
+import '../../application/errors/user_error_message.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -257,9 +258,13 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     } catch (error) {
       if (mounted) {
         _hide();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              userErrorMessage(error, fallback: '操作未完成，请重试；仍有问题时检查模型设置'),
+            ),
+          ),
+        );
       }
     } finally {
       _opening = false;
@@ -718,8 +723,8 @@ class AssistantLauncherState extends State<AssistantLauncher> {
           ),
           child: Wrap(
             alignment: WrapAlignment.end,
-            spacing: 8,
-            runSpacing: 4,
+            spacing: AppLayout.spaceSm,
+            runSpacing: AppLayout.spaceXs,
             children: [
               if (_recording) ...[
                 TextButton(

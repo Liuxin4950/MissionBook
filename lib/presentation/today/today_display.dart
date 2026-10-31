@@ -9,13 +9,11 @@ import '../missions/shared/mission_phase_display.dart';
 
 // 今天页专用的显示工具。不依赖 Flutter，不访问数据库。
 // 页面通过这里取得日期文字；一次查询成功后通过 groupMissionsForDisplay 整理整份结果。
-/// 今天页默认使用的排期时区。
-const todayScheduleTimeZone = 'Asia/Shanghai';
 const _weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
 /// 取得默认排期时区中的当前时间，供默认日期和“回到今天”使用。
 DateTime todayInScheduleTimeZone() =>
-    tz.TZDateTime.now(tz.getLocation(todayScheduleTimeZone));
+    tz.TZDateTime.now(tz.getLocation(defaultScheduleTimeZone));
 
 /// 将所选日历日期转换为查询和新建表单共用的 YYYY-MM-DD 日期键。
 String scheduleDateKey(DateTime date) =>
@@ -117,7 +115,7 @@ TodayMissionItem _missionItem(ScheduledMission item, DateTime? now) {
     durationLabel:
         '${isCancelled ? '已取消 · ' : executionLabel}'
         '计划 ${schedule.plannedDurationMinutes} 分钟',
-    timeZoneLabel: schedule.timeZone == todayScheduleTimeZone
+    timeZoneLabel: schedule.timeZone == defaultScheduleTimeZone
         ? null
         : schedule.timeZone,
   );

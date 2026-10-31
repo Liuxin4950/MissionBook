@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/app_layout.dart';
+import '../../../application/errors/user_error_message.dart';
 
 /// Android 材料草稿区内直接取景、重拍与确认，失败时保留原草稿。
 class EvidenceCameraPanel extends StatefulWidget {
@@ -37,6 +38,7 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
   DateTime? _capturedAt;
   String? _error;
   bool _busy = false;
+  bool _confirming = false;
   int _generation = 0;
 
   @override
@@ -75,15 +77,22 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
       await next?.dispose();
       if (mounted && generation == _generation) {
         setState(
-          () => _error = error.code == 'CameraAccessDenied'
+          () => _error =
+              const {
+                'CameraAccessDenied',
+                'CameraAccessDeniedWithoutPrompt',
+                'CameraAccessRestricted',
+              }.contains(error.code)
               ? '相机权限未授予。可在系统设置中授权，或直接选择图片文件。'
-              : '相机无法启动：${error.description ?? error.code}',
+              : '相机暂时无法启动，请重试或选择图片文件',
         );
       }
     } catch (error) {
       await next?.dispose();
       if (mounted && generation == _generation) {
-        setState(() => _error = '相机无法启动：$error');
+        setState(
+          () => _error = userErrorMessage(error, fallback: '相机无法启动，请重试或选择图片文件'),
+        );
       }
     } finally {
       if (mounted && generation == _generation) setState(() => _busy = false);
@@ -97,7 +106,7 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
       _generation++;
       final previous = _controller;
       _controller = null;
-      _busy = false; // 授权弹窗也会短暂离开前台，返回后必须能重新取景。
+      _busy = _confirming; // 返回前台可重新取景；保存中的照片仍锁定，避免重复加入。
       if (previous != null) unawaited(previous.dispose());
       if (mounted) setState(() {});
     } else if (state == AppLifecycleState.resumed &&
@@ -110,6 +119,7 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
 
   Future<void> _shoot() async {
     final controller = _controller;
+    final generation = _generation;
     if (_busy || controller == null || !controller.value.isInitialized) return;
     setState(() {
       _busy = true;
@@ -121,24 +131,34 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
       if (bytes.isEmpty || bytes.length > 20 * 1024 * 1024) {
         throw ArgumentError('照片必须非空且不能超过 20 MiB');
       }
-      if (mounted) {
+      if (mounted && generation == _generation) {
         setState(() {
           _capture = bytes;
           _capturedAt = DateTime.now().toUtc();
         });
       }
     } catch (error) {
-      if (mounted) setState(() => _error = '拍照失败：$error');
+      if (mounted && generation == _generation) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '拍照失败，请重试或选择图片文件'),
+        );
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && generation == _generation) setState(() => _busy = false);
     }
-    if (mounted && widget.fullScreen && _capture != null) await _confirm();
+    if (mounted &&
+        generation == _generation &&
+        widget.fullScreen &&
+        _capture != null) {
+      await _confirm();
+    }
   }
 
   Future<void> _confirm() async {
     final bytes = _capture;
     final capturedAt = _capturedAt;
-    if (_busy || bytes == null || capturedAt == null) return;
+    if (_busy || _confirming || bytes == null || capturedAt == null) return;
+    _confirming = true;
     setState(() {
       _busy = true;
       _error = null;
@@ -146,10 +166,25 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
     try {
       await widget.onConfirmed(bytes, capturedAt);
     } catch (error) {
-      if (mounted) setState(() => _error = '照片加入草稿失败：$error');
+      if (mounted) {
+        setState(
+          () =>
+              _error = userErrorMessage(error, fallback: '照片加入草稿失败，照片已保留，请重试'),
+        );
+      }
     } finally {
+      _confirming = false;
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _retake() {
+    setState(() {
+      _capture = null;
+      _capturedAt = null;
+      _error = null;
+    });
+    if (_controller == null) unawaited(_start());
   }
 
   @override
@@ -169,8 +204,10 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
       return Stack(
         fit: StackFit.expand,
         children: [
-          const ColoredBox(color: Colors.black),
-          if (controller != null && controller.value.isInitialized)
+          const ColoredBox(color: AppColors.mediaBackground),
+          if (_capture != null)
+            Image.memory(_capture!, fit: BoxFit.contain)
+          else if (controller != null && controller.value.isInitialized)
             LayoutBuilder(
               builder: (context, box) {
                 final size = controller.value.previewSize!;
@@ -193,10 +230,10 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
           if (_error != null)
             Center(
               child: Padding(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(AppLayout.spaceXxl),
                 child: Text(
                   _error!,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppColors.onMedia),
                 ),
               ),
             ),
@@ -204,8 +241,8 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
             child: Stack(
               children: [
                 Positioned(
-                  top: 8,
-                  left: 8,
+                  top: AppLayout.spaceSm,
+                  left: AppLayout.spaceSm,
                   child: IconButton.filledTonal(
                     tooltip: '返回',
                     onPressed: _busy
@@ -214,10 +251,20 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
                     icon: const Icon(Icons.arrow_back),
                   ),
                 ),
+                if (_capture != null)
+                  Positioned(
+                    top: AppLayout.spaceSm,
+                    right: AppLayout.spaceSm,
+                    child: IconButton.filledTonal(
+                      tooltip: '重拍',
+                      onPressed: _busy ? null : _retake,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ),
                 Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: 20,
+                  left: AppLayout.spaceLg,
+                  right: AppLayout.spaceLg,
+                  bottom: AppLayout.spaceXl,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
@@ -225,29 +272,37 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
                         onPressed: _busy ? null : widget.onChooseFile,
                         child: const Text(
                           '选择图片',
-                          style: TextStyle(color: Colors.white),
+                          style: TextStyle(color: AppColors.onMedia),
                         ),
                       ),
                       IconButton.filled(
                         key: const Key('evidence-camera-shoot'),
-                        tooltip: '拍照',
-                        iconSize: 44,
-                        padding: const EdgeInsets.all(16),
-                        onPressed: _busy || controller == null ? null : _shoot,
-                        icon: const Icon(Icons.camera_alt),
+                        tooltip: _capture == null ? '拍照' : '重试保存照片',
+                        iconSize: AppLayout.iconXl,
+                        padding: const EdgeInsets.all(AppLayout.spaceLg),
+                        onPressed: _busy
+                            ? null
+                            : _capture != null
+                            ? _confirm
+                            : controller == null
+                            ? null
+                            : _shoot,
+                        icon: Icon(
+                          _capture == null ? Icons.camera_alt : Icons.check,
+                        ),
                       ),
                       TextButton(
                         key: const Key('camera-text-only'),
                         onPressed: _busy ? null : widget.onCancel,
                         child: const Text(
                           '不记录图片',
-                          style: TextStyle(color: Colors.white),
+                          style: TextStyle(color: AppColors.onMedia),
                         ),
                       ),
                     ],
                   ),
                 ),
-                if (controller == null && !_busy)
+                if (controller == null && _capture == null && !_busy)
                   Positioned(
                     bottom: 100,
                     left: 0,
@@ -307,8 +362,8 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
           ],
           const SizedBox(height: AppLayout.spaceMd),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppLayout.spaceSm,
+            runSpacing: AppLayout.spaceSm,
             children: [
               if (_capture == null && controller != null)
                 FilledButton.icon(
@@ -324,9 +379,7 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
                   child: const Text('使用这张照片'),
                 ),
                 OutlinedButton(
-                  onPressed: _busy
-                      ? null
-                      : () => setState(() => _capture = null),
+                  onPressed: _busy ? null : _retake,
                   child: const Text('重拍'),
                 ),
               ],

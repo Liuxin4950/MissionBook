@@ -557,9 +557,7 @@ void main() {
       ),
     );
     expect(
-      (await missions.findDetailSnapshot(
-        missionId: missionId,
-      ))!.schedule.scheduledDate,
+      (await missions.findDetail(missionId: missionId))!.schedule.scheduledDate,
       '2026-10-30',
     );
     final session = assistant.currentSessionId;
@@ -574,7 +572,7 @@ void main() {
     await tester.ensureVisible(find.text('确认执行'));
     await tester.tap(find.text('确认执行'));
     await pumpUntil(tester, () => !assistant.isRunning);
-    final detail = (await missions.findDetailSnapshot(missionId: missionId))!;
+    final detail = (await missions.findDetail(missionId: missionId))!;
     expect(detail.schedule.scheduledDate, '2026-10-31');
     expect(detail.schedule.plannedDurationMinutes, 45);
     expect(detail.schedule.revisionNumber, 2);
@@ -680,9 +678,7 @@ void main() {
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(
-      (await missions.findDetailSnapshot(
-        missionId: missionId,
-      ))!.schedule.scheduledDate,
+      (await missions.findDetail(missionId: missionId))!.schedule.scheduledDate,
       '2026-10-30',
     );
     expect(tester.takeException(), isNull);

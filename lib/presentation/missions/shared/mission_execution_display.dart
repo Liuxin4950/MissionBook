@@ -188,8 +188,8 @@ class MissionActionFeedback extends StatelessWidget {
           ),
         ),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: AppLayout.spaceSm,
+          runSpacing: AppLayout.spaceSm,
           children: [
             if (controller.pending != null)
               FilledButton(

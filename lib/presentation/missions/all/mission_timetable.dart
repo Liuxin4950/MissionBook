@@ -188,7 +188,7 @@ class _MissionTimetableState extends State<MissionTimetable>
           Wrap(
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
+            spacing: AppLayout.spaceSm,
             children: [
               Text('时间安排', style: theme.textTheme.titleMedium),
               if (_layout.conflicts.isNotEmpty)
@@ -215,8 +215,8 @@ class _MissionTimetableState extends State<MissionTimetable>
           if (slots.isNotEmpty) ...[
             const SizedBox(height: AppLayout.spaceMd),
             Wrap(
-              spacing: 16,
-              runSpacing: 4,
+              spacing: AppLayout.spaceLg,
+              runSpacing: AppLayout.spaceXs,
               children: [
                 if (plannedCount > 0)
                   _legend(context, '计划', AppColors.primary, '按任务的固定计划时段绘制'),

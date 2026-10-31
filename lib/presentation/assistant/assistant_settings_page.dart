@@ -1,3 +1,4 @@
+import '../../application/errors/user_error_message.dart';
 import 'dart:async';
 
 import '../records/context_settings_page.dart';
@@ -129,7 +130,12 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
     try {
       await widget.controller.initialize();
     } catch (error) {
-      if (mounted) setState(() => _loadError = '$error');
+      if (mounted) {
+        setState(
+          () =>
+              _loadError = userErrorMessage(error, fallback: '设置未保存，请检查输入或重试'),
+        );
+      }
       return;
     }
     if (!mounted) return;
@@ -194,7 +200,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _loadError!.replaceFirst('Bad state: ', ''),
+                        _loadError!,
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: AppColors.error,
@@ -283,10 +289,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
 
   bool get _valid => _validationError == null;
 
-  static String _errorText(Object error) => error
-      .toString()
-      .replaceFirst('Invalid argument(s): ', '')
-      .replaceFirst('Bad state: ', '');
+  static String _errorText(Object error) =>
+      userErrorMessage(error, fallback: '设置无效，请检查输入后重试');
 
   ModelProfile _readCustomProfile() {
     final contextWindow = int.tryParse(_contextWindow.text.trim());
@@ -464,7 +468,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                   AdaptiveColumns(
                     minColumnWidth: 390,
                     maxColumns: 2,
-                    spacing: 16,
+                    spacing: AppLayout.spaceLg,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -593,8 +597,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         Align(
           alignment: Alignment.centerLeft,
           child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppLayout.spaceSm,
+            runSpacing: AppLayout.spaceSm,
             children: [
               for (final choice in [
                 (AssistantAvatar.spark, '灵感'),
@@ -685,17 +689,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   );
 
   Widget _buildSaveActions() => Wrap(
-    spacing: 10,
-    runSpacing: 10,
+    spacing: AppLayout.spaceMd,
+    runSpacing: AppLayout.spaceMd,
     children: [
       FilledButton(
-        style: FilledButton.styleFrom(
-          foregroundColor: AppColors.onPrimary,
-          iconColor: AppColors.onPrimary,
-          backgroundColor: AppColors.primary,
-          disabledForegroundColor: AppColors.onDisabled,
-          disabledBackgroundColor: AppColors.disabled,
-        ),
         key: const Key('assistant-save-settings'),
         onPressed:
             _saving ||
@@ -900,7 +897,14 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                           );
                           if (mounted) setState(() => _result = '已清除转写 Key');
                         } catch (error) {
-                          if (mounted) setState(() => _error = '$error');
+                          if (mounted) {
+                            setState(
+                              () => _error = userErrorMessage(
+                                error,
+                                fallback: '设置未保存，请检查输入或重试',
+                              ),
+                            );
+                          }
                         }
                       },
                 child: const Text('清除转写 Key'),
@@ -951,7 +955,9 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       }
       if (mounted) setState(() => _result = '设置已保存');
     } catch (error) {
-      if (mounted) setState(() => _error = '设置未保存：$error');
+      if (mounted) {
+        setState(() => _error = userErrorMessage(error, fallback: '设置未保存，请重试'));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -970,7 +976,9 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       await widget.controller.saveCredential('', profileId: _profile);
       if (mounted) setState(() => _result = '已清除设备上的 API Key');
     } catch (error) {
-      if (mounted) setState(() => _error = '清除失败：$error');
+      if (mounted) {
+        setState(() => _error = userErrorMessage(error, fallback: '清除失败，请重试'));
+      }
     }
   }
 
@@ -984,7 +992,9 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       final result = await widget.controller.testConnection();
       if (mounted) setState(() => _result = '连接成功：$result');
     } catch (error) {
-      if (mounted) setState(() => _error = '连接失败：$error');
+      if (mounted) {
+        setState(() => _error = userErrorMessage(error, fallback: '连接失败，请重试'));
+      }
     } finally {
       if (mounted) setState(() => _testing = false);
     }

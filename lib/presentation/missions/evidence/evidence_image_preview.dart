@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 import '../../../core/theme/colors.dart';
+import 'evidence_image_status.dart';
 import '../../../core/theme/app_layout.dart';
 
 /// 列表只展示有界缩略图；原有字节供独立查看层使用，不另存缩略文件或修改原图。
@@ -13,11 +14,13 @@ class EvidenceImagePreview extends StatelessWidget {
     required this.bytes,
     required this.name,
     this.height = 148,
+    this.onRetry,
   });
 
   final Uint8List bytes;
   final String name;
   final double height;
+  final VoidCallback? onRetry;
 
   ImageProvider get _thumbnail => ResizeImage(
     MemoryImage(bytes),
@@ -83,6 +86,11 @@ class EvidenceImagePreview extends StatelessWidget {
                         image: MemoryImage(bytes),
                         fit: BoxFit.contain,
                         semanticLabel: name,
+                        errorBuilder: (_, error, stack) => EvidenceImageStatus(
+                          name: name,
+                          height: height,
+                          failed: true,
+                        ),
                       ),
                     ),
                   ),
@@ -122,6 +130,12 @@ class EvidenceImagePreview extends StatelessWidget {
                 image: _thumbnail,
                 fit: BoxFit.contain,
                 excludeFromSemantics: true,
+                errorBuilder: (_, error, stack) => EvidenceImageStatus(
+                  name: name,
+                  height: height,
+                  failed: true,
+                  onRetry: onRetry,
+                ),
               ),
               Positioned(
                 right: 6,

@@ -489,9 +489,7 @@ void main() {
     );
     await assistant.initialize();
     await assistant.send('挪到明天下午3点');
-    final saved = await missions.findDetailSnapshot(
-      missionId: mission.mission.id,
-    );
+    final saved = await missions.findDetail(missionId: mission.mission.id);
     final local = tz.TZDateTime.from(
       saved!.schedule.fixedStartAt!,
       tz.getLocation('America/New_York'),
@@ -590,16 +588,14 @@ void main() {
     );
     await assistant.initialize();
     await assistant.send('修改这个任务');
-    final saved = (await missions.findDetailSnapshot(
-      missionId: original.mission.id,
-    ))!;
+    final saved = (await missions.findDetail(missionId: original.mission.id))!;
     expect(saved.mission.title, '新标题');
     expect(saved.executionPlan.steps, ['先阅读', '再验证']);
     expect(saved.executionPlan.notes, '新备注');
     expect(saved.schedule.scheduledDate, original.schedule.scheduledDate);
     await assistant.send('取消这个任务');
     expect(
-      (await missions.findDetailSnapshot(
+      (await missions.findDetail(
         missionId: original.mission.id,
       ))!.mission.cancelledAt,
       isNotNull,

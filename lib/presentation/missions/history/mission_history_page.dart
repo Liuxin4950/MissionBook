@@ -20,10 +20,10 @@ import '../../../domain/entities/evidence.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/rules/execution_time_rules.dart';
 import '../detail/mission_detail_page.dart';
-import '../record/mission_record_page.dart';
+import '../record/mission_record_workspace.dart';
 import '../shared/mission_execution_display.dart';
 import '../shared/mission_phase_display.dart';
-import '../evidence/evidence_image_preview.dart';
+import '../evidence/evidence_image_loader.dart';
 
 /// 执行历史与取消记录分开读取。没有 END 的任务通过“当前任务”恢复执行。
 class MissionHistoryPage extends StatefulWidget {
@@ -65,7 +65,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
   Future<List<MissionDetail>> _load() {
     final result = _cancelled
         ? widget.service.findCancelled()
-        : widget.service.findFinished();
+        : widget.service.findFinishedAndReconcile();
     result.ignore();
     return result;
   }
@@ -102,7 +102,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                 missionId: detail.mission.id,
                 missionService: widget.service,
               )
-            : MissionRecordPage(detail: detail, service: widget.service),
+            : MissionRecordWorkspace(detail: detail, service: widget.service),
       ).then((_) => _refresh()),
     );
   }
@@ -362,8 +362,8 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                     ),
                     const SizedBox(height: AppLayout.spaceSm),
                     Wrap(
-                      spacing: 10,
-                      runSpacing: 4,
+                      spacing: AppLayout.spaceMd,
+                      runSpacing: AppLayout.spaceXs,
                       children: [
                         Text(clock, style: theme.textTheme.bodyMedium),
                         Text(status, style: theme.textTheme.bodyMedium),
@@ -387,8 +387,8 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
               if (images.isNotEmpty) ...[
                 const SizedBox(height: AppLayout.spaceMd),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: AppLayout.spaceSm,
+                  runSpacing: AppLayout.spaceSm,
                   children: [
                     for (final item in images.take(3))
                       SizedBox(width: 104, child: _thumbnail(item)),
@@ -432,27 +432,11 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
       await widget.service.initializeEvidenceImages();
       return widget.service.readEvidenceImage(key);
     });
-    return FutureBuilder<Uint8List>(
+    return EvidenceImageLoader(
       future: future,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const SizedBox(
-            height: 88,
-            child: Center(child: Icon(Icons.broken_image_outlined)),
-          );
-        }
-        if (!snapshot.hasData) {
-          return const SizedBox(
-            height: 88,
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-          );
-        }
-        return EvidenceImagePreview(
-          bytes: snapshot.data!,
-          name: item.attachmentFileName ?? '图片材料',
-          height: 88,
-        );
-      },
+      name: item.attachmentFileName ?? '图片材料',
+      height: 88,
+      onRetry: () => setState(() => _thumbnails.remove(key)),
     );
   }
 }

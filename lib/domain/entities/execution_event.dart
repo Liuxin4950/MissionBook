@@ -53,7 +53,7 @@ class ExecutionEvent {
   final int? grantedDurationMinutes;
 
   /// PAUSE的可选原因，或历史补报必须保存的用户依据；其他事件为空。
-  /// 结束时的未完成原因以后保存到 FailureRecord。
+  /// 结束时的未完成原因保存在 FailureRecord，不塞进 END 事件。
   final String? reason;
 
   /// 仅 END 必填，其他事件为空。

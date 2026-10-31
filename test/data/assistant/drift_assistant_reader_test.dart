@@ -66,7 +66,7 @@ void main() {
           type: ExecutionEventType.start,
         ),
       );
-      detail = (await missions.findDetailSnapshot(missionId: id))!;
+      detail = (await missions.findDetail(missionId: id))!;
       await missions.execute(
         missions.prepareExecution(
           detail: detail,
@@ -75,7 +75,7 @@ void main() {
           submitOptionalEvidence: true,
         ),
       );
-      detail = (await missions.findDetailSnapshot(missionId: id))!;
+      detail = (await missions.findDetail(missionId: id))!;
       await missions.submitEvidence(
         missions.prepareEvidenceSubmission(
           detail: detail,
@@ -89,7 +89,7 @@ void main() {
           ],
         ),
       );
-      detail = (await missions.findDetailSnapshot(missionId: id))!;
+      detail = (await missions.findDetail(missionId: id))!;
       await missions.correctEvidence(
         missions.prepareEvidenceCorrection(
           detail: detail,

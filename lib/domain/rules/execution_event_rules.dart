@@ -114,7 +114,7 @@ void validateExecutionHistory(
 /// derivePreEndMissionPhase 意为“推导执行结束前的任务阶段”。
 ///
 /// 这是测试/教学用的限定入口：只处理待开始、执行中、已暂停、已取消。
-/// 完整六阶段查询用 deriveMissionPhase，它还需要报告、正式材料和失败记录
+/// 完整七阶段查询用 deriveMissionPhase，它还需要报告、正式材料和失败记录
 /// 等关联事实；不得把此入口作为完整任务阶段查询。
 /// 合法 END 暂抛 UnsupportedError；非法时间线仍先抛 ArgumentError。
 MissionPhase derivePreEndMissionPhase(

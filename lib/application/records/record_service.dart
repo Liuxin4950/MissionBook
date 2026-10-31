@@ -1,3 +1,4 @@
+import '../../domain/entities/analysis_scope.dart';
 import '../../domain/entities/evidence.dart';
 import '../../domain/entities/user_execution_report.dart';
 import '../../domain/entities/execution_event.dart';
@@ -66,14 +67,41 @@ class RecordService {
     UserReportedResult? result,
     bool? submitOptionalEvidence,
   }) async {
-    report.validate(missions.currentTime.toUtc());
-    await repository.reportExecution(
+    await missions.reportExecution(
       report,
       expectedSequence: detail.lastSequence,
       scheduleId: detail.schedule.id,
       result: result,
       submitOptionalEvidence: submitOptionalEvidence,
     );
-    missions.refreshAfterExternalCommit();
   }
+
+  Future<Map<String, Object?>> queryRecords({
+    String? id,
+    String? goalId,
+    String? nodeId,
+    String? missionId,
+    String? date,
+    int offset = 0,
+    bool content = false,
+    int contentOffset = 0,
+  }) => repository.queryRecords(
+    id: id,
+    goalId: goalId,
+    nodeId: nodeId,
+    missionId: missionId,
+    date: date,
+    offset: offset,
+    content: content,
+    contentOffset: contentOffset,
+  );
+
+  Future<Map<String, Object?>> analysis(AnalysisScope scope, String id) =>
+      repository.analysis(scope, id);
+
+  Future<Map<String, Object?>> associationChoices(
+    String kind, {
+    String search = '',
+    int offset = 0,
+  }) => repository.associationChoices(kind, search: search, offset: offset);
 }

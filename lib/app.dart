@@ -1,3 +1,4 @@
+import 'data/repositories/drift_memory_repository.dart';
 import 'application/memory/memory_service.dart';
 import 'application/records/record_service.dart';
 import 'application/analysis/analysis_service.dart';
@@ -127,8 +128,13 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       filePicker: goal_file_platform.createGoalFilePicker(),
       packages: packages,
     );
-    _memory = MemoryService(DriftRecordRepository(_database));
-    _records = RecordService(DriftRecordRepository(_database), _missionService);
+    // 记录与记忆各自负责内容和长期上下文，所有仓储共享同一个数据库连接。
+    final recordRepository = DriftRecordRepository(
+      _database,
+      materials: repository,
+    );
+    _memory = MemoryService(DriftMemoryRepository(_database));
+    _records = RecordService(recordRepository, _missionService);
     final analysisStore = DriftAnalysisStore(_database);
     _web = WebService(
       settings: const SecureWebSettings(),

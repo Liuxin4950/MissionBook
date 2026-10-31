@@ -24,6 +24,9 @@ void validateScheduledDate(String scheduledDate) {
   }
 }
 
+/// 产品默认排期时区；表单、今天页、时间轴和助手上下文共用，避免各自写字面量。
+const defaultScheduleTimeZone = 'Asia/Shanghai';
+
 /// 时间安排策略，决定任务是否指定固定开始时刻。
 enum TimePolicy {
   flexible, // 自选时间：只安排日期，由用户决定当天何时开始

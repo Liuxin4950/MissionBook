@@ -258,8 +258,8 @@ class GoalPackageImportService {
     return _preview(
       job['jobId']! as String,
       job['goalId']! as String,
-      (job['root']! as Map).cast<String, Object?>(),
-      (job['summary']! as Map).cast<String, Object?>(),
+      (job['root']! as Map<String, dynamic>).cast<String, Object?>(),
+      (job['summary']! as Map<String, dynamic>).cast<String, Object?>(),
     );
   }
 
@@ -454,7 +454,7 @@ class GoalPackageImportService {
 
   /// 协议只含受限整数；字段名为固定 ASCII。保留数组顺序和原始字符串。
   static String canonicalJson(Object? value) {
-    if (value is Map) {
+    if (value is Map<String, dynamic>) {
       final keys = value.keys.cast<String>().toList()..sort();
       return '{${keys.map((key) => '${jsonEncode(key)}:${canonicalJson(value[key])}').join(',')}}';
     }

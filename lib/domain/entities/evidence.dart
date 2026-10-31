@@ -84,7 +84,7 @@ class EvidenceCorrection {
   final EvidenceDraft item;
 }
 
-/// 超时也有已提交的事实，因此返回业务结果，不抛异常回滚超时记录。
+/// 材料均已保存；deadlineMissed 表示任务已有材料超时事实，重试返回相同结果。
 enum EvidenceSubmissionResult { submitted, deadlineMissed }
 
 class EvidenceConflict implements Exception {

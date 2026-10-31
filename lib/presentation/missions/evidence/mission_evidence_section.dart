@@ -17,7 +17,7 @@ import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/app_settings_row.dart';
 import '../shared/mission_execution_display.dart';
-import 'evidence_image_preview.dart';
+import 'evidence_image_loader.dart';
 import 'formal_evidence_section.dart';
 import 'evidence_camera_panel.dart';
 import '../../../core/theme/app_layout.dart';
@@ -274,8 +274,11 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
           _expanded = false;
         });
       } else {
-        _pending = null;
-        _error = '材料已超时。完成报告已保留，当前草稿尚未提交，可查看或明确丢弃。';
+        setState(() {
+          _clearDrafts();
+          _receipt = '材料已保存，但已超过提交期限；超时记录已保留。';
+          _expanded = false;
+        });
       }
       await _readLatest();
     } on ArgumentError catch (error) {
@@ -297,7 +300,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
 
   Future<void> _readLatest({bool clearError = true}) async {
     try {
-      final latest = await widget.service.findDetail(
+      final latest = await widget.service.findDetailAndReconcile(
         missionId: _detail.mission.id,
       );
       if (!mounted || latest == null) return;
@@ -400,24 +403,11 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       key,
       () => widget.service.readEvidenceImage(key),
     );
-    return FutureBuilder<Uint8List>(
+    return EvidenceImageLoader(
       future: image,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Text('图片无法读取：$name。原材料记录仍然保留。');
-        }
-        if (!snapshot.hasData) {
-          return const Padding(
-            padding: EdgeInsets.all(AppLayout.spaceLg),
-            child: LinearProgressIndicator(),
-          );
-        }
-        return EvidenceImagePreview(
-          bytes: snapshot.data!,
-          name: name,
-          height: height,
-        );
-      },
+      name: name,
+      height: height,
+      onRetry: () => setState(() => _images.remove(key)),
     );
   }
 
@@ -579,8 +569,8 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
               ],
               if (_canSubmit)
                 Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
+                  spacing: AppLayout.spaceMd,
+                  runSpacing: AppLayout.spaceSm,
                   children: [
                     OutlinedButton.icon(
                       key: const Key('evidence-add-text'),

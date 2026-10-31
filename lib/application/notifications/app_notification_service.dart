@@ -311,7 +311,9 @@ class AppNotificationService {
     ReminderRequest request, {
     String? actionId,
   }) async {
-    final detail = await _missions.findDetail(missionId: request.missionId);
+    final detail = await _missions.findDetailAndReconcile(
+      missionId: request.missionId,
+    );
     if (detail == null) return NotificationActionResult.stale;
     // 装配层明确传空字符串表示点击正文；兼容已有应用服务调用的默认动作。
     final action =

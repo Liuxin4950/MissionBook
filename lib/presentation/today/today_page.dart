@@ -3,7 +3,6 @@ import '../records/record_scope.dart';
 import '../widgets/app_date_picker.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../widgets/app_empty_state.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../application/missions/mission_service.dart';
@@ -18,12 +17,14 @@ import '../missions/form/mission_form_page.dart';
 import '../missions/detail/mission_detail_page.dart';
 import '../missions/execution/mission_execution_page.dart';
 import '../missions/all/all_missions_page.dart';
-import '../missions/record/mission_record_page.dart';
+import '../missions/record/mission_record_workspace.dart';
 import 'today_display.dart' as display;
 import 'schedule_section.dart';
+import 'empty_schedule.dart';
 import '../missions/all/mission_timetable.dart';
 import '../missions/all/timetable_layout.dart';
 import '../widgets/app_section_card.dart';
+import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../missions/shared/mission_live_status.dart';
 import '../missions/shared/mission_phase_display.dart';
@@ -65,7 +66,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       _loadedDate == null ? _selectedDate : DateTime.parse(_loadedDate!);
   DateTime get _today => tz.TZDateTime.from(
     widget.clock(),
-    tz.getLocation(display.todayScheduleTimeZone),
+    tz.getLocation(defaultScheduleTimeZone),
   );
   // 页面只保存四类信息：选了哪天、查到了什么、是否在等、有没有错误。
   late DateTime _selectedDate;
@@ -119,7 +120,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       widget.initialDate ??
           tz.TZDateTime.from(
             widget.clock(),
-            tz.getLocation(display.todayScheduleTimeZone),
+            tz.getLocation(defaultScheduleTimeZone),
           ),
     );
     _loadMissions();
@@ -172,10 +173,11 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       // 先按最新排期的日期找属于这一天的任务，再为每个任务读取执行事实与阶段。
       // 所以排期解决“这一天显示谁”，事件解决“这个任务现在是什么阶段”。
       // date 来自本页选择；await 等待 MissionService.findScheduledOn → 仓储 → SQLite。
-      final result = await widget.missionService.findScheduledOn(
+      final result = await widget.missionService.findScheduledOnAndReconcile(
         scheduledDate: date,
       );
-      final pending = await widget.missionService.findPendingEvidence();
+      final pending = await widget.missionService
+          .findPendingEvidenceAndReconcile();
       if (!mounted || request != _loadRequest) return;
       // 一次查询只整理一次：分组、换算时区、准备显示文字，再交给三个区域。
       final missions = display.groupMissionsForDisplay(
@@ -264,7 +266,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     if (_isOpeningDetail) return;
     _isOpeningDetail = true;
     try {
-      final detail = await widget.missionService.findDetail(
+      final detail = await widget.missionService.findDetailAndReconcile(
         missionId: missionId,
       );
       if (!mounted) return;
@@ -356,8 +358,10 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       await openDetailPane<void>(
         context,
         label: '执行记录',
-        builder: (_) =>
-            MissionRecordPage(detail: detail, service: widget.missionService),
+        builder: (_) => MissionRecordWorkspace(
+          detail: detail,
+          service: widget.missionService,
+        ),
       );
     } finally {
       _isOpeningRecord = false;
@@ -592,16 +596,9 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                   ],
                 ),
                 if (missions.fixed.isEmpty)
-                  AppEmptyState(
-                    title: '这一天还没有固定任务',
-                    asset: missions.isEmpty
-                        ? 'assets/illustrations/day-plan.png'
-                        : null,
-                    actions: FilledButton.icon(
-                      onPressed: _openCreate,
-                      icon: const Icon(Icons.add),
-                      label: const Text('新建任务'),
-                    ),
+                  EmptySchedule(
+                    illustrate: missions.isEmpty,
+                    onCreate: _openCreate,
                   )
                 else
                   MissionTimetable(
@@ -1029,7 +1026,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                 ),
               if (_expanded && widget.items.length > 50)
                 Wrap(
-                  spacing: 8,
+                  spacing: AppLayout.spaceSm,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     TextButton(

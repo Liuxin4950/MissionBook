@@ -4,15 +4,15 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/entities/mission_schedule_revision.dart';
 import '../../../domain/entities/scheduled_mission.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/rules/execution_time_rules.dart';
 
-// 与今天页默认排期时区一致；同一时间轴不能混用各任务的钟面时间。
-const timetableTimeZone = 'Asia/Shanghai';
+// 同一时间轴不能混用各任务的钟面时间；默认时区由领域统一定义。
 
 DateTime timetableNow(DateTime instant) =>
-    tz.TZDateTime.from(instant, tz.getLocation(timetableTimeZone));
+    tz.TZDateTime.from(instant, tz.getLocation(defaultScheduleTimeZone));
 
 String timetableClock(double minute) {
   final value = minute.floor();
@@ -202,7 +202,7 @@ class TimetableDay {
     DateTime? now,
     double minimumDisplayMinutes = 0,
   }) {
-    final zone = tz.getLocation(timetableTimeZone);
+    final zone = tz.getLocation(defaultScheduleTimeZone);
     final start = tz.TZDateTime(zone, day.year, day.month, day.day);
     final end = tz.TZDateTime(zone, day.year, day.month, day.day + 1);
     final all = <TimetableSlot>[]; // 固定任务的计划时段：参与冲突检测。

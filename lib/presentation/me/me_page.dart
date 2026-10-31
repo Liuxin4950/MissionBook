@@ -14,12 +14,13 @@ import '../../domain/entities/goal.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/rules/execution_time_rules.dart';
 import '../goals/detail/goal_detail_page.dart';
-import '../missions/record/mission_record_page.dart';
+import '../missions/record/mission_record_workspace.dart';
 import '../widgets/adaptive_columns.dart';
 import '../widgets/app_confirm_dialog.dart';
 import '../widgets/app_journey_hero.dart';
 import '../widgets/app_page_header.dart';
 import '../widgets/app_section_card.dart';
+import '../widgets/app_section_header.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/detail_pane.dart';
 import 'settings_page.dart';
@@ -92,7 +93,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
     try {
       // 两种查询都只读取既有服务；数字不作为新的可写统计状态保存。
       final goals = await widget.goals.findAll();
-      final missions = await widget.missions.findFinished();
+      final missions = await widget.missions.findFinishedAndReconcile();
       var focus = Duration.zero;
       var ended = 0;
       var reported = Duration.zero;
@@ -189,7 +190,8 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
 
   Future<void> _openRecord(MissionDetail detail) => _openPage(
     label: '执行记录',
-    builder: (_) => MissionRecordPage(detail: detail, service: widget.missions),
+    builder: (_) =>
+        MissionRecordWorkspace(detail: detail, service: widget.missions),
   );
 
   @override
@@ -364,11 +366,7 @@ class _RecentRecords extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Semantics(
-            container: true,
-            header: true,
-            child: Text('最近的行动', style: text.titleMedium),
-          ),
+          const AppSectionHeader('最近的行动'),
           const SizedBox(height: AppLayout.spaceSm),
           for (final record in records)
             ListTile(
@@ -418,7 +416,7 @@ class _ActivityOverview extends StatelessWidget {
           AdaptiveColumns(
             minColumnWidth: 88,
             maxColumns: 3,
-            spacing: 12,
+            spacing: AppLayout.spaceMd,
             children: [
               _ActivityStat(
                 icon: Icons.flag_outlined,
@@ -642,8 +640,8 @@ class _ProfileEditorState extends State<_ProfileEditor> {
             const SizedBox(height: AppLayout.spaceXxl),
             Wrap(
               alignment: WrapAlignment.end,
-              spacing: 12,
-              runSpacing: 8,
+              spacing: AppLayout.spaceMd,
+              runSpacing: AppLayout.spaceSm,
               children: [
                 TextButton(
                   onPressed: _saving ? null : _cancel,

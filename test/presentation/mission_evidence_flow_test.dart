@@ -24,7 +24,7 @@ import 'package:mission_book/presentation/missions/evidence/mission_evidence_sec
 import 'package:mission_book/presentation/missions/evidence/evidence_image_preview.dart';
 import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
 import 'package:mission_book/presentation/missions/history/mission_history_page.dart';
-import 'package:mission_book/presentation/missions/record/mission_record_page.dart';
+import 'package:mission_book/presentation/missions/record/mission_record_workspace.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
 import 'package:mission_book/presentation/widgets/detail_pane.dart';
 
@@ -241,7 +241,7 @@ void main() {
       pending: true,
     );
     await tester.pumpWidget(
-      app(MissionRecordPage(detail: detail, service: service)),
+      app(MissionRecordWorkspace(detail: detail, service: service)),
     );
     await tester.pumpAndSettle();
     await tap(tester, 'evidence-open-${detail.mission.id}');
@@ -265,13 +265,37 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('到期后补充材料仍保存，并明确提示超时而不是把草稿说成未提交', (tester) async {
+    final detail = await create(
+      policy: VerificationPolicy.requiredEvidence,
+      pending: true,
+    );
+    await tester.pumpWidget(
+      app(MissionRecordWorkspace(detail: detail, service: service)),
+    );
+    await tester.pumpAndSettle();
+    await tap(tester, 'evidence-open-${detail.mission.id}');
+    await tap(tester, 'evidence-add-text');
+    await tester.enterText(find.byType(TextField).last, '截止后补交的材料');
+    now = now.add(const Duration(hours: 3));
+    await tester.pump(const Duration(seconds: 30));
+    await pumpUntilFound(tester, find.text('材料超时'));
+    await tap(tester, 'evidence-submit');
+    await pumpUntilFound(tester, find.textContaining('材料已保存，但已超过提交期限'));
+    final saved = (await repository.findDetail(detail.mission.id))!;
+    expect(saved.evidence.single.content, '截止后补交的材料');
+    expect(saved.failures, hasLength(1));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('记录页恢复前台立即重读截止事实', (tester) async {
     final detail = await create(
       policy: VerificationPolicy.requiredEvidence,
       pending: true,
     );
     await tester.pumpWidget(
-      app(MissionRecordPage(detail: detail, service: service)),
+      app(MissionRecordWorkspace(detail: detail, service: service)),
     );
     await tester.pumpAndSettle();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
@@ -289,7 +313,7 @@ void main() {
     final detail = await create(pending: true);
     repository.failReads = true;
     await tester.pumpWidget(
-      app(MissionRecordPage(detail: detail, service: service)),
+      app(MissionRecordWorkspace(detail: detail, service: service)),
     );
     await pumpUntilFound(tester, find.byKey(const Key('record-refresh-retry')));
     expect(find.byKey(const Key('record-refresh-retry')), findsOneWidget);
@@ -901,7 +925,7 @@ void main() {
     );
     await tester.tap(find.text('查看完整执行记录'));
     await tester.pumpAndSettle();
-    expect(find.byType(MissionRecordPage), findsOneWidget);
+    expect(find.byType(MissionRecordWorkspace), findsOneWidget);
     expect(pane.controller.entries, hasLength(2));
     expect(pane.controller.entries.last.label, '执行记录');
     await tester.tap(find.byTooltip('返回'));

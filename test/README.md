@@ -40,10 +40,10 @@ TZ=America/Los_Angeles flutter test --no-pub test/presentation/detail_pane_flow_
 
 交付记录分别写清静态分析、测试通过/失败数、运行范围与未验证的平台行为。历史提交中的“全部通过”只代表当时的运行结果，当前状态以本轮实际结果为准。
 
-## Agent 接入测试（分支部分落地）
+## 助手与平台资源回归
 
-- 会话存储合同：[drift_session_store_test.dart](data/assistant/drift_session_store_test.dart) 使用隔离内存数据库，覆盖序号/分页、重开、导入、租约竞争和删除。当前 5/5 通过，不代表 v10→v11 迁移、备份或真实进程写锁通过。
-- 控制器与工具：[assistant_controller_test.dart](application/assistant/assistant_controller_test.dart) 使用真实 `MissionService`/`GoalService`、内存 SQLite 和脚本模型，覆盖真实日期查询、编辑后创建、取消零写入、完整权限、旧提案冲突、停止及重开会话恢复。当前 7/7 通过，不使用真实 API Key。
-- 测试替身：[assistant_fakes.dart](support/assistant_fakes.dart) 只实现凭据存储与脚本模型，不绕过业务服务或事务。
-- 当前不能运行全量门禁作为通过证据：助手页面草稿存在静态分析错误；`execution_events_migration_test.dart` 仍断言 v10/九表，尚未补 v11 新装与 v10→v11 迁移；`archive`/`sqlite3` 依赖升级后的备份、Web Worker 与全量回归也待复验。
-- 万任务研究探针不在仓库内，只作规模证据；正式测试必须按[上下文契约](../docs/设计/Agent接入App.md#68-代码语义与落地验收)覆盖数据库有界分页、每次请求预算、详情分段和长期记忆。
+助手会话、工具授权、旧快照冲突和中断恢复使用真实应用服务、隔离数据库与脚本模型；不依赖真实 API Key。相机测试使用官方 CameraPlatform 替身；离线语音测试使用真实 isolate 与协议 worker，验证超时、退出、释放和重建。
+
+新增边界测试入口：`presentation/evidence_camera_panel_test.dart`、`data/speech/sherpa_speech_engine_test.dart`、`application/analysis_preferences_test.dart`、`application/user_error_message_test.dart`、`data/record_context_test.dart`。具体清单和本轮实际结果见[整改记录](../docs/审查/2026-10-31-全局样式与架构整改.md)。
+
+目标包协议夹具保留在 `docs/历史文档/设计/目标计划导入/examples/`；其路径归档不改变 JSON 协议。旧测试数字和历史失败不作为当前门禁结果。

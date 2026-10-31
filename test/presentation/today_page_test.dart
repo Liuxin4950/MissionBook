@@ -1,3 +1,4 @@
+import '../support/unused_mission_writes.dart';
 import '../support/me_fakes.dart';
 import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'package:mission_book/domain/entities/execution_command.dart';
@@ -32,7 +33,9 @@ import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 // 每次读取都有独立 Future，用来控制等待、失败、重试和乱序返回。
-class ControlledQueryRepository implements MissionRepository {
+class ControlledQueryRepository
+    with UnusedMissionWrites
+    implements MissionRepository {
   @override
   Future<List<String>> reconcileScheduledEnds() async => [];
 

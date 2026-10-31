@@ -10,7 +10,7 @@ import '../../../domain/entities/mission_detail.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_expansion.dart';
 import '../shared/mission_execution_display.dart';
-import 'evidence_image_preview.dart';
+import 'evidence_image_loader.dart';
 import '../../../core/theme/app_layout.dart';
 
 String evidenceTypeLabel(EvidenceType type) => switch (type) {
@@ -230,7 +230,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
 
   Future<void> _readLatest({bool clearError = true}) async {
     try {
-      final latest = await widget.service.findDetail(
+      final latest = await widget.service.findDetailAndReconcile(
         missionId: _detail.mission.id,
       );
       if (!mounted || latest == null) return;
@@ -268,17 +268,11 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
       key,
       () => widget.service.readEvidenceImage(key),
     );
-    return FutureBuilder<Uint8List>(
+    return EvidenceImageLoader(
       future: future,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return Text('图片无法读取：$name');
-        if (!snapshot.hasData) return const LinearProgressIndicator();
-        return EvidenceImagePreview(
-          bytes: snapshot.data!,
-          name: name,
-          height: widget.compact ? 120 : 148,
-        );
-      },
+      name: name,
+      height: widget.compact ? 120 : 148,
+      onRetry: () => setState(() => _images.remove(key)),
     );
   }
 
@@ -344,8 +338,8 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                   key: Key('evidence-correct-${item.id}'),
                   tooltip: '修正这份材料',
                   constraints: const BoxConstraints(
-                    minWidth: 28,
-                    minHeight: 28,
+                    minWidth: AppLayout.touchTargetMin,
+                    minHeight: AppLayout.touchTargetMin,
                   ),
                   padding: EdgeInsets.zero,
                   iconSize: AppLayout.iconSm,
@@ -430,7 +424,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
         ),
         const SizedBox(height: AppLayout.spaceMd),
         Wrap(
-          spacing: 8,
+          spacing: AppLayout.spaceSm,
           children: [
             FilledButton(
               key: const Key('evidence-correction-save'),
@@ -518,8 +512,8 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                         ? 152.0.clamp(0.0, box.maxWidth)
                         : ((box.maxWidth - 12) / 2).clamp(0.0, 240.0);
                     return Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
+                      spacing: AppLayout.spaceMd,
+                      runSpacing: AppLayout.spaceMd,
                       children: [
                         for (final item in images)
                           SizedBox(width: width, child: _item(context, item)),

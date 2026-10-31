@@ -1,3 +1,4 @@
+import '../../../domain/entities/analysis_scope.dart';
 import '../../records/analysis_panel.dart';
 import '../../records/execution_report_button.dart';
 import '../../records/records_page.dart';
@@ -20,7 +21,7 @@ import '../form/mission_form_page.dart';
 import '../shared/mission_action_controller.dart';
 import '../shared/mission_execution_display.dart';
 import '../execution/mission_execution_page.dart';
-import '../record/mission_record_page.dart';
+import '../record/mission_record_workspace.dart';
 import '../shared/mission_retry_button.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/entities/execution_event.dart';
@@ -128,7 +129,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
   Future<MissionDetail?> _readDetail() {
     _lastReadChangeRevision = widget.missionService.changeRevision;
     // widget 指向与此 State 配对的 MissionDetailPage，两个参数由今天页提供。
-    final result = widget.missionService.findDetail(
+    final result = widget.missionService.findDetailAndReconcile(
       missionId: widget.missionId,
     );
     // 下一帧 FutureBuilder 才会订阅新查询；先接收可能提前到达的错误。
@@ -319,7 +320,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                   detail: detail,
                   service: widget.missionService,
                 )
-              : MissionRecordPage(
+              : MissionRecordWorkspace(
                   detail: detail,
                   service: widget.missionService,
                 ),
@@ -337,7 +338,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
       await openDetailPane<void>(
         context,
         label: '执行记录',
-        builder: (_) => MissionRecordPage.fromTaskDetail(
+        builder: (_) => MissionRecordWorkspace.fromTaskDetail(
           detail: detail,
           service: widget.missionService,
         ),
@@ -557,7 +558,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                             AppSectionCard(
                               padding: EdgeInsets.zero,
                               child: AnalysisPanel(
-                                scope: 'mission',
+                                scope: AnalysisScope.mission,
                                 id: detail.mission.id,
                               ),
                             ),
@@ -615,8 +616,8 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                           // 基础维护动作直接可见，不藏进更多菜单；开始后由独立页面接管。
                           Wrap(
                             alignment: WrapAlignment.center,
-                            spacing: 16,
-                            runSpacing: 8,
+                            spacing: AppLayout.spaceLg,
+                            runSpacing: AppLayout.spaceSm,
                             children: [
                               OutlinedButton.icon(
                                 key: const Key('edit-mission'),

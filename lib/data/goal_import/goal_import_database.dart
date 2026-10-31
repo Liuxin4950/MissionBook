@@ -239,6 +239,7 @@ ORDER BY source_index''',
     await customStatement('DELETE FROM import_job WHERE id=?', [jobId]);
   });
 
-  static Map<String, Object?>? _json(String? text) =>
-      text == null ? null : (jsonDecode(text) as Map).cast<String, Object?>();
+  static Map<String, Object?>? _json(String? text) => text == null
+      ? null
+      : (jsonDecode(text) as Map<String, dynamic>).cast<String, Object?>();
 }

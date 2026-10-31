@@ -1,3 +1,4 @@
+import '../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../widgets/app_expansion.dart';
@@ -7,7 +8,8 @@ import 'record_scope.dart';
 
 class AnalysisPanel extends StatefulWidget {
   const AnalysisPanel({super.key, required this.scope, required this.id});
-  final String scope, id;
+  final AnalysisScope scope;
+  final String id;
   @override
   State<AnalysisPanel> createState() => _AnalysisPanelState();
 }
@@ -22,7 +24,7 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
       setState(() {
         _data = RecordScope.maybeOf(
           context,
-        )?.service.repository.analysis(widget.scope, widget.id);
+        )?.service.analysis(widget.scope, widget.id);
       });
     }
   }
@@ -77,8 +79,7 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
     });
     try {
       final analysis = RecordScope.maybeOf(context)!.analysis;
-      await analysis.store.retry(targetScope, id, closing: closing);
-      analysis.wake();
+      await analysis.requestManual(targetScope, id, closing: closing);
       if (mounted && widget.id == id && widget.scope == targetScope) load();
     } catch (_) {
       if (mounted && widget.id == id && widget.scope == targetScope) {
@@ -89,6 +90,17 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
         setState(() => _requesting = false);
       }
     }
+  }
+
+  Future<void> _retryPreferences() async {
+    final analysis = RecordScope.maybeOf(context)!.analysis;
+    try {
+      await analysis.loadPreferences();
+      analysis.wake();
+    } catch (_) {
+      // 服务保留可读错误和上次开关；手动单次请求仍可使用。
+    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -109,11 +121,11 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
           children: [
             AppExpansionTile(
               title: Text(
-                widget.scope == 'mission'
+                widget.scope == AnalysisScope.mission
                     ? '任务评价'
-                    : widget.scope == 'record'
+                    : widget.scope == AnalysisScope.record
                     ? '记录摘要'
-                    : widget.scope == 'node'
+                    : widget.scope == AnalysisScope.node
                     ? '节点摘要'
                     : '目标摘要',
               ),
@@ -128,10 +140,25 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                       }}${a?['stale'] == true ? ' · 来源已变化' : ''}',
               ),
               children: [
-                if (s.hasError) const Text('摘要读取失败'),
+                if (scope.analysis.preferencesError != null)
+                  TextButton.icon(
+                    onPressed: _retryPreferences,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(scope.analysis.preferencesError!),
+                  ),
+                if (s.hasError)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppLayout.spaceLg,
+                    ),
+                    child: TextButton(
+                      onPressed: load,
+                      child: const Text('摘要读取失败，点击重试'),
+                    ),
+                  ),
                 if (a?['content'] != null)
                   Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(AppLayout.spaceMd),
                     child: SelectableText(a!['content'] as String),
                   ),
                 if (a?['error'] != null) Text(a!['error'] as String),
@@ -143,7 +170,7 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                         onPressed: busy ? null : request,
                         child: const Text('更新总结'),
                       ),
-                    if (widget.scope == 'node')
+                    if (widget.scope == AnalysisScope.node)
                       OutlinedButton(
                         onPressed: busy ? null : () => request(closing: true),
                         child: const Text('阶段收尾总结'),
@@ -157,7 +184,7 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                 _requestError!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-            if (missing)
+            if (missing && !s.hasError)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppLayout.spaceLg,
@@ -166,7 +193,9 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                   AppLayout.spaceLg,
                 ),
                 child: OutlinedButton.icon(
-                  key: Key('generate-summary-${widget.scope}-${widget.id}'),
+                  key: Key(
+                    'generate-summary-${widget.scope.name}-${widget.id}',
+                  ),
                   onPressed: busy ? null : request,
                   icon: const Icon(Icons.auto_awesome_outlined),
                   label: Text(busy ? '等待总结…' : '生成总结'),

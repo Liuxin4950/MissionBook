@@ -208,8 +208,8 @@ class GoalImportSectionState extends State<GoalImportSection> {
           ),
           const SizedBox(height: AppLayout.spaceMd),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppLayout.spaceSm,
+            runSpacing: AppLayout.spaceSm,
             children: [
               OutlinedButton.icon(
                 key: const Key('goal-import-file'),

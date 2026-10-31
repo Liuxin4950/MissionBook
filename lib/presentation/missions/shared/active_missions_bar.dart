@@ -68,7 +68,7 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
     if (_opening) return;
     _opening = true;
     try {
-      final latest = await widget.service.findDetail(
+      final latest = await widget.service.findDetailAndReconcile(
         missionId: detail.mission.id,
       );
       if (!mounted || latest == null) return;

@@ -1,3 +1,4 @@
+import '../../../domain/entities/analysis_scope.dart';
 import '../../records/analysis_panel.dart';
 import '../../records/records_page.dart';
 import 'dart:async';
@@ -218,11 +219,11 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                       },
                     ),
                     const SizedBox(height: AppLayout.spaceMd),
-                    AnalysisPanel(scope: 'goal', id: goal.id),
+                    AnalysisPanel(scope: AnalysisScope.goal, id: goal.id),
                     RecordsEntry(goalId: goal.id, label: '目标相关记录'),
                     Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
+                      spacing: AppLayout.spaceMd,
+                      runSpacing: AppLayout.spaceSm,
                       children: [
                         OutlinedButton.icon(
                           key: const Key('goal-edit'),

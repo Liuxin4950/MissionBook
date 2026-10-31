@@ -1,5 +1,6 @@
 import '../../widgets/app_dropdown_form_field.dart';
 import '../../widgets/app_date_picker.dart';
+import '../../widgets/app_empty_state.dart';
 import '../../widgets/adaptive_columns.dart';
 import '../../widgets/app_section_card.dart';
 import 'dart:async';
@@ -66,7 +67,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   }
 
   void _read() {
-    _records = widget.missions.findAllDetails()..ignore();
+    _records = widget.missions.findAllDetailsAndReconcile()..ignore();
     _goalChoices = widget.goals == null
         ? Future.value(const [])
         : Future.wait([
@@ -79,7 +80,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   void _refresh() {
     if (mounted) {
       setState(() {
-        _records = widget.missions.findAllDetails()..ignore();
+        _records = widget.missions.findAllDetailsAndReconcile()..ignore();
       });
     }
   }
@@ -525,8 +526,8 @@ class _AllMissionsPageState extends State<AllMissionsPage>
       ],
     );
     final shortcuts = Wrap(
-      spacing: 8,
-      runSpacing: 4,
+      spacing: AppLayout.spaceSm,
+      runSpacing: AppLayout.spaceXs,
       alignment: WrapAlignment.center,
       children: [
         ChoiceChip(
@@ -596,8 +597,8 @@ class _AllMissionsPageState extends State<AllMissionsPage>
           Text('筛选任务', style: theme.textTheme.titleMedium),
           const SizedBox(height: AppLayout.spaceMd),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppLayout.spaceSm,
+            runSpacing: AppLayout.spaceSm,
             children: [
               if (pastCount > 0)
                 TextButton.icon(
@@ -611,22 +612,15 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                   label: Text(_pastUnstarted ? '显示全部' : '以前未开始 $pastCount'),
                 ),
               if (_phase != null || _goalId != null || _pastUnstarted)
-                TextButton(
-                  onPressed: () => setState(() {
-                    _phase = null;
-                    _goalId = null;
-                    _pastUnstarted = false;
-                  }),
-                  child: const Text('重置筛选'),
-                ),
+                TextButton(onPressed: _resetFilters, child: const Text('重置筛选')),
             ],
           ),
           const SizedBox(height: AppLayout.spaceMd),
           Text('阶段', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppLayout.spaceSm),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppLayout.spaceSm,
+            runSpacing: AppLayout.spaceSm,
             children: [
               _phaseChip(context, null, '全部'),
               for (final phase in MissionPhase.values)
@@ -638,6 +632,22 @@ class _AllMissionsPageState extends State<AllMissionsPage>
             FutureBuilder<List<Goal>>(
               future: _goalChoices,
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '目标读取失败，暂不能按目标筛选。',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _refreshGoals,
+                        child: const Text('重试'),
+                      ),
+                    ],
+                  );
+                }
                 final goals = snapshot.data ?? const <Goal>[];
                 return AppDropdownFormField<String>(
                   key: ValueKey('all-missions-goal-${_goalId ?? 'all'}'),
@@ -735,26 +745,19 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     );
   }
 
-  Widget _empty(BuildContext context) => Container(
-    padding: const EdgeInsets.all(AppLayout.space3Xl),
-    decoration: BoxDecoration(
-      color: AppColors.card,
-      borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
-    ),
-    child: Column(
-      children: [
-        const Icon(
-          Icons.filter_alt_off_outlined,
-          size: AppLayout.iconDisplay,
-          color: AppColors.primary,
-        ),
-        const SizedBox(height: AppLayout.spaceMd),
-        Text('没有符合筛选条件的任务', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppLayout.spaceSm),
-        Text('可以调整日期、阶段或目标。', style: Theme.of(context).textTheme.bodyMedium),
-      ],
-    ),
+  Widget _empty(BuildContext context) => AppEmptyState(
+    title: '没有符合筛选条件的任务',
+    details: const Text('可以调整日期、阶段或目标。'),
+    actions: (_phase != null || _goalId != null || _pastUnstarted)
+        ? OutlinedButton(onPressed: _resetFilters, child: const Text('重置筛选'))
+        : null,
   );
+
+  void _resetFilters() => setState(() {
+    _phase = null;
+    _goalId = null;
+    _pastUnstarted = false;
+  });
 
   Widget _statistics(
     BuildContext context,
@@ -819,8 +822,8 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 child: SizedBox(
                   width: columns * cell + (columns - 1) * 6,
                   child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
+                    spacing: AppLayout.spaceSm,
+                    runSpacing: AppLayout.spaceSm,
                     children: [
                       for (final day in days)
                         Tooltip(
@@ -891,7 +894,7 @@ class _PagedMissionRowsState extends State<_PagedMissionRows> {
         for (final detail in widget.records.skip(start).take(50))
           widget.buildRow(detail),
         Wrap(
-          spacing: 8,
+          spacing: AppLayout.spaceSm,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             TextButton(

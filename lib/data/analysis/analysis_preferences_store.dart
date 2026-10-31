@@ -1,3 +1,4 @@
+import '../../domain/entities/analysis_scope.dart';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../application/analysis/analysis_preferences.dart';
@@ -12,17 +13,24 @@ class SecureAnalysisPreferences implements AnalysisPreferencesStore {
   final FlutterSecureStorage storage;
   static const key = 'assistant_analysis_automatic_scopes';
   @override
-  Future<Set<String>> load() async {
+  Future<Set<AnalysisScope>> load() async {
     final value = await storage.read(key: key);
     if (value == null) return {...summaryScopes};
     final decoded = jsonDecode(value);
     if (decoded is! List) throw const FormatException('自动总结设置无效');
-    return decoded.whereType<String>().where(summaryScopes.contains).toSet();
+    return decoded
+        .cast<String>()
+        .map(AnalysisScope.parse)
+        .where(summaryScopes.contains)
+        .toSet();
   }
 
   @override
-  Future<void> save(Set<String> scopes) => storage.write(
+  Future<void> save(Set<AnalysisScope> scopes) => storage.write(
     key: key,
-    value: jsonEncode(scopes.where(summaryScopes.contains).toList()..sort()),
+    value: jsonEncode(
+      scopes.where(summaryScopes.contains).map((scope) => scope.name).toList()
+        ..sort(),
+    ),
   );
 }

@@ -66,6 +66,7 @@ dependencies:
   html: ^0.15.7
 
 dev_dependencies:
+  camera_platform_interface: 2.15.0 # 相机面板通过官方平台接口验证权限与生命周期。
   flutter_test:
     sdk: flutter
   integration_test:

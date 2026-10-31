@@ -1,3 +1,5 @@
+import 'package:mission_book/data/repositories/drift_memory_repository.dart';
+import 'package:mission_book/domain/entities/analysis_scope.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -43,11 +45,11 @@ class _WebSettings implements WebSettingsStore {
 }
 
 class _Preferences implements AnalysisPreferencesStore {
-  Set<String> scopes = {...summaryScopes};
+  Set<AnalysisScope> scopes = {...summaryScopes};
   @override
-  Future<Set<String>> load() async => Set.of(scopes);
+  Future<Set<AnalysisScope>> load() async => Set.of(scopes);
   @override
-  Future<void> save(Set<String> value) async => scopes = Set.of(value);
+  Future<void> save(Set<AnalysisScope> value) async => scopes = Set.of(value);
 }
 
 void main() {
@@ -65,7 +67,7 @@ void main() {
     db = AppDatabase(executor: NativeDatabase.memory());
     missions = MissionService(DriftMissionRepository(db));
     records = RecordService(DriftRecordRepository(db), missions);
-    memory = MemoryService(DriftRecordRepository(db));
+    memory = MemoryService(DriftMemoryRepository(db));
     preferences = _Preferences();
     analysis = AnalysisService(
       store: DriftAnalysisStore(db),
@@ -222,7 +224,7 @@ void main() {
     await tester.tap(find.byKey(const Key('analysis-auto-goal')));
     await tester.tap(find.byKey(const Key('analysis-save-settings')));
     await tester.pumpAndSettle();
-    expect(preferences.scopes, {'mission', 'node'});
+    expect(preferences.scopes, {AnalysisScope.mission, AnalysisScope.node});
     await records.save(
       const EvidenceDraft(
         id: 'manual-record',
@@ -235,7 +237,7 @@ void main() {
     await open(
       tester,
       const Scaffold(
-        body: AnalysisPanel(scope: 'record', id: 'manual-record'),
+        body: AnalysisPanel(scope: AnalysisScope.record, id: 'manual-record'),
       ),
     );
     expect(find.textContaining('自动总结已关闭'), findsOneWidget);
@@ -249,7 +251,7 @@ void main() {
       'manual_pending',
     );
     expect(find.text('等待总结…'), findsOneWidget);
-    expect(analysis.automaticFor('record'), isFalse);
+    expect(analysis.automaticFor(AnalysisScope.record), isFalse);
     await close(tester);
     await analysis.dispose();
     analysisDisposed = true;

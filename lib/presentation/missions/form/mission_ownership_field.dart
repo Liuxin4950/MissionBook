@@ -103,8 +103,8 @@ class _MissionOwnershipFieldState extends State<MissionOwnershipField> {
                     children: [
                       Expanded(
                         child: Wrap(
-                          spacing: 6,
-                          runSpacing: 8,
+                          spacing: AppLayout.spaceSm,
+                          runSpacing: AppLayout.spaceSm,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             for (var i = 0; i < names.length; i++) ...[

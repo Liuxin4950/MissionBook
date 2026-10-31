@@ -54,7 +54,7 @@ void main() {
 
     await tap('goal-create-import');
     final input = File(
-      'docs/设计/目标计划导入/examples/课标试运行.goal-package.v1.json',
+      'docs/历史文档/设计/目标计划导入/examples/课标试运行.goal-package.v1.json',
     ).readAsStringSync();
     await tap('goal-import-paste-toggle');
     await tester.enterText(find.byKey(const Key('goal-import-input')), input);

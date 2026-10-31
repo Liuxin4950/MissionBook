@@ -99,7 +99,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
   String get _timeZone =>
       widget.original?.schedule.timeZone ??
       widget.retrySource?.schedule.timeZone ??
-      'Asia/Shanghai';
+      defaultScheduleTimeZone;
   bool get _isEditing => widget.original != null;
   bool get _isRetry => widget.retrySource != null && !_continuing;
   bool _continuing = false;
@@ -483,7 +483,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
     if (request == null || _isSaving) return;
     setState(() => _isSaving = true);
     try {
-      final saved = await widget.missionService.findDetail(
+      final saved = await widget.missionService.findDetailAndReconcile(
         missionId: request.mission.id,
       );
       if (!mounted) return;

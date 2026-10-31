@@ -547,7 +547,7 @@ void main() {
     now = deadline;
     expect(
       await repository.submitEvidence(batch('required')),
-      EvidenceSubmissionResult.submitted,
+      EvidenceSubmissionResult.deadlineMissed,
     );
     final first = await detail('required');
     expect(first.phase, MissionPhase.closed);
@@ -559,7 +559,7 @@ void main() {
     now = now.add(const Duration(days: 1));
     expect(
       await repository.submitEvidence(batch('required')),
-      EvidenceSubmissionResult.submitted,
+      EvidenceSubmissionResult.deadlineMissed,
     );
     expect(await repository.reconcileEvidenceDeadlines(), 0);
     expect((await detail('required')).failures.single.createdAt, deadline);
@@ -678,5 +678,50 @@ void main() {
       ),
       throwsA(isA<ExecutionConflict>()),
     );
+  });
+  test('普通查询不落超时事实，显式维护查询才结算', () async {
+    await seed('pure-reads', VerificationPolicy.requiredEvidence);
+    await finish('pure-reads');
+    now = deadline.add(const Duration(minutes: 1));
+    expect(
+      (await service.findDetail(missionId: 'pure-reads'))!.phase,
+      MissionPhase.evidencePending,
+    );
+    await service.findFinished();
+    await service.findAllDetails();
+    await service.findScheduledOn(scheduledDate: '2026-10-24');
+    expect(await database.select(database.failureRecords).get(), isEmpty);
+    expect(
+      (await service.findDetailAndReconcile(missionId: 'pure-reads'))!.phase,
+      MissionPhase.closed,
+    );
+    expect(await database.select(database.failureRecords).get(), hasLength(1));
+  });
+
+  test('截止后提交和同批重试都返回超时回执，先补算也不丢失结果', () async {
+    for (final reconcileFirst in [false, true]) {
+      final id = 'late-sticky-$reconcileFirst';
+      now = deadline.subtract(const Duration(hours: 1));
+      await seed(id, VerificationPolicy.requiredEvidence);
+      await finish(id);
+      now = deadline.add(const Duration(minutes: 1));
+      if (reconcileFirst) await service.reconcileEvidenceDeadlines();
+      final submission = EvidenceSubmission(
+        id: '$id-batch',
+        missionId: id,
+        items: [text('$id-text')],
+      );
+      expect(
+        await repository.submitEvidence(submission),
+        EvidenceSubmissionResult.deadlineMissed,
+      );
+      expect(
+        await repository.submitEvidence(submission),
+        EvidenceSubmissionResult.deadlineMissed,
+      );
+      final saved = await detail(id);
+      expect(saved.evidence, hasLength(1));
+      expect(saved.failures, hasLength(1));
+    }
   });
 }

@@ -53,8 +53,8 @@ class _MissionEvidenceFieldsState extends State<MissionEvidenceFields> {
         const SizedBox(height: AppLayout.spaceMd),
         // Wrap 允许窄屏或大字体换行，不挤压三个选项的触控范围。
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: AppLayout.spaceSm,
+          runSpacing: AppLayout.spaceSm,
           children: [
             _policyChip(VerificationPolicy.optionalEvidence, '可选提交'),
             _policyChip(VerificationPolicy.requiredEvidence, '必须提交'),

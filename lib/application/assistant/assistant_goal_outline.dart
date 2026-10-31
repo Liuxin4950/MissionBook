@@ -35,7 +35,7 @@ class AssistantGoalOutline {
 
   static List<Map<String, Object?>> rows(Map<String, Object?> input) => [
     for (final node in input['nodes'] as List)
-      Map<String, Object?>.from(node as Map),
+      Map<String, Object?>.from(node as Map<String, dynamic>),
   ];
 
   static String? validate(Map<String, Object?> input) {

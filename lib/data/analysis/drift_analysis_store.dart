@@ -1,8 +1,11 @@
+import '../repositories/drift_memory_repository.dart';
+import '../../domain/entities/analysis_scope.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 import '../../application/analysis/analysis_service.dart';
+import '../../domain/entities/mission_schedule_revision.dart';
 import '../local/app_database.dart';
 import '../repositories/drift_record_repository.dart';
 import '../repositories/drift_mission_repository.dart';
@@ -27,7 +30,7 @@ class DriftAnalysisStore implements AnalysisStore {
 
   @override
   Future<AnalysisWork?> claim({
-    Set<String>? automaticScopes,
+    Set<AnalysisScope>? automaticScopes,
   }) => db.transaction(() async {
     await records.lock();
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -37,7 +40,7 @@ class DriftAnalysisStore implements AnalysisStore {
           : automaticScopes.isEmpty
           ? '0=1'
           : 'scope IN (${List.filled(automaticScopes.length, '?').join(',')})'}) OR status IN ('manual_pending','manual_failed')) AND attempts<5 AND available_at<=? ORDER BY CASE scope WHEN 'record' THEN 0 WHEN 'mission' THEN 1 WHEN 'node' THEN 2 WHEN 'goal' THEN 3 ELSE 4 END, available_at LIMIT 1",
-      [...?automaticScopes, now],
+      [...?automaticScopes?.map((scope) => scope.name), now],
     );
     if (rows.isEmpty) return null;
     final r = rows.single;
@@ -47,7 +50,7 @@ class DriftAnalysisStore implements AnalysisStore {
       [manual ? 'manual_running' : 'running', r['scope'], r['target_id']],
     );
     return AnalysisWork(
-      r['scope'] as String,
+      AnalysisScope.parse(r['scope'] as String),
       r['target_id'] as String,
       r['source_version'] as int,
       r['closing'] == 1,
@@ -57,14 +60,14 @@ class DriftAnalysisStore implements AnalysisStore {
   });
   @override
   Future<AnalysisInput> input(AnalysisWork w) async {
-    if (w.scope == 'memory') {
+    if (w.scope == AnalysisScope.memory) {
       final payload = await records.rows(
         'SELECT data,timestamp FROM assistant_session_records WHERE session_id=? AND sequence=?',
         _memorySource(w.id),
       );
       return AnalysisInput({
         'source': w.id,
-        'sourceTimeZone': 'Asia/Shanghai',
+        'sourceTimeZone': defaultScheduleTimeZone,
         'sourceAt': payload.isEmpty
             ? null
             : DateTime.fromMillisecondsSinceEpoch(
@@ -76,7 +79,7 @@ class DriftAnalysisStore implements AnalysisStore {
             : _userText(payload.single['data'] as String),
       }, const []);
     }
-    if (w.scope == 'record') {
+    if (w.scope == AnalysisScope.record) {
       final r = (await records.rows('SELECT * FROM records WHERE id=?', [
         w.id,
       ])).single;
@@ -94,7 +97,7 @@ class DriftAnalysisStore implements AnalysisStore {
         mime: r['attachment_mime_type'] as String?,
       );
     }
-    if (w.scope == 'mission') {
+    if (w.scope == AnalysisScope.mission) {
       final d = (await DriftMissionRepository(db).findDetail(w.id))!;
       final materials = await records.rows(
         'SELECT r.id,e.id evidenceId,e.submitted_at submittedAt,e.supersedes_evidence_id supersedesId FROM records r JOIN evidence_records e ON e.record_id=r.id WHERE e.mission_id=? AND NOT EXISTS(SELECT 1 FROM evidence_records n WHERE n.supersedes_evidence_id=e.id) ORDER BY e.submitted_at,e.id',
@@ -103,7 +106,7 @@ class DriftAnalysisStore implements AnalysisStore {
       final items = <Map<String, Object?>>[];
       for (final r in materials) {
         items.add({
-          ...await child('record', r['id'] as String),
+          ...await child(AnalysisScope.record, r['id'] as String),
           'evidenceId': r['evidenceId'],
           'submittedAt': r['submittedAt'],
           'supersedesId': r['supersedesId'],
@@ -152,7 +155,7 @@ class DriftAnalysisStore implements AnalysisStore {
         'materialCount': d.effectiveEvidence.length,
       }, items);
     }
-    final node = w.scope == 'node';
+    final node = w.scope == AnalysisScope.node;
     final facts = (await records.rows(
       'SELECT * FROM ${node ? 'goal_nodes' : 'goals'} WHERE id=?',
       [w.id],
@@ -183,9 +186,9 @@ class DriftAnalysisStore implements AnalysisStore {
     );
     final items = <Map<String, Object?>>[];
     for (final group in [
-      (meaningful, 'mission'),
-      (directRecords, 'record'),
-      (nodes, 'node'),
+      (meaningful, AnalysisScope.mission),
+      (directRecords, AnalysisScope.record),
+      (nodes, AnalysisScope.node),
     ]) {
       for (final r in group.$1) {
         items.add(await child(group.$2, r['id'] as String));
@@ -195,10 +198,12 @@ class DriftAnalysisStore implements AnalysisStore {
   }
 
   String _userText(String encoded) {
-    final message = (jsonDecode(encoded) as Map)['message'] as Map;
+    final message =
+        (jsonDecode(encoded) as Map<String, dynamic>)['message']
+            as Map<String, dynamic>;
     if (message['role'] != 'user') throw const FormatException('记忆来源不是用户陈述');
-    final text = (message['content'] as List)
-        .whereType<Map>()
+    final text = (message['content'] as List<dynamic>)
+        .whereType<Map<String, dynamic>>()
         .where((b) => b['type'] == 'text')
         .map((b) => b['text'])
         .join()
@@ -207,18 +212,18 @@ class DriftAnalysisStore implements AnalysisStore {
     return text.length > 8000 ? text.substring(0, 8000) : text;
   }
 
-  Future<Map<String, Object?>> child(String scope, String id) async {
+  Future<Map<String, Object?>> child(AnalysisScope scope, String id) async {
     final summary = await records.analysis(scope, id);
     final index = switch (scope) {
-      'record' => await records.rows(
+      AnalysisScope.record => await records.rows(
         'SELECT id,type,substr(content,1,300) caption,occurred_at FROM records WHERE id=?',
         [id],
       ),
-      'mission' => await records.rows(
+      AnalysisScope.mission => await records.rows(
         "SELECT m.id,m.title,(SELECT user_reported_result FROM execution_events e WHERE e.mission_id=m.id AND e.type='END') userReportedResult,(SELECT COUNT(*) FROM evidence_records e WHERE e.mission_id=m.id AND NOT EXISTS(SELECT 1 FROM evidence_records n WHERE n.supersedes_evidence_id=e.id)) materialCount FROM missions m WHERE m.id=?",
         [id],
       ),
-      'node' => await records.rows(
+      AnalysisScope.node => await records.rows(
         'SELECT id,title,archived_at FROM goal_nodes WHERE id=?',
         [id],
       ),
@@ -226,7 +231,7 @@ class DriftAnalysisStore implements AnalysisStore {
     };
     return {
       'id': id,
-      'scope': scope,
+      'scope': scope.name,
       'version': summary['source_version'],
       if (index.isNotEmpty) 'facts': index.single,
       ...summary,
@@ -243,7 +248,7 @@ class DriftAnalysisStore implements AnalysisStore {
     await records.lock();
     final rows = await records.rows(
       'SELECT source_version,status FROM analysis_jobs WHERE scope=? AND target_id=?',
-      [w.scope, w.id],
+      [w.scope.name, w.id],
     );
     if (rows.single['source_version'] != w.version ||
         rows.single['status'] != (w.manual ? 'manual_running' : 'running')) {
@@ -254,7 +259,7 @@ class DriftAnalysisStore implements AnalysisStore {
         .insert(
           AnalysisVersionsCompanion.insert(
             id: const Uuid().v4(),
-            scope: w.scope,
+            scope: w.scope.name,
             targetId: w.id,
             sourceVersion: w.version,
             content: content,
@@ -266,31 +271,35 @@ class DriftAnalysisStore implements AnalysisStore {
         );
     await db.customStatement(
       "UPDATE analysis_jobs SET status='ready',error=NULL,closing=0 WHERE scope=? AND target_id=?",
-      [w.scope, w.id],
+      [w.scope.name, w.id],
     );
     await parents(w.scope, w.id);
     return true;
   });
-  Future<void> parents(String scope, String id) async {
+  Future<void> parents(AnalysisScope scope, String id) async {
     List<Map<String, Object?>> targets = [];
-    if (scope == 'record') {
+    if (scope == AnalysisScope.record) {
       targets = await records.rows(
         "SELECT 'mission' scope,mission_id id FROM evidence_records WHERE record_id=? UNION SELECT 'node',goal_node_id FROM records WHERE id=? AND goal_node_id IS NOT NULL UNION SELECT 'goal',goal_id FROM records WHERE id=? AND goal_id IS NOT NULL",
         [id, id, id],
       );
-    } else if (scope == 'mission') {
+    } else if (scope == AnalysisScope.mission) {
       targets = await records.rows(
         "SELECT 'node' scope,goal_node_id id FROM missions WHERE id=? AND goal_node_id IS NOT NULL UNION SELECT 'goal',goal_id FROM missions WHERE id=? AND goal_id IS NOT NULL",
         [id, id],
       );
-    } else if (scope == 'node') {
+    } else if (scope == AnalysisScope.node) {
       targets = await records.rows(
         "SELECT 'node' scope,parent_node_id id FROM goal_nodes WHERE id=? AND parent_node_id IS NOT NULL UNION SELECT 'goal',goal_id FROM goal_nodes WHERE id=?",
         [id, id],
       );
     }
     for (final t in targets) {
-      await retry(t['scope'] as String, t['id'] as String, manual: false);
+      await retry(
+        AnalysisScope.parse(t['scope'] as String),
+        t['id'] as String,
+        manual: false,
+      );
     }
   }
 
@@ -319,7 +328,7 @@ class DriftAnalysisStore implements AnalysisStore {
         message,
         interrupted ? 0 : 1,
         next,
-        w.scope,
+        w.scope.name,
         w.id,
         w.version,
         w.manual ? 'manual_running' : 'running',
@@ -329,7 +338,7 @@ class DriftAnalysisStore implements AnalysisStore {
 
   @override
   Future<void> retry(
-    String scope,
+    AnalysisScope scope,
     String id, {
     bool closing = false,
     bool manual = true,
@@ -338,22 +347,19 @@ class DriftAnalysisStore implements AnalysisStore {
     operationId,
     'analysis_retry',
     id,
-    {'scope': scope, 'closing': closing},
+    {'scope': scope.name, 'closing': closing},
     {'queued': true},
     () => _retry(scope, id, closing: closing, manual: manual),
   );
   Future<void> _retry(
-    String scope,
+    AnalysisScope scope,
     String id, {
     bool closing = false,
     bool manual = true,
   }) async {
-    if (!['record', 'mission', 'node', 'goal', 'memory'].contains(scope)) {
-      throw ArgumentError('分析对象类型无效');
-    }
     await db.customStatement(
       "INSERT INTO analysis_jobs(scope,target_id,source_version,status,attempts,available_at,closing) VALUES(?,?,1,?,0,0,?) ON CONFLICT(scope,target_id) DO UPDATE SET source_version=source_version+1,status=excluded.status,attempts=0,available_at=0,error=NULL,closing=MAX(closing,excluded.closing)",
-      [scope, id, manual ? 'manual_pending' : 'pending', closing ? 1 : 0],
+      [scope.name, id, manual ? 'manual_pending' : 'pending', closing ? 1 : 0],
     );
   }
 
@@ -371,11 +377,11 @@ class DriftAnalysisStore implements AnalysisStore {
     await db.transaction(() async {
       final current = await records.rows(
         'SELECT source_version FROM analysis_jobs WHERE scope=? AND target_id=?',
-        [w.scope, w.id],
+        [w.scope.name, w.id],
       );
       if (current.single['source_version'] != w.version) return;
       for (final raw in entries.take(5)) {
-        final e = Map<String, Object?>.from(raw as Map);
+        final e = Map<String, Object?>.from(raw as Map<String, dynamic>);
         final quote = e['quote'] as String?;
         if (e['certainty'] == 'stated' &&
             (quote == null || quote.isEmpty || !userText.contains(quote))) {
@@ -385,7 +391,7 @@ class DriftAnalysisStore implements AnalysisStore {
         e['id'] = const Uuid().v5(Namespace.url.value, 'memory:${w.id}:$key');
         e['source'] = 'conversation:${w.id}';
         if (e['expiresAt'] is! int) e['expiresAt'] = null;
-        await records.saveMemory(e);
+        await DriftMemoryRepository(db).saveMemory(e);
       }
     });
   }

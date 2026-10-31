@@ -9,7 +9,7 @@ import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/rules/goal_node_record_rules.dart';
 import '../../missions/form/mission_form_page.dart';
 import '../../missions/detail/mission_detail_page.dart';
-import '../../missions/record/mission_record_page.dart';
+import '../../missions/record/mission_record_workspace.dart';
 import '../../missions/execution/mission_execution_page.dart';
 import '../../missions/shared/mission_phase_display.dart';
 import '../../missions/shared/mission_live_status.dart';
@@ -90,7 +90,10 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
             );
           }
           if (detail.phase == MissionPhase.closed) {
-            return MissionRecordPage(detail: detail, service: widget.service);
+            return MissionRecordWorkspace(
+              detail: detail,
+              service: widget.service,
+            );
           }
           return MissionDetailPage(
             missionId: detail.mission.id,
@@ -246,100 +249,99 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              GestureDetector(
-                key: Key('node-header-${widget.node?.id ?? widget.goal.id}'),
-                behavior: HitTestBehavior.opaque,
-                onTap: widget.onNodeTap,
-                child: LayoutBuilder(
-                  builder: (context, box) {
-                    final compact =
-                        box.maxWidth <
-                        270 * MediaQuery.textScalerOf(context).scale(1);
-                    final name = Text(
-                      title,
-                      style: theme.textTheme.titleMedium,
-                    );
-                    if (compact) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              leading,
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: AppLayout.spaceMd,
+              Semantics(
+                button: widget.onNodeTap != null,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                  key: Key('node-header-${widget.node?.id ?? widget.goal.id}'),
+                  onTap: widget.onNodeTap,
+                  child: LayoutBuilder(
+                    builder: (context, box) {
+                      final compact =
+                          box.maxWidth <
+                          270 * MediaQuery.textScalerOf(context).scale(1);
+                      final name = Text(
+                        title,
+                        style: theme.textTheme.titleMedium,
+                      );
+                      if (compact) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                leading,
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: AppLayout.spaceMd,
+                                    ),
+                                    child: name,
                                   ),
-                                  child: name,
                                 ),
-                              ),
-                              if (widget.trailing != null) widget.trailing!,
-                            ],
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              left: AppLayout.touchTargetMin,
+                                if (widget.trailing != null) widget.trailing!,
+                              ],
                             ),
-                            child: Wrap(
-                              spacing: 10,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [status, ?createButton],
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: AppLayout.touchTargetMin,
+                              ),
+                              child: Wrap(
+                                spacing: AppLayout.spaceMd,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [status, ?createButton],
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          leading,
+                          Expanded(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: AppLayout.spaceXs,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [name, status],
+                                    ),
+                                  ),
+                                ),
+                                Row(
+                                  key: Key(
+                                    'node-actions-${widget.node?.id ?? widget.goal.id}',
+                                  ),
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [?createButton, ?widget.trailing],
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       );
-                    }
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        leading,
-                        Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: AppLayout.spaceXs,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [name, status],
-                                  ),
-                                ),
-                              ),
-                              Row(
-                                key: Key(
-                                  'node-actions-${widget.node?.id ?? widget.goal.id}',
-                                ),
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [?createButton, ?widget.trailing],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  },
+                    },
+                  ),
                 ),
               ),
               if (widget.annotation?.isNotEmpty == true)
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: widget.onNodeTap,
-                  child: Padding(
-                    padding: const EdgeInsets.only(
-                      left: AppLayout.touchTargetMin,
-                      bottom: AppLayout.spaceXs,
-                    ),
-                    child: Text(
-                      widget.annotation!,
-                      style: theme.textTheme.bodySmall,
-                    ),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: AppLayout.touchTargetMin,
+                    bottom: AppLayout.spaceXs,
+                  ),
+                  child: Text(
+                    widget.annotation!,
+                    style: theme.textTheme.bodySmall,
                   ),
                 ),
               if (direct.any(
@@ -408,7 +410,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                   ),
                 if (direct.length > 50)
                   Wrap(
-                    spacing: 8,
+                    spacing: AppLayout.spaceSm,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       TextButton(

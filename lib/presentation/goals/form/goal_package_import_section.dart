@@ -721,7 +721,20 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
               future: _page,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return Text('无法读取预览：${snapshot.error}');
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('无法读取导入预览，请重试。'),
+                      TextButton(
+                        onPressed: _busy
+                            ? null
+                            : () => setState(() {
+                                _page = _service.page(preview, _kind, _offset);
+                              }),
+                        child: const Text('重试'),
+                      ),
+                    ],
+                  );
                 }
                 if (!snapshot.hasData) return const LinearProgressIndicator();
                 final entries = snapshot.data!;

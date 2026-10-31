@@ -186,7 +186,7 @@ class ExecutionFocusRing extends StatelessWidget {
                       // 将数值和单位作为整体换行，双倍字号下不留下单独的“钟”。
                       Wrap(
                         alignment: WrapAlignment.center,
-                        spacing: 4,
+                        spacing: AppLayout.spaceXs,
                         children: [
                           Text(
                             '当前额度',

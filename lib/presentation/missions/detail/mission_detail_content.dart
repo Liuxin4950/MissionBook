@@ -291,8 +291,8 @@ class _MaterialRequirementsCard extends StatelessWidget {
               initiallyExpanded: true,
               expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
               title: Wrap(
-                spacing: 12,
-                runSpacing: 8,
+                spacing: AppLayout.spaceMd,
+                runSpacing: AppLayout.spaceSm,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text('材料要求', style: theme.textTheme.titleMedium),
@@ -336,8 +336,8 @@ class _MaterialRequirementsCard extends StatelessWidget {
                     child: Divider(height: 1, color: AppColors.hairline),
                   ),
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
+                    spacing: AppLayout.spaceSm,
+                    runSpacing: AppLayout.spaceXs,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       const Icon(

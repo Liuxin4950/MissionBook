@@ -150,7 +150,7 @@ class GoalImportPreview {
   bool get isOutline => schema == 'mission-book.goal-outline';
   String get packageId => isOutline ? jobId : root['packageId']! as String;
   Map<String, Object?> get goal =>
-      (root['goal']! as Map).cast<String, Object?>();
+      (root['goal']! as Map<String, dynamic>).cast<String, Object?>();
   String get title => (goal['title']! as String).trim();
 }
 

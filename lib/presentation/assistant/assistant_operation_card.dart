@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../../application/assistant/assistant_controller.dart';
 import '../../core/theme/colors.dart';
 import '../../domain/entities/mission.dart';
-import 'assistant_plan_card.dart';
+import 'assistant_schedule_card.dart';
 import 'assistant_outline_editor.dart';
 import '../../application/assistant/assistant_goal_outline.dart';
 import '../../core/theme/app_layout.dart';
@@ -35,7 +35,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
   Widget build(BuildContext context) {
     final operation = widget.operation;
     if (operation.toolName == 'mission_plan') {
-      return AssistantPlanCard(
+      return AssistantScheduleCard(
         controller: widget.controller,
         operation: operation,
         onOpenReference: widget.onOpenReference,
@@ -67,7 +67,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                     ),
                   Wrap(
                     alignment: WrapAlignment.end,
-                    spacing: 8,
+                    spacing: AppLayout.spaceSm,
                     children: [
                       TextButton(
                         onPressed: () =>
@@ -153,8 +153,8 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                 if (operation.toolName == 'mission_complete_history') ...[
                   const SizedBox(height: AppLayout.spaceSm),
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: AppLayout.spaceSm,
+                    runSpacing: AppLayout.spaceSm,
                     children: [
                       Chip(
                         avatar: const Icon(
@@ -219,13 +219,6 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                 Padding(
                   padding: const EdgeInsets.only(top: AppLayout.spaceMd),
                   child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      foregroundColor: AppColors.onPrimary,
-                      iconColor: AppColors.onPrimary,
-                      backgroundColor: AppColors.primary,
-                      disabledForegroundColor: AppColors.onDisabled,
-                      disabledBackgroundColor: AppColors.disabled,
-                    ),
                     onPressed: () => widget.controller.resolveUnknownOutcome(
                       operation.callId,
                     ),
@@ -422,8 +415,8 @@ class _WaitingActions extends StatelessWidget {
     padding: const EdgeInsets.only(top: AppLayout.spaceMd),
     child: Wrap(
       alignment: WrapAlignment.end,
-      spacing: 8,
-      runSpacing: 8,
+      spacing: AppLayout.spaceSm,
+      runSpacing: AppLayout.spaceSm,
       children: [
         TextButton(onPressed: onCancel, child: const Text('取消')),
         OutlinedButton.icon(
@@ -431,17 +424,7 @@ class _WaitingActions extends StatelessWidget {
           icon: const Icon(Icons.edit_outlined, size: AppLayout.iconSm),
           label: const Text('修改'),
         ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            foregroundColor: AppColors.onPrimary,
-            iconColor: AppColors.onPrimary,
-            backgroundColor: AppColors.primary,
-            disabledForegroundColor: AppColors.onDisabled,
-            disabledBackgroundColor: AppColors.disabled,
-          ),
-          onPressed: onConfirm,
-          child: const Text('确认执行'),
-        ),
+        FilledButton(onPressed: onConfirm, child: const Text('确认执行')),
       ],
     ),
   );
@@ -544,11 +527,12 @@ class _ResultDetails extends StatelessWidget {
           ),
         if (references is List)
           Wrap(
-            spacing: 8,
-            runSpacing: 4,
+            spacing: AppLayout.spaceSm,
+            runSpacing: AppLayout.spaceXs,
             children: [
               for (final reference in references)
-                if (reference is Map && reference['id'] is String)
+                if (reference is Map<String, dynamic> &&
+                    reference['id'] is String)
                   TextButton.icon(
                     onPressed: () => onOpenReference(
                       '${reference['type'] ?? 'mission'}',
@@ -602,7 +586,9 @@ class _ResultDetails extends StatelessWidget {
     if (output == null) return null;
     try {
       final value = jsonDecode(output);
-      return value is Map ? Map<String, Object?>.from(value) : null;
+      return value is Map<String, dynamic>
+          ? Map<String, Object?>.from(value)
+          : null;
     } catch (_) {
       return null;
     }
@@ -831,20 +817,10 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
           padding: const EdgeInsets.only(top: AppLayout.spaceMd),
           child: Wrap(
             alignment: WrapAlignment.end,
-            spacing: 8,
+            spacing: AppLayout.spaceSm,
             children: [
               TextButton(onPressed: widget.onCancel, child: const Text('取消修改')),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  foregroundColor: AppColors.onPrimary,
-                  iconColor: AppColors.onPrimary,
-                  backgroundColor: AppColors.primary,
-                  disabledForegroundColor: AppColors.onDisabled,
-                  disabledBackgroundColor: AppColors.disabled,
-                ),
-                onPressed: _save,
-                child: const Text('保存提案'),
-              ),
+              FilledButton(onPressed: _save, child: const Text('保存提案')),
             ],
           ),
         ),

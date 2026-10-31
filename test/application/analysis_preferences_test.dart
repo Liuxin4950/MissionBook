@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/analysis_scope.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,16 +16,16 @@ import 'package:mission_book/data/repositories/drift_record_repository.dart';
 import 'package:mission_book/domain/entities/evidence.dart';
 
 class _Preferences implements AnalysisPreferencesStore {
-  Set<String> scopes = {};
+  Set<AnalysisScope> scopes = {};
   bool failLoad = false;
   @override
-  Future<Set<String>> load() async {
+  Future<Set<AnalysisScope>> load() async {
     if (failLoad) throw StateError('测试读取失败');
     return Set.of(scopes);
   }
 
   @override
-  Future<void> save(Set<String> value) async => scopes = Set.of(value);
+  Future<void> save(Set<AnalysisScope> value) async => scopes = Set.of(value);
 }
 
 void main() {
@@ -33,8 +34,11 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({});
     const settings = SecureAnalysisPreferences();
     expect(await settings.load(), summaryScopes);
-    await settings.save({'mission', 'goal'});
-    expect(await const SecureAnalysisPreferences().load(), {'mission', 'goal'});
+    await settings.save({AnalysisScope.mission, AnalysisScope.goal});
+    expect(await const SecureAnalysisPreferences().load(), {
+      AnalysisScope.mission,
+      AnalysisScope.goal,
+    });
     await settings.save({});
     expect(await const SecureAnalysisPreferences().load(), isEmpty);
   });
@@ -87,11 +91,14 @@ void main() {
     expect(prompts, isEmpty);
     expect((await db.select(db.records).get()).single.content, '今天完成了阅读');
     expect((await db.select(db.analysisJobs).get()).single.status, 'pending');
-    await store.retry('record', 'record');
+    await store.retry(AnalysisScope.record, 'record');
     await service.drain();
     expect(prompts, hasLength(1));
     expect(
-      (await records.repository.analysis('record', 'record'))['content'],
+      (await records.repository.analysis(
+        AnalysisScope.record,
+        'record',
+      ))['content'],
       '可核对的总结',
     );
     expect(service.automaticScopes, isEmpty);
@@ -112,13 +119,13 @@ void main() {
       goalId: goal.id,
       nodeId: node.id,
     );
-    await store.retry('record', 'record');
+    await store.retry(AnalysisScope.record, 'record');
     await service.drain();
     expect(prompts, hasLength(1));
     expect((await db.select(db.analysisVersions).get()).map((e) => e.scope), [
       'record',
     ]);
-    await service.saveAutomaticScopes({'node', 'goal'});
+    await service.saveAutomaticScopes({AnalysisScope.node, AnalysisScope.goal});
     await service.drain();
     expect(
       (await db.select(db.analysisVersions).get()).map((e) => e.scope),
@@ -128,7 +135,7 @@ void main() {
 
   test('手动请求在运行中退出后可恢复，不依赖页面内存标记', () async {
     await seed();
-    await store.retry('record', 'record');
+    await store.retry(AnalysisScope.record, 'record');
     final claimed = (await store.claim(automaticScopes: {}))!;
     expect(claimed.manual, isTrue);
     await store.recover();
@@ -143,15 +150,27 @@ void main() {
     await seed();
     await service.drain();
     expect(prompts, isEmpty);
+    expect(service.preferencesError, isNotNull);
+    expect(service.automaticScopes, summaryScopes);
     preferences.failLoad = false;
-    preferences.scopes = {'record'};
+    preferences.scopes = {AnalysisScope.record};
     await service.drain();
     expect(prompts, hasLength(1));
+    expect(service.preferencesError, isNull);
+  });
+
+  test('偏好读取失败仍允许用户明确请求的一次总结，自动请求保持暂停', () async {
+    preferences.failLoad = true;
+    await seed();
+    await service.requestManual(AnalysisScope.record, 'record');
+    await service.drain();
+    expect(prompts, hasLength(1));
+    expect(service.preferencesError, isNotNull);
   });
 
   test('手动请求来源变更时拒绝旧结果，关闭的自动总结不会继续调用', () async {
     await seed();
-    await store.retry('record', 'record');
+    await store.retry(AnalysisScope.record, 'record');
     final claimed = (await store.claim(automaticScopes: {}))!;
     await records.updateContent('record', '今天完成了阅读', '新增了阅读笔记');
     expect(await store.publish(claimed, '过期总结', [], 0), isFalse);

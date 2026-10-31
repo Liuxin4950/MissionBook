@@ -1,3 +1,4 @@
+import '../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_layout.dart';
@@ -20,12 +21,12 @@ class AnalysisSettingsPage extends StatefulWidget {
 
 class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
   static const labels = {
-    'record': ('记录', '照片、文字与附件内容摘要'),
-    'mission': ('任务', '结束后的评价与完成情况总结'),
-    'node': ('节点', '节点任务与子节点的阶段摘要'),
-    'goal': ('目标', '目标整体进展与分层摘要'),
+    AnalysisScope.record: ('记录', '照片、文字与附件内容摘要'),
+    AnalysisScope.mission: ('任务', '结束后的评价与完成情况总结'),
+    AnalysisScope.node: ('节点', '节点任务与子节点的阶段摘要'),
+    AnalysisScope.goal: ('目标', '目标整体进展与分层摘要'),
   };
-  Set<String>? _scopes;
+  Set<AnalysisScope>? _scopes;
   bool _started = false, _saving = false, _allowPop = false;
   String? _error, _message;
   bool get changed =>
@@ -147,16 +148,20 @@ class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
                                   for (final entry in labels.entries)
                                     AppSettingsRow(
                                       icon: switch (entry.key) {
-                                        'record' => Icons.notes_outlined,
-                                        'mission' => Icons.task_alt,
-                                        'node' => Icons.account_tree_outlined,
+                                        AnalysisScope.record =>
+                                          Icons.notes_outlined,
+                                        AnalysisScope.mission => Icons.task_alt,
+                                        AnalysisScope.node =>
+                                          Icons.account_tree_outlined,
                                         _ => Icons.flag_outlined,
                                       },
                                       title: entry.value.$1,
                                       subtitle: entry.value.$2,
                                       enabled: !_saving,
                                       trailing: Switch(
-                                        key: Key('analysis-auto-${entry.key}'),
+                                        key: Key(
+                                          'analysis-auto-${entry.key.name}',
+                                        ),
                                         value: _scopes!.contains(entry.key),
                                         onChanged: _saving
                                             ? null

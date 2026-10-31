@@ -1,3 +1,5 @@
+import 'package:mission_book/data/repositories/drift_memory_repository.dart';
+import 'package:mission_book/domain/entities/analysis_scope.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -52,7 +54,7 @@ void main() {
       mainBusy: () => false,
       model: (p, {imageKey, mime, json = false}) async => '隔离的分析模型，不调用供应商',
     );
-    final memory = MemoryService(DriftRecordRepository(db));
+    final memory = MemoryService(DriftMemoryRepository(db));
     final web = WebService(
       settings: _PreviewWebSettings(),
       quota: DriftSearchQuota(db),
@@ -239,7 +241,7 @@ void main() {
     await tester.tap(find.byKey(const Key('analysis-auto-record')));
     await tester.tap(find.byKey(const Key('analysis-save-settings')));
     await tester.pumpAndSettle();
-    expect(analysis.automaticFor('record'), isFalse);
+    expect(analysis.automaticFor(AnalysisScope.record), isFalse);
     await binding.takeScreenshot('09-analysis-settings');
     await assistant.initialize();
     await mount(AssistantSettingsPage(controller: assistant));
