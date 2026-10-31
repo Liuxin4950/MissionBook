@@ -263,6 +263,30 @@ void main() {
     await close(tester);
   });
 
+  testWidgets('逾期底栏主操作与补做等宽，维护动作等宽并排', (tester) async {
+    final d = await seed(fixed: true);
+    await open(
+      tester,
+      MissionDetailPage(missionId: d.mission.id, missionService: service),
+      size: const Size(600, 900),
+    );
+    await tester.tap(find.text('稍后处理'));
+    await tester.pumpAndSettle();
+    final confirm = tester.getRect(
+      find.byKey(const Key('execution-report-entry')),
+    );
+    final makeup = tester.getRect(find.byKey(const Key('execution-makeup')));
+    final edit = tester.getRect(find.byKey(const Key('edit-mission')));
+    final cancel = tester.getRect(find.byKey(const Key('cancel-mission')));
+    expect(makeup.width, closeTo(confirm.width, 0.5));
+    expect(edit.width, lessThan(confirm.width));
+    expect(cancel.width, lessThan(confirm.width));
+    expect(edit.width, closeTo(cancel.width, 0.5));
+    expect(find.text('计划时段已过，请确认完成情况，也可以改期或现在补做。'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await close(tester);
+  });
+
   testWidgets('未执行确认不保存计划时段作为实际时长', (tester) async {
     final d = await seed(fixed: true);
     await open(
@@ -348,6 +372,41 @@ void main() {
       (await service.findDetail(missionId: d.mission.id))!.events,
       isEmpty,
     );
+    await close(tester);
+  });
+
+  testWidgets('窄屏打开完成确认时主操作固定可见，不需要先滚动表单', (tester) async {
+    final d = await seed(fixed: true);
+    await open(
+      tester,
+      MissionDetailPage(missionId: d.mission.id, missionService: service),
+      size: const Size(412, 710),
+    );
+    final confirm = find.byKey(const Key('execution-report-confirm'));
+    expect(confirm, findsOneWidget);
+    final rect = tester.getRect(confirm);
+    expect(rect.top, greaterThanOrEqualTo(0));
+    expect(rect.bottom, lessThanOrEqualTo(710));
+    await close(tester);
+  });
+
+  testWidgets('完成确认弹层收起时按内容收缩，展开后仍可滚动确认', (tester) async {
+    final d = await seed(fixed: true);
+    await open(
+      tester,
+      MissionDetailPage(missionId: d.mission.id, missionService: service),
+      size: const Size(412, 710),
+    );
+    final form = find.byKey(const Key('execution-report-form'));
+    expect(form, findsOneWidget);
+    expect(tester.getSize(form).height, lessThan(710 * .85));
+    await tester.tap(find.text('修改日期、时段或补充说明'));
+    await tester.pumpAndSettle();
+    final confirm = find.byKey(const Key('execution-report-confirm'));
+    await tester.ensureVisible(confirm);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(confirm).bottom, lessThanOrEqualTo(710));
+    expect(tester.takeException(), isNull);
     await close(tester);
   });
 

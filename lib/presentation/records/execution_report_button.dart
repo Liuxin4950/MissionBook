@@ -9,6 +9,7 @@ import '../../domain/entities/user_execution_report.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/rules/mission_attention_rules.dart';
 import '../../core/theme/app_layout.dart';
+import '../../core/theme/colors.dart';
 import '../widgets/adaptive_sheet.dart';
 import '../widgets/app_expansion.dart';
 import '../widgets/app_settings_row.dart';
@@ -149,7 +150,7 @@ class _MakeupButtonState extends State<MakeupExecutionButton> {
 
   @override
   Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       OutlinedButton.icon(
         onPressed: _busy || !widget.enabled ? null : start,
@@ -310,169 +311,198 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
             bottom: MediaQuery.viewInsetsOf(context).bottom,
           ),
           child: ConstrainedBox(
+            key: const Key('execution-report-form'),
             constraints: BoxConstraints(
               maxHeight: MediaQuery.sizeOf(context).height * .85,
             ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppLayout.spaceXxl),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    ended ? '更正实际时间' : '这项任务完成了吗？',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppLayout.spaceSm),
-                  Text(detail.mission.title, style: theme.textTheme.bodyLarge),
-                  if (!ended) ...[
-                    const SizedBox(height: AppLayout.spaceSm),
-                    const Text('计划时段已过，请确认实际完成情况。'),
-                    const SizedBox(height: AppLayout.spaceLg),
-                    Wrap(
-                      spacing: AppLayout.spaceMd,
-                      runSpacing: AppLayout.spaceSm,
-                      children: [
-                        ChoiceChip(
-                          key: const Key('retrospective-completed'),
-                          label: const Text('已完成'),
-                          selected: _completed,
-                          onSelected: _saving
-                              ? null
-                              : (_) => setState(() => _completed = true),
-                        ),
-                        ChoiceChip(
-                          key: const Key('retrospective-not-completed'),
-                          label: const Text('未执行 / 未完成'),
-                          selected: !_completed,
-                          onSelected: _saving
-                              ? null
-                              : (_) => setState(() {
-                                  _completed = false;
-                                  // 未执行不能因为预填计划而声明一段实际工作时长。
-                                  _unknown = true;
-                                }),
-                        ),
-                      ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(
+                      AppLayout.spaceXxl,
+                      AppLayout.spaceXxl,
+                      AppLayout.spaceXxl,
+                      AppLayout.spaceMd,
                     ),
-                  ],
-                  const SizedBox(height: AppLayout.spaceLg),
-                  Text(
-                    '实际记录：$summary',
-                    key: const Key('execution-report-time-summary'),
-                  ),
-                  Text(
-                    '时区：${detail.schedule.timeZone}',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  if (!ended && !_unknown)
-                    const Text('时段按原计划预填，点击确认表示你认可；有出入可修改。'),
-                  AppExpansionTile(
-                    initiallyExpanded: ended,
-                    title: const Text('修改日期、时段或补充说明'),
                     children: [
-                      TextField(
-                        controller: _date,
-                        enabled: !_saving,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
-                          labelText: '实际发生日期 YYYY-MM-DD',
-                        ),
+                      Text(
+                        ended ? '更正实际时间' : '这项任务完成了吗？',
+                        style: theme.textTheme.titleLarge,
                       ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('具体时段未知'),
-                        value: _unknown,
-                        onChanged: _saving
-                            ? null
-                            : (v) => setState(() => _unknown = v),
+                      const SizedBox(height: AppLayout.spaceSm),
+                      Text(
+                        detail.mission.title,
+                        style: theme.textTheme.bodyLarge,
                       ),
-                      if (!_unknown) ...[
-                        TextField(
-                          controller: _start,
-                          enabled: !_saving,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            labelText: '实际开始 HH:mm',
-                          ),
-                        ),
-                        TextField(
-                          controller: _endDate,
-                          enabled: !_saving,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            labelText: '结束日期 YYYY-MM-DD，可跨日',
-                          ),
-                        ),
-                        TextField(
-                          controller: _end,
-                          enabled: !_saving,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            labelText: '实际结束 HH:mm',
-                          ),
+                      if (!ended) ...[
+                        const SizedBox(height: AppLayout.spaceSm),
+                        const Text('计划时段已过，请确认实际完成情况。'),
+                        const SizedBox(height: AppLayout.spaceLg),
+                        Wrap(
+                          spacing: AppLayout.spaceMd,
+                          runSpacing: AppLayout.spaceSm,
+                          children: [
+                            ChoiceChip(
+                              key: const Key('retrospective-completed'),
+                              label: const Text('已完成'),
+                              selected: _completed,
+                              onSelected: _saving
+                                  ? null
+                                  : (_) => setState(() => _completed = true),
+                            ),
+                            ChoiceChip(
+                              key: const Key('retrospective-not-completed'),
+                              label: const Text('未执行 / 未完成'),
+                              selected: !_completed,
+                              onSelected: _saving
+                                  ? null
+                                  : (_) => setState(() {
+                                      _completed = false;
+                                      // 未执行不能因为预填计划而声明一段实际工作时长。
+                                      _unknown = true;
+                                    }),
+                            ),
+                          ],
                         ),
                       ],
-                      const SizedBox(height: AppLayout.spaceMd),
-                      TextField(
-                        controller: _basis,
-                        enabled: !_saving,
-                        minLines: 2,
-                        maxLines: 5,
-                        decoration: InputDecoration(
-                          labelText: ended ? '依据 / 更正说明（必填）' : '补充说明（可不填）',
+                      const SizedBox(height: AppLayout.spaceLg),
+                      Text(
+                        '实际记录：$summary',
+                        key: const Key('execution-report-time-summary'),
+                      ),
+                      Text(
+                        '时区：${detail.schedule.timeZone}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      if (!ended && !_unknown)
+                        const Text('时段按原计划预填，点击确认表示你认可；有出入可修改。'),
+                      AppExpansionTile(
+                        initiallyExpanded: ended,
+                        title: const Text('修改日期、时段或补充说明'),
+                        children: [
+                          TextField(
+                            controller: _date,
+                            enabled: !_saving,
+                            onChanged: (_) => setState(() {}),
+                            decoration: const InputDecoration(
+                              labelText: '实际发生日期 YYYY-MM-DD',
+                            ),
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('具体时段未知'),
+                            value: _unknown,
+                            onChanged: _saving
+                                ? null
+                                : (v) => setState(() => _unknown = v),
+                          ),
+                          if (!_unknown) ...[
+                            TextField(
+                              controller: _start,
+                              enabled: !_saving,
+                              onChanged: (_) => setState(() {}),
+                              decoration: const InputDecoration(
+                                labelText: '实际开始 HH:mm',
+                              ),
+                            ),
+                            TextField(
+                              controller: _endDate,
+                              enabled: !_saving,
+                              onChanged: (_) => setState(() {}),
+                              decoration: const InputDecoration(
+                                labelText: '结束日期 YYYY-MM-DD，可跨日',
+                              ),
+                            ),
+                            TextField(
+                              controller: _end,
+                              enabled: !_saving,
+                              onChanged: (_) => setState(() {}),
+                              decoration: const InputDecoration(
+                                labelText: '实际结束 HH:mm',
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: AppLayout.spaceMd),
+                          TextField(
+                            controller: _basis,
+                            enabled: !_saving,
+                            minLines: 2,
+                            maxLines: 5,
+                            decoration: InputDecoration(
+                              labelText: ended ? '依据 / 更正说明（必填）' : '补充说明（可不填）',
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (!ended &&
+                          _completed &&
+                          detail.mission.verificationPolicy ==
+                              VerificationPolicy.optionalEvidence)
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('接下来提交材料'),
+                          value: _optional,
+                          onChanged: _saving
+                              ? null
+                              : (v) => setState(() => _optional = v),
                         ),
+                      if (!ended &&
+                          _completed &&
+                          detail.mission.verificationPolicy ==
+                              VerificationPolicy.requiredEvidence)
+                        Text(
+                          '确认后需补充材料${detail.schedule.evidenceDeadlineAt == null ? '' : '，截止 ${missionLocalTime(detail.schedule.evidenceDeadlineAt!, detail.schedule.timeZone)}'}。',
+                        ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: AppColors.hairline),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppLayout.spaceXxl,
+                    AppLayout.spaceSm,
+                    AppLayout.spaceXxl,
+                    AppLayout.spaceLg,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AppLayout.spaceMd,
+                          ),
+                          child: Text(
+                            _error!,
+                            style: TextStyle(color: theme.colorScheme.error),
+                          ),
+                        ),
+                      FilledButton(
+                        key: const Key('execution-report-confirm'),
+                        onPressed: _saving ? null : save,
+                        child: Text(
+                          _saving
+                              ? '正在保存…'
+                              : ended
+                              ? '保存更正'
+                              : '确认',
+                        ),
+                      ),
+                      const SizedBox(height: AppLayout.spaceSm),
+                      OutlinedButton(
+                        onPressed: _saving
+                            ? null
+                            : () => Navigator.pop(context, false),
+                        child: Text(ended ? '取消' : '稍后处理'),
                       ),
                     ],
                   ),
-                  if (!ended &&
-                      _completed &&
-                      detail.mission.verificationPolicy ==
-                          VerificationPolicy.optionalEvidence)
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('接下来提交材料'),
-                      value: _optional,
-                      onChanged: _saving
-                          ? null
-                          : (v) => setState(() => _optional = v),
-                    ),
-                  if (!ended &&
-                      _completed &&
-                      detail.mission.verificationPolicy ==
-                          VerificationPolicy.requiredEvidence)
-                    Text(
-                      '确认后需补充材料${detail.schedule.evidenceDeadlineAt == null ? '' : '，截止 ${missionLocalTime(detail.schedule.evidenceDeadlineAt!, detail.schedule.timeZone)}'}。',
-                    ),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppLayout.spaceMd),
-                      child: Text(
-                        _error!,
-                        style: TextStyle(color: theme.colorScheme.error),
-                      ),
-                    ),
-                  const SizedBox(height: AppLayout.spaceXl),
-                  FilledButton(
-                    key: const Key('execution-report-confirm'),
-                    onPressed: _saving ? null : save,
-                    child: Text(
-                      _saving
-                          ? '正在保存…'
-                          : ended
-                          ? '保存更正'
-                          : '确认',
-                    ),
-                  ),
-                  const SizedBox(height: AppLayout.spaceSm),
-                  OutlinedButton(
-                    onPressed: _saving
-                        ? null
-                        : () => Navigator.pop(context, false),
-                    child: Text(ended ? '取消' : '稍后处理'),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

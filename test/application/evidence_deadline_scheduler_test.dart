@@ -157,11 +157,12 @@ void main() {
     expect(errors, hasLength(1));
     await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(repository.checks, 1);
-    for (var i = 0; i < 100 && repository.checks == 1; i++) {
+    // 等错误回调完成再断言；仓储进入重试时会先自增 checks，不能拿它当 onError 已执行的信号。
+    for (var i = 0; i < 100 && errors.length < 2; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 5));
     }
-    expect(repository.checks, 2);
     expect(errors, hasLength(2));
+    expect(repository.checks, 2);
     await scheduler.dispose();
     await Future<void>.delayed(const Duration(milliseconds: 170));
     expect(repository.checks, 2);

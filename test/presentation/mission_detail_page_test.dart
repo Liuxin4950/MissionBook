@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/core/theme/app_layout.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/entities/mission.dart';
@@ -113,7 +114,11 @@ class DetailRepository with UnusedMissionWrites implements MissionRepository {
   }) => throw UnsupportedError('详情页面不能创建任务');
 }
 
-MissionDetail exampleDetail({bool full = false, bool cancelled = false}) {
+MissionDetail exampleDetail({
+  bool full = false,
+  bool cancelled = false,
+  String? notes,
+}) {
   final now = DateTime.utc(2026, 10, 23, 1);
   return MissionDetail(
     mission: Mission(
@@ -146,7 +151,7 @@ MissionDetail exampleDetail({bool full = false, bool cancelled = false}) {
       objective: '能说明完整读取过程',
       steps: full ? ['从任务编号开始', '读回当前排期与方案'] : [],
       verificationCriteria: full ? '能追踪一次真实查询' : null,
-      notes: full ? '来自保存的补充说明' : null,
+      notes: notes ?? (full ? '来自保存的补充说明' : null),
       createdAt: now,
       updatedAt: now,
     ),
@@ -263,6 +268,25 @@ void main() {
     await tester.pumpWidget(testApp(missionService));
     await tester.pump();
     expect(repository.ids, ['detail-a']);
+  });
+
+  testWidgets('只显示补充说明时使用单一段间距，不插入无材料分隔线', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = DetailRepository();
+    await tester.pumpWidget(testApp(MissionService(repository)));
+    repository.requests.single.complete(exampleDetail(notes: '仅保留补充说明'));
+    await tester.pumpAndSettle();
+    final objective = tester.getRect(find.text('能说明完整读取过程'));
+    final notes = tester.getRect(find.text('补充说明'));
+    expect(
+      notes.top - objective.bottom,
+      lessThanOrEqualTo(AppLayout.sectionGap + 0.5),
+    );
+    expect(find.byType(Divider), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('重复触发只弹一次确认，保留/遮罩/系统返回均不写入或重复查询', (tester) async {

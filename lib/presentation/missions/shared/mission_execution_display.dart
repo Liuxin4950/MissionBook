@@ -72,30 +72,15 @@ class MissionHeading extends StatelessWidget {
         style: Theme.of(context).textTheme.titleSmall,
       ),
     );
-    final heading = LayoutBuilder(
-      builder: (context, box) {
-        final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
-        if (!showPhase) return title;
-        if (box.maxWidth < 300 * scale) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              title,
-              const SizedBox(height: AppLayout.spaceMd),
-              badge,
-            ],
+    // 标题先占自然宽度；放不下阶段徽标时徽标换到下一行，避免只剩一个字被挤到第二行。
+    final heading = !showPhase
+        ? title
+        : Wrap(
+            spacing: AppLayout.spaceLg,
+            runSpacing: AppLayout.spaceMd,
+            crossAxisAlignment: WrapCrossAlignment.start,
+            children: [title, badge],
           );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: title),
-            const SizedBox(width: AppLayout.spaceLg),
-            badge,
-          ],
-        );
-      },
-    );
     if (detail.ownershipInfo == null) return heading;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

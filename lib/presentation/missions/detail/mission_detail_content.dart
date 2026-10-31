@@ -35,152 +35,182 @@ class MissionDetailContent extends StatelessWidget {
     final mission = detail.mission;
     final plan = detail.executionPlan;
     final cancelledAt = mission.cancelledAt;
+    final showMaterialRequirements =
+        mission.verificationPolicy != VerificationPolicy.selfReport ||
+        _hasText(plan.verificationCriteria);
+    final showNotes = _hasText(plan.notes);
 
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
         child: SelectionArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: ListView(
-                  key: const Key('mission-detail-list'),
-                  padding: AppLayout.pagePadding(context),
-                  children: [
-                    // 路径名称来自详情查询；没有归属时真实显示独立任务。
-                    if (detail.ownershipInfo == null)
-                      Text(
-                        '独立任务',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    const SizedBox(height: AppLayout.spaceMd),
-                    MissionHeading(detail: detail),
-                    const SizedBox(height: AppLayout.sectionGap),
-                    _ScheduleCard(schedule: detail.schedule),
-                    const SizedBox(height: AppLayout.sectionGap),
-                    if (cancelledAt != null)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: AppLayout.sectionGap,
-                        ),
-                        child: Text(
-                          '没有执行记录',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ),
-                    if (cancelledAt != null)
-                      _DetailSection(
-                        title: '取消时间',
-                        child: Text(
-                          _localTimeLabel(
-                            cancelledAt,
-                            detail.schedule.timeZone,
+          child: LayoutBuilder(
+            builder: (context, constraints) => Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    key: const Key('mission-detail-list'),
+                    padding: AppLayout.pagePadding(context),
+                    children: [
+                      // 路径名称来自详情查询；没有归属时真实显示独立任务。
+                      if (detail.ownershipInfo == null)
+                        Text(
+                          '独立任务',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textSecondary,
                           ),
                         ),
-                      ),
-                    // 这里只展示动作提交反馈；计时、报告和结果由各自页面承担。
-                    actionFeedback,
-                    if (isCancelling)
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: AppLayout.spaceLg),
-                        child: Text('正在取消…'),
-                      ),
-                    if (cancelError != null)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: AppLayout.spaceLg,
-                        ),
-                        child: Semantics(
-                          liveRegion: true,
-                          child: Text(
-                            cancelError!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.error,
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (_hasText(mission.description))
-                      _DetailSection(
-                        title: '任务说明',
-                        child: Text(mission.description!),
-                      ),
-                    if (_hasText(mission.why)) ...[
-                      Column(
-                        children: [
-                          AppExpansionTile(
-                            childrenPadding: const EdgeInsets.only(
-                              top: AppLayout.spaceSm,
-                              bottom: AppLayout.spaceXl,
-                            ),
-                            expandedCrossAxisAlignment:
-                                CrossAxisAlignment.stretch,
-                            title: Text(
-                              '为什么做',
-                              style: theme.textTheme.titleMedium,
-                            ),
-                            children: [
-                              Text(
-                                mission.why!,
-                                style: theme.textTheme.bodyMedium,
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 1),
-                        ],
-                      ),
+                      const SizedBox(height: AppLayout.spaceMd),
+                      MissionHeading(detail: detail),
                       const SizedBox(height: AppLayout.sectionGap),
-                    ],
-                    _DetailSection(
-                      title: '行动方案',
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            plan.objective,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: AppColors.textSecondary,
+                      _ScheduleCard(schedule: detail.schedule),
+                      const SizedBox(height: AppLayout.sectionGap),
+                      if (cancelledAt != null)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AppLayout.sectionGap,
+                          ),
+                          child: Text(
+                            '没有执行记录',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ),
+                      if (cancelledAt != null)
+                        _DetailSection(
+                          title: '取消时间',
+                          child: Text(
+                            _localTimeLabel(
+                              cancelledAt,
+                              detail.schedule.timeZone,
                             ),
                           ),
-                          if (plan.steps.isNotEmpty) ...[
-                            const SizedBox(height: AppLayout.spaceXl),
-                            for (
-                              var index = 0;
-                              index < plan.steps.length;
-                              index++
-                            )
-                              _ActionStep(
-                                number: index + 1,
-                                text: plan.steps[index],
-                                last: index == plan.steps.length - 1,
+                        ),
+                      // 这里只展示动作提交反馈；计时、报告和结果由各自页面承担。
+                      actionFeedback,
+                      if (isCancelling)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: AppLayout.spaceLg),
+                          child: Text('正在取消…'),
+                        ),
+                      if (cancelError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AppLayout.spaceLg,
+                          ),
+                          child: Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              cancelError!,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.error,
                               ),
+                            ),
+                          ),
+                        ),
+                      if (_hasText(mission.description))
+                        _DetailSection(
+                          title: '任务说明',
+                          child: Text(mission.description!),
+                        ),
+                      if (_hasText(mission.why)) ...[
+                        Column(
+                          children: [
+                            AppExpansionTile(
+                              childrenPadding: const EdgeInsets.only(
+                                top: AppLayout.spaceSm,
+                                bottom: AppLayout.spaceXl,
+                              ),
+                              expandedCrossAxisAlignment:
+                                  CrossAxisAlignment.stretch,
+                              title: Text(
+                                '为什么做',
+                                style: theme.textTheme.titleMedium,
+                              ),
+                              children: [
+                                Text(
+                                  mission.why!,
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 1),
                           ],
+                        ),
+                        const SizedBox(height: AppLayout.sectionGap),
+                      ],
+                      _DetailSection(
+                        title: '行动方案',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              plan.objective,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            if (plan.steps.isNotEmpty) ...[
+                              const SizedBox(height: AppLayout.spaceXl),
+                              for (
+                                var index = 0;
+                                index < plan.steps.length;
+                                index++
+                              )
+                                _ActionStep(
+                                  number: index + 1,
+                                  text: plan.steps[index],
+                                  last: index == plan.steps.length - 1,
+                                ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (showMaterialRequirements) ...[
+                        const Divider(height: 1, color: AppColors.hairline),
+                        const SizedBox(height: AppLayout.spaceXl),
+                        _MaterialRequirementsCard(detail: detail),
+                      ],
+                      if (materialSection != null) ...[
+                        if (showMaterialRequirements)
+                          const SizedBox(height: AppLayout.sectionGap),
+                        materialSection!,
+                      ],
+                      if (showNotes) ...[
+                        if (showMaterialRequirements || materialSection != null)
+                          const SizedBox(height: AppLayout.sectionGap),
+                        _DetailSection(title: '补充说明', child: Text(plan.notes!)),
+                      ],
+                    ],
+                  ),
+                ),
+                // 主按钮在滚动区外，始终可见；浅色表面把操作区与正文留白分开。
+                // 小窗或大字时底栏限高并可滚动，避免挤爆正文。
+                if (footer != null)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: constraints.maxHeight * .5,
+                    ),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerLow,
+                        border: const Border(
+                          top: BorderSide(color: AppColors.hairline),
+                        ),
+                      ),
+                      child: ListView(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        children: [
+                          SafeArea(
+                            top: false,
+                            child: PageFooterBar(child: footer!),
+                          ),
                         ],
                       ),
                     ),
-                    const Divider(height: 1, color: AppColors.hairline),
-                    const SizedBox(height: AppLayout.spaceLg),
-                    if (mission.verificationPolicy !=
-                            VerificationPolicy.selfReport ||
-                        _hasText(plan.verificationCriteria))
-                      _MaterialRequirementsCard(detail: detail),
-                    if (materialSection != null) ...[
-                      const SizedBox(height: AppLayout.spaceLg),
-                      materialSection!,
-                    ],
-                    if (_hasText(plan.notes)) ...[
-                      const SizedBox(height: AppLayout.sectionGap),
-                      _DetailSection(title: '补充说明', child: Text(plan.notes!)),
-                    ],
-                  ],
-                ),
-              ),
-              // 主按钮在滚动区外，始终可见；窄屏和系统字体放大时按内容增高。
-              if (footer != null)
-                SafeArea(top: false, child: PageFooterBar(child: footer!)),
-            ],
+                  ),
+              ],
+            ),
           ),
         ),
       ),

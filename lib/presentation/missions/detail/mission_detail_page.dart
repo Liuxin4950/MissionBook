@@ -500,6 +500,8 @@ class _MissionDetailPageState extends State<MissionDetailPage>
               final action = _actionsFor(detail);
               final notStarted = detail.phase == MissionPhase.notStarted;
               final overdue = _isOverdue(detail);
+              final showMakeup =
+                  overdue && RecordScope.maybeOf(context) != null;
               final ended = detail.events.any(
                 (e) => e.type == ExecutionEventType.end,
               );
@@ -588,60 +590,41 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                         ],
                       )
                     : null,
-                actionFeedback: MissionActionFeedback(
-                  controller: action,
-                  onRetry: () => _submit(action.pending!),
-                  onRefresh: _refreshExecution,
-                  onPauseOther: () => _submit(
-                    widget.missionService.prepareExecution(
-                      detail: action.conflict!,
-                      type: ExecutionEventType.pause,
+                actionFeedback: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (overdue) ...[
+                      Text(
+                        '计划时段已过，请确认完成情况，也可以改期或现在补做。',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: AppLayout.spaceSm),
+                    ],
+                    MissionActionFeedback(
+                      controller: action,
+                      onRetry: () => _submit(action.pending!),
+                      onRefresh: _refreshExecution,
+                      onPauseOther: () => _submit(
+                        widget.missionService.prepareExecution(
+                          detail: action.conflict!,
+                          type: ExecutionEventType.pause,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
                 footer: notStarted
                     ? Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (overdue) ...[
-                            const Text('计划时段已过，请确认完成情况，也可以改期或现在补做。'),
-                            const SizedBox(height: AppLayout.spaceSm),
+                          if (overdue)
                             ExecutionReportButton(
                               detail: detail,
                               enabled: !disabled,
                               onPressed: () => _requestReport(detail),
-                            ),
-                          ],
-                          // 基础维护动作直接可见，不藏进更多菜单；开始后由独立页面接管。
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: AppLayout.spaceLg,
-                            runSpacing: AppLayout.spaceSm,
-                            children: [
-                              OutlinedButton.icon(
-                                key: const Key('edit-mission'),
-                                onPressed: disabled
-                                    ? null
-                                    : () => _requestEdit(detail),
-                                icon: const Icon(Icons.edit_outlined),
-                                label: Text(overdue ? '改期 / 修改任务' : '修改任务'),
-                              ),
-                              OutlinedButton.icon(
-                                key: const Key('cancel-mission'),
-                                onPressed: disabled ? null : _requestCancel,
-                                icon: const Icon(Icons.close_rounded),
-                                label: const Text('取消任务'),
-                              ),
-                            ],
-                          ),
-                          if (overdue && RecordScope.maybeOf(context) != null)
-                            MakeupExecutionButton(
-                              key: ValueKey(
-                                'makeup-${detail.mission.id}-${detail.schedule.id}',
-                              ),
-                              detail: detail,
-                              enabled: !disabled,
                             )
                           else
                             FilledButton.icon(
@@ -672,6 +655,42 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                                     : '开始任务',
                               ),
                             ),
+                          if (showMakeup) ...[
+                            const SizedBox(height: AppLayout.spaceSm),
+                            MakeupExecutionButton(
+                              key: ValueKey(
+                                'makeup-${detail.mission.id}-${detail.schedule.id}',
+                              ),
+                              detail: detail,
+                              enabled: !disabled,
+                            ),
+                          ],
+                          const SizedBox(height: AppLayout.spaceSm),
+                          // 基础维护动作等宽并排；开始后由独立页面接管。
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  key: const Key('edit-mission'),
+                                  onPressed: disabled
+                                      ? null
+                                      : () => _requestEdit(detail),
+                                  icon: const Icon(Icons.edit_outlined),
+                                  label: Text(overdue ? '改期 / 修改任务' : '修改任务'),
+                                ),
+                              ),
+                              const SizedBox(width: AppLayout.spaceSm),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  key: const Key('cancel-mission'),
+                                  onPressed: disabled ? null : _requestCancel,
+                                  icon: const Icon(Icons.close_rounded),
+                                  label: const Text('取消任务'),
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       )
                     : auxiliaryAction,

@@ -195,10 +195,12 @@ ScheduledMission example(
   int plannedDurationMinutes = 20,
   String timeZone = 'Asia/Shanghai',
   MissionPhase phase = MissionPhase.notStarted,
+  List<ExecutionEvent> events = const [],
 }) {
   final now = DateTime.utc(2026, 10, 21);
   return ScheduledMission(
     phase: phase,
+    events: events,
     mission: Mission(
       id: id,
       title: id,
@@ -416,10 +418,14 @@ void main() {
         final timeLabel = item.schedule.timePolicy == TimePolicy.fixed
             ? '09:00'
             : '自选时间';
+        // 固定行读屏用页面实际显示的计划状态；自选行仍沿用执行阶段文字。
+        final status = item.schedule.timePolicy == TimePolicy.fixed
+            ? '待到时'
+            : '待开始';
         // 从任务的完整语义标签定位按钮，避免取到时间轴内部的布局节点。
         final node = tester.getSemantics(
           find.bySemanticsLabel(
-            '$timeLabel，${item.mission.title}，计划 20 分钟，待开始',
+            '$timeLabel，${item.mission.title}，计划 20 分钟，$status',
           ),
         );
         expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
@@ -673,7 +679,7 @@ void main() {
     ]);
     await tester.pumpAndSettle();
     final activeNode = tester.getSemantics(
-      find.bySemanticsLabel('当前计划时段，09:00，$longTitle，计划 20 分钟，待开始'),
+      find.bySemanticsLabel('09:00，$longTitle，计划 20 分钟，当前时段'),
     );
     expect(
       activeNode.getSemanticsData().hasAction(SemanticsAction.tap),
@@ -713,6 +719,106 @@ void main() {
           .isExpanded,
       Tristate.isTrue,
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+    semantics.dispose();
+  });
+
+  testWidgets('固定任务状态与计划时长成组，专注保持在说明行右端', (tester) async {
+    tester.view.physicalSize = const Size(600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final semantics = tester.ensureSemantics();
+    final repository = ControlledQueryRepository();
+    final start = DateTime.utc(2026, 10, 21, 1);
+    final events = [
+      ExecutionEvent(
+        id: 'start',
+        missionId: '已结束任务',
+        sequence: 1,
+        type: ExecutionEventType.start,
+        occurredAt: start,
+        scheduleRevisionId: '已结束任务-schedule',
+      ),
+      ExecutionEvent(
+        id: 'end',
+        missionId: '已结束任务',
+        sequence: 2,
+        type: ExecutionEventType.end,
+        occurredAt: start,
+        userReportedResult: UserReportedResult.completed,
+      ),
+    ];
+    await tester.pumpWidget(
+      testApp(repository, clock: () => DateTime.utc(2026, 10, 21, 3)),
+    );
+    repository.requests.single.complete([
+      example(
+        '已结束任务',
+        fixed: true,
+        start: start,
+        plannedDurationMinutes: 100,
+        phase: MissionPhase.closed,
+        events: events,
+      ),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('已结束'), findsOneWidget);
+    expect(find.text('100 分钟'), findsOneWidget);
+    expect(find.text('专注 00:00'), findsOneWidget);
+    expect(find.text('计划 100 分钟'), findsNothing);
+    expect(find.textContaining('已结束 ·'), findsNothing);
+    expect(find.bySemanticsLabel('09:00，已结束任务，计划 100 分钟，已结束'), findsOneWidget);
+    final title = tester.getRect(find.text('已结束任务'));
+    final status = tester.getRect(find.text('已结束'));
+    final duration = tester.getRect(find.text('100 分钟'));
+    final focus = tester.getRect(find.text('专注 00:00'));
+    expect(status.left, closeTo(title.left, 0.5));
+    expect(duration.left, greaterThan(status.right));
+    expect(duration.top, closeTo(status.top, 0.5));
+    expect(duration.top, greaterThan(title.bottom));
+    expect(focus.left, greaterThan(duration.right));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    semantics.dispose();
+  });
+
+  testWidgets('未来固定任务状态与计划时长同一行，不再重复“计划”', (tester) async {
+    tester.view.physicalSize = const Size(412, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final semantics = tester.ensureSemantics();
+    final repository = ControlledQueryRepository();
+    final start = DateTime.utc(2026, 10, 21, 11);
+    await tester.pumpWidget(
+      testApp(repository, clock: () => DateTime.utc(2026, 10, 21, 3)),
+    );
+    repository.requests.single.complete([
+      example(
+        '品牌与营销管理实务',
+        fixed: true,
+        start: start,
+        plannedDurationMinutes: 210,
+      ),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('待到时'), findsOneWidget);
+    expect(find.text('210 分钟'), findsOneWidget);
+    expect(find.text('计划 210 分钟'), findsNothing);
+    expect(find.textContaining('专注'), findsNothing);
+    expect(
+      find.bySemanticsLabel('19:00，品牌与营销管理实务，计划 210 分钟，待到时'),
+      findsOneWidget,
+    );
+    final title = tester.getRect(find.text('品牌与营销管理实务'));
+    final status = tester.getRect(find.text('待到时'));
+    final duration = tester.getRect(find.text('210 分钟'));
+    expect(status.left, closeTo(title.left, 0.5));
+    expect(status.top, greaterThan(title.bottom));
+    expect(duration.top, closeTo(status.top, 0.5));
+    expect(duration.left, greaterThan(status.right));
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     semantics.dispose();
   });

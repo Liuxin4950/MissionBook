@@ -311,19 +311,29 @@ class ScheduleMissionRow extends StatelessWidget {
         ? planStatus
         : phaseLabel(item.phase);
     final label = [
-      if (current) '当前计划时段',
       item.startTime,
       item.title,
-      item.durationLabel,
+      '计划 ${item.plannedDurationMinutes} 分钟',
       if (item.timeZoneLabel != null) item.timeZoneLabel!,
-      if (!item.isCancelled) phaseLabel(item.phase),
+      status,
     ].join('，');
+    // 时间列与正文列共享首行中线；标题行承载状态，说明行两端分布计划与专注。
+    final timeStyle = theme.textTheme.bodyMedium!;
+    final titleStyle = theme.textTheme.titleMedium!;
+    final scaler = MediaQuery.textScalerOf(context);
+    final timeLineHeight =
+        scaler.scale(timeStyle.fontSize!) * (timeStyle.height ?? 1);
+    final titleLineHeight =
+        scaler.scale(titleStyle.fontSize!) * (titleStyle.height ?? 1);
+    final timeTop = (titleLineHeight - timeLineHeight) / 2;
+    final nodeCenterY = AppLayout.spaceLg + titleLineHeight / 2;
+    const timelineEndInset = 12.0;
     return Semantics(
       container: true,
       excludeSemantics: true,
       button: true,
       label: label,
-      hint: '$status，${missionOpenLabel(item.phase)}',
+      hint: missionOpenLabel(item.phase),
       onTap: onTap,
       child: AnimatedContainer(
         duration: _motionDuration(context),
@@ -340,185 +350,220 @@ class ScheduleMissionRow extends StatelessWidget {
             onTap: onTap,
             excludeFromSemantics: true,
             borderRadius: BorderRadius.circular(AppLayout.radiusMd),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final stacked =
-                    showFullTitle ||
-                    constraints.maxWidth < 320 ||
-                    MediaQuery.textScalerOf(context).scale(16) > 20;
-                final timeStyle = theme.textTheme.bodyMedium!;
-                final timeLineHeight =
-                    MediaQuery.textScalerOf(
-                      context,
-                    ).scale(timeStyle.fontSize!) *
-                    (timeStyle.height ?? 1);
-                final nodeCenterY = 16 + timeLineHeight / 2;
-                const timelineEndInset = 12.0;
-                return Stack(
-                  children: [
-                    Positioned(
-                      left: 7,
-                      // 首尾只收进边缘留白，单项也保留穿过节点的竖线。
-                      // 中间行连到边界，随内容自然增高，连接处没有间隙。
-                      top: isFirst ? timelineEndInset : 0,
-                      bottom: isLast ? timelineEndInset : 0,
-                      child: Container(
-                        width: AppLayout.strokeThin,
-                        color: colors.outlineVariant,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 7,
+                  // 首尾只收进边缘留白，单项也保留穿过节点的竖线。
+                  // 中间行连到边界，随内容自然增高，连接处没有间隙。
+                  top: isFirst ? timelineEndInset : 0,
+                  bottom: isLast ? timelineEndInset : 0,
+                  child: Container(
+                    width: AppLayout.strokeThin,
+                    color: colors.outlineVariant,
+                  ),
+                ),
+                Positioned(
+                  left: 3,
+                  top: nodeCenterY - 4.5,
+                  child: Container(
+                    key: ValueKey('schedule-node-${item.id}'),
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: current
+                          ? colors.primary
+                          : colors.surfaceContainerLow,
+                      border: Border.all(
+                        color: current ? colors.primary : colors.outline,
                       ),
                     ),
-                    Positioned(
-                      left: 3,
-                      top: nodeCenterY - 4.5,
-                      child: Container(
-                        key: ValueKey('schedule-node-${item.id}'),
-                        width: 9,
-                        height: 9,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: current
-                              ? colors.primary
-                              : colors.surfaceContainerLow,
-                          border: Border.all(
-                            color: current ? colors.primary : colors.outline,
-                          ),
-                        ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppLayout.spaceXxl,
+                    AppLayout.spaceLg,
+                    AppLayout.spaceSm,
+                    AppLayout.spaceLg,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.only(top: timeTop),
+                        child: Text(item.startTime, style: timeStyle),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppLayout.spaceXxl,
-                        AppLayout.spaceLg,
-                        AppLayout.spaceSm,
-                        AppLayout.spaceLg,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.startTime,
-                                style: theme.textTheme.bodyMedium,
+                      const SizedBox(width: AppLayout.spaceMd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.title,
+                              maxLines: showFullTitle ? null : 1,
+                              overflow: showFullTitle
+                                  ? TextOverflow.visible
+                                  : TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: AppLayout.spaceXs),
+                            LayoutBuilder(
+                              builder: (context, box) {
+                                final textScale =
+                                    MediaQuery.textScalerOf(context).scale(14) /
+                                    14;
+                                // 有专注时给说明行留出右端空间；极窄或大字才纵排。
+                                final stacked =
+                                    box.maxWidth <
+                                    (item.events.isEmpty ? 100 : 150) *
+                                        textScale;
+                                final statusLabel = _StatusLabel(
+                                  status: status,
+                                  current: current,
+                                );
+                                final duration = Text(
+                                  item.plannedDurationLabel,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodyMedium,
+                                );
+                                final timeZone = item.timeZoneLabel == null
+                                    ? null
+                                    : Text(
+                                        item.timeZoneLabel!,
+                                        style: theme.textTheme.bodySmall,
+                                      );
+                                final live = item.events.isEmpty
+                                    ? null
+                                    : MissionLiveStatus(
+                                        phase: item.phase,
+                                        events: item.events,
+                                        clock: clock,
+                                        includePhase: false,
+                                        maxLines: stacked ? null : 1,
+                                      );
+                                if (stacked) {
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      statusLabel,
+                                      const SizedBox(height: AppLayout.spaceXs),
+                                      duration,
+                                      if (timeZone != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: AppLayout.spaceXs,
+                                          ),
+                                          child: timeZone,
+                                        ),
+                                      if (live != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: AppLayout.spaceXs,
+                                          ),
+                                          child: live,
+                                        ),
+                                    ],
+                                  );
+                                }
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: Wrap(
+                                        spacing: AppLayout.spaceSm,
+                                        runSpacing: AppLayout.spaceXs,
+                                        crossAxisAlignment:
+                                            WrapCrossAlignment.center,
+                                        children: [
+                                          statusLabel,
+                                          Text(
+                                            '·',
+                                            style: theme.textTheme.bodySmall,
+                                          ),
+                                          duration,
+                                          if (timeZone != null) ...[
+                                            Text(
+                                              '·',
+                                              style: theme.textTheme.bodySmall,
+                                            ),
+                                            timeZone,
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    if (live != null) ...[
+                                      const SizedBox(width: AppLayout.spaceSm),
+                                      live,
+                                    ],
+                                  ],
+                                );
+                              },
+                            ),
+                            if (current) ...[
+                              const SizedBox(height: AppLayout.spaceMd),
+                              TweenAnimationBuilder<double>(
+                                tween: Tween(end: progress),
+                                duration: _motionDuration(context),
+                                builder: (context, value, _) =>
+                                    LinearProgressIndicator(
+                                      value: value,
+                                      minHeight: 5,
+                                      borderRadius: BorderRadius.circular(
+                                        AppLayout.radiusXs,
+                                      ),
+                                      backgroundColor: colors.primary
+                                          .withValues(alpha: .08),
+                                    ),
                               ),
-                              const SizedBox(width: AppLayout.spaceMd),
-                              Expanded(
-                                child: Text(
-                                  item.title,
-                                  maxLines: showFullTitle ? null : 1,
-                                  overflow: showFullTitle
-                                      ? TextOverflow.visible
-                                      : TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleMedium,
-                                ),
-                              ),
-                              if (!stacked) ...[
-                                const SizedBox(width: AppLayout.spaceSm),
-                                _StatusLabel(status: status, current: current),
-                              ],
-                            ],
-                          ),
-                          if (stacked || !current || item.timeZoneLabel != null)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                top: AppLayout.spaceSm,
-                              ),
-                              child: Wrap(
-                                spacing: AppLayout.spaceSm,
-                                runSpacing: AppLayout.spaceXs,
+                              const SizedBox(height: AppLayout.spaceSm),
+                              Wrap(
+                                spacing: AppLayout.spaceMd,
+                                runSpacing: AppLayout.spaceSm,
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
-                                  if (stacked)
-                                    _StatusLabel(
-                                      status: status,
-                                      current: current,
+                                  Text(
+                                    '计划时段剩余 $remainingMinutes 分钟',
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                  Text(
+                                    '${(progress * 100).floor()}%',
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                  // 整行就是详情按钮，这里只是同一动作的视觉提示。
+                                  DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: colors.primary,
+                                      borderRadius: BorderRadius.circular(
+                                        AppLayout.radiusSm,
+                                      ),
                                     ),
-                                  if (!current)
-                                    Text(
-                                      item.durationLabel,
-                                      style: theme.textTheme.bodyMedium,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: AppLayout.spaceLg,
+                                        vertical: AppLayout.spaceMd,
+                                      ),
+                                      child: Text(
+                                        '查看',
+                                        style: theme.textTheme.labelMedium
+                                            ?.copyWith(color: colors.onPrimary),
+                                      ),
                                     ),
-                                  if (item.timeZoneLabel != null)
-                                    Text(
-                                      item.timeZoneLabel!,
-                                      style: theme.textTheme.bodySmall,
-                                    ),
+                                  ),
                                 ],
                               ),
-                            ),
-                          if (item.events.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                top: AppLayout.spaceSm,
-                              ),
-                              child: MissionLiveStatus(
-                                phase: item.phase,
-                                events: item.events,
-                                clock: clock,
-                                includePhase: false,
-                              ),
-                            ),
-                          if (current) ...[
-                            const SizedBox(height: AppLayout.spaceMd),
-                            TweenAnimationBuilder<double>(
-                              tween: Tween(end: progress),
-                              duration: _motionDuration(context),
-                              builder: (context, value, _) =>
-                                  LinearProgressIndicator(
-                                    value: value,
-                                    minHeight: 5,
-                                    borderRadius: BorderRadius.circular(
-                                      AppLayout.radiusXs,
-                                    ),
-                                    backgroundColor: colors.primary.withValues(
-                                      alpha: .08,
-                                    ),
-                                  ),
-                            ),
-                            const SizedBox(height: AppLayout.spaceSm),
-                            Wrap(
-                              spacing: AppLayout.spaceMd,
-                              runSpacing: AppLayout.spaceSm,
-                              alignment: WrapAlignment.spaceBetween,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                Text(
-                                  '计划时段剩余 $remainingMinutes 分钟',
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                                Text(
-                                  '${(progress * 100).floor()}%',
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                                // 整行就是详情按钮，这里只是同一动作的视觉提示。
-                                DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: colors.primary,
-                                    borderRadius: BorderRadius.circular(
-                                      AppLayout.radiusSm,
-                                    ),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: AppLayout.spaceLg,
-                                      vertical: AppLayout.spaceMd,
-                                    ),
-                                    child: Text(
-                                      '查看',
-                                      style: theme.textTheme.labelMedium
-                                          ?.copyWith(color: colors.onPrimary),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              },
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -535,11 +580,19 @@ class _StatusLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final label = Text(
+      status,
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: current
+            ? theme.colorScheme.onSurface
+            : theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+    // 非当前任务直接排在说明行里，透明装饰和内边距会把文字推离标题左缘。
+    if (!current) return label;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: current
-            ? theme.colorScheme.surfaceContainerLow
-            : Colors.transparent,
+        color: theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(AppLayout.radiusSm),
       ),
       child: Padding(
@@ -547,14 +600,7 @@ class _StatusLabel extends StatelessWidget {
           horizontal: AppLayout.spaceSm,
           vertical: 3,
         ),
-        child: Text(
-          status,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: current
-                ? theme.colorScheme.onSurface
-                : theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
+        child: label,
       ),
     );
   }

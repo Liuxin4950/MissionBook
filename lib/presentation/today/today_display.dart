@@ -112,6 +112,7 @@ TodayMissionItem _missionItem(ScheduledMission item, DateTime? now) {
     startTime: startTime,
     fixedStartAt: schedule.fixedStartAt,
     plannedDurationMinutes: schedule.plannedDurationMinutes,
+    plannedDurationLabel: '${schedule.plannedDurationMinutes} 分钟',
     durationLabel:
         '${isCancelled ? '已取消 · ' : executionLabel}'
         '计划 ${schedule.plannedDurationMinutes} 分钟',
@@ -153,6 +154,7 @@ class TodayMissionItem {
     required this.startTime,
     required this.fixedStartAt,
     required this.plannedDurationMinutes,
+    required this.plannedDurationLabel,
     required this.durationLabel,
     required this.timeZoneLabel,
     this.phase = MissionPhase.notStarted,
@@ -166,6 +168,7 @@ class TodayMissionItem {
   final String startTime;
   final DateTime? fixedStartAt;
   final int plannedDurationMinutes;
+  final String plannedDurationLabel;
   final String durationLabel;
   final String? timeZoneLabel;
   final MissionPhase phase;

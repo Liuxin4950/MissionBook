@@ -939,7 +939,8 @@ String _missionSemanticsLabel(
     item.title,
     item.durationLabel,
     if (item.timeZoneLabel != null) item.timeZoneLabel!,
-    if (!item.isCancelled) phaseLabel(item.phase),
+    if (!item.isCancelled && item.phase == MissionPhase.notStarted)
+      phaseLabel(item.phase),
   ];
   if (item.events.isNotEmpty &&
       (item.phase == MissionPhase.running ||
