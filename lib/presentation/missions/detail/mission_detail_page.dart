@@ -668,7 +668,6 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                           const SizedBox(height: AppLayout.spaceSm),
                           // 基础维护动作等宽并排；开始后由独立页面接管。
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Expanded(
                                 child: OutlinedButton.icon(

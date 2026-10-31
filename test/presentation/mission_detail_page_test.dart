@@ -203,7 +203,10 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final repository = DetailRepository();
-    final missionService = MissionService(repository);
+    final missionService = MissionService(
+      repository,
+      clock: () => DateTime.utc(2026, 10, 23, 4),
+    );
     await tester.pumpWidget(testApp(missionService));
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(repository.ids, ['detail-a']);

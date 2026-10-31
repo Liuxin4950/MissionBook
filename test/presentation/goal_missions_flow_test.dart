@@ -57,7 +57,10 @@ void main() {
     db = AppDatabase(executor: NativeDatabase.memory());
     goals = GoalService(DriftGoalRepository(db));
     repository = _UncertainMissionRepository(db);
-    missions = MissionService(repository);
+    missions = MissionService(
+      repository,
+      clock: () => DateTime.utc(2026, 10, 25, 4),
+    );
     goal = goals.prepareCreation(title: '学习 Flutter', why: '独立完成项目');
     await goals.create(goal);
     final root = goals.prepareNodeCreation(goalId: goal.id, title: '界面');

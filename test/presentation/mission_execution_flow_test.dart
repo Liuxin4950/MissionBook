@@ -39,7 +39,7 @@ void main() {
     now = DateTime.utc(2026, 10, 23, 6);
     database = AppDatabase(executor: NativeDatabase.memory());
     repository = DriftMissionRepository(database, clock: () => now);
-    service = MissionService(repository);
+    service = MissionService(repository, clock: () => now);
     await seedMission(repository, 'a');
   });
   tearDown(() async {
@@ -194,7 +194,7 @@ void main() {
     await service.dispose();
     final lost = LostResponseRepository(database, clock: () => now);
     repository = lost;
-    service = MissionService(lost);
+    service = MissionService(lost, clock: () => now);
     await open(tester);
     await tap(tester, 'execution-start');
     await tap(tester, 'execution-extend');
@@ -229,7 +229,7 @@ void main() {
     final lost = LostResponseRepository(database, clock: () => now)
       ..loseType = ExecutionEventType.start;
     repository = lost;
-    service = MissionService(lost);
+    service = MissionService(lost, clock: () => now);
     await open(tester);
     await tap(tester, 'execution-start');
     expect(find.byKey(const Key('mission-execution-page')), findsNothing);
