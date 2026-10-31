@@ -4,6 +4,7 @@ import '../../application/backup/backup_service.dart';
 import '../../application/settings/app_device.dart';
 import '../../core/theme/app_layout.dart';
 import '../../core/theme/colors.dart';
+import 'adaptive_sheet.dart';
 import 'app_section_card.dart';
 
 /// 设置和助手共用同一个完整数据导出入口，保留取消、重试与保存结果反馈。
@@ -53,6 +54,61 @@ class _DataExportCardState extends State<DataExportCard> {
     }
   }
 
+  Future<void> _showDetails() => showAdaptiveSheet<void>(
+    context: context,
+    builder: (sheetContext) {
+      final text = Theme.of(sheetContext).textTheme;
+      return SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppLayout.spaceXl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.archive_outlined,
+                    size: AppLayout.iconMd,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: AppLayout.spaceSm),
+                  Expanded(child: Text('本地备份说明', style: text.titleMedium)),
+                ],
+              ),
+              const SizedBox(height: AppLayout.spaceLg),
+              _detail(sheetContext, '包含', '数据库完整快照、正式材料原件和已保存的助手会话。'),
+              const SizedBox(height: AppLayout.spaceMd),
+              _detail(sheetContext, '不含', 'API Key、未发送草稿、缓存、本机资料和提醒偏好。'),
+              const SizedBox(height: AppLayout.spaceMd),
+              _detail(sheetContext, '恢复', '当前只支持导出，应用内暂不支持导入恢复。'),
+              const SizedBox(height: AppLayout.spaceXl),
+              FilledButton(
+                key: const Key('backup-info-close'),
+                onPressed: () => Navigator.of(sheetContext).pop(),
+                child: const Text('知道了'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
+  Widget _detail(BuildContext context, String label, String value) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: AppLayout.spaceXs),
+      Text(
+        value,
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
@@ -101,12 +157,25 @@ class _DataExportCardState extends State<DataExportCard> {
                       ),
                       const SizedBox(width: AppLayout.spaceMd),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
+                        child: Row(
                           children: [
-                            Text('本地备份', style: text.titleMedium),
-                            Text('目标、任务、材料与助手会话', style: text.bodyMedium),
+                            Flexible(
+                              child: Text('本地备份', style: text.titleMedium),
+                            ),
+                            const SizedBox(width: AppLayout.spaceXs),
+                            IconButton(
+                              key: const Key('backup-info'),
+                              onPressed: _showDetails,
+                              tooltip: '备份说明',
+                              icon: const Icon(Icons.priority_high_rounded),
+                              iconSize: 14,
+                              style: IconButton.styleFrom(
+                                foregroundColor: AppColors.textSecondary,
+                                minimumSize: const Size(36, 36),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -128,15 +197,6 @@ class _DataExportCardState extends State<DataExportCard> {
                   ),
                   child: Align(alignment: Alignment.centerLeft, child: action),
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppLayout.spaceLg,
-                  0,
-                  AppLayout.spaceLg,
-                  AppLayout.spaceMd,
-                ),
-                child: Text('不含 API Key 与未发送草稿；暂不支持恢复。', style: text.bodySmall),
-              ),
               if (_backupMessage != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(

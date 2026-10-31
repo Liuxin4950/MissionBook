@@ -255,19 +255,27 @@ void main() {
     expect(find.text('提醒权限已就绪'), findsOneWidget);
     expect(find.text('去设置'), findsNothing);
   });
-  testWidgets('备份范围准确，关于的展开状态可访问且支持减少动画', (tester) async {
+  testWidgets('备份说明按需展开，关于的展开状态可访问且支持减少动画', (tester) async {
     final semantics = tester.ensureSemantics();
 
     await open(tester, reduceMotion: true);
-    final scope = find.textContaining('不含 API Key 与未发送草稿');
+    expect(find.text('不含 API Key 与未发送草稿；暂不支持恢复。'), findsNothing);
+    final info = find.byKey(const Key('backup-info'));
     await tester.scrollUntilVisible(
-      scope,
+      info,
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.ensureVisible(scope);
-    expect(scope, findsOneWidget);
-    expect(find.textContaining('暂不支持恢复'), findsOneWidget);
+    await tester.ensureVisible(info);
+    await tester.tap(info);
+    await tester.pumpAndSettle();
+    expect(find.text('本地备份说明'), findsOneWidget);
+    expect(find.textContaining('数据库完整快照'), findsOneWidget);
+    expect(find.text('API Key、未发送草稿、缓存、本机资料和提醒偏好。'), findsOneWidget);
+    expect(find.text('当前只支持导出，应用内暂不支持导入恢复。'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('backup-info-close')));
+    await tester.pumpAndSettle();
+    expect(find.text('本地备份说明'), findsNothing);
     final about = find.byKey(const Key('about-toggle'));
     await tester.scrollUntilVisible(
       about,

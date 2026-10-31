@@ -912,6 +912,7 @@ class AssistantController extends ChangeNotifier {
   });
 
   Future<void> _updateConfiguration(Future<void> Function() update) async {
+    if (!_initialized && _runtime == null) await initialize();
     _ensureUsable();
     if (isRunning) throw StateError('请先结束本轮，再修改助手设置');
     _configuring = true;
@@ -1018,6 +1019,7 @@ class AssistantController extends ChangeNotifier {
   }
 
   Future<String> testConnection() async {
+    if (!_initialized && _runtime == null) await initialize();
     _ensureUsable();
     final configuration = _configuration;
     final registry = ModelRegistry(

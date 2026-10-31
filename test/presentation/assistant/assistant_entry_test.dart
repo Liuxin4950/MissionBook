@@ -175,6 +175,8 @@ void main() {
     double textScale = 1,
     bool shell = false,
     bool realDetail = false,
+    bool initializeAssistant = true,
+    MemoryAssistantSettingsStore? settingsStore,
   }) async {
     currentTextScale = textScale;
     tester.view.resetViewInsets();
@@ -186,12 +188,12 @@ void main() {
     assistant = AssistantController(
       reader: DriftAssistantReader(database),
       sessionStore: DriftSessionStore(database),
-      settingsStore: MemoryAssistantSettingsStore(),
+      settingsStore: settingsStore ?? MemoryAssistantSettingsStore(),
       missions: missions,
       goals: goals,
       modelOverrides: {'deepseek-chat': model},
     );
-    await assistant.initialize();
+    if (initializeAssistant) await assistant.initialize();
     await tester.pumpWidget(
       MaterialApp(
         theme: _captureDir.isEmpty
@@ -363,6 +365,43 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AssistantSettingsPage), findsNothing);
     expect(find.byKey(const Key('settings-assistant-entry')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  assistantTest('从应用设置直接进入未初始化的助手设置会先回填再保存', (tester) async {
+    final store = MemoryAssistantSettingsStore()
+      ..persona = const AssistantPersona(name: '原有角色')
+      ..profileId = 'deepseek';
+    await mount(
+      tester,
+      ScriptedModel([]),
+      width: 1106,
+      height: 956,
+      shell: true,
+      initializeAssistant: false,
+      settingsStore: store,
+    );
+    expect(assistant.initialized, isFalse);
+    await tester.tap(find.byTooltip('我的'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('me-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settings-assistant-entry')));
+    await pumpUntil(tester, () => assistant.initialized);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('原有角色'), findsOneWidget);
+    expect(find.text('DeepSeek · Messages'), findsWidgets);
+    await tester.tap(find.byKey(const Key('assistant-persona-section')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('assistant-persona-name')),
+      '新角色',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('assistant-save-settings')));
+    await pumpUntil(tester, () => store.persona.name == '新角色');
+    expect(store.profileId, 'deepseek');
+    expect(find.textContaining('设置未保存'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

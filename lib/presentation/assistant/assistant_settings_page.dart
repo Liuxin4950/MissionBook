@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../records/context_settings_page.dart';
 import '../records/record_scope.dart';
 import '../widgets/app_dropdown_form_field.dart';
@@ -65,6 +67,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   bool _testing = false;
   bool _leaving = false;
   bool _allowPop = false;
+  bool _ready = false;
+  String? _loadError;
   String? _error;
   String? _result;
 
@@ -108,11 +112,102 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       field.addListener(_fieldChanged);
     }
     widget.controller.addListener(_fieldChanged);
+    _ready = widget.controller.initialized;
+    if (!_ready) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_prepare());
+      });
+    }
+  }
+
+  Future<void> _prepare() async {
+    _loadError = null;
+    try {
+      await widget.controller.initialize();
+    } catch (error) {
+      if (mounted) setState(() => _loadError = '$error');
+      return;
+    }
+    if (!mounted) return;
+    if (!widget.controller.initialized) {
+      setState(
+        () => _loadError = widget.controller.errorMessage ?? '助手设置未能加载，请重试。',
+      );
+      return;
+    }
+    _applyLoadedSettings();
+    setState(() => _ready = true);
+  }
+
+  void _retryPrepare() {
+    setState(() => _loadError = null);
+    unawaited(_prepare());
+  }
+
+  /// 初始化会补读本机设置；先回填再开放表单，避免用过默认值覆盖已保存配置。
+  void _applyLoadedSettings() {
+    final controller = widget.controller;
+    _profile = controller.modelProfileId;
+    _permission = controller.permissionMode;
+    _personaName.text = controller.persona.name;
+    _role = controller.persona.role;
+    _replyStyle = controller.persona.replyStyle;
+    _avatar = controller.persona.avatar;
+    _transcription = controller.speechSettings.useTranscription;
+    _speechEndpoint.text = controller.speechSettings.endpoint;
+    _speechModel.text = controller.speechSettings.model;
+    final custom = controller.customProfile;
+    if (custom != null) {
+      _endpoint.text = custom.endpoint.toString();
+      _model.text = custom.model;
+      _contextWindow.text = '${custom.contextWindowTokens}';
+      _outputBudget.text = '${custom.maxOutputTokens}';
+      _protocol = custom.protocol;
+      _images = custom.supportsImages;
+    }
   }
 
   void _fieldChanged() {
     if (mounted) setState(() {});
   }
+
+  Widget _buildPrepareState(BuildContext context) => Scaffold(
+    appBar: AppTopBar(
+      title: '助手设置',
+      maxContentWidth: AppLayout.dashboardMaxWidth,
+    ),
+    body: SafeArea(
+      top: false,
+      child: Center(
+        child: _loadError == null
+            ? const CircularProgressIndicator()
+            : ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Padding(
+                  padding: AppLayout.pagePadding(context),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _loadError!.replaceFirst('Bad state: ', ''),
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.error,
+                        ),
+                      ),
+                      const SizedBox(height: AppLayout.spaceLg),
+                      FilledButton(
+                        key: const Key('assistant-settings-retry'),
+                        onPressed: _retryPrepare,
+                        child: const Text('重试'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+      ),
+    ),
+  );
 
   bool get _customChanged {
     if (_profile != 'custom') return false;
@@ -221,168 +316,175 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   }
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: _allowPop || (!_saving && !_testing && !_changed),
-    onPopInvokedWithResult: (didPop, _) {
-      if (!didPop) _back();
-    },
-    child: Scaffold(
-      appBar: AppTopBar(
-        title: '助手设置',
-        maxContentWidth: AppLayout.dashboardMaxWidth,
-        canGoBack: !_saving && !_testing,
-        onBack: _back,
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Center(
-          heightFactor: 1,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: AppLayout.dashboardMaxWidth,
-            ),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppLayout.horizontalPadding(context),
-                8,
-                AppLayout.horizontalPadding(context),
-                12,
+  Widget build(BuildContext context) {
+    if (!_ready) return _buildPrepareState(context);
+    return PopScope(
+      canPop: _allowPop || (!_saving && !_testing && !_changed),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: Scaffold(
+        appBar: AppTopBar(
+          title: '助手设置',
+          maxContentWidth: AppLayout.dashboardMaxWidth,
+          canGoBack: !_saving && !_testing,
+          onBack: _back,
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppLayout.dashboardMaxWidth,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_error != null || _result != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
-                      child: Semantics(
-                        liveRegion: true,
-                        child: Text(
-                          _error ?? _result!,
-                          style: TextStyle(
-                            color: _error != null
-                                ? AppColors.error
-                                : AppColors.primary,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppLayout.horizontalPadding(context),
+                  8,
+                  AppLayout.horizontalPadding(context),
+                  12,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_error != null || _result != null)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: AppLayout.spaceSm,
+                        ),
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            _error ?? _result!,
+                            style: TextStyle(
+                              color: _error != null
+                                  ? AppColors.error
+                                  : AppColors.primary,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  if (_changed && _validationError != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
-                      child: Semantics(
-                        liveRegion: true,
-                        child: Text(
-                          _validationError!,
-                          key: const Key('assistant-settings-validation'),
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: AppColors.error),
+                    if (_changed && _validationError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: AppLayout.spaceSm,
+                        ),
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            _validationError!,
+                            key: const Key('assistant-settings-validation'),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: AppColors.error),
+                          ),
                         ),
                       ),
-                    ),
-                  _buildSaveActions(),
-                ],
+                    _buildSaveActions(),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: AppLayout.dashboardMaxWidth,
-            ),
-            child: ListView(
-              padding: AppLayout.pagePadding(context),
-              children: [
-                if (RecordScope.maybeOf(context) != null) ...[
-                  AppSectionCard(
-                    padding: EdgeInsets.zero,
-                    child: Column(
-                      children: [
-                        AppSettingsRow(
-                          key: const Key('assistant-memory-entry'),
-                          icon: Icons.psychology_outlined,
-                          title: '助手记忆',
-                          subtitle: '查看与管理',
-                          onTap: () => Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              builder: (_) => const MemoryPage(),
-                            ),
-                          ),
-                        ),
-                        if (RecordScope.maybeOf(context)?.web != null) ...[
-                          const Divider(
-                            height: 1,
-                            indent: AppLayout.spaceLg,
-                            endIndent: AppLayout.spaceLg,
-                          ),
+        body: SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppLayout.dashboardMaxWidth,
+              ),
+              child: ListView(
+                padding: AppLayout.pagePadding(context),
+                children: [
+                  if (RecordScope.maybeOf(context) != null) ...[
+                    AppSectionCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
                           AppSettingsRow(
-                            key: const Key('assistant-web-settings-entry'),
-                            icon: Icons.travel_explore,
-                            title: '联网搜索',
-                            subtitle: '搜索与网页读取设置',
+                            key: const Key('assistant-memory-entry'),
+                            icon: Icons.psychology_outlined,
+                            title: '助手记忆',
+                            subtitle: '查看与管理',
                             onTap: () => Navigator.of(context).push<void>(
                               MaterialPageRoute(
-                                builder: (_) => const WebSettingsPage(),
+                                builder: (_) => const MemoryPage(),
                               ),
                             ),
                           ),
+                          if (RecordScope.maybeOf(context)?.web != null) ...[
+                            const Divider(
+                              height: 1,
+                              indent: AppLayout.spaceLg,
+                              endIndent: AppLayout.spaceLg,
+                            ),
+                            AppSettingsRow(
+                              key: const Key('assistant-web-settings-entry'),
+                              icon: Icons.travel_explore,
+                              title: '联网搜索',
+                              subtitle: '搜索与网页读取设置',
+                              onTap: () => Navigator.of(context).push<void>(
+                                MaterialPageRoute(
+                                  builder: (_) => const WebSettingsPage(),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppLayout.spaceLg),
-                ],
-                AdaptiveColumns(
-                  minColumnWidth: 390,
-                  maxColumns: 2,
-                  spacing: 16,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildModelSection(),
-                        const SizedBox(height: AppLayout.spaceLg),
-                        _buildSpeechSection(),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildPersonaSection(),
-                        const SizedBox(height: AppLayout.spaceLg),
-                        _buildPermissionSection(),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppLayout.spaceLg),
-                if (AssistantScope.maybeOf(context) case final scope?)
-                  if (scope.backup != null && scope.device != null) ...[
-                    DataExportCard(
-                      backup: scope.backup!,
-                      device: scope.device!,
+                      ),
                     ),
                     const SizedBox(height: AppLayout.spaceLg),
                   ],
-                AppSectionCard(
-                  padding: EdgeInsets.zero,
-                  child: AppSettingsRow(
-                    icon: Icons.shield_outlined,
-                    title: '数据与隐私',
-                    subtitle: 'API Key 仅保存在本机；对话会发送给所选模型供应商。',
+                  AdaptiveColumns(
+                    minColumnWidth: 390,
+                    maxColumns: 2,
+                    spacing: 16,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildModelSection(),
+                          const SizedBox(height: AppLayout.spaceLg),
+                          _buildSpeechSection(),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildPersonaSection(),
+                          const SizedBox(height: AppLayout.spaceLg),
+                          _buildPermissionSection(),
+                        ],
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: AppLayout.spaceLg),
+                  if (AssistantScope.maybeOf(context) case final scope?)
+                    if (scope.backup != null && scope.device != null) ...[
+                      DataExportCard(
+                        backup: scope.backup!,
+                        device: scope.device!,
+                      ),
+                      const SizedBox(height: AppLayout.spaceLg),
+                    ],
+                  AppSectionCard(
+                    padding: EdgeInsets.zero,
+                    child: AppSettingsRow(
+                      icon: Icons.shield_outlined,
+                      title: '数据与隐私',
+                      subtitle: 'API Key 仅保存在本机；对话会发送给所选模型供应商。',
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _buildPersonaSection() => AppSectionCard(
     padding: EdgeInsets.zero,
