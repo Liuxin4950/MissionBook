@@ -1,3 +1,4 @@
+import '../../../application/errors/user_error_message.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -90,7 +91,14 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
       await widget.service.initializeEvidenceImages();
       if (mounted) setState(() => _attachmentsReady = true);
     } catch (error) {
-      if (mounted) setState(() => _attachmentError = '附件准备失败：$error');
+      if (mounted) {
+        setState(
+          () => _attachmentError = userErrorMessage(
+            error,
+            fallback: '附件准备失败，请重试',
+          ),
+        );
+      }
     }
   }
 
@@ -128,7 +136,11 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
       setState(_clearDraft);
       return true;
     } catch (error) {
-      if (mounted) setState(() => _error = '草稿清理失败：$error');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '草稿清理失败，请重试'),
+        );
+      }
       return false;
     }
   }
@@ -181,7 +193,11 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
         });
       }
     } catch (error) {
-      if (mounted) setState(() => _error = '选择替代附件失败：$error');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '选择替代附件失败，请重新选择'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -213,7 +229,11 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
       await _readLatest();
     } on ArgumentError catch (error) {
       _pending = null;
-      if (mounted) setState(() => _error = '${error.message}');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '材料输入无效，请检查后重试'),
+        );
+      }
     } on EvidenceConflict catch (error) {
       _pending = null;
       if (mounted) setState(() => _error = error.message);
@@ -272,7 +292,9 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
       future: future,
       name: name,
       height: widget.compact ? 120 : 148,
-      onRetry: () => setState(() => _images.remove(key)),
+      onRetry: () => setState(() {
+        _images.remove(key);
+      }),
     );
   }
 
@@ -295,6 +317,15 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
               ? '${(snapshot.data!.length / 1024).toStringAsFixed(1)} KiB · 已保存在应用内'
               : '读取文件中',
         ),
+        trailing: snapshot.hasError
+            ? IconButton(
+                tooltip: '重新读取文件',
+                onPressed: () => setState(() {
+                  _images.remove(key);
+                }),
+                icon: const Icon(Icons.refresh),
+              )
+            : null,
       ),
     );
   }

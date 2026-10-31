@@ -10,13 +10,17 @@ class RecordDetail extends StatefulWidget {
 class _RecordDetailState extends State<RecordDetail> {
   Future<Map<String, Object?>>? _data;
   int _contentOffset = 0;
-  void load() => setState(() {
-    _data = RecordScope.maybeOf(context)!.service.queryRecords(
-      id: widget.id,
-      content: true,
-      contentOffset: _contentOffset,
-    );
-  });
+  void load() {
+    if (!mounted) return;
+    setState(() {
+      _data = RecordScope.maybeOf(context)!.service.queryRecords(
+        id: widget.id,
+        content: true,
+        contentOffset: _contentOffset,
+      );
+    });
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -47,18 +51,26 @@ class _RecordDetailState extends State<RecordDetail> {
           if (!s.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final r = (s.data!['items'] as List<Map<String, Object?>>).first;
+          final items = s.data!['items'] as List<Map<String, Object?>>;
+          if (items.isEmpty) {
+            return const Center(
+              child: AppEmptyState(
+                title: '记录不存在或已删除',
+                details: Text('请返回记录列表后重试。'),
+              ),
+            );
+          }
+          final r = items.first;
           return ListView(
             padding: const EdgeInsets.all(AppLayout.spaceXl),
             children: [
               if (r['type'] == 'IMAGE')
-                FutureBuilder<Uint8List>(
-                  future: scope.service.missions.readEvidenceImage(
-                    r['attachment_storage_key'] as String,
-                  ),
-                  builder: (c, i) => i.hasData
-                      ? Image.memory(i.data!)
-                      : Text(i.hasError ? '图片读取失败' : '正在读取图片…'),
+                _RecordImage(
+                  service: scope.service,
+                  storageKey: r['attachment_storage_key'] as String,
+                  name: r['attachment_file_name'] as String? ?? '记录图片',
+                  width: double.infinity,
+                  height: 220,
                 ),
               SelectableText(r['content'] as String? ?? ''),
               Wrap(
@@ -128,9 +140,13 @@ class _RecordDetailState extends State<RecordDetail> {
                         load();
                       } catch (e) {
                         if (context.mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text('$e')));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                userErrorMessage(e, fallback: '记录操作未完成，请刷新后重试'),
+                              ),
+                            ),
+                          );
                         }
                       }
                     }
@@ -161,9 +177,13 @@ class _RecordDetailState extends State<RecordDetail> {
                         load();
                       } catch (e) {
                         if (context.mounted) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(SnackBar(content: Text('$e')));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                userErrorMessage(e, fallback: '记录操作未完成，请刷新后重试'),
+                              ),
+                            ),
+                          );
                         }
                       }
                     }

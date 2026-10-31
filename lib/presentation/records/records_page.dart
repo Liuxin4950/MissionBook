@@ -1,3 +1,4 @@
+import '../../application/errors/user_error_message.dart';
 import '../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -248,7 +249,7 @@ class _RecordsPageState extends State<RecordsPage> {
 
 /// 左滑露出删除操作，点击后再确认。
 /// 缩略图持有自己的读取结果；列表重建不重复读文件，失败可原位重试。
-class _RecordThumbnail extends StatefulWidget {
+class _RecordThumbnail extends StatelessWidget {
   const _RecordThumbnail({
     required this.storageKey,
     required this.name,
@@ -257,39 +258,18 @@ class _RecordThumbnail extends StatefulWidget {
   final String storageKey;
   final String name;
   final RecordService service;
-  @override
-  State<_RecordThumbnail> createState() => _RecordThumbnailState();
-}
-
-class _RecordThumbnailState extends State<_RecordThumbnail> {
   static const _imageSize = 64.0; // 缩略内容尺寸，与顶栏及按钮尺寸无关。
-  late Future<Uint8List> _image;
-  Future<Uint8List> _read() =>
-      widget.service.missions.readEvidenceImage(widget.storageKey);
-  @override
-  void initState() {
-    super.initState();
-    _image = _read();
-  }
-
-  @override
-  void didUpdateWidget(_RecordThumbnail oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.storageKey != widget.storageKey ||
-        oldWidget.service != widget.service) {
-      _image = _read();
-    }
-  }
 
   @override
   Widget build(BuildContext context) => SizedBox.square(
     dimension: _imageSize,
-    child: EvidenceImageLoader(
-      future: _image,
-      name: widget.name,
+    child: _RecordImage(
+      service: service,
+      storageKey: storageKey,
+      name: name,
+      width: _imageSize,
       height: _imageSize,
       compact: true,
-      onRetry: () => setState(() => _image = _read()),
     ),
   );
 }

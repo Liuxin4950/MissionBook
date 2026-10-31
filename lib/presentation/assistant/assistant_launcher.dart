@@ -120,7 +120,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
   bool _bubble = false;
   bool _opening = false;
   bool _recording = false;
-  String? _bubbleSession;
+  String? _bubbleIdentity;
   UserMessage? _sentMessage;
   bool _transitioning = false;
   int? _hover;
@@ -143,6 +143,16 @@ class AssistantLauncherState extends State<AssistantLauncher> {
 
   void _changed() {
     if (!mounted) return;
+    final controller = _scope?.controller;
+    if (_bubble &&
+        _sentMessage != null &&
+        (_bubbleIdentity?.startsWith('draft:') ?? false) &&
+        controller != null &&
+        controller.isRunning &&
+        controller.currentSessionId != null) {
+      // 首条语音提交把当前草稿提升为正式会话，气泡继续跟随同一轮消息。
+      _bubbleIdentity = controller.draftKey;
+    }
     setState(() {});
   }
 
@@ -243,7 +253,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
       if (!mounted) return;
       _menu = false;
       _opening = false;
-      _bubbleSession = _scope!.controller.currentSessionId;
+      _bubbleIdentity = _scope!.controller.draftKey;
       _sentMessage = null;
       if (mode == 0) {
         await _expand();
@@ -313,7 +323,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     }
     final text = scope.voice.text.trim();
     if (text.isEmpty) return;
-    if (scope.controller.currentSessionId != _bubbleSession) {
+    if (scope.controller.draftKey != _bubbleIdentity) {
       await _closeBubble();
       return;
     }
@@ -370,7 +380,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                   rect: choices[index],
                   child: _modeBubble(index),
                 ),
-            if (_bubble && controller.currentSessionId == _bubbleSession)
+            if (_bubble && controller.draftKey == _bubbleIdentity)
               Positioned.fill(
                 child: CustomSingleChildLayout(
                   delegate: _AssistantBubbleLayout(

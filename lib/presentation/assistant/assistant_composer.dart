@@ -415,13 +415,11 @@ class _AssistantComposer {
       _showNotice('当前模型未开启图片能力，请先在助手设置中切换支持图片的模型。');
       return;
     }
-    final sessionId = widget.controller.currentSessionId;
+    final draftKey = widget.controller.draftKey;
     _page._update(() => _page._picking = true);
     try {
       final file = await pickAssistantAttachment(image: image);
-      if (file == null ||
-          !mounted ||
-          sessionId != widget.controller.currentSessionId) {
+      if (file == null || !mounted || draftKey != widget.controller.draftKey) {
         return;
       }
       if (_page._attachments.fold<int>(

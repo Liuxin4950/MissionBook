@@ -1,3 +1,4 @@
+import '../../../application/errors/user_error_message.dart';
 import '../../../domain/entities/mission_phase.dart';
 import 'dart:async';
 import 'dart:typed_data';
@@ -122,7 +123,11 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       await widget.service.initializeEvidenceImages();
       if (mounted) setState(() => _imagesReady = true);
     } catch (error) {
-      if (mounted) setState(() => _imageError = '图片存储准备失败：$error');
+      if (mounted) {
+        setState(
+          () => _imageError = userErrorMessage(error, fallback: '图片存储准备失败，请重试'),
+        );
+      }
     } finally {
       _preparingImages = false;
       if (mounted) setState(() {});
@@ -164,7 +169,11 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
         });
       }
     } catch (error) {
-      if (mounted) setState(() => _error = '图片添加失败：$error');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '图片添加失败，请重新选择'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -188,7 +197,11 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
         });
       }
     } catch (error) {
-      if (mounted) setState(() => _error = '文件添加失败：$error');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '文件添加失败，请重新选择'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -226,7 +239,9 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
         _controllers.remove(draft.id)?.dispose();
       });
     } catch (error) {
-      if (mounted) setState(() => _error = '移除失败：$error');
+      if (mounted) {
+        setState(() => _error = userErrorMessage(error, fallback: '移除失败，请重试'));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -283,7 +298,11 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       await _readLatest();
     } on ArgumentError catch (error) {
       _pending = null;
-      if (mounted) setState(() => _error = '${error.message}');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '材料输入无效，请检查后重试'),
+        );
+      }
     } on EvidenceConflict catch (error) {
       _pending = null;
       if (mounted) setState(() => _error = error.message);
@@ -349,7 +368,11 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       setState(_clearDrafts);
       return true;
     } catch (error) {
-      if (mounted) setState(() => _error = '草稿清理失败：$error');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '草稿清理失败，请重试'),
+        );
+      }
       return false;
     }
   }
@@ -381,7 +404,11 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       await _readLatest();
       if (mounted) setState(() => _receipt = '已放弃提交，任务已结束。');
     } catch (error) {
-      if (mounted) setState(() => _error = '结束材料环节失败：$error');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '结束材料环节失败，请刷新后重试'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -407,7 +434,9 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       future: image,
       name: name,
       height: height,
-      onRetry: () => setState(() => _images.remove(key)),
+      onRetry: () => setState(() {
+        _images.remove(key);
+      }),
     );
   }
 

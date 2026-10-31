@@ -59,7 +59,7 @@ class _AssistantPageState extends State<AssistantPage> {
   bool _recordingVoice = false;
   String _voicePrefix = '';
   void _controllerChanged() {
-    final id = widget.controller.currentSessionId;
+    final id = widget.controller.draftKey;
     if (id != _draftSession) {
       if (_recordingVoice) {
         _recordingVoice = false;
@@ -80,7 +80,7 @@ class _AssistantPageState extends State<AssistantPage> {
   @override
   void initState() {
     super.initState();
-    _draftSession = widget.controller.currentSessionId;
+    _draftSession = widget.controller.draftKey;
     widget.controller.addListener(_controllerChanged);
     _input.text = widget.initialText ?? widget.controller.draft;
     _attachments.addAll(widget.controller.attachmentsFor(_draftSession));

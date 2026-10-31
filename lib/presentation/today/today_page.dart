@@ -173,11 +173,12 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       // 先按最新排期的日期找属于这一天的任务，再为每个任务读取执行事实与阶段。
       // 所以排期解决“这一天显示谁”，事件解决“这个任务现在是什么阶段”。
       // date 来自本页选择；await 等待 MissionService.findScheduledOn → 仓储 → SQLite。
-      final result = await widget.missionService.findScheduledOnAndReconcile(
+      // 同一次加载只维护一次，后续两个查询都只读取事实。
+      await widget.missionService.reconcileEvidenceDeadlines();
+      final result = await widget.missionService.findScheduledOn(
         scheduledDate: date,
       );
-      final pending = await widget.missionService
-          .findPendingEvidenceAndReconcile();
+      final pending = await widget.missionService.findPendingEvidence();
       if (!mounted || request != _loadRequest) return;
       // 一次查询只整理一次：分组、换算时区、准备显示文字，再交给三个区域。
       final missions = display.groupMissionsForDisplay(

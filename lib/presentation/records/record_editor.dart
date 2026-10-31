@@ -65,7 +65,7 @@ class _RecordEditorState extends State<RecordEditor> {
         if (old != null) await service.missions.discardEvidenceDrafts([old]);
       }
     } catch (e) {
-      setState(() => _error = '$e');
+      setState(() => _error = userErrorMessage(e, fallback: '记录未保存，请检查输入后重试'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -89,7 +89,11 @@ class _RecordEditorState extends State<RecordEditor> {
       }
       if (old != null) await service.missions.discardEvidenceDrafts([old]);
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(e, fallback: '记录未保存，请检查输入后重试'),
+        );
+      }
       rethrow;
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -125,7 +129,11 @@ class _RecordEditorState extends State<RecordEditor> {
       });
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(e, fallback: '记录未保存，请检查输入后重试'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -177,7 +185,7 @@ class _RecordEditorState extends State<RecordEditor> {
       if (mounted) {
         setState(() {
           _setAttachment(attachment);
-          _error = '移除附件失败：$error';
+          _error = userErrorMessage(error, fallback: '移除附件失败，请重试');
         });
       }
     }

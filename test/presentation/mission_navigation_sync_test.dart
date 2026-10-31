@@ -1,3 +1,9 @@
+import 'dart:io';
+import 'package:mission_book/application/notifications/app_notification_service.dart';
+import 'package:mission_book/data/notifications/notification_dispatcher.dart';
+import 'package:mission_book/data/notifications/reminder_store.dart';
+import 'package:mission_book/domain/entities/mission_detail.dart';
+import 'package:mission_book/domain/notifications/reminder_request.dart';
 import '../support/me_fakes.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +25,13 @@ import 'package:mission_book/presentation/missions/detail/mission_detail_page.da
 import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
 import 'package:mission_book/presentation/missions/shared/mission_live_status.dart';
 import 'package:mission_book/presentation/missions/record/mission_record_workspace.dart';
+
+class _FailedNotificationRead extends MissionService {
+  _FailedNotificationRead(super.repository, {required super.clock});
+  @override
+  Future<MissionDetail?> findDetail({required String missionId}) async =>
+      throw StateError('读取失败 C:/private/mission.db');
+}
 
 void main() {
   late AppDatabase database;
@@ -416,5 +429,49 @@ void main() {
     await tester.pump(const Duration(seconds: 10));
     expect(find.text('已暂停 · 专注 02:00'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+  testWidgets('通知正文异步打开任务失败时由外壳接住并给出恢复提示', (tester) async {
+    await service.dispose();
+    service = _FailedNotificationRead(repository, clock: () => now);
+    final notifications = AppNotificationService(
+      missions: service,
+      store: ReminderStore(
+        File('${Directory.systemTemp.path}/unused-notification-ui-test.json'),
+      ),
+      dispatcher: const UnsupportedNotificationDispatcher(),
+      now: () => now,
+    );
+    final detail = (await repository.findDetail(missionId))!;
+    await open(
+      tester,
+      home: AppShell(
+        missionService: service,
+        goalService: goals,
+        backupService: TestBackup(),
+        device: TestAppDevice(),
+        notifications: notifications,
+        clock: () => now,
+      ),
+    );
+    await notifications.handleAction(
+      ReminderRequest(
+        idempotencyKey: 'open-body',
+        notificationId: 1,
+        missionId: missionId,
+        scheduleRevisionId: detail.schedule.id,
+        kind: ReminderKind.upcomingReminder,
+        title: '同步任务',
+        body: '查看任务',
+        expectedSequence: detail.lastSequence,
+        candidateEventIds: const {},
+      ),
+      actionId: '',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('任务读取失败，请刷新后重试'), findsOneWidget);
+    expect(find.textContaining('C:/private'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await notifications.dispose();
   });
 }

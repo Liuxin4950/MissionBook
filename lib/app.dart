@@ -1,3 +1,5 @@
+import 'application/missions/evidence_deadline_scheduler.dart';
+import 'application/errors/user_error_message.dart';
 import 'data/repositories/drift_memory_repository.dart';
 import 'application/memory/memory_service.dart';
 import 'application/records/record_service.dart';
@@ -89,11 +91,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   PlannedAlarmBridge? _plannedBridge; // 计划任务桥接，负责协调系统唤醒与任务执行。
   AndroidNotificationDispatcher? _androidDispatcher; // Android 通知分发器，负责发送通知。
   final _pendingNotificationResponses = <NotificationResponse>[]; // 待处理的通知响应队列。
-  StreamSubscription<void>? _deadlineChanges; // 计划任务截止时间变化订阅。
-  Timer? _deadlineTimer; // 计划任务截止时间定时器，负责检查任务是否过期。
-  bool _checkingDeadlines = false; // 是否正在检查任务是否过期。
-  bool _checkAgain = false; // 是否需要再次检查任务是否过期。
-  bool _foreground = true; // 是否在前台运行。
+  EvidenceDeadlineScheduler? _evidenceDeadlines; // 前台材料截止维护，独立拥有订阅与定时器。
 
   @override
   void initState() {
@@ -189,7 +187,9 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       },
       onError: (error) {
         debugPrint('计划任务自动执行失败：$error');
-        _notifications?.reportFailure('计划任务自动执行失败，请刷新重试：$error');
+        _notifications?.reportFailure(
+          userErrorMessage(error, fallback: '计划任务自动执行失败，请刷新重试'),
+        );
       },
     );
     unawaited(_initNotifications());
@@ -201,10 +201,12 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       });
     });
     WidgetsBinding.instance.addObserver(this);
-    _deadlineChanges = _missionService.changes.listen(
-      (_) => _scheduleDeadlineCheck(),
+    _evidenceDeadlines = EvidenceDeadlineScheduler(
+      missions: _missionService,
+      now: DateTime.now,
+      onError: (error) => debugPrint('材料截止补算失败：$error'),
     );
-    unawaited(_scheduleDeadlineCheck());
+    unawaited(_evidenceDeadlines!.start());
   }
 
   @override
@@ -217,17 +219,15 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     }
     if (state == AppLifecycleState.detached) _assistant.stop();
     if (state == AppLifecycleState.resumed) _assistant.setForeground(true);
-    _foreground =
+    final foreground =
         state == AppLifecycleState.resumed ||
         state == AppLifecycleState.inactive;
-    if (_foreground) {
+    _evidenceDeadlines?.setForeground(foreground);
+    if (foreground) {
       _analysis.wake();
-      unawaited(_scheduleDeadlineCheck());
       // 回到前台对账一次提醒调度（§7.1：只整理提醒，不写业务事实）。
       unawaited(_refreshNotifications());
       unawaited(_plannedMissions?.refreshSafely());
-    } else {
-      _deadlineTimer?.cancel();
     }
   }
 
@@ -257,7 +257,9 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       }
       await _notifications?.refresh();
     } catch (error) {
-      _notifications?.reportFailure('提醒更新失败，请稍后重试：$error');
+      _notifications?.reportFailure(
+        userErrorMessage(error, fallback: '提醒更新失败，请稍后重试'),
+      );
     }
   }
 
@@ -343,50 +345,6 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     }
   }
 
-  /// 只为最近的真实材料截止设置一次计时；Focus 重绘不访问数据库。
-  /// 启动/回到前台先补算，关闭应用期间无需后台唤醒。
-  Future<void> _scheduleDeadlineCheck() async {
-    if (!mounted || !_foreground) return;
-    if (_checkingDeadlines) {
-      _checkAgain = true;
-      return;
-    }
-    _checkingDeadlines = true;
-    try {
-      do {
-        _checkAgain = false;
-        _deadlineTimer?.cancel();
-        final pending = await _missionService.findPendingEvidence();
-        DateTime? nearest;
-        for (final detail in pending) {
-          final deadline = detail.schedule.evidenceDeadlineAt;
-          if (deadline != null &&
-              (nearest == null || deadline.isBefore(nearest))) {
-            nearest = deadline;
-          }
-        }
-        if (nearest != null && mounted && _foreground) {
-          final remaining = nearest.difference(DateTime.now().toUtc());
-          _deadlineTimer = Timer(
-            remaining.isNegative ? Duration.zero : remaining,
-            () => unawaited(_scheduleDeadlineCheck()),
-          );
-        }
-      } while (_checkAgain && mounted && _foreground);
-    } catch (error, stack) {
-      // 页面自己的查询会展示读取错误；调度失败稍后重试，不制造超时事实。
-      debugPrint('材料截止补算失败：$error\n$stack');
-      if (mounted && _foreground) {
-        _deadlineTimer = Timer(
-          const Duration(seconds: 30),
-          () => unawaited(_scheduleDeadlineCheck()),
-        );
-      }
-    } finally {
-      _checkingDeadlines = false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -435,11 +393,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _deadlineTimer?.cancel();
     _launchTimer?.cancel();
-    unawaited(_deadlineChanges?.cancel());
     _plannedBridge?.dispose();
-    unawaited(_plannedMissions?.dispose());
+    final deadlineClose = _evidenceDeadlines?.dispose();
+    final plannedClose = _plannedMissions?.dispose();
     unawaited(_notifications?.dispose());
     // Flutter 移除这个 State 时调用 dispose。
     // close 返回 Future，但 dispose 不能等待异步完成；
@@ -453,6 +410,8 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       _assistant.close().then((_) async {
         _assistant.dispose();
         await _analysis.dispose();
+        await deadlineClose;
+        await plannedClose;
         return _database.close();
       }),
     );

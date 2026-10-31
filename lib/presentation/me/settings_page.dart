@@ -1,3 +1,4 @@
+import '../../application/errors/user_error_message.dart';
 import '../../application/settings/motion_settings.dart';
 import '../widgets/motion_settings_scope.dart';
 import 'dart:async';
@@ -174,7 +175,10 @@ class _SettingsPageState extends State<SettingsPage>
       await save();
     } catch (error) {
       if (mounted) {
-        setState(() => _scheduleSettingsError = '设置操作未完成，请重试：$error');
+        setState(
+          () => _scheduleSettingsError =
+              '设置操作未完成，请重试。${userErrorMessage(error, fallback: '')}',
+        );
       }
     } finally {
       if (mounted) setState(() => _savingScheduleSettings = false);

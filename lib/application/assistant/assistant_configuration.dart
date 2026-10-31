@@ -73,6 +73,7 @@ class _AssistantConfiguration {
     _controller._notifyListeners();
     try {
       _controller._settings = await _controller._settingsStore.load();
+      if (_controller._closed) return;
       _controller._runtime = AgentRuntime(
         configuration: _configuration,
         store: _controller._sessionStore,
@@ -82,6 +83,7 @@ class _AssistantConfiguration {
         modelOverrides: _controller._modelOverrides,
       );
       await _controller._refreshConversations();
+      if (_controller._closed) return;
       if (_controller._conversations.isNotEmpty) {
         await _controller._openSession(_controller._conversations.first.id);
       }

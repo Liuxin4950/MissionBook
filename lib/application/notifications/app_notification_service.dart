@@ -1,3 +1,4 @@
+import '../errors/user_error_message.dart';
 import 'dart:async';
 import 'execution_reminder.dart';
 
@@ -74,7 +75,9 @@ class AppNotificationService {
     try {
       await refresh();
     } catch (error) {
-      reportFailure('提醒设置已保存，但系统提醒更新失败，请刷新重试：$error');
+      reportFailure(
+        userErrorMessage(error, fallback: '提醒设置已保存，但系统提醒更新失败，请刷新重试'),
+      );
     }
   }
 
@@ -103,7 +106,7 @@ class AppNotificationService {
     _changes ??= _missions.changes.listen((_) {
       unawaited(
         refresh().catchError((Object error) {
-          reportFailure('提醒更新失败，请稍后重试：$error');
+          reportFailure(userErrorMessage(error, fallback: '提醒更新失败，请稍后重试'));
         }),
       );
     });
@@ -284,7 +287,7 @@ class AppNotificationService {
       message = error.message;
     } on Object catch (error) {
       result = NotificationActionResult.actionFailed;
-      message = '通知操作未完成，请刷新后重试：$error';
+      message = userErrorMessage(error, fallback: '通知操作未完成，请刷新后重试');
     }
     // 旧按钮提示刷新、停止后打开 END 确认：都由 UI 接手，服务不直接导航。
     if (result == NotificationActionResult.stale ||

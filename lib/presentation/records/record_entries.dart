@@ -50,6 +50,63 @@ class RecordsEntry extends StatelessWidget {
   }
 }
 
+/// 记录图片的统一读取壳：缓存 Future，失败时可重新读取同一附件。
+class _RecordImage extends StatefulWidget {
+  const _RecordImage({
+    required this.service,
+    required this.storageKey,
+    required this.name,
+    required this.width,
+    required this.height,
+    this.compact = false,
+  });
+  final RecordService service;
+  final String storageKey;
+  final String name;
+  final double width;
+  final double height;
+  final bool compact;
+
+  @override
+  State<_RecordImage> createState() => _RecordImageState();
+}
+
+class _RecordImageState extends State<_RecordImage> {
+  late Future<Uint8List> _image;
+  Future<Uint8List> _read() =>
+      widget.service.missions.readEvidenceImage(widget.storageKey);
+
+  @override
+  void initState() {
+    super.initState();
+    _image = _read();
+  }
+
+  @override
+  void didUpdateWidget(_RecordImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.storageKey != widget.storageKey ||
+        oldWidget.service != widget.service) {
+      _image = _read();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: widget.width,
+    height: widget.height,
+    child: EvidenceImageLoader(
+      future: _image,
+      name: widget.name,
+      height: widget.height,
+      compact: widget.compact,
+      onRetry: () => setState(() {
+        _image = _read();
+      }),
+    ),
+  );
+}
+
 /// 今天页展示真实当日记录缩略图，仍复用同一记录详情和列表。
 class DailyRecordsStrip extends StatefulWidget {
   const DailyRecordsStrip({super.key, required this.date});
@@ -140,21 +197,15 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (r['type'] == 'IMAGE')
-                            FutureBuilder<Uint8List>(
-                              future: scope.service.missions.readEvidenceImage(
-                                r['attachment_storage_key'] as String,
-                              ),
-                              builder: (c, i) => i.hasData
-                                  ? Image.memory(
-                                      i.data!,
-                                      height: 80,
-                                      width: 120,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : const SizedBox(
-                                      height: 80,
-                                      child: Icon(Icons.image_outlined),
-                                    ),
+                            _RecordImage(
+                              service: scope.service,
+                              storageKey: r['attachment_storage_key'] as String,
+                              name:
+                                  r['attachment_file_name'] as String? ??
+                                  '记录图片',
+                              width: 120,
+                              height: 80,
+                              compact: true,
                             ),
                           Text(
                             r['content'] as String? ??

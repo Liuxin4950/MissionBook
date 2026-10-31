@@ -1,3 +1,4 @@
+import 'package:mission_book/presentation/missions/evidence/formal_evidence_section.dart';
 import '../support/me_fakes.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -33,6 +34,8 @@ late Uint8List _png;
 class _Images implements EvidenceImageStore, EvidenceImagePicker {
   final files = <String, Uint8List>{};
   bool cancel = false;
+  bool failRead = false;
+  int reads = 0;
   @override
   Future<SelectedEvidenceImage?> pick() async => cancel
       ? null
@@ -45,7 +48,12 @@ class _Images implements EvidenceImageStore, EvidenceImagePicker {
   Future<void> writeNew(String key, Uint8List bytes) async =>
       files[key] = Uint8List.fromList(bytes);
   @override
-  Future<Uint8List> read(String key) async => files[key]!;
+  Future<Uint8List> read(String key) async {
+    reads++;
+    if (failRead) throw StateError('测试文件暂时不可读');
+    return files[key]!;
+  }
+
   @override
   Future<void> delete(String key) async {
     files.remove(key);
@@ -937,5 +945,42 @@ void main() {
     );
     expect(find.byKey(const Key('mission-evidence-workspace')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+  testWidgets('正式文件读取失败后可重试，原材料引用保持不变', (tester) async {
+    final detail = await create(pending: true);
+    final draft = (await service.pickEvidenceFile(detail.mission.id))!;
+    await service.submitEvidence(
+      EvidenceSubmission(
+        id: 'file-retry',
+        missionId: detail.mission.id,
+        items: [draft],
+      ),
+    );
+    final saved = (await service.findDetail(missionId: detail.mission.id))!;
+    images.failRead = true;
+    images.reads = 0;
+    await tester.pumpWidget(
+      app(
+        Scaffold(
+          body: SingleChildScrollView(
+            child: FormalEvidenceSection(detail: saved, service: service),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('文件无法读取，正式记录仍保留'), findsOneWidget);
+    expect(images.reads, 1);
+    images.failRead = false;
+    await tester.tap(find.byTooltip('重新读取文件'));
+    await tester.pumpAndSettle();
+    expect(images.reads, 2);
+    expect(find.textContaining('KiB · 已保存在应用内'), findsOneWidget);
+    expect(
+      (await repository.findDetail(detail.mission.id))!.evidence.single.id,
+      saved.evidence.single.id,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

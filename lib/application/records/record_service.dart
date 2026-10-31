@@ -7,7 +7,7 @@ import '../../domain/repositories/record_repository.dart';
 import '../../domain/rules/evidence_rules.dart';
 import '../missions/mission_service.dart';
 
-/// 页面和 AI 共用记录、关联、补记和记忆的业务入口。
+/// 页面和 AI 共用记录、关联与执行声明入口；任务事实委托 MissionService。
 class RecordService {
   RecordService(this.repository, this.missions);
   final RecordRepository repository;

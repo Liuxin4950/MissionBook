@@ -98,7 +98,7 @@ class _AssistantSessions {
     await _closeSession();
     _controller._reference = null;
     if (global == null) {
-      await _createSession();
+      _showEmptyConversation();
     } else {
       await _openSession(global.id);
     }
@@ -126,17 +126,34 @@ class _AssistantSessions {
     if (matching.isNotEmpty) {
       await _openSession(matching.first.id);
     } else {
-      await _createSession();
+      _showEmptyConversation();
     }
     _controller._notifyListeners();
   }
 
   Future<void> startNewSession({bool clearReference = true}) async {
+    if (_controller._changingConversation) return;
     _ensureUsable();
     if (isRunning) throw StateError('请先等待本轮结束或停止本轮');
-    await _closeSession();
-    if (clearReference) _controller._reference = null;
-    await _createSession();
+    _controller._changingConversation = true;
+    _controller._notifyListeners();
+    try {
+      await _closeSession();
+      if (clearReference) _controller._reference = null;
+      _showEmptyConversation();
+    } finally {
+      _controller._changingConversation = false;
+      _controller._notifyListeners();
+    }
+  }
+
+  /// 空白会话只是界面草稿；首次有效消息发送时才创建持久会话。
+  void _showEmptyConversation() {
+    _controller._lastUserInput = null;
+    _controller._errorMessage = null;
+    _controller._localSchedule = null;
+    _controller._localScheduleDate = null;
+    _controller._notifyListeners();
   }
 
   Future<void> openConversation(String id) async {
@@ -197,6 +214,10 @@ class _AssistantSessions {
 
   Future<AgentRunResult?> sendMessage(UserMessage message) async {
     _ensureUsable();
+    if (message.text.trim().isEmpty &&
+        !message.content.any((block) => block is! TextBlock)) {
+      throw ArgumentError('请输入消息或添加附件后再发送');
+    }
     if (!hasCredential && _controller._modelOverrides.isEmpty) {
       _controller._setError('请先在助手设置中保存 API Key');
       return null;
@@ -218,8 +239,12 @@ class _AssistantSessions {
     _controller._tools.beginTurn();
     _controller._errorMessage = null;
     _controller._lastUserInput = message.text;
+    String? createdSessionId;
     try {
-      if (_controller._session == null) await _createSession();
+      if (_controller._session == null) {
+        await _createSession();
+        createdSessionId = _controller._session!.id;
+      }
       final session = _requireSession();
       if (session.title == '新会话' && message.text.trim().isNotEmpty) {
         final title = message.text.trim();
@@ -250,12 +275,29 @@ class _AssistantSessions {
       return null;
     } finally {
       _controller._sending = false;
+      final session = _controller._session;
+      if (createdSessionId != null &&
+          session?.id == createdSessionId &&
+          !session!.transcript.any((item) => item is UserMessage)) {
+        // 输入预检或上下文准备失败时清理本次新建的空壳；模型失败但用户消息已保存则保留历史。
+        final error = _controller._errorMessage;
+        try {
+          await _closeSession();
+          await _controller._sessionStore.delete(createdSessionId);
+          await _refreshConversations();
+        } catch (cleanupError) {
+          debugPrint('未发送空会话清理失败：$cleanupError');
+        }
+        _controller._errorMessage = error;
+        _controller._notifyListeners();
+      }
       _refreshSnapshot();
     }
   }
 
   void stop() {
     _controller._sendCancelled = true;
+    _controller._gateway.interruptObsoleteRequests();
     final session = _controller._session;
     if (session == null || !session.isRunning) return;
     session.cancel();
@@ -409,6 +451,7 @@ class _AssistantSessions {
 
   void _ensureUsable() {
     if (_controller._closed) throw StateError('助手已关闭');
+    if (_controller._changingConversation) throw StateError('正在切换会话，请稍候');
     if (_controller._configuring) throw StateError('正在保存助手设置，请稍候');
     if (!_controller._initialized && _controller._runtime == null) {
       throw StateError('助手正在初始化，请稍候');

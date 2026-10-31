@@ -247,6 +247,7 @@ class AnalysisService {
       _idle = null;
       if (!_closed) {
         _timer?.cancel();
+        // SQLite 触发器也会排任务，available_at 控制失败重试；定期拾取不能只依赖页面通知。
         _timer = Timer(const Duration(seconds: 10), () => unawaited(drain()));
       }
     }

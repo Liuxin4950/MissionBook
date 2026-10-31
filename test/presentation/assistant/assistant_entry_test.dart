@@ -922,8 +922,12 @@ void main() {
     expect(tester.takeException(), isNull);
     await capture(tester, '10-split-window-keyboard');
   });
-  assistantTest('会话记录支持搜索、重命名状态与返回原会话，窄屏大字适配', (tester) async {
-    await mount(tester, ScriptedModel([]), width: 390);
+  assistantTest('新会话按钮连续点击不写空历史，第一条发送才出现一条会话', (tester) async {
+    await mount(
+      tester,
+      ScriptedModel([(_) => textResponse('第一条回复')]),
+      width: 390,
+    );
     await tester.tap(find.byKey(const Key('assistant-launcher')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('文字'));
@@ -932,11 +936,57 @@ void main() {
       () => find.byType(AssistantPage).evaluate().isNotEmpty,
     );
     await tester.pumpAndSettle();
+    for (var i = 0; i < 5; i++) {
+      await tester.tap(find.byTooltip('新会话'));
+      await pumpUntil(tester, () => !assistant.isBusy);
+      await tester.pumpAndSettle();
+    }
+    expect(assistant.currentSessionId, isNull);
+    expect(assistant.conversations, isEmpty);
+    expect(await database.select(database.assistantSessions).get(), isEmpty);
+    await tester.enterText(
+      find.byKey(const Key('assistant-input')),
+      '第一条真正发送的消息',
+    );
+    expect(assistant.conversations, isEmpty);
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('assistant-send')));
+    await pumpUntil(
+      tester,
+      () => !assistant.isRunning && assistant.transcript.isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    expect(assistant.currentSessionId, isNotNull);
+    expect(assistant.conversations, hasLength(1));
+    await tester.tap(find.byTooltip('新会话'));
+    await pumpUntil(tester, () => !assistant.isBusy);
+    await tester.pumpAndSettle();
+    expect(assistant.currentSessionId, isNull);
+    expect(find.text('第一条真正发送的消息'), findsNothing);
+    expect(assistant.conversations, hasLength(1));
+  });
+
+  assistantTest('会话记录支持搜索、重命名状态与返回原会话，窄屏大字适配', (tester) async {
+    await mount(
+      tester,
+      ScriptedModel([(_) => textResponse('阅读建议'), (_) => textResponse('学习建议')]),
+      width: 390,
+    );
+    await tester.tap(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => assistant.send('讨论阅读计划'));
     final first = assistant.currentSessionId!;
     await tester.runAsync(() => assistant.renameConversation(first, '调整阅读计划'));
     await tester.runAsync(
       () => assistant.startNewSession(clearReference: true),
     );
+    await tester.runAsync(() => assistant.send('讨论本周学习'));
     final second = assistant.currentSessionId!;
     await tester.runAsync(() => assistant.renameConversation(second, '本周学习安排'));
     await tester.pumpAndSettle();

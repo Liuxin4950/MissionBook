@@ -47,3 +47,5 @@ TZ=America/Los_Angeles flutter test --no-pub test/presentation/detail_pane_flow_
 新增边界测试入口：`presentation/evidence_camera_panel_test.dart`、`data/speech/sherpa_speech_engine_test.dart`、`application/analysis_preferences_test.dart`、`application/user_error_message_test.dart`、`data/record_context_test.dart`。具体清单和本轮实际结果见[整改记录](../docs/审查/2026-10-31-全局样式与架构整改.md)。
 
 目标包协议夹具保留在 `docs/历史文档/设计/目标计划导入/examples/`；其路径归档不改变 JSON 协议。旧测试数字和历史失败不作为当前门禁结果。
+
+本轮新增的截止调度、模型网关、空会话、图片恢复及通知入口回归见[2026-11-01 复审记录](../docs/审查/2026-11-01-复审与会话生命周期修复.md)。

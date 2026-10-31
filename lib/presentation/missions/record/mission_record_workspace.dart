@@ -44,10 +44,10 @@ class MissionRecordWorkspace extends StatefulWidget {
   final bool _returnToTaskDetail;
 
   @override
-  State<MissionRecordWorkspace> createState() => _MissionRecordPageState();
+  State<MissionRecordWorkspace> createState() => _MissionRecordWorkspaceState();
 }
 
-class _MissionRecordPageState extends State<MissionRecordWorkspace>
+class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
     with WidgetsBindingObserver {
   // 页面打开后事实仍可能变化（例如别的入口补记了材料超时）。
   // 与今天/历史/详情页一致：订阅服务通知并重读详情，不长期保留过期快照。

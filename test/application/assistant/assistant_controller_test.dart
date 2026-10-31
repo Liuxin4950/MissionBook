@@ -514,7 +514,7 @@ void main() {
     );
     await assistant.initialize();
     await assistant.openNodeReference(node.id);
-    final sessionId = assistant.currentSessionId;
+    expect(assistant.currentSessionId, isNull);
     final sending = assistant.send('把这个节点改名为响应式布局');
     await waitFor(() => assistant.operations.isNotEmpty);
     expect((await goals.findNodeById(node.id))!.title, '布局基础');
@@ -528,6 +528,7 @@ void main() {
     assistant.confirmProposal('rename-node');
     await sending;
     expect((await goals.findNodeById(node.id))!.title, '响应式布局');
+    final sessionId = assistant.currentSessionId;
     final receipt = await missions.findOperationReceipt(
       '$sessionId:rename-node',
     );
@@ -545,14 +546,23 @@ void main() {
     );
   });
   test('首个会话前切换模型会影响新会话，历史改名仅修改指定会话', () async {
-    final assistant = makeController(ScriptedModel([]));
+    final assistant = makeController(
+      ScriptedModel([
+        (_) => textResponse('第一段回答'),
+        (_) => textResponse('第二段回答'),
+      ]),
+    );
     await assistant.initialize();
     await assistant.selectModelProfile('deepseek');
     await assistant.startNewSession();
     expect(assistant.modelProfileId, 'deepseek');
+    expect(assistant.currentSessionId, isNull);
+    await assistant.send('第一段讨论');
     final first = assistant.currentSessionId!;
     await assistant.renameCurrentSession('第一段');
     await assistant.startNewSession();
+    expect(assistant.currentSessionId, isNull);
+    await assistant.send('第二段讨论');
     final second = assistant.currentSessionId!;
     await assistant.renameCurrentSession('第二段');
     await assistant.renameConversation(first, '改过的第一段');
@@ -671,9 +681,12 @@ void main() {
   });
 
   test('打开旧会话后再次选择已存默认模型，实际会话也会切换', () async {
-    final assistant = makeController(ScriptedModel([]));
+    final assistant = makeController(
+      ScriptedModel([(_) => textResponse('旧会话回答')]),
+    );
     await assistant.initialize();
     await assistant.startNewSession();
+    await assistant.send('需要保留的旧讨论');
     final oldId = assistant.currentSessionId!;
     await assistant.selectModelProfile('deepseek');
     await assistant.startNewSession();

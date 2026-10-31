@@ -1,3 +1,4 @@
+import '../../application/errors/user_error_message.dart';
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:uuid/uuid.dart';
@@ -136,7 +137,11 @@ class _MakeupButtonState extends State<MakeupExecutionButton> {
         evidenceDeadlineAt: deadline,
       );
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(e, fallback: '执行报告未保存，请检查输入后重试'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -271,7 +276,11 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(e, fallback: '执行报告未保存，请检查输入后重试'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

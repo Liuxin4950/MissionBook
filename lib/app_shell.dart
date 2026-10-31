@@ -19,7 +19,7 @@ import 'application/settings/app_device.dart';
 import 'presentation/me/me_page.dart';
 import 'presentation/widgets/detail_pane.dart';
 
-/// 管理四个顶层导航入口，并保留各页状态、转交共享业务对象。
+/// 管理顶层导航入口，并保留各页状态、转交共享业务对象。
 class AppShell extends StatefulWidget {
   const AppShell({
     super.key,
@@ -97,41 +97,51 @@ class _AppShellState extends State<AppShell> {
   /// 通知动作的 UI 接手（§7.2）：停止后打开 END 确认；旧按钮只提示刷新。
   Future<void> _handleNotificationUi(NotificationUiAction action) async {
     if (!mounted) return;
-    if (action.result == NotificationActionResult.openEndConfirm ||
-        action.result == NotificationActionResult.openMission) {
-      final detail = await widget.missionService.findDetail(
-        missionId: action.missionId,
+    try {
+      if (action.result == NotificationActionResult.openEndConfirm ||
+          action.result == NotificationActionResult.openMission) {
+        final detail = await widget.missionService.findDetail(
+          missionId: action.missionId,
+        );
+        if (detail == null || !mounted) return;
+        final executing =
+            detail.phase == MissionPhase.running ||
+            (detail.phase == MissionPhase.paused ||
+                detail.phase == MissionPhase.reportPending);
+        await _detailPane.open<void>(
+          DetailPaneEntry(
+            executing ? '任务执行' : '任务详情',
+            (_) => executing
+                ? MissionExecutionPage(
+                    detail: detail,
+                    service: widget.missionService,
+                    clock: widget.clock,
+                    openEndConfirm:
+                        action.result ==
+                        NotificationActionResult.openEndConfirm,
+                  )
+                : MissionDetailPage(
+                    missionId: detail.mission.id,
+                    missionService: widget.missionService,
+                  ),
+          ),
+          // 通知进入任务时保留下面尚未保存的页面，返回后继续原草稿。
+          replace: DetailPaneReplace.none,
+        );
+        return;
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(action.message ?? '任务已有新进展，请刷新后重试')),
       );
-      if (detail == null || !mounted) return;
-      final executing =
-          detail.phase == MissionPhase.running ||
-          (detail.phase == MissionPhase.paused ||
-              detail.phase == MissionPhase.reportPending);
-      await _detailPane.open<void>(
-        DetailPaneEntry(
-          executing ? '任务执行' : '任务详情',
-          (_) => executing
-              ? MissionExecutionPage(
-                  detail: detail,
-                  service: widget.missionService,
-                  clock: widget.clock,
-                  openEndConfirm:
-                      action.result == NotificationActionResult.openEndConfirm,
-                )
-              : MissionDetailPage(
-                  missionId: detail.mission.id,
-                  missionService: widget.missionService,
-                ),
-        ),
-        // 通知进入任务时保留下面尚未保存的页面，返回后继续原草稿。
-        replace: DetailPaneReplace.none,
-      );
-      return;
+    } catch (error, stack) {
+      debugPrint('通知动作处理失败：$error\n$stack');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('任务读取失败，请刷新后重试')));
+      }
     }
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(action.message ?? '任务已有新进展，请刷新后重试')));
   }
 
   // 路由变更方法

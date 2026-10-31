@@ -10,6 +10,10 @@ class DriftRepositorySupport {
     : clock = clock ?? DateTime.now;
   final AppDatabase db;
   final DateTime Function() clock;
+
+  /// 本项目有界 SQL 的绑定参数只接受 int、String 和 null。
+  /// 时间、枚举和布尔值由调用者转换为 UTC 毫秒、稳定文本和 SQLite 的 0/1；
+  /// 若新增小数等查询，使用 Drift 的显式 Variable 类型，不在这里隐式转换。
   Future<List<Map<String, Object?>>> rows(
     String sql, [
     List<Object?> args = const [],
