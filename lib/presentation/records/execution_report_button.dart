@@ -313,7 +313,10 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
           child: ConstrainedBox(
             key: const Key('execution-report-form'),
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * .85,
+              maxHeight:
+                  (MediaQuery.sizeOf(context).height * .85 -
+                          MediaQuery.viewInsetsOf(context).bottom)
+                      .clamp(0.0, double.infinity),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -382,6 +385,14 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                         const Text('时段按原计划预填，点击确认表示你认可；有出入可修改。'),
                       AppExpansionTile(
                         initiallyExpanded: ended,
+                        insetHeader: false,
+                        headerPadding: const EdgeInsets.symmetric(
+                          vertical: AppLayout.spaceSm,
+                        ),
+                        childrenPadding: const EdgeInsets.only(
+                          top: AppLayout.spaceSm,
+                          bottom: AppLayout.spaceLg,
+                        ),
                         title: const Text('修改日期、时段或补充说明'),
                         children: [
                           TextField(
@@ -409,6 +420,7 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                                 labelText: '实际开始 HH:mm',
                               ),
                             ),
+                            const SizedBox(height: AppLayout.spaceMd),
                             TextField(
                               controller: _endDate,
                               enabled: !_saving,
@@ -417,6 +429,7 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                                 labelText: '结束日期 YYYY-MM-DD，可跨日',
                               ),
                             ),
+                            const SizedBox(height: AppLayout.spaceMd),
                             TextField(
                               controller: _end,
                               enabled: !_saving,

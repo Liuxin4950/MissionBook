@@ -666,29 +666,44 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                             ),
                           ],
                           const SizedBox(height: AppLayout.spaceSm),
-                          // 基础维护动作等宽并排；开始后由独立页面接管。
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  key: const Key('edit-mission'),
-                                  onPressed: disabled
-                                      ? null
-                                      : () => _requestEdit(detail),
-                                  icon: const Icon(Icons.edit_outlined),
-                                  label: Text(overdue ? '改期 / 修改任务' : '修改任务'),
-                                ),
-                              ),
-                              const SizedBox(width: AppLayout.spaceSm),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  key: const Key('cancel-mission'),
-                                  onPressed: disabled ? null : _requestCancel,
-                                  icon: const Icon(Icons.close_rounded),
-                                  label: const Text('取消任务'),
-                                ),
-                              ),
-                            ],
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final edit = OutlinedButton.icon(
+                                key: const Key('edit-mission'),
+                                onPressed: disabled
+                                    ? null
+                                    : () => _requestEdit(detail),
+                                icon: const Icon(Icons.edit_outlined),
+                                label: Text(overdue ? '改期 / 修改任务' : '修改任务'),
+                              );
+                              final cancel = OutlinedButton.icon(
+                                key: const Key('cancel-mission'),
+                                onPressed: disabled ? null : _requestCancel,
+                                icon: const Icon(Icons.close_rounded),
+                                label: const Text('取消任务'),
+                              );
+                              final scale =
+                                  MediaQuery.textScalerOf(context).scale(14) /
+                                  14;
+                              if (constraints.maxWidth < 320 * scale) {
+                                return Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    edit,
+                                    const SizedBox(height: AppLayout.spaceSm),
+                                    cancel,
+                                  ],
+                                );
+                              }
+                              return Row(
+                                children: [
+                                  Expanded(child: edit),
+                                  const SizedBox(width: AppLayout.spaceSm),
+                                  Expanded(child: cancel),
+                                ],
+                              );
+                            },
                           ),
                         ],
                       )

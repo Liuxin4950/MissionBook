@@ -183,30 +183,22 @@ class MissionDetailContent extends StatelessWidget {
                     ],
                   ),
                 ),
-                // 主按钮在滚动区外，始终可见；浅色表面把操作区与正文留白分开。
+                // 主按钮在滚动区外，始终可见。
                 // 小窗或大字时底栏限高并可滚动，避免挤爆正文。
                 if (footer != null)
                   ConstrainedBox(
                     constraints: BoxConstraints(
                       maxHeight: constraints.maxHeight * .5,
                     ),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerLow,
-                        border: const Border(
-                          top: BorderSide(color: AppColors.hairline),
+                    child: ListView(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      children: [
+                        SafeArea(
+                          top: false,
+                          child: PageFooterBar(child: footer!),
                         ),
-                      ),
-                      child: ListView(
-                        shrinkWrap: true,
-                        padding: EdgeInsets.zero,
-                        children: [
-                          SafeArea(
-                            top: false,
-                            child: PageFooterBar(child: footer!),
-                          ),
-                        ],
-                      ),
+                      ],
                     ),
                   ),
               ],

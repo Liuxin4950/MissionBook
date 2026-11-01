@@ -27,6 +27,7 @@ import 'package:mission_book/presentation/goals/detail/goal_detail_page.dart';
 import 'package:mission_book/presentation/me/settings_page.dart';
 import 'package:mission_book/presentation/me/me_page.dart';
 import 'package:mission_book/presentation/goals/form/goal_form_page.dart';
+import 'package:mission_book/presentation/goals/form/goal_import_page.dart';
 import 'package:mission_book/domain/notifications/reminder_request.dart';
 import '../support/me_fakes.dart';
 
@@ -138,6 +139,34 @@ void main() {
     await finish(second);
     return second;
   }
+
+  testWidgets('目标创建与导入互切，并保护未保存的创建草稿', (tester) async {
+    await open(tester, width: 1280);
+    await tester.tap(find.byTooltip('目标'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('创建目标').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(GoalFormPage), findsOneWidget);
+    await tester.enterText(find.byType(TextField).first, '未保存的目标');
+    await tester.tap(find.text('导入文件'));
+    await tester.pumpAndSettle();
+    expect(find.text('离开本次填写？'), findsOneWidget);
+    await tester.tap(find.text('继续填写'));
+    await tester.pumpAndSettle();
+    expect(find.text('未保存的目标'), findsOneWidget);
+    await tester.tap(find.text('导入文件'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('离开').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(GoalImportPage), findsOneWidget);
+    await tester.enterText(find.byType(TextField).first, '导入草稿');
+    await tester.tap(find.text('创建目标').first);
+    await tester.pumpAndSettle();
+    expect(find.text('离开目标导入？'), findsOneWidget);
+    await tester.tap(find.text('放弃草稿'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GoalFormPage), findsOneWidget);
+  });
 
   testWidgets('我的最近行动可连续互切，右栏整条返回链替换且连点不叠页', (tester) async {
     final secondId = await finishRecentMissions();

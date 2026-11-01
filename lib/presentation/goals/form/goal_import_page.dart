@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../application/goals/goal_service.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/detail_pane.dart';
 import 'goal_import_section.dart';
 
 /// 独立导入工作区，列表不再混入文件输入和校验表单。
@@ -18,6 +19,18 @@ class _GoalImportPageState extends State<GoalImportPage> {
   final _section = GlobalKey<GoalImportSectionState>();
   bool _leaving = false;
   bool _allowPop = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    DetailPaneScope.maybeOf(context)?.registerTopGuard(
+      () async =>
+          !_leaving &&
+          await (_section.currentState?.prepareToCollapse() ??
+              Future.value(true)),
+      route: ModalRoute.of(context),
+    );
+  }
 
   Future<void> _back() async {
     if (_leaving) return;

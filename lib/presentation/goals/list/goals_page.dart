@@ -58,7 +58,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
 
   Future<void> _openImport() async {
     if (_opening || _selectedStatus != GoalStatus.active) return;
-    _opening = true;
+    _opening = DetailPaneScope.maybeOf(context) == null;
     try {
       final id = await openDetailPane<String>(
         context,
@@ -143,7 +143,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
   /// 打开表单，保存后用返回的编号进入正式详情。
   Future<void> _create() async {
     if (_opening) return;
-    _opening = true;
+    _opening = DetailPaneScope.maybeOf(context) == null;
     try {
       final id = await openDetailPane<String>(
         context,
