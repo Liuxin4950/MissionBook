@@ -1,3 +1,4 @@
+import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'dart:convert';
 
 import 'package:drift/native.dart';
@@ -6,7 +7,6 @@ import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/application/assistant/assistant_schedule.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
-import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
@@ -215,7 +215,7 @@ void main() {
 
   test('计划卡确认前零写入，编辑移除后只保存最终内容并可重开恢复', () async {
     final model = ScriptedModel([
-      (_) => toolResponse('batch', 'mission_plan', {
+      (_) => toolResponse('batch', 'planMissions', {
         'title': '今天的学习安排',
         'items': [createRow('one'), createRow('two'), createRow('remove')],
       }),
@@ -223,7 +223,7 @@ void main() {
     ]);
     final settings = MemoryAssistantSettingsStore();
     controller = AssistantController(
-      reader: DriftAssistantReader(database),
+      unifiedReader: DriftUnifiedReader(database),
       sessionStore: DriftSessionStore(database),
       settingsStore: settings,
       missions: missions,

@@ -258,7 +258,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                                   child: Row(
                                     children: [
                                       Icon(
-                                        Icons.file_upload_outlined,
+                                        Icons.upload_file_outlined,
                                         size: AppLayout.iconMd,
                                       ),
                                       SizedBox(width: AppLayout.spaceMd),
@@ -295,7 +295,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                                 shape: const CircleBorder(),
                               ),
                               icon: const Icon(
-                                Icons.add,
+                                Icons.add_rounded,
                                 color: AppColors.onPrimary,
                               ),
                             ),
@@ -408,7 +408,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                               tooltip: '添加节点',
                               onPressed: () =>
                                   _outlineKey.currentState?.addRootNode(),
-                              icon: const Icon(Icons.add),
+                              icon: const Icon(Icons.add_rounded),
                             ),
                           ],
                         ),
@@ -486,7 +486,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                 FilledButton.icon(
                   key: const Key('goal-create'),
                   onPressed: _create,
-                  icon: const Icon(Icons.add),
+                  icon: const Icon(Icons.add_rounded),
                   label: const Text('创建目标'),
                 ),
                 if (showImportAction)

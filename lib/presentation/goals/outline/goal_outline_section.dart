@@ -1,6 +1,7 @@
 import '../../../domain/entities/analysis_scope.dart';
 import '../../records/records_page.dart';
 import '../../records/analysis_panel.dart';
+import '../../records/record_scope.dart';
 import 'dart:async';
 import '../../assistant/assistant_launcher.dart';
 
@@ -292,7 +293,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                   TextButton.icon(
                     key: Key('node-add-root-${widget.goalId}'),
                     onPressed: _busy ? null : () => _edit(),
-                    icon: const Icon(Icons.add, size: AppLayout.iconSm),
+                    icon: const Icon(Icons.add_rounded, size: AppLayout.iconSm),
                     style: TextButton.styleFrom(
                       textStyle: theme.textTheme.labelMedium,
                     ),
@@ -512,6 +513,11 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                 value: _NodeAction.edit,
                 child: menuLabel(Icons.edit_outlined, '编辑名称与说明'),
               ),
+              if (RecordScope.maybeOf(context) != null)
+                PopupMenuItem(
+                  value: _NodeAction.summary,
+                  child: menuLabel(Icons.auto_awesome_outlined, '节点摘要'),
+                ),
               PopupMenuItem(
                 value: _NodeAction.up,
                 enabled: position > 0,
@@ -548,6 +554,15 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
             ],
       onSelected: (action) {
         switch (action) {
+          case _NodeAction.summary:
+            unawaited(
+              showAnalysisSummary(
+                context,
+                scope: AnalysisScope.node,
+                id: node.id,
+                title: node.title,
+              ),
+            );
           case _NodeAction.assistant:
             AssistantEntryScope.maybeOf(context)?.openNode(node.id);
           case _NodeAction.createMission:
@@ -657,9 +672,6 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!collapsed) RecordsEntry(nodeId: node.id, label: '节点相关记录'),
-                if (!collapsed)
-                  AnalysisPanel(scope: AnalysisScope.node, id: node.id),
                 DecoratedBox(
                   decoration: BoxDecoration(
                     color: entry.depth == 0
@@ -739,6 +751,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                           ),
                   ),
                 ),
+                if (widget.missionService == null &&
+                    RecordScope.maybeOf(context) != null)
+                  _nodeRecords(node),
                 if (_swipedNodeId == node.id && !archived)
                   Padding(
                     padding: const EdgeInsets.only(top: AppLayout.spaceXs),
@@ -782,6 +797,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     );
   }
 
+  Widget _nodeRecords(GoalNode node) =>
+      RelatedRecordsEntry(goalId: widget.goalId, nodeId: node.id);
+
   Widget _missionsFor(
     GoalNode? node, {
     Widget? leading,
@@ -793,6 +811,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     leading: leading,
     trailing: trailing,
     annotation: annotation,
+    relatedContent: node != null && RecordScope.maybeOf(context) != null
+        ? _nodeRecords(node)
+        : null,
     key: _taskSections.putIfAbsent(
       node?.id ?? 'goal-only',
       () => GlobalKey<GoalMissionsSectionState>(),
@@ -842,6 +863,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
 }
 
 enum _NodeAction {
+  summary,
   assistant,
   createMission,
   add,

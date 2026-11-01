@@ -234,7 +234,7 @@ class _AssistantPageState extends State<AssistantPage> {
                 key: const Key('assistant-sidebar-search'),
                 tooltip: '搜索会话',
                 onPressed: controller.isBusy ? null : _openHistory,
-                icon: const Icon(Icons.search, size: AppLayout.iconMd),
+                icon: const Icon(Icons.search_rounded, size: AppLayout.iconMd),
               ),
             ],
           ),
@@ -242,7 +242,7 @@ class _AssistantPageState extends State<AssistantPage> {
           FilledButton.tonalIcon(
             key: const Key('assistant-sidebar-new'),
             onPressed: controller.isBusy ? null : _newSession,
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add_rounded),
             label: const Text('开启新会话'),
           ),
           const SizedBox(height: AppLayout.spaceXl),

@@ -16,7 +16,7 @@ import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
 import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
 import 'package:mission_book/presentation/widgets/detail_pane.dart';
 import 'package:mission_book/application/notifications/app_notification_service.dart';
-import 'package:mission_book/data/notifications/notification_dispatcher.dart';
+import 'package:mission_book/application/notifications/notification_dispatcher.dart';
 import 'package:mission_book/data/notifications/reminder_store.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';

@@ -6,8 +6,10 @@ import 'package:mission_book/domain/entities/user_execution_report.dart';
 mixin UnusedMissionWrites {
   Future<EvidenceSubmissionResult> attachRecordEvidence(
     String recordId,
-    String missionId,
-  ) => throw UnsupportedError('本替身不关联材料');
+    String missionId, {
+    EvidenceDraft? expected,
+    String? operationId,
+  }) => throw UnsupportedError('本替身不关联材料');
 
   Future<void> reportExecution(
     UserExecutionReport report, {

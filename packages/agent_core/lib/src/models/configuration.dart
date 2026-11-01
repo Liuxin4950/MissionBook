@@ -68,8 +68,7 @@ final class ModelProfile {
     required this.model,
     required this.endpoint,
     required this.protocol,
-    String? credentialKey,
-    String? credentialEnvironment,
+    required this.credentialKey,
     this.contextWindowTokens = 64000,
     this.maxOutputTokens = 2048,
     this.outputTokenLimit,
@@ -80,28 +79,17 @@ final class ModelProfile {
     this.requestTimeout = const Duration(seconds: 120),
     this.totalRequestTimeout = const Duration(minutes: 10),
     RetryPolicy? retry,
-  }) : credentialKey = credentialKey ?? credentialEnvironment ?? '',
-       retry = retry ?? RetryPolicy() {
-    if (credentialKey != null &&
-        credentialEnvironment != null &&
-        credentialKey != credentialEnvironment) {
-      throw ArgumentError('credentialKey 与旧凭据字段不一致，请只保留一个');
-    }
-    if (credentialKey == null &&
-        credentialEnvironment != null &&
-        !RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(credentialEnvironment)) {
-      throw ArgumentError('旧 credentialEnvironment 字段需要环境变量名称');
-    }
+  }) : retry = retry ?? RetryPolicy() {
     if (!RegExp(
           r'^[A-Za-z_][A-Za-z0-9_.:/-]{0,127}$',
-        ).hasMatch(this.credentialKey) ||
-        this.credentialKey.startsWith('sk-')) {
+        ).hasMatch(credentialKey) ||
+        credentialKey.startsWith('sk-')) {
       throw ArgumentError('credentialKey 是凭据标识，不是 API Key 明文');
     }
     if (id.trim().isEmpty ||
         provider.trim().isEmpty ||
         model.trim().isEmpty ||
-        this.credentialKey.trim().isEmpty) {
+        credentialKey.trim().isEmpty) {
       throw ArgumentError('模型配置的 id、provider、model 和凭据标识不能为空');
     }
     if (!['http', 'https'].contains(endpoint.scheme) ||
@@ -139,7 +127,6 @@ final class ModelProfile {
   final Uri endpoint; // 完整请求地址，不在适配器里猜测路径。
   final ModelProtocol protocol;
   final String credentialKey; // 宿主将此标识映射到环境变量或设备安全存储。
-  String get credentialEnvironment => credentialKey; // 兼容早期使用方。
   final int contextWindowTokens; // 本地采用的上下文预算，可小于供应商真实窗口。
   final int maxOutputTokens;
   final int? outputTokenLimit; // 模型硬上限；未知供应商可不填。
@@ -177,7 +164,6 @@ final class ModelProfile {
       'model',
       'endpoint',
       'protocol',
-      'credentialEnvironment',
       'credentialKey',
       'contextWindowTokens',
       'maxOutputTokens',
@@ -196,8 +182,7 @@ final class ModelProfile {
       model: readString(json, 'model'),
       endpoint: Uri.parse(readString(json, 'endpoint')),
       protocol: _enumValue(ModelProtocol.values, readString(json, 'protocol')),
-      credentialKey: json['credentialKey'] as String?,
-      credentialEnvironment: json['credentialEnvironment'] as String?,
+      credentialKey: readString(json, 'credentialKey'),
       contextWindowTokens: _integer(
         json,
         'contextWindowTokens',
@@ -306,7 +291,7 @@ final class AgentConfiguration {
         model: 'deepseek-flash',
         endpoint: Uri.parse('https://api.deepseek.com/anthropic/v1/messages'),
         protocol: ModelProtocol.messages,
-        credentialEnvironment: 'DEEPSEEK_API_KEY',
+        credentialKey: 'DEEPSEEK_API_KEY',
         contextWindowTokens: DeepSeekFlash.contextWindowTokens,
         maxOutputTokens: DeepSeekFlash.defaultOutputTokens,
         outputTokenLimit: DeepSeekFlash.outputTokenLimit,
@@ -317,7 +302,7 @@ final class AgentConfiguration {
         model: 'deepseek-flash',
         endpoint: Uri.parse('https://api.deepseek.com/chat/completions'),
         protocol: ModelProtocol.chatCompletions,
-        credentialEnvironment: 'DEEPSEEK_API_KEY',
+        credentialKey: 'DEEPSEEK_API_KEY',
         contextWindowTokens: DeepSeekFlash.contextWindowTokens,
         maxOutputTokens: DeepSeekFlash.defaultOutputTokens,
         outputTokenLimit: DeepSeekFlash.outputTokenLimit,

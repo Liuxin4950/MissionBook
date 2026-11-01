@@ -13,22 +13,40 @@ import 'drift_assistant_reader.dart';
 /// 分层查询共用轻量索引，任务详情复用完整领域事实；正文与图片按需读取。
 class DriftUnifiedReader implements UnifiedReader {
   DriftUnifiedReader(this.db)
-    : records = DriftRecordRepository(db),
-      legacy = DriftAssistantReader(db);
+    : recordRepository = DriftRecordRepository(db),
+      taskReader = DriftAssistantReader(db);
   final AppDatabase db;
-  final DriftRecordRepository records;
-  final DriftAssistantReader legacy;
+  final DriftRecordRepository recordRepository;
+  final DriftAssistantReader taskReader;
+  @override
+  Future<Map<String, Object?>> records(
+    String missionId,
+    String section, {
+    int offset = 0,
+  }) => taskReader.records(missionId, section, offset: offset);
+  @override
+  Future<Map<String, Object?>> evidenceContent(
+    String evidenceId, {
+    int offset = 0,
+  }) => taskReader.evidenceContent(evidenceId, offset: offset);
+  @override
+  Future<Map<String, Object?>> content(
+    String missionId,
+    String field, {
+    int offset = 0,
+  }) => taskReader.content(missionId, field, offset: offset);
+
   Future<Map<String, Object?>> resolve(
     String table,
     String key, {
     String? goalId,
   }) async {
-    final exact = await records.rows(
+    final exact = await recordRepository.rows(
       'SELECT id,title FROM $table WHERE id=? ${goalId == null ? '' : 'AND goal_id=?'}',
       [key, ?goalId],
     );
     if (exact.isNotEmpty) return {'id': exact.single['id']};
-    final found = await records.rows(
+    final found = await recordRepository.rows(
       'SELECT id,title FROM $table WHERE (id=? OR title=?) ${goalId == null ? '' : 'AND goal_id=?'} ORDER BY id LIMIT 21',
       [key, key, ?goalId],
     );
@@ -61,10 +79,12 @@ class DriftUnifiedReader implements UnifiedReader {
     if (goal == null) {
       if (node != null || mission != null) throw ArgumentError('查询节点或任务时先指定目标');
       final total =
-          (await records.rows('SELECT COUNT(*) n FROM goals')).single['n']
+          (await recordRepository.rows(
+                'SELECT COUNT(*) n FROM goals',
+              )).single['n']
               as int;
-      final items = await records.rows(
-        '''SELECT g.id,substr(g.title,1,200) title,length(g.title) titleLength,g.status,g.created_at,substr(g.why,1,300) why,length(g.why) whyLength,g.desire_level,
+      final items = await recordRepository.rows(
+        '''SELECT g.id,substr(g.title,1,200) title,length(g.title) titleLength,g.status,g.created_at AS createdAt,substr(g.why,1,300) why,length(g.why) whyLength,g.desire_level AS desireLevel,
         (SELECT COUNT(*) FROM goal_nodes n WHERE n.goal_id=g.id) nodeCount,
         (SELECT COUNT(*) FROM missions m WHERE m.goal_id=g.id) missionCount,
         (SELECT COUNT(*) FROM missions m JOIN execution_events e ON e.mission_id=m.id AND e.type='END' AND e.user_reported_result='COMPLETED' WHERE m.goal_id=g.id) completedMissionCount
@@ -72,7 +92,7 @@ class DriftUnifiedReader implements UnifiedReader {
         [offset],
       );
       for (final item in items) {
-        item['analysis'] = await records.analysis(
+        item['analysis'] = await recordRepository.analysis(
           AnalysisScope.goal,
           item['id'] as String,
         );
@@ -95,7 +115,7 @@ class DriftUnifiedReader implements UnifiedReader {
         db,
       ).findDetail(r['id'] as String))!;
       if (nodeId != null) {
-        final membership = await records.rows(
+        final membership = await recordRepository.rows(
           'WITH RECURSIVE subtree(id) AS (SELECT ? UNION ALL SELECT n.id FROM goal_nodes n JOIN subtree p ON n.parent_node_id=p.id) SELECT id FROM subtree WHERE id=?',
           [nodeId, d.mission.goalNodeId],
         );
@@ -103,8 +123,8 @@ class DriftUnifiedReader implements UnifiedReader {
       }
       return getMission(mission: r['id'] as String);
     }
-    final root = (await records.rows(
-      'SELECT id,substr(title,1,200) title,status,created_at,substr(why,1,300) why,length(why) whyLength,desire_level FROM goals WHERE id=?',
+    final root = (await recordRepository.rows(
+      'SELECT id,substr(title,1,200) title,status,created_at AS createdAt,substr(why,1,300) why,length(why) whyLength,desire_level AS desireLevel FROM goals WHERE id=?',
       [goalId],
     )).single;
     final prefix = nodeId == null
@@ -115,13 +135,13 @@ class DriftUnifiedReader implements UnifiedReader {
       final condition =
           'goal_id=? ${nodeId == null ? '' : 'AND goal_node_id IN (SELECT id FROM subtree)'}';
       final count =
-          (await records.rows(
+          (await recordRepository.rows(
                 '${prefix}SELECT COUNT(*) n FROM missions WHERE $condition',
                 args,
               )).single['n']
               as int;
-      final items = await records.rows(
-        '''${prefix}SELECT m.id,m.title,m.created_at,
+      final items = await recordRepository.rows(
+        '''${prefix}SELECT m.id,m.title,m.created_at AS createdAt,
         (SELECT scheduled_date FROM mission_schedule_revisions r WHERE r.mission_id=m.id ORDER BY revision_number DESC LIMIT 1) scheduledDate,
         (SELECT user_reported_result FROM execution_events e WHERE e.mission_id=m.id AND e.type='END') userReportedResult
         FROM missions m WHERE $condition ORDER BY m.created_at,m.id LIMIT 20 OFFSET ?''',
@@ -132,7 +152,7 @@ class DriftUnifiedReader implements UnifiedReader {
           db,
         ).findDetail(item['id'] as String);
         if (d != null) item.addAll(missionProjection(d, DateTime.now()));
-        item['analysis'] = await records.analysis(
+        item['analysis'] = await recordRepository.analysis(
           AnalysisScope.mission,
           item['id'] as String,
         );
@@ -146,24 +166,24 @@ class DriftUnifiedReader implements UnifiedReader {
     final condition =
         'goal_id=? ${nodeId == null ? '' : 'AND id IN (SELECT id FROM subtree)'}';
     final total =
-        (await records.rows(
+        (await recordRepository.rows(
               '${prefix}SELECT COUNT(*) n FROM goal_nodes WHERE $condition',
               args,
             )).single['n']
             as int;
-    final nodes = await records.rows(
-      '${prefix}SELECT id,title,parent_node_id,order_index,archived_at,created_at FROM goal_nodes WHERE $condition ORDER BY order_index,id LIMIT 20 OFFSET ?',
+    final nodes = await recordRepository.rows(
+      '${prefix}SELECT id,title,parent_node_id AS parentNodeId,order_index AS orderIndex,archived_at AS archivedAt,created_at AS createdAt FROM goal_nodes WHERE $condition ORDER BY order_index,id LIMIT 20 OFFSET ?',
       [...args, offset],
     );
     for (final n in nodes) {
-      n['analysis'] = await records.analysis(
+      n['analysis'] = await recordRepository.analysis(
         AnalysisScope.node,
         n['id'] as String,
       );
     }
     return {
       'goal': root,
-      'analysis': await records.analysis(
+      'analysis': await recordRepository.analysis(
         nodeId == null ? AnalysisScope.goal : AnalysisScope.node,
         nodeId ?? goalId,
       ),
@@ -172,7 +192,7 @@ class DriftUnifiedReader implements UnifiedReader {
       'missions':
           nodeId == null
                 ? await enhance(
-                    await legacy.missions(goalId: goalId, offset: offset),
+                    await taskReader.missions(goalId: goalId, offset: offset),
                   )
                 : (await getGoal(
                     goal: goalId,
@@ -210,7 +230,7 @@ class DriftUnifiedReader implements UnifiedReader {
   }) async {
     if (mission == null) {
       return enhance(
-        await legacy.missions(
+        await taskReader.missions(
           search: search,
           goalId: goalId,
           nodeId: nodeId,
@@ -223,18 +243,21 @@ class DriftUnifiedReader implements UnifiedReader {
     final d = (await DriftMissionRepository(db).findDetail(r['id'] as String))!;
     return {
       ...missionProjection(d, DateTime.now().toUtc()),
-      'analysis': await records.analysis(AnalysisScope.mission, d.mission.id),
-      'execution': await legacy.records(
+      'analysis': await recordRepository.analysis(
+        AnalysisScope.mission,
+        d.mission.id,
+      ),
+      'execution': await taskReader.records(
         d.mission.id,
         'execution',
         offset: offset,
       ),
-      'failures': await legacy.records(
+      'failures': await taskReader.records(
         d.mission.id,
         'failures',
         offset: offset,
       ),
-      'materialIndex': await legacy.records(
+      'materialIndex': await taskReader.records(
         d.mission.id,
         'evidence',
         offset: offset,
@@ -277,6 +300,7 @@ class DriftUnifiedReader implements UnifiedReader {
   Future<Map<String, Object?>> getSchedule({
     String? date,
     int offset = 0,
-  }) async =>
-      enhance(await legacy.missions(date: date ?? _today(), offset: offset));
+  }) async => enhance(
+    await taskReader.missions(date: date ?? _today(), offset: offset),
+  );
 }

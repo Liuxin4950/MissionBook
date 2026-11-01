@@ -1,3 +1,4 @@
+import 'application/attachments/attachment_coordinator.dart';
 import 'application/missions/evidence_deadline_scheduler.dart';
 import 'application/errors/user_error_message.dart';
 import 'data/repositories/drift_memory_repository.dart';
@@ -33,11 +34,10 @@ import 'application/assistant/assistant_controller.dart';
 import 'application/assistant/assistant_speech.dart';
 import 'data/assistant/assistant_settings_store.dart';
 import 'data/assistant/drift_session_store.dart';
-import 'data/assistant/drift_assistant_reader.dart';
 import 'data/assistant/configured_assistant_speech.dart';
 import 'presentation/assistant/assistant_scope.dart';
-import 'application/evidence/evidence_image_service.dart';
-import 'data/attachments/evidence_image_platform.dart' as image_platform;
+import 'application/attachments/attachment_file_service.dart';
+import 'data/attachments/attachment_platform.dart' as attachment_platform;
 import 'application/goals/goal_service.dart';
 import 'application/goals/goal_package_import_service.dart';
 import 'data/goal_import/goal_import_database.dart';
@@ -50,7 +50,7 @@ import 'data/settings/app_device_platform.dart';
 import 'application/settings/app_device.dart';
 import 'application/notifications/app_notification_service.dart';
 import 'data/notifications/android_notification_dispatcher.dart';
-import 'data/notifications/notification_dispatcher.dart';
+import 'application/notifications/notification_dispatcher.dart';
 import 'data/notifications/reminder_store.dart';
 import 'data/notifications/windows_notification_dispatcher.dart';
 import 'domain/notifications/reminder_request.dart';
@@ -105,14 +105,15 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // 页面稍后通过 create / findScheduledOn / findDetail 选择具体操作；
     // 三个方法使用同一个仓储、同一个数据库连接。
     // 平台能力只在 App 装配；业务服务依赖可注入接口，不反向引用 data 实现。
-    _missionService = MissionService(
-      repository,
-      images: EvidenceImageService(
-        store: image_platform.createImageStore(),
-        picker: image_platform.createImagePicker(),
-        filePicker: image_platform.createFilePicker(),
+    final attachments = AttachmentCoordinator(
+      referencedKeys: repository.referencedAttachmentKeys,
+      files: AttachmentFileService(
+        store: attachment_platform.createImageStore(),
+        picker: attachment_platform.createImagePicker(),
+        filePicker: attachment_platform.createFilePicker(),
       ),
     );
+    _missionService = MissionService(repository, attachments: attachments);
     final packages = GoalPackageImportService(
       stage: GoalImportDatabase(),
       repository: DriftGoalPackageRepository(_database),
@@ -132,7 +133,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       materials: repository,
     );
     _memory = MemoryService(DriftMemoryRepository(_database));
-    _records = RecordService(recordRepository, _missionService);
+    _records = RecordService(recordRepository, _missionService, attachments);
     final analysisStore = DriftAnalysisStore(_database);
     _web = WebService(
       settings: const SecureWebSettings(),
@@ -140,7 +141,6 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       fetchClient: publicHttpClient,
     );
     _assistant = AssistantController(
-      reader: DriftAssistantReader(_database),
       records: _records,
       memory: _memory,
       analysis: analysisStore,
@@ -370,7 +370,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       locale: const Locale('zh', 'CN'),
-      supportedLocales: const [Locale('zh', 'CN'), Locale('en', 'US')],
+      supportedLocales: const [Locale('zh', 'CN')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // build 可以重复执行，但这里始终传入已创建的同一个业务对象。
       home: AnimatedSwitcher(

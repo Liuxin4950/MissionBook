@@ -1,3 +1,7 @@
+import 'content_mapping.dart';
+import '../../domain/entities/saved_record.dart';
+import 'evidence_mapping.dart';
+import '../../domain/entities/record_draft.dart';
 import 'package:drift/drift.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../../domain/entities/analysis_scope.dart';
@@ -5,7 +9,7 @@ import '../../domain/entities/evidence.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/repositories/record_repository.dart';
 import '../../domain/repositories/mission_evidence_repository.dart';
-import '../../domain/rules/evidence_rules.dart';
+import '../../domain/rules/content_rules.dart';
 import '../local/app_database.dart';
 import 'drift_mission_repository.dart';
 import 'drift_repository_support.dart';
@@ -22,7 +26,7 @@ class DriftRecordRepository extends DriftRepositorySupport
            DriftMissionRepository(db, clock: clock ?? DateTime.now);
   final MissionEvidenceRepository _materials;
 
-  /// 独立记录可删除；正式材料必须保留，以免改写任务事实。
+  /// 删除来源记录；任务已提交的材料快照独立保留。
   @override
   Future<void> deleteRecord(String id) => db.transaction(() async {
     await lock();
@@ -30,11 +34,6 @@ class DriftRecordRepository extends DriftRepositorySupport
       db.records,
     )..where((r) => r.id.equals(id))).getSingleOrNull();
     if (record == null) return;
-    if ((await rows('SELECT id FROM evidence_records WHERE record_id=?', [
-      id,
-    ])).isNotEmpty) {
-      throw const EvidenceConflict('已作为任务材料的记录不能删除，请在任务材料中追加修正');
-    }
     if (record.goalNodeId != null) {
       await db.customStatement(
         '''INSERT INTO analysis_jobs(scope,target_id,source_version,status,attempts,available_at)
@@ -93,7 +92,7 @@ class DriftRecordRepository extends DriftRepositorySupport
 
   @override
   Future<void> saveRecord(
-    EvidenceDraft draft, {
+    RecordDraft draft, {
     String? goalId,
     String? nodeId,
     String? missionId,
@@ -123,22 +122,22 @@ class DriftRecordRepository extends DriftRepositorySupport
   );
 
   Future<void> _saveRecord(
-    EvidenceDraft draft, {
+    RecordDraft draft, {
     String? goalId,
     String? nodeId,
     String? missionId,
   }) => db.transaction(() async {
-    validateEvidenceDraft(draft, missionId ?? draft.id);
+    validateContentDraft(draft);
     await lock();
     final prior = await (db.select(
       db.records,
     )..where((t) => t.id.equals(draft.id))).getSingleOrNull();
     final type = switch (draft.type) {
-      EvidenceType.manualRecord => 'MANUAL_RECORD',
+      ContentType.manualRecord => 'MANUAL_RECORD',
       _ => draft.type.name.toUpperCase(),
     };
     final source = switch (draft.source) {
-      EvidenceSource.fileSystem => 'FILE_SYSTEM',
+      ContentSource.fileSystem => 'FILE_SYSTEM',
       _ => draft.source.name.toUpperCase(),
     };
     if (prior != null) {
@@ -152,10 +151,10 @@ class DriftRecordRepository extends DriftRepositorySupport
         throw const EvidenceConflict('记录编号已用于不同内容');
       }
       // 重试只确认原内容，关联使用独立命令，不能悄悄改写已提交事实。
-      if (missionId != null) await linkRecord(draft.id, missionId: missionId);
+      if (missionId != null) await _attach(draft.id, missionId);
       return;
     }
-    final scope = await _scope(goalId, nodeId, missionId);
+    final scope = await _scope(goalId, nodeId);
     final now = clock().toUtc().millisecondsSinceEpoch;
     await db
         .into(db.records)
@@ -178,22 +177,7 @@ class DriftRecordRepository extends DriftRepositorySupport
     if (missionId != null) await _attach(draft.id, missionId);
   });
 
-  Future<(String?, String?)> _scope(
-    String? goal,
-    String? node,
-    String? mission,
-  ) async {
-    if (mission != null) {
-      final row = await (db.select(
-        db.missions,
-      )..where((t) => t.id.equals(mission))).getSingleOrNull();
-      if (row == null) throw ArgumentError('任务不存在');
-      if ((goal != null && row.goalId != goal) ||
-          (node != null && row.goalNodeId != node)) {
-        throw ArgumentError('任务与所选目标、节点不一致');
-      }
-      return (row.goalId, row.goalNodeId);
-    }
+  Future<(String?, String?)> _scope(String? goal, String? node) async {
     if (node != null) {
       final row = await (db.select(
         db.goalNodes,
@@ -211,59 +195,44 @@ class DriftRecordRepository extends DriftRepositorySupport
   }
 
   @override
-  Future<void> linkRecord(
+  Future<void> updateOwnership(
     String id, {
     String? goalId,
     String? nodeId,
-    String? missionId,
     String? operationId,
   }) => command(
     operationId,
-    'record_link',
+    'record_ownership',
     id,
-    {
-      'recordId': id,
-      'goalId': goalId,
-      'nodeId': nodeId,
-      'missionId': missionId,
-    },
+    {'recordId': id, 'goalId': goalId, 'nodeId': nodeId},
     {'saved': true},
-    () => _linkRecord(id, goalId: goalId, nodeId: nodeId, missionId: missionId),
+    () => db.transaction(() async {
+      await lock();
+      final r = await (db.select(
+        db.records,
+      )..where((t) => t.id.equals(id))).getSingle();
+      final scope = await _scope(goalId, nodeId);
+      await (db.update(db.records)..where((t) => t.id.equals(r.id))).write(
+        RecordsCompanion(goalId: Value(scope.$1), goalNodeId: Value(scope.$2)),
+      );
+    }),
   );
-
-  Future<void> _linkRecord(
-    String id, {
-    String? goalId,
-    String? nodeId,
-    String? missionId,
-  }) => db.transaction(() async {
-    await lock();
-    final r = await (db.select(
-      db.records,
-    )..where((t) => t.id.equals(id))).getSingle();
-    final links = await rows(
-      'SELECT mission_id FROM evidence_records WHERE record_id=?',
-      [id],
-    );
-    if (links.isNotEmpty) {
-      if (missionId != links.first['mission_id']) {
-        throw const EvidenceConflict('正式材料保留原引用，请追加修正');
-      }
-      return;
-    }
-    final scope = await _scope(goalId, nodeId, missionId);
-    await (db.update(db.records)..where((t) => t.id.equals(r.id))).write(
-      RecordsCompanion(goalId: Value(scope.$1), goalNodeId: Value(scope.$2)),
-    );
-    if (missionId != null) await _attach(id, missionId);
-  });
 
   Future<void> _attach(String id, String missionId) async {
     await _materials.attachRecordEvidence(id, missionId);
   }
 
   @override
-  Future<Map<String, Object?>> queryRecords({
+  Future<RecordDraft> readDraft(String id) async {
+    final row = await (db.select(
+      db.records,
+    )..where((r) => r.id.equals(id))).getSingleOrNull();
+    if (row == null) throw StateError('记录已删除，请返回列表刷新');
+    return recordDraftFromRow(row, id: id);
+  }
+
+  @override
+  Future<RecordPage> readRecords({
     String? id,
     String? goalId,
     String? nodeId,
@@ -273,7 +242,87 @@ class DriftRecordRepository extends DriftRepositorySupport
     bool content = false,
     int contentOffset = 0,
   }) async {
-    if (offset < 0) throw ArgumentError('分页位置无效');
+    final page = await _queryRecords(
+      id: id,
+      goalId: goalId,
+      nodeId: nodeId,
+      missionId: missionId,
+      date: date,
+      offset: offset,
+      content: content,
+      contentOffset: contentOffset,
+    );
+    return RecordPage(
+      total: page['total'] as int,
+      nextOffset: page['nextOffset'] as int?,
+      items: [
+        for (final r in page['items'] as List<Map<String, Object?>>)
+          SavedRecord(
+            id: r['id'] as String,
+            type: contentTypeFromStorage(r['type'] as String),
+            source: contentSourceFromStorage(r['source'] as String),
+            content: r['content'] as String?,
+            attachmentStorageKey: r['attachment_storage_key'] as String?,
+            attachmentFileName: r['attachment_file_name'] as String?,
+            attachmentMimeType: r['attachment_mime_type'] as String?,
+            capturedAt: r['captured_at'] == null
+                ? null
+                : DateTime.fromMillisecondsSinceEpoch(
+                    r['captured_at'] as int,
+                    isUtc: true,
+                  ),
+            contentLength: r['contentLength'] as int?,
+            contentOffset: r['contentOffset'] as int?,
+            occurredAt: DateTime.fromMillisecondsSinceEpoch(
+              r['occurred_at'] as int,
+              isUtc: true,
+            ),
+            createdAt: DateTime.fromMillisecondsSinceEpoch(
+              r['created_at'] as int,
+              isUtc: true,
+            ),
+            goalId: r['goal_id'] as String?,
+            nodeId: r['goal_node_id'] as String?,
+            goalTitle: r['goal_title'] as String?,
+            nodeTitle: r['node_title'] as String?,
+            materialMissionId: r['mission_id'] as String?,
+            materialMissionTitle: r['mission_title'] as String?,
+            nextContentOffset: r['nextContentOffset'] as int?,
+            contentTruncated: r['contentTruncated'] == true,
+            analysis: _recordAnalysis(r['analysis'] as Map<String, Object?>),
+          ),
+      ],
+    );
+  }
+
+  RecordAnalysis _recordAnalysis(Map<String, Object?> value) => RecordAnalysis(
+    state: value['state'] as String,
+    manual: value['manual'] == true,
+    stale: value['stale'] == true,
+    error: value['error'] as String?,
+    content: value['content'] as String?,
+    sourceVersion: value['source_version'] as int?,
+    coverage: value['coverage'] as int?,
+    createdAt: value['created_at'] == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(
+            value['created_at'] as int,
+            isUtc: true,
+          ),
+    closing: value['closing'] == null ? null : value['closing'] == 1,
+  );
+
+  Future<Map<String, Object?>> _queryRecords({
+    String? id,
+    String? goalId,
+    String? nodeId,
+    String? missionId,
+    String? date,
+    int offset = 0,
+    bool content = false,
+    int contentOffset = 0,
+  }) async {
+    if (offset < 0 || contentOffset < 0) throw ArgumentError('分页位置无效');
     final clauses = <String>[];
     final args = <Object>[];
     void filter(String sql, Object? v) {
@@ -307,7 +356,7 @@ class DriftRecordRepository extends DriftRepositorySupport
             )).single['n']
             as int;
     final items = await rows(
-      'SELECT r.*, (SELECT mission_id FROM evidence_records e WHERE e.record_id=r.id LIMIT 1) mission_id FROM records r $where ORDER BY r.occurred_at DESC,r.id LIMIT 20 OFFSET ?',
+      'SELECT r.*, (SELECT title FROM goals WHERE id=r.goal_id) goal_title, (SELECT title FROM goal_nodes WHERE id=r.goal_node_id) node_title, (SELECT m.title FROM missions m JOIN evidence_records e ON e.mission_id=m.id WHERE e.record_id=r.id LIMIT 1) mission_title, (SELECT mission_id FROM evidence_records e WHERE e.record_id=r.id LIMIT 1) mission_id FROM records r $where ORDER BY r.occurred_at DESC,r.id LIMIT 20 OFFSET ?',
       [...args, offset],
     );
     for (final item in items) {
@@ -341,11 +390,6 @@ class DriftRecordRepository extends DriftRepositorySupport
     final row = await (db.select(
       db.records,
     )..where((t) => t.id.equals(id))).getSingle();
-    if ((await rows('SELECT id FROM evidence_records WHERE record_id=?', [
-      id,
-    ])).isNotEmpty) {
-      throw const EvidenceConflict('正式材料通过任务材料区追加修正');
-    }
     if (row.content == content) return;
     if (row.content != expectedContent) {
       throw const EvidenceConflict('记录已被修改，请重读后更正');

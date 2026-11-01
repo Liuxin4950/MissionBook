@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/content_draft.dart';
 import 'dart:io';
 
 import 'package:drift/native.dart';
@@ -115,8 +116,8 @@ void main() {
   EvidenceDraft text(String id, [String content = '第二次写入失败，两次写入一起回滚。']) =>
       EvidenceDraft(
         id: id,
-        type: EvidenceType.text,
-        source: EvidenceSource.user,
+        type: ContentType.text,
+        source: ContentSource.user,
         content: content,
       );
 
@@ -227,8 +228,8 @@ void main() {
         text('explanation'),
         const EvidenceDraft(
           id: 'screenshot',
-          type: EvidenceType.image,
-          source: EvidenceSource.fileSystem,
+          type: ContentType.image,
+          source: ContentSource.fileSystem,
           attachmentStorageKey: 'attachments/optional/screenshot.png',
           attachmentFileName: '事务运行结果.png',
           attachmentMimeType: 'image/png',
@@ -248,7 +249,7 @@ void main() {
     expect(after.evidence.map((item) => item.submittedAt).toSet(), {now});
     expect(
       after.evidence
-          .singleWhere((item) => item.type == EvidenceType.image)
+          .singleWhere((item) => item.type == ContentType.image)
           .content,
       isNull,
     );
@@ -276,27 +277,27 @@ void main() {
         text('plain'),
         const EvidenceDraft(
           id: 'code',
-          type: EvidenceType.code,
-          source: EvidenceSource.user,
+          type: ContentType.code,
+          source: ContentSource.user,
           content: 'print(1)',
         ),
         const EvidenceDraft(
           id: 'manual',
-          type: EvidenceType.manualRecord,
-          source: EvidenceSource.user,
+          type: ContentType.manualRecord,
+          source: ContentSource.user,
           content: '手动完成十次练习',
         ),
         const EvidenceDraft(
           id: 'image',
-          type: EvidenceType.image,
-          source: EvidenceSource.camera,
+          type: ContentType.image,
+          source: ContentSource.camera,
           attachmentStorageKey: 'attachments/material-types/camera.jpg',
           attachmentFileName: '现场照片.jpg',
         ),
         const EvidenceDraft(
           id: 'file',
-          type: EvidenceType.file,
-          source: EvidenceSource.fileSystem,
+          type: ContentType.file,
+          source: ContentSource.fileSystem,
           attachmentStorageKey: 'attachments/material-types/report.pdf',
           attachmentFileName: '报告.pdf',
         ),
@@ -314,8 +315,8 @@ void main() {
       missionId: 'material-types',
       item: EvidenceDraft(
         id: 'code-fixed',
-        type: EvidenceType.code,
-        source: EvidenceSource.user,
+        type: ContentType.code,
+        source: ContentSource.user,
         content: 'print(2)',
         supersedesEvidenceId: 'code',
       ),
@@ -342,8 +343,8 @@ void main() {
           missionId: 'material-types',
           item: EvidenceDraft(
             id: 'fork',
-            type: EvidenceType.code,
-            source: EvidenceSource.user,
+            type: ContentType.code,
+            source: ContentSource.user,
             content: 'print(3)',
             supersedesEvidenceId: 'code',
           ),

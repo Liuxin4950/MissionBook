@@ -102,7 +102,7 @@ class MissionDetailContent extends StatelessWidget {
                             child: Text(
                               cancelError!,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.error,
+                                color: AppColors.error,
                               ),
                             ),
                           ),
@@ -138,33 +138,35 @@ class MissionDetailContent extends StatelessWidget {
                         ),
                         const SizedBox(height: AppLayout.sectionGap),
                       ],
-                      _DetailSection(
-                        title: '行动方案',
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              plan.objective,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            if (plan.steps.isNotEmpty) ...[
-                              const SizedBox(height: AppLayout.spaceXl),
-                              for (
-                                var index = 0;
-                                index < plan.steps.length;
-                                index++
-                              )
-                                _ActionStep(
-                                  number: index + 1,
-                                  text: plan.steps[index],
-                                  last: index == plan.steps.length - 1,
+                      if (plan.steps.isNotEmpty ||
+                          plan.objective.trim() != mission.title.trim())
+                        _DetailSection(
+                          title: '行动方案',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                plan.objective,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: AppColors.textSecondary,
                                 ),
+                              ),
+                              if (plan.steps.isNotEmpty) ...[
+                                const SizedBox(height: AppLayout.spaceXl),
+                                for (
+                                  var index = 0;
+                                  index < plan.steps.length;
+                                  index++
+                                )
+                                  _ActionStep(
+                                    number: index + 1,
+                                    text: plan.steps[index],
+                                    last: index == plan.steps.length - 1,
+                                  ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
                       if (showMaterialRequirements) ...[
                         const Divider(height: 1, color: AppColors.hairline),
                         const SizedBox(height: AppLayout.spaceXl),
@@ -399,19 +401,24 @@ class _DetailSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppLayout.sectionGap),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
-            header: true,
-            child: Text(title, style: Theme.of(context).textTheme.titleMedium),
-          ),
-          const SizedBox(height: AppLayout.spaceSm),
-          DefaultTextStyle.merge(
-            style: Theme.of(context).textTheme.bodyMedium,
-            child: child,
-          ),
-        ],
+      child: AppSectionCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Semantics(
+              header: true,
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            const SizedBox(height: AppLayout.spaceSm),
+            DefaultTextStyle.merge(
+              style: Theme.of(context).textTheme.bodyMedium,
+              child: child,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -451,7 +458,6 @@ class _ScheduleCard extends StatelessWidget {
 
     return AppSectionCard(
       key: const Key('mission-schedule-card'),
-      paperBackground: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
           // constraints 是卡内可用宽度；系统放大文字后也需要更多横向空间。

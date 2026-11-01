@@ -12,9 +12,11 @@ class MissionRetryButton extends StatefulWidget {
     super.key,
     required this.source,
     required this.service,
+    this.secondary = false,
   });
   final MissionDetail source;
   final MissionService service;
+  final bool secondary;
   @override
   State<MissionRetryButton> createState() => _MissionRetryButtonState();
 }
@@ -44,13 +46,20 @@ class _MissionRetryButtonState extends State<MissionRetryButton> {
   }
 
   @override
-  Widget build(BuildContext context) => FilledButton(
-    key: const Key('mission-retry'),
-    onPressed: _opening ? null : _open,
-    style: FilledButton.styleFrom(
-      minimumSize: const Size.fromHeight(AppLayout.actionMinHeight),
-      shape: const StadiumBorder(),
-    ),
-    child: const Text('再次尝试'),
-  );
+  Widget build(BuildContext context) => widget.secondary
+      ? OutlinedButton.icon(
+          key: const Key('mission-retry'),
+          onPressed: _opening ? null : _open,
+          icon: const Icon(Icons.replay),
+          label: const Text('再次尝试'),
+        )
+      : FilledButton(
+          key: const Key('mission-retry'),
+          onPressed: _opening ? null : _open,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(AppLayout.actionMinHeight),
+            shape: const StadiumBorder(),
+          ),
+          child: const Text('再次尝试'),
+        );
 }

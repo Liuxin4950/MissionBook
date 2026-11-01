@@ -6,7 +6,7 @@ import 'package:camera_platform_interface/camera_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
-import 'package:mission_book/presentation/missions/evidence/evidence_camera_panel.dart';
+import 'package:mission_book/presentation/attachments/photo_capture_panel.dart';
 
 class _Camera extends CameraPlatform {
   bool denied = false;
@@ -101,8 +101,8 @@ void main() {
       MaterialApp(
         theme: AppTheme.light,
         home: Scaffold(
-          body: EvidenceCameraPanel(
-            missionTitle: '相机测试',
+          body: PhotoCapturePanel(
+            title: '相机测试',
             fullScreen: fullScreen,
             onConfirmed: save ?? (_, _) async {},
             onChooseFile: () {},

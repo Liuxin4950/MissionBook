@@ -97,7 +97,7 @@ class _MissionExecution {
             .toString();
         final previous = await _repository.findOperationReceipt(request.id);
         if (previous != null) {
-          if (previous.kind != 'mission_complete_history' ||
+          if (previous.kind != 'completeHistory' ||
               previous.fingerprint != fingerprint) {
             throw const ExecutionConflict('同一次补记的内容已变化，请重新预览');
           }
@@ -134,7 +134,7 @@ class _MissionExecution {
         }
         final result = jsonEncode({
           'ok': true,
-          'operation': 'mission_complete_history',
+          'operation': 'completeHistory',
           'goalId': request.goalId,
           'completedCount': request.originals.length,
           'beforeDate': request.beforeDate,
@@ -152,7 +152,7 @@ class _MissionExecution {
             .insert(
               OperationReceiptsCompanion.insert(
                 id: request.id,
-                kind: 'mission_complete_history',
+                kind: 'completeHistory',
                 fingerprint: fingerprint,
                 entityId: request.goalId,
                 resultJson: result,

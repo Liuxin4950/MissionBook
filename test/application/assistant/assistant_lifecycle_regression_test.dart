@@ -1,3 +1,5 @@
+import 'package:mission_book/application/attachments/attachment_coordinator.dart';
+import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -6,10 +8,9 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/analysis/analysis_service.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
-import 'package:mission_book/application/evidence/evidence_image_service.dart';
+import 'package:mission_book/application/attachments/attachment_file_service.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
-import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
@@ -33,7 +34,7 @@ class _Model implements AgentModel {
   }
 }
 
-class _Images implements EvidenceImageStore, EvidenceImagePicker {
+class _Images implements AttachmentStore, ImageAttachmentPicker {
   int reads = 0;
   @override
   Future<Uint8List> read(String storageKey) async {
@@ -46,7 +47,7 @@ class _Images implements EvidenceImageStore, EvidenceImagePicker {
   @override
   Future<Set<String>> listKeys() async => {};
   @override
-  Future<SelectedEvidenceImage?> pick() async => null;
+  Future<SelectedAttachment?> pick() async => null;
   @override
   Future<void> writeNew(String storageKey, Uint8List bytes) async {}
 }
@@ -65,7 +66,13 @@ void main() {
     images = _Images();
     missions = MissionService(
       DriftMissionRepository(db, clock: () => now),
-      images: EvidenceImageService(store: images, picker: images),
+      attachments: AttachmentCoordinator(
+        files: AttachmentFileService(store: images, picker: images),
+        referencedKeys: DriftMissionRepository(
+          db,
+          clock: () => now,
+        ).referencedAttachmentKeys,
+      ),
       clock: () => now,
     );
     goals = GoalService(DriftGoalRepository(db));
@@ -84,7 +91,7 @@ void main() {
     bool supportsImages = true,
   }) async {
     final result = AssistantController(
-      reader: DriftAssistantReader(db),
+      unifiedReader: DriftUnifiedReader(db),
       sessionStore: DriftSessionStore(db),
       settingsStore: settings,
       missions: missions,

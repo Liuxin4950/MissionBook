@@ -646,7 +646,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                 liveRegion: true,
                 child: Text(
                   _reviewError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  style: TextStyle(color: AppColors.error),
                 ),
               ),
             const SizedBox(height: AppLayout.spaceXl),

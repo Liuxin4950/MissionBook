@@ -26,7 +26,7 @@ class FailureRecord {
 ///
 /// 这两个字符串会写进数据库，并被 failure_records 表的 CHECK 约束认可
 /// （见 lib/data/local/tables/failure_records.dart）；改动取值等于改变
-/// 历史数据语义，必须同步表约束与迁移。业务代码一律引用这两个常量，
+/// 持久化语义，必须同步表约束。业务代码一律引用这两个常量，
 /// 不再各自手写字符串，避免拼写不一致导致静默的数据分歧。
 const userMarkedNotCompletedTrigger = 'USER_MARKED_NOT_COMPLETED';
 const evidenceDeadlineMissedTrigger = 'EVIDENCE_DEADLINE_MISSED';

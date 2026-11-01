@@ -25,80 +25,39 @@ class _AssistantToolQueries {
   }
 
   Future<ToolOutput> _scheduleQuery(Map<String, Object?> input, _) async =>
-      _readResult({
-        ...await _tools._reader.missions(
-          date: input['date'] as String? ?? _tools._today(),
+      _readResult(
+        await _tools._unifiedReader.getSchedule(
+          date: input['date'] as String?,
           offset: input['offset'] as int? ?? 0,
         ),
-        'date': input['date'] ?? _tools._today(),
-        'queriedAt': _tools._clock().toUtc().toIso8601String(),
-      });
-  Future<ToolOutput> _missionSearch(Map<String, Object?> input, _) async =>
+      );
+  Future<ToolOutput> _missionQuery(Map<String, Object?> input, _) async =>
       _readResult(
-        await _tools._reader.missions(
-          date: input['date'] as String?,
+        await _tools._unifiedReader.getMission(
+          mission: input['mission'] as String?,
+          search: input['search'] as String?,
           goalId: input['goalId'] as String?,
           nodeId: input['nodeId'] as String?,
-          search: input['search'] as String?,
+          offset: input['offset'] as int? ?? 0,
+        ),
+      );
+  Future<ToolOutput> _goalQuery(Map<String, Object?> input, _) async =>
+      _readResult(
+        await _tools._unifiedReader.getGoal(
+          goal: input['goal'] as String?,
+          node: input['node'] as String?,
+          mission: input['mission'] as String?,
           offset: input['offset'] as int? ?? 0,
         ),
       );
   Future<ToolOutput> _missionContent(Map<String, Object?> input, _) async =>
       _readResult(
-        await _tools._reader.content(
+        await _tools._unifiedReader.content(
           input['missionId'] as String,
           input['field'] as String,
           offset: input['offset'] as int? ?? 0,
         ),
       );
-  Future<ToolOutput> _missionQuery(Map<String, Object?> input, _) async {
-    final detail = await _tools._missions.findDetail(
-      missionId: input['missionId'] as String,
-    );
-    if (detail == null) return ToolOutput.failure('not_found', '任务不存在');
-    return _readResult({
-      'ok': true,
-      'mission': _detailSummary(detail),
-      'eventCount': detail.events.length,
-      'lastEvent': detail.events.isEmpty
-          ? null
-          : {
-              'type': detail.events.last.type.name,
-              'sequence': detail.events.last.sequence,
-              'occurredAt': detail.events.last.occurredAt.toIso8601String(),
-            },
-      'hint': '长文字按预览长度截断；用 mission_content 分段读取。',
-    });
-  }
-
-  Future<ToolOutput> _goalList(Map<String, Object?> input, _) async =>
-      _readResult(
-        await _tools._reader.goals(offset: input['offset'] as int? ?? 0),
-      );
-  Future<ToolOutput> _goalQuery(Map<String, Object?> input, _) async =>
-      _readResult(
-        await _tools._reader.goal(
-          input['goalId'] as String,
-          offset: input['offset'] as int? ?? 0,
-        ),
-      );
-
-  Future<ToolOutput> _queryNode(Map<String, Object?> input, _) async {
-    final node = await _tools._goals.findNodeById(input['nodeId'] as String);
-    if (node == null) return ToolOutput.failure('not_found', '节点不存在');
-    return _readResult({
-      'ok': true,
-      'node': {
-        'id': node.id,
-        'goalId': node.goalId,
-        'parentNodeId': node.parentNodeId,
-        'title': node.title,
-        'description': AssistantTools._preview(node.description, 1000),
-        'descriptionLength': node.description?.length ?? 0,
-        'updatedAt': node.updatedAt.toIso8601String(),
-      },
-    });
-  }
 
   Map<String, Object?> _detailSummary(
     MissionDetail detail, {

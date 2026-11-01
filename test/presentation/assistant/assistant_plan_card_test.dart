@@ -1,3 +1,4 @@
+import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -11,7 +12,6 @@ import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
-import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
@@ -42,7 +42,7 @@ void main() {
     final missions = MissionService(DriftMissionRepository(database));
     final goals = GoalService(DriftGoalRepository(database));
     final model = ScriptedModel([
-      (_) => toolResponse('plan-ui', 'mission_plan', {
+      (_) => toolResponse('plan-ui', 'planMissions', {
         'title': '今天的学习安排',
         'items': [
           {
@@ -74,7 +74,7 @@ void main() {
       (_) => textResponse('已取消计划。'),
     ]);
     final assistant = AssistantController(
-      reader: DriftAssistantReader(database),
+      unifiedReader: DriftUnifiedReader(database),
       sessionStore: DriftSessionStore(database),
       settingsStore: MemoryAssistantSettingsStore(),
       missions: missions,

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:drift/native.dart';
 import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
+import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/goals/goal_package_import_service.dart';
 import 'package:mission_book/data/goal_import/goal_import_database.dart';
@@ -125,9 +126,11 @@ void main() {
         ),
         isFalse,
       );
-      final goalIndex = await assistantReader.goal(result.goalId);
-      expect(goalIndex['missionCount'], 10000);
-      expect(goalIndex.containsKey('missions'), isFalse);
+      final goalIndex = await DriftUnifiedReader(
+        db,
+      ).getGoal(goal: result.goalId);
+      expect((goalIndex['missions'] as Map)['total'], 10000);
+      expect((goalIndex['missions'] as Map)['items'] as List, hasLength(20));
       expect((goalIndex['nodes'] as Map)['items'] as List, hasLength(20));
       expect(jsonEncode(goalIndex).length, lessThan(18000));
       expect(await count(db, 'import_receipts'), 1);

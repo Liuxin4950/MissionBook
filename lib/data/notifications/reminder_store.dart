@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import '../../application/notifications/reminder_store.dart' as contract;
 
-/// 单个任务的提醒偏好（规格 §7.1：本地应用设置，不进八张领域表、不参加业务统计）。
-class ReminderPreference {
+/// 单个任务的本机提醒送达状态，不参加业务统计和备份。
+class ReminderPreference implements contract.ReminderStatus {
   ReminderPreference({
     required this.missionId,
     required this.scheduleRevisionId,
-    this.snoozedUntil,
     this.delivered = false,
     this.waitingDelivered = false,
   });
@@ -16,17 +16,15 @@ class ReminderPreference {
   /// 偏好只对这个排期版本有效；改期后旧偏好直接丢弃。
   String scheduleRevisionId;
 
-  /// 有效延后时刻（UTC）；对账时优先于原 fixedStartAt（§7.1）。
-  DateTime? snoozedUntil;
-
-  /// 该版本是否已实际送达。每次延后重置为未送达；“调度成功”≠已送达。
+  /// 该版本是否已实际送达；“调度成功”不等于已送达。
+  @override
   bool delivered;
+  @override
   bool waitingDelivered; // 到点执行冲突提醒与提前提醒分别去重。
 
   Map<String, Object?> toJson() => {
     'missionId': missionId,
     'scheduleRevisionId': scheduleRevisionId,
-    'snoozedUntil': snoozedUntil?.toIso8601String(),
     'delivered': delivered,
     'waitingDelivered': waitingDelivered,
   };
@@ -35,9 +33,6 @@ class ReminderPreference {
       ReminderPreference(
         missionId: json['missionId'] as String,
         scheduleRevisionId: json['scheduleRevisionId'] as String,
-        snoozedUntil: json['snoozedUntil'] == null
-            ? null
-            : DateTime.parse(json['snoozedUntil'] as String),
         delivered: json['delivered'] as bool? ?? false,
         waitingDelivered: json['waitingDelivered'] as bool? ?? false,
       );
@@ -45,9 +40,8 @@ class ReminderPreference {
 
 /// 提醒元数据仓库：偏好 + 稳定通知 id 分配表，JSON 文件持久化。
 ///
-/// 存文件而非 SQLite：提醒偏好按规格不进业务库，也就天然不进备份；
-/// 保存失败必须抛给调用方提示，不能假装延后成功（§7.1）。
-class ReminderStore {
+/// 本机调度状态保存在业务库之外；保存失败交给调用方提示和重试。
+class ReminderStore implements contract.ReminderStore {
   ReminderStore(this.file);
 
   final File file;
@@ -55,6 +49,7 @@ class ReminderStore {
   final Map<String, int> _notificationIds = {};
   final Set<String> _synchronizedMissions = {};
   int _nextNotificationId = 1;
+  @override
   int reminderLeadMinutes = 10; // 全局提前提醒分钟数，-1 表示关闭。
 
   static const reminderLeadOptions = [-1, 0, 5, 10, 15, 30, 60];
@@ -64,7 +59,8 @@ class ReminderStore {
   Future<void> _writeQueue = Future<void>.value();
 
   /// 读取持久化状态；文件缺失按空仓库处理，格式损坏抛 FormatException
-  /// （调用方据此提示“延后偏好可能丢失”）。
+  /// 调用方负责提示读取失败并提供重试。
+  @override
   Future<void> load() async {
     if (!await file.exists()) return;
     final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
@@ -151,6 +147,7 @@ class ReminderStore {
   }
 
   /// 保存全局提醒选择；落盘失败时回滚，界面不得显示保存成功。
+  @override
   Future<void> setReminderLeadMinutes(int minutes) {
     if (!reminderLeadOptions.contains(minutes)) {
       throw ArgumentError('不支持的提前提醒时间');
@@ -159,15 +156,17 @@ class ReminderStore {
       reminderLeadMinutes = minutes;
       for (final preference in _preferences.values) {
         preference.delivered = false;
-        preference.snoozedUntil = null;
       }
     });
   }
 
+  @override
   ReminderPreference? preferenceOf(String missionId) => _preferences[missionId];
+  @override
   Set<String> get synchronizedMissions =>
       Set.unmodifiable({..._synchronizedMissions, ..._preferences.keys});
 
+  @override
   Future<void> rememberSynchronizedMissions(Set<String> ids) async {
     await _writeQueue;
     if (ids.length == _synchronizedMissions.length &&
@@ -182,10 +181,12 @@ class ReminderStore {
   }
 
   /// 已分配通知 id 的只读快照，供调用方清理旧通知时读取。
+  @override
   Map<String, int> get notificationIds => Map.unmodifiable(_notificationIds);
 
   /// 幂等键 → 稳定 int 通知 id：同一键永远同 id，重排即覆盖。
   /// 新 id 必须保存成功后才返回，避免重启后重新分配撞号。
+  @override
   Future<int> notificationIdOf(String idempotencyKey) async {
     // 不能读到上一笔尚未落盘的内存分配，尤其是同键的并发调用。
     await _writeQueue;
@@ -201,23 +202,8 @@ class ReminderStore {
     });
   }
 
-  /// 延后：写入 snoozedUntil 并把送达标记重置为未送达（§7.1）。
-  Future<void> snooze({
-    required String missionId,
-    required String scheduleRevisionId,
-    required DateTime until,
-  }) => _write<void>(() {
-    final pref = _preferences[missionId] ??= ReminderPreference(
-      missionId: missionId,
-      scheduleRevisionId: scheduleRevisionId,
-    );
-    pref
-      ..scheduleRevisionId = scheduleRevisionId
-      ..snoozedUntil = until
-      ..delivered = false;
-  });
-
   /// 标记已送达；此后对账不再反复弹出。
+  @override
   Future<void> markDelivered(String missionId) async {
     await _writeQueue;
     final pref = _preferences[missionId];
@@ -229,11 +215,13 @@ class ReminderStore {
     });
   }
 
+  @override
   Future<void> markWaitingDelivered(String missionId) => _write<void>(() {
     _preferences[missionId]?.waitingDelivered = true;
   });
 
-  /// 对账时登记/更新当前版本偏好（不含延后与送达，各自独立维护）。
+  /// 对账时登记当前排期版本，送达状态独立维护。
+  @override
   Future<void> register({
     required String missionId,
     required String scheduleRevisionId,
@@ -253,16 +241,16 @@ class ReminderStore {
         return;
       }
       if (current.scheduleRevisionId == scheduleRevisionId) return;
-      // 排期版本变化：旧延后与送达状态一并作废（§7.1）。
+      // 排期版本变化后重新计算送达状态。
       current
         ..scheduleRevisionId = scheduleRevisionId
-        ..snoozedUntil = null
         ..delivered = false
         ..waitingDelivered = false;
     });
   }
 
   /// 丢弃失效偏好（任务已开始/已取消/版本过期）并回收其通知 id 登记。
+  @override
   Future<void> discard(String missionId) async {
     await _writeQueue;
     if (!_preferences.containsKey(missionId)) return Future<void>.value();

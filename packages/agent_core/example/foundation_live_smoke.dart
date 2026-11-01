@@ -31,7 +31,7 @@ Future<void> _verify(ModelProtocol protocol, {required bool thinking}) async {
         model: Platform.environment['DEEPSEEK_MODEL'] ?? 'deepseek-flash',
         endpoint: endpoint,
         protocol: protocol,
-        credentialEnvironment: 'DEEPSEEK_API_KEY',
+        credentialKey: 'DEEPSEEK_API_KEY',
         contextWindowTokens: window,
         maxOutputTokens: 2048,
         reasoningEffort: effort,

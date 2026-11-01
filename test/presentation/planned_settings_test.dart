@@ -8,7 +8,7 @@ import 'package:mission_book/application/notifications/app_notification_service.
 import 'package:mission_book/application/settings/app_device.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
-import 'package:mission_book/data/notifications/notification_dispatcher.dart';
+import 'package:mission_book/application/notifications/notification_dispatcher.dart';
 import 'package:mission_book/data/notifications/reminder_store.dart';
 import 'package:mission_book/domain/notifications/reminder_request.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';

@@ -1,7 +1,6 @@
 import '../../../domain/entities/analysis_scope.dart';
 import '../../records/analysis_panel.dart';
-import '../../records/execution_report_button.dart';
-import '../../records/records_page.dart';
+import '../execution/execution_report_button.dart';
 import '../../records/record_scope.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_content.dart';
 import 'dart:async';
@@ -16,7 +15,6 @@ import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_top_bar.dart';
-import '../../widgets/app_section_card.dart';
 import '../form/mission_form_page.dart';
 import '../shared/mission_action_controller.dart';
 import '../shared/mission_execution_display.dart';
@@ -412,7 +410,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
     final request = _cancelRequest;
     setState(() => _isReporting = true);
     try {
-      await showExecutionReportSheet(context, detail);
+      await showExecutionReportSheet(context, detail, widget.missionService);
     } finally {
       if (mounted && request == _cancelRequest) {
         setState(() => _isReporting = false);
@@ -456,7 +454,48 @@ class _MissionDetailPageState extends State<MissionDetailPage>
       // 写入期间留在当前页，等待事务结果；对话框自身仍可用系统返回关闭。
       canPop: !_isCancelBusy,
       child: Scaffold(
-        appBar: AppTopBar(title: '任务详情', canGoBack: !_isCancelBusy),
+        appBar: AppTopBar(
+          title: '任务详情',
+          canGoBack: !_isCancelBusy,
+          actions: [
+            PopupMenuButton<String>(
+              tooltip: '任务更多操作',
+              icon: const Icon(Icons.more_horiz, size: AppLayout.iconLg),
+              enabled: !_isCancelBusy,
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'refresh', child: Text('刷新任务')),
+                if (_lastDetail?.events.any(
+                      (e) => e.type == ExecutionEventType.end,
+                    ) ==
+                    true) ...[
+                  const PopupMenuItem(
+                    value: 'time',
+                    child: Text('更正实际日期 / 时段'),
+                  ),
+                  if (RecordScope.maybeOf(context) != null)
+                    const PopupMenuItem(value: 'analysis', child: Text('任务评价')),
+                ],
+              ],
+              onSelected: (action) {
+                final detail = _lastDetail;
+                if (action == 'refresh') {
+                  _retry();
+                } else if (detail != null && action == 'time') {
+                  unawaited(_requestReport(detail));
+                } else if (detail != null) {
+                  unawaited(
+                    showAnalysisSummary(
+                      context,
+                      scope: AnalysisScope.mission,
+                      id: detail.mission.id,
+                      title: detail.mission.title,
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
         // 详情是独立阅读页，有自己的返回按钮，不复制 AppShell 的底部导航。
         body: SafeArea(
           top: false,
@@ -554,40 +593,13 @@ class _MissionDetailPageState extends State<MissionDetailPage>
               return MissionDetailContent(
                 detail: detail,
                 materialSection: ended || detail.phase == MissionPhase.cancelled
-                    ? Column(
-                        children: [
-                          if (ended) ...[
-                            AppSectionCard(
-                              padding: EdgeInsets.zero,
-                              child: AnalysisPanel(
-                                scope: AnalysisScope.mission,
-                                id: detail.mission.id,
-                              ),
-                            ),
-                            const SizedBox(height: AppLayout.spaceMd),
-                          ],
-                          ExecutionReportButton(
-                            detail: detail,
-                            enabled: !disabled,
-                            onPressed: () => _requestReport(detail),
-                          ),
-                          const SizedBox(height: AppLayout.spaceMd),
-                          RecordsEntry(
-                            missionId: detail.mission.id,
-                            onReturn: _retry,
-                          ),
-                          const SizedBox(height: AppLayout.spaceMd),
-                          MissionEvidenceSection(
-                            key: ValueKey(
-                              'detail-evidence-${detail.mission.id}',
-                            ),
-                            detail: detail,
-                            service: widget.missionService,
-                            initiallyExpanded:
-                                detail.phase == MissionPhase.evidencePending,
-                            onChanged: _retry,
-                          ),
-                        ],
+                    ? MissionEvidenceSection(
+                        key: ValueKey('detail-evidence-${detail.mission.id}'),
+                        detail: detail,
+                        service: widget.missionService,
+                        initiallyExpanded:
+                            detail.phase == MissionPhase.evidencePending,
+                        onChanged: _retry,
                       )
                     : null,
                 actionFeedback: Column(
@@ -622,6 +634,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                         children: [
                           if (overdue)
                             ExecutionReportButton(
+                              service: widget.missionService,
                               detail: detail,
                               enabled: !disabled,
                               onPressed: () => _requestReport(detail),
@@ -658,6 +671,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                           if (showMakeup) ...[
                             const SizedBox(height: AppLayout.spaceSm),
                             MakeupExecutionButton(
+                              service: widget.missionService,
                               key: ValueKey(
                                 'makeup-${detail.mission.id}-${detail.schedule.id}',
                               ),

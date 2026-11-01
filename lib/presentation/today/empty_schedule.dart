@@ -17,7 +17,7 @@ class EmptySchedule extends StatelessWidget {
         ? null
         : FilledButton.icon(
             onPressed: onCreate,
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add_rounded),
             label: const Text('新建任务'),
           ),
   );

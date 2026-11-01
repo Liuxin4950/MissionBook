@@ -16,7 +16,6 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
   static const _apiKeyPrefix = 'assistant_credential_';
   static const _customProfileKey = 'assistant_custom_profile';
   static const _modelProfileKey = 'assistant_model_profile';
-  static const _autoApproveKey = 'assistant_auto_approve_writes';
   static const _permissionKey = 'assistant_permission_mode';
   static const _speechKey = 'assistant_speech_settings';
   static const _personaKey = 'assistant_persona';
@@ -35,7 +34,6 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
             ),
           );
     final customKey = await resolveCredential('MISSIONBOOK_CUSTOM_API_KEY');
-    final autoApprove = await _storage.read(key: _autoApproveKey);
     final permission = await _storage.read(key: _permissionKey);
     final speechJson = await _storage.read(key: _speechKey);
     final speech = speechJson == null
@@ -43,7 +41,6 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
         : jsonDecode(speechJson) as Map<String, dynamic>;
     final personaJson = await _storage.read(key: _personaKey);
     return AssistantSettings(
-      hasCredential: profile == 'custom' ? customKey != null : apiKey != null,
       hasDeepSeekCredential: apiKey != null,
       hasCustomCredential: customKey != null,
       customProfile: custom,
@@ -70,11 +67,7 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
           AssistantPermissionMode.values
               .where((mode) => mode.name == permission)
               .firstOrNull ??
-          (autoApprove == 'true'
-              ? AssistantPermissionMode.full
-              : autoApprove == 'false'
-              ? AssistantPermissionMode.relaxed
-              : AssistantPermissionMode.full),
+          AssistantPermissionMode.full,
     );
   }
 
@@ -129,13 +122,6 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
     await _storage.write(
       key: _customProfileKey,
       value: jsonEncode(profile.toJson()),
-    );
-  }
-
-  @override
-  Future<void> saveAutoApproveWrites(bool value) async {
-    await savePermissionMode(
-      value ? AssistantPermissionMode.full : AssistantPermissionMode.relaxed,
     );
   }
 

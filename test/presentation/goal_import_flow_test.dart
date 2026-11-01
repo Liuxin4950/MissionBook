@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:mission_book/domain/entities/goal_package_import.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -20,7 +21,12 @@ const outline = '''{"schema":"mission-book.goal-outline","version":1,
 class _Picker implements GoalFilePicker {
   Uint8List? bytes;
   @override
-  Future<Uint8List?> pickBytes() async => bytes;
+  Future<GoalImportSource?> pickSource() async {
+    final value = bytes;
+    return value == null ? null : GoalImportSource(
+      name: '目标.json', length: value.length, openRead: () async* { yield value; },
+    );
+  }
 }
 
 class _UncertainImportRepository extends DriftGoalRepository {

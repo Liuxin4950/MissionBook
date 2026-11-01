@@ -357,17 +357,19 @@ class _SettingsPageState extends State<SettingsPage>
 
   Widget _buildPermissionSection(BuildContext context) {
     final capabilities = _capabilities;
-    final platform = capabilities?.effectivePlatform;
+    final platform = capabilities?.platform;
     final supported =
         platform == DevicePlatform.android ||
         platform == DevicePlatform.windows;
     final needsNotifications = capabilities?.notifications == false;
     final needsExactAlarms =
-        capabilities?.android == true && capabilities?.exactAlarms == false;
+        platform == DevicePlatform.android &&
+        capabilities?.exactAlarms == false;
     final needsExecutionChannel = capabilities?.executionNotifications == false;
     final unknownPermission =
         capabilities?.notifications == null ||
-        (capabilities?.android == true && capabilities?.exactAlarms == null);
+        (platform == DevicePlatform.android &&
+            capabilities?.exactAlarms == null);
     final String title;
     final String description;
     final IconData icon;
@@ -516,7 +518,7 @@ class _SettingsPageState extends State<SettingsPage>
   Widget _buildScheduleSection(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final service = widget.notifications;
-    final platform = _capabilities?.effectivePlatform;
+    final platform = _capabilities?.platform;
     final canSchedule =
         service?.supportsScheduling == true &&
         (platform == DevicePlatform.android ||

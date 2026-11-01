@@ -20,11 +20,29 @@ class AnalysisWork {
   final bool manual;
 }
 
+/// 材料快照中的图片，观察结果只服务于本次任务评价。
+class AnalysisImage {
+  const AnalysisImage({
+    required this.materialId,
+    required this.storageKey,
+    this.mime,
+  });
+  final String materialId, storageKey;
+  final String? mime;
+}
+
 class AnalysisInput {
-  const AnalysisInput(this.facts, this.items, {this.imageKey, this.mime});
+  const AnalysisInput(
+    this.facts,
+    this.items, {
+    this.imageKey,
+    this.mime,
+    this.images = const [],
+  });
   final Map<String, Object?> facts;
   final List<Map<String, Object?>> items;
   final String? imageKey, mime;
+  final List<AnalysisImage> images;
 }
 
 abstract interface class AnalysisStore {
@@ -181,6 +199,35 @@ class AnalysisService {
             };
             final items = input.items;
             var reduced = List<Map<String, Object?>>.of(items);
+            for (final image in input.images) {
+              _checkAutomatic(job);
+              final material = items.firstWhere(
+                (item) => item['id'] == image.materialId,
+              );
+              final observation = await model(
+                _prompt(job, 300, {
+                  'instruction': '仅描述这一份提交快照图片中可观察的内容，不推断未展示的过程、完成或掌握。',
+                  'material': material,
+                }),
+                imageKey: image.storageKey,
+                mime: image.mime,
+                json: false,
+              );
+              if (observation.trim().isEmpty) throw StateError('材料图片未返回观察内容');
+              reduced = [
+                for (final item in reduced)
+                  if (item['id'] == image.materialId)
+                    {
+                      ...item,
+                      'imageObservation': String.fromCharCodes(
+                        observation.runes.take(300),
+                      ),
+                    }
+                  else
+                    item,
+              ];
+            }
+
             while (reduced.length > 20) {
               final next = <Map<String, Object?>>[];
               for (var i = 0; i < reduced.length; i += 20) {

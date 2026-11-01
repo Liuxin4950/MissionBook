@@ -1,3 +1,5 @@
+import '../../domain/rules/content_rules.dart';
+import '../../domain/entities/content_draft.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
@@ -29,7 +31,7 @@ import '../../domain/repositories/mission_makeup_repository.dart';
 import '../../domain/rules/evidence_rules.dart';
 import '../../domain/rules/mission_creation_rules.dart';
 import '../../domain/rules/scheduled_execution_rules.dart';
-import '../evidence/evidence_image_service.dart';
+import '../attachments/attachment_coordinator.dart';
 
 /// 任务的应用业务入口：组织创建、查询、编辑、取消和执行。
 ///
@@ -40,9 +42,13 @@ class MissionService {
   // clock 提供业务时刻（创建时间、编辑时间）；测试注入可控时钟固定时间断言。
   MissionService(
     this.repository, {
-    EvidenceImageService? images,
+    AttachmentCoordinator? attachments,
     DateTime Function() clock = DateTime.now,
-  }) : _images = images,
+  }) : attachments =
+           attachments ??
+           AttachmentCoordinator(
+             referencedKeys: repository.referencedAttachmentKeys,
+           ),
        _clock = clock {
     // 创建共享服务时准备时区资料，多个业务方法共用。
     tzdata.initializeTimeZones();
@@ -50,42 +56,11 @@ class MissionService {
 
   // 只依赖仓储接口；这里不需要知道 Companion 或数据库表。
   final MissionRepository repository;
-  final EvidenceImageService? _images;
+  final AttachmentCoordinator attachments;
   // 所有“现在几点”都从这里取，不再散落 DateTime.now()，时钟回拨测试才可控。
   final DateTime Function() _clock;
   // 页面按同一业务时钟判断计划边界，测试和仓储不再使用不同的“现在”。
   DateTime get currentTime => _clock();
-  Future<void>? _imageInitialization;
-  final _preparedImageKeys = <String>{}; // 当前会话准备的副本，删除草稿不能删正式引用。
-  Future<void>? _attachmentCommitQueue;
-
-  /// 文件系统不能加入 SQLite 事务；同一业务服务把“检查文件→提交引用”和
-  /// “重读引用→删除草稿副本”串行执行，避免检查后图片被另一个入口删掉。
-  Future<T> _withAttachmentCommit<T>(Future<T> Function() operation) {
-    final previous = _attachmentCommitQueue;
-    // 空闲时在本次调用的异步上下文直接开始，不在服务构造时创建待完成 Future。
-    final result = previous == null
-        ? Future<T>.sync(operation)
-        : previous.then<T>((_) => operation());
-    late final Future<void> tail;
-    void release() {
-      if (identical(_attachmentCommitQueue, tail)) {
-        _attachmentCommitQueue = null;
-      }
-    }
-
-    // 本次错误仍传给调用者；队列本身恢复为成功，后面的重试/清理不会永久阻塞。
-    tail = result.then<void>(
-      (_) => release(),
-      onError: (Object _, StackTrace _) => release(),
-    );
-    _attachmentCommitQueue = tail;
-    return result;
-  }
-
-  EvidenceImageService get _imageService =>
-      _images ?? (throw StateError('当前环境未配置图片存储，请重新打开应用'));
-
   // 创建一个编号生成器，后面用 v4() 生成唯一编号。
   final Uuid uuid = const Uuid();
   // 服务持有发送端；broadcast 允许今天页、详情页等同时登记监听。
@@ -98,18 +73,6 @@ class MissionService {
   // 页面拿到接收端后调用 changes.listen(回调)，登记收到通知时要做的事。
   Stream<void> get changes => _changes.stream;
   Future<void> dispose() => _changes.close();
-
-  /// 记录和任务材料共用附件提交锁，清理不会删除尚在提交的记录附件。
-  Future<void> commitRecordAttachment(
-    EvidenceDraft draft,
-    Future<void> Function() save,
-  ) => _withAttachmentCommit(() async {
-    final key = draft.attachmentStorageKey;
-    if (key != null) await _imageService.read(key);
-    await save();
-    _preparedImageKeys.remove(key);
-    _notify();
-  });
 
   // notify 意为“通知”；这是我们自己定义的方法，_ 表示仅本 Dart 库内部使用。
   // 调用者必须先等仓储成功返回。add 会让已监听页面的回调随后收到一次信号。
@@ -334,112 +297,80 @@ class MissionService {
 
   EvidenceDraft createTextEvidence(
     String content, {
-    EvidenceType type = EvidenceType.text,
+    ContentType type = ContentType.text,
     String? supersedesEvidenceId,
   }) {
-    if (type != EvidenceType.text &&
-        type != EvidenceType.code &&
-        type != EvidenceType.manualRecord) {
+    if (type != ContentType.text &&
+        type != ContentType.code &&
+        type != ContentType.manualRecord) {
       throw ArgumentError('该入口只创建文字、代码或手动记录');
     }
     return EvidenceDraft(
       id: uuid.v4(),
       type: type,
-      source: EvidenceSource.user,
+      source: ContentSource.user,
       content: content,
       supersedesEvidenceId: supersedesEvidenceId,
     );
   }
 
-  Future<void> _initializeImages() async {
-    try {
-      // 缓存正在进行的恢复工作；并发点击也会等它完成，之后才允许创建新草稿。
-      await (_imageInitialization ??= () async {
-        final referenced = await repository.referencedAttachmentKeys();
-        await _imageService.removeUnreferenced(referenced);
-      }());
-    } catch (_) {
-      _imageInitialization = null; // 首次失败允许用户重试，不永久缓存失败 Future。
-      rethrow;
-    }
-  }
+  /// 从记录提交材料快照；附件清理与提交互斥，事务内复核预览内容。
+  Future<EvidenceSubmissionResult> useRecordAsMaterial(
+    String recordId,
+    String missionId, {
+    EvidenceDraft? expected,
+    String? operationId,
+  }) => attachments.synchronized(() async {
+    final result = await repository.attachRecordEvidence(
+      recordId,
+      missionId,
+      expected: expected,
+      operationId: operationId,
+    );
+    refreshAfterExternalCommit();
+    return result;
+  });
 
-  /// 编辑区显示时提前准备，系统选择按钮就绪后可直接保留浏览器用户激活。
-  Future<void> initializeEvidenceImages() => _initializeImages();
+  /// 为任务材料选择附件并绑定修正身份。
+  Future<void> initializeEvidenceImages() => attachments.initialize();
 
   Future<EvidenceDraft?> pickEvidenceImage(
     String missionId, {
     String? supersedesEvidenceId,
   }) async {
-    await _initializeImages();
-    final prepared = await _imageService.pickAndPrepare(missionId);
-    if (prepared == null) return null;
-    _preparedImageKeys.add(prepared.storageKey);
-    return EvidenceDraft(
-      id: uuid.v4(),
-      type: EvidenceType.image,
-      source: EvidenceSource.fileSystem,
-      attachmentStorageKey: prepared.storageKey,
-      attachmentFileName: prepared.fileName,
-      attachmentMimeType: prepared.mimeType,
-      supersedesEvidenceId: supersedesEvidenceId,
-    );
+    final content = await attachments.pickImage(missionId);
+    return content == null
+        ? null
+        : EvidenceDraft.fromContent(
+            content,
+            supersedesEvidenceId: supersedesEvidenceId,
+          );
   }
 
   Future<EvidenceDraft?> pickEvidenceFile(
     String missionId, {
     String? supersedesEvidenceId,
   }) async {
-    await _initializeImages();
-    final prepared = await _imageService.pickFileAndPrepare(missionId);
-    if (prepared == null) return null;
-    _preparedImageKeys.add(prepared.storageKey);
-    return EvidenceDraft(
-      id: uuid.v4(),
-      type: EvidenceType.file,
-      source: EvidenceSource.fileSystem,
-      attachmentStorageKey: prepared.storageKey,
-      attachmentFileName: prepared.fileName,
-      attachmentMimeType: prepared.mimeType,
-      supersedesEvidenceId: supersedesEvidenceId,
-    );
+    final content = await attachments.pickFile(missionId);
+    return content == null
+        ? null
+        : EvidenceDraft.fromContent(
+            content,
+            supersedesEvidenceId: supersedesEvidenceId,
+          );
   }
 
   Future<EvidenceDraft> prepareEvidenceCameraImage(
     String missionId,
     Uint8List bytes, {
     required DateTime capturedAt,
-  }) async {
-    await _initializeImages();
-    final prepared = await _imageService.prepareCapturedImage(missionId, bytes);
-    _preparedImageKeys.add(prepared.storageKey);
-    return EvidenceDraft(
-      id: uuid.v4(),
-      type: EvidenceType.image,
-      source: EvidenceSource.camera,
-      attachmentStorageKey: prepared.storageKey,
-      attachmentFileName: prepared.fileName,
-      attachmentMimeType: prepared.mimeType,
-      capturedAt: capturedAt.toUtc(),
-    );
-  }
+  }) async => EvidenceDraft.fromContent(
+    await attachments.captureImage(missionId, bytes, capturedAt: capturedAt),
+  );
 
-  Future<Uint8List> readEvidenceImage(String storageKey) =>
-      _imageService.read(storageKey);
-
+  Future<Uint8List> readEvidenceImage(String key) => attachments.read(key);
   Future<void> discardEvidenceDrafts(List<EvidenceDraft> items) =>
-      _withAttachmentCommit(() async {
-        final referenced = await repository.referencedAttachmentKeys();
-        for (final item in items) {
-          final key = item.attachmentStorageKey;
-          if (key != null &&
-              _preparedImageKeys.contains(key) &&
-              !referenced.contains(key)) {
-            await _imageService.delete(key);
-            _preparedImageKeys.remove(key);
-          }
-        }
-      });
+      attachments.discard(items);
 
   EvidenceSubmission prepareEvidenceSubmission({
     required MissionDetail detail,
@@ -447,7 +378,7 @@ class MissionService {
   }) {
     if (items.isEmpty) throw ArgumentError('请至少添加一份有效材料');
     for (final item in items) {
-      validateEvidenceDraft(item, detail.mission.id);
+      validateContentDraft(item);
       if (item.supersedesEvidenceId != null) {
         throw ArgumentError('首次提交不能修正已有材料');
       }
@@ -461,7 +392,7 @@ class MissionService {
 
   Future<EvidenceSubmissionResult> submitEvidence(
     EvidenceSubmission submission,
-  ) => _withAttachmentCommit(() async {
+  ) => attachments.synchronized(() async {
     // 文件校验在事务前完成，SQLite 不等待系统选择器或复制文件。
     // 已保存批次重试交给仓储认原身份，缺失附件由材料阅读明确提示。
     final current = await repository.findDetail(submission.missionId);
@@ -470,17 +401,15 @@ class MissionService {
         false;
     if (!alreadySaved) {
       for (final item in submission.items) {
-        validateEvidenceDraft(item, submission.missionId);
+        validateContentDraft(item);
         if (item.attachmentStorageKey != null) {
-          await _imageService.read(item.attachmentStorageKey!);
+          await attachments.read(item.attachmentStorageKey!);
         }
       }
     }
     final result = await repository.submitEvidence(submission);
     // 两种结果都已保存材料，预先生成的附件不再属于待清理草稿。
-    for (final item in submission.items) {
-      _preparedImageKeys.remove(item.attachmentStorageKey);
-    }
+    attachments.markCommitted(submission.items);
     _notify();
     return result;
   });
@@ -495,23 +424,23 @@ class MissionService {
         draft.type != original.type) {
       throw const EvidenceConflict('只能修正当前有效的同类材料');
     }
-    validateEvidenceDraft(draft, detail.mission.id);
+    validateContentDraft(draft);
     return EvidenceCorrection(missionId: detail.mission.id, item: draft);
   }
 
   Future<Evidence> correctEvidence(EvidenceCorrection correction) =>
-      _withAttachmentCommit(() async {
+      attachments.synchronized(() async {
         final current = await repository.findDetail(correction.missionId);
         final saved =
             current?.evidence.any((item) => item.id == correction.item.id) ??
             false;
         if (!saved) {
-          validateEvidenceDraft(correction.item, correction.missionId);
+          validateContentDraft(correction.item);
           final key = correction.item.attachmentStorageKey;
-          if (key != null) await _imageService.read(key);
+          if (key != null) await attachments.read(key);
         }
         final result = await repository.correctEvidence(correction);
-        _preparedImageKeys.remove(correction.item.attachmentStorageKey);
+        attachments.markCommitted([correction.item]);
         _notify();
         return result;
       });

@@ -46,7 +46,7 @@ class IoSpeechModelStore implements SpeechModelStore {
     if (signature == null) return null;
     final marker = File('${directory.path}/.verified');
     if (!await marker.exists() || await marker.readAsString() != signature) {
-      // 兼容旧版本已部署的模型；大文件校验放到后台 isolate。
+      // 文件签名变化或校验标记缺失时重新校验；大文件校验放到后台 isolate。
       final path = directory.path;
       final manifest = files;
       if (!await _verifyOffThread(path, manifest)) return null;

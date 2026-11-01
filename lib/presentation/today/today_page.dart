@@ -759,7 +759,7 @@ class _TodayHeader extends StatelessWidget {
               ),
               IconButton.filled(
                 onPressed: onCreate,
-                icon: const Icon(Icons.add, color: AppColors.onPrimary),
+                icon: const Icon(Icons.add_rounded, color: AppColors.onPrimary),
                 tooltip: '创建任务',
                 style: IconButton.styleFrom(
                   fixedSize: const Size(48, 48),
@@ -1005,7 +1005,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                   style: TextButton.styleFrom(
                     textStyle: theme.textTheme.labelMedium,
                   ),
-                  icon: const Icon(Icons.add, size: AppLayout.iconSm),
+                  icon: const Icon(Icons.add_rounded, size: AppLayout.iconSm),
                   label: const Text('添加'),
                 ),
               ],

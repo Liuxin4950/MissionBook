@@ -19,7 +19,6 @@ import '../../domain/entities/scheduled_mission.dart';
 import '../goals/goal_service.dart';
 import '../missions/mission_service.dart';
 import 'assistant_tools.dart';
-import 'assistant_reader.dart';
 import '../records/record_service.dart';
 import '../analysis/analysis_service.dart';
 import '../web/web_service.dart';
@@ -122,7 +121,6 @@ class AssistantController extends ChangeNotifier {
   }
 
   AssistantController({
-    required AssistantReader reader,
     required AssistantConversationStore sessionStore,
     required AssistantSettingsStore settingsStore,
     required MissionService missions,
@@ -130,7 +128,7 @@ class AssistantController extends ChangeNotifier {
     RecordService? records,
     MemoryService? memory,
     AnalysisStore? analysis,
-    UnifiedReader? unifiedReader,
+    required UnifiedReader unifiedReader,
     WebService? web,
     AgentConfiguration? configuration,
     Map<String, AgentModel> modelOverrides = const {},
@@ -148,20 +146,16 @@ class AssistantController extends ChangeNotifier {
        _modelOverrides = modelOverrides,
        _clock = clock ?? DateTime.now {
     _tools = AssistantTools(
-      reader: reader,
+      unifiedReader: unifiedReader,
       missions: missions,
       goals: goals,
       resolveCall: _resolveCall,
       memory: memory,
       extraTools:
-          records != null &&
-              memory != null &&
-              analysis != null &&
-              unifiedReader != null &&
-              web != null
+          records != null && memory != null && analysis != null && web != null
           ? contextTools(
-              reader: unifiedReader,
               records: records,
+              missions: missions,
               memory: memory,
               analysis: analysis,
               web: web,
@@ -194,9 +188,7 @@ class AssistantController extends ChangeNotifier {
   final _operations = <String, AssistantOperation>{};
 
   AssistantSettings _settings = const AssistantSettings(
-    hasCredential: false,
     modelProfileId: 'deepseek-chat',
-    autoApproveWrites: false,
   );
   List<AssistantConversationSummary> _conversations = const [];
   List<AgentMessage> _transcript = const [];
@@ -399,9 +391,8 @@ class AssistantController extends ChangeNotifier {
   bool get hasCredential => profileHasCredential(modelProfileId);
   bool profileHasCredential(String id) => id == 'custom'
       ? _settings.hasCustomCredential
-      : (_settings.hasDeepSeekCredential ?? _settings.hasCredential);
+      : _settings.hasDeepSeekCredential;
   ModelProfile? get customProfile => _settings.customProfile;
-  bool get autoApproveWrites => _settings.autoApproveWrites;
   AssistantPermissionMode get permissionMode => _settings.permissionMode;
   AssistantSpeechSettings get speechSettings => _settings.speech;
   AssistantPersona get persona => _settings.persona;
@@ -497,9 +488,6 @@ class AssistantController extends ChangeNotifier {
 
   Future<void> selectModelProfile(String profileId) =>
       _config.selectModelProfile(profileId);
-
-  Future<void> setAutoApproveWrites(bool value) =>
-      _config.setAutoApproveWrites(value);
 
   Future<void> setPermissionMode(AssistantPermissionMode mode) =>
       _config.setPermissionMode(mode);

@@ -10,8 +10,7 @@ class DeviceCapabilities {
     required this.version,
     this.notifications,
     this.exactAlarms,
-    this.android = false,
-    this.platform,
+    required this.platform,
     this.executionNotifications,
     this.islandSupported,
     this.focusPermission,
@@ -19,10 +18,7 @@ class DeviceCapabilities {
   final String version;
   final bool? notifications;
   final bool? exactAlarms;
-  final bool android;
-  final DevicePlatform? platform;
-  DevicePlatform get effectivePlatform =>
-      platform ?? (android ? DevicePlatform.android : DevicePlatform.other);
+  final DevicePlatform platform;
   final bool? executionNotifications;
   final bool? islandSupported;
   final bool? focusPermission;

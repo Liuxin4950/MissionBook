@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/content_draft.dart';
 import 'dart:convert';
 import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
@@ -82,8 +83,8 @@ void main() {
           items: [
             const EvidenceDraft(
               id: 'original-evidence',
-              type: EvidenceType.text,
-              source: EvidenceSource.user,
+              type: ContentType.text,
+              source: ContentSource.user,
               content: '用户原始记录',
             ),
           ],
@@ -96,8 +97,8 @@ void main() {
           original: detail.evidence.single,
           draft: const EvidenceDraft(
             id: 'corrected-evidence',
-            type: EvidenceType.text,
-            source: EvidenceSource.user,
+            type: ContentType.text,
+            source: ContentSource.user,
             content: '用户修正记录',
             supersedesEvidenceId: 'original-evidence',
           ),

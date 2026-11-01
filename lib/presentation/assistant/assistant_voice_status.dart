@@ -76,7 +76,7 @@ class AssistantVoiceStatus extends StatelessWidget {
               IconButton(
                 tooltip: '取消本次语音',
                 onPressed: onCancel,
-                icon: const Icon(Icons.close, size: AppLayout.iconSm),
+                icon: const Icon(Icons.close_rounded, size: AppLayout.iconSm),
               ),
           ],
         ),

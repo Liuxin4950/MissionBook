@@ -6,6 +6,7 @@ import '../../core/theme/app_layout.dart';
 import '../../application/assistant/assistant_conversation_store.dart';
 import '../../core/theme/colors.dart';
 import '../widgets/app_confirm_dialog.dart';
+import '../widgets/app_empty_state.dart';
 import '../widgets/app_top_bar.dart';
 
 class AssistantHistoryPage extends StatefulWidget {
@@ -56,7 +57,7 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
                             tooltip: '清空搜索',
                             onPressed: () => setState(_search.clear),
                             icon: const Icon(
-                              Icons.close,
+                              Icons.close_rounded,
                               size: AppLayout.iconSm,
                             ),
                           ),
@@ -88,7 +89,9 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
             .toList()
           ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     if (conversations.isEmpty) {
-      return Center(child: Text(query.isEmpty ? '还没有保存的会话' : '没有匹配的会话'));
+      return Center(
+        child: AppEmptyState(title: query.isEmpty ? '还没有保存的会话' : '没有匹配的会话'),
+      );
     }
     final today = DateUtils.dateOnly(DateTime.now());
     final rows = <Widget>[];

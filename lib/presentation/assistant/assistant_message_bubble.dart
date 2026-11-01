@@ -165,7 +165,7 @@ class _MessageImage extends StatelessWidget {
                     child: IconButton(
                       tooltip: '关闭图片',
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close_rounded),
                     ),
                   ),
                 ],

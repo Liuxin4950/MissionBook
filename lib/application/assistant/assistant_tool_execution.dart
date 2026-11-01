@@ -12,7 +12,6 @@ class _AssistantToolExecution {
     required Map<String, Object?> input,
   }) async {
     const uuid = Uuid();
-    toolName = AssistantTools.legacyName(toolName);
     if (toolName == 'startMakeup') {
       final detail = await _tools._missions.findDetail(
         missionId: input['missionId'] as String,
@@ -26,66 +25,83 @@ class _AssistantToolExecution {
             )
           : null;
     }
-    if ([
-      'startMakeup',
-      'saveRecord',
-      'linkRecord',
-      'reportExecution',
-      'correctExecutionTime',
-      'saveMemory',
-      'forgetMemory',
-      'retryAnalysis',
-    ].contains(toolName)) {
-      final receipt = await _tools._missions.findOperationReceipt(
-        uuid.v5(Namespace.url.value, idempotencyKey),
-      );
-      return receipt == null ? null : ToolOutput.success(receipt.resultJson);
+    final commandId = uuid.v5(Namespace.url.value, idempotencyKey);
+    final receiptTarget = switch (toolName) {
+      'saveRecord' => ('record_save', commandId),
+      'setRecordOwnership' => ('record_ownership', input['recordId']),
+      'useRecordAsMaterial' => ('record_material', input['missionId']),
+      'reportExecution' ||
+      'correctExecutionTime' => ('execution_report', input['missionId']),
+      'saveMemory' => ('memory_save', input['id'] ?? commandId),
+      'forgetMemory' => ('memory_forget', input['id']),
+      'retryAnalysis' => ('analysis_retry', input['id']),
+      _ => null,
+    };
+    if (receiptTarget != null) {
+      final receipt = await _tools._missions.findOperationReceipt(commandId);
+      if (receipt?.kind != receiptTarget.$1 ||
+          receipt?.entityId != receiptTarget.$2) {
+        return null;
+      }
+      if (toolName == 'useRecordAsMaterial') {
+        final result = jsonDecode(receipt!.resultJson);
+        if (result is! Map || result['recordId'] != input['recordId']) {
+          return null;
+        }
+      }
+      return ToolOutput.success(receipt!.resultJson);
     }
     switch (toolName) {
-      case 'mission_complete_history':
-      case 'mission_plan':
+      case 'completeHistory':
+      case 'planMissions':
         final receipt = await _tools._missions.findOperationReceipt(
           idempotencyKey,
         );
         return receipt?.kind == toolName
             ? ToolOutput.success(receipt!.resultJson)
             : null;
-      case 'goal_update':
-      case 'goal_node_update':
+      case 'updateGoal':
+      case 'updateGoalNode':
         final receipt = await _tools._missions.findOperationReceipt(
           idempotencyKey,
         );
-        return receipt == null ? null : ToolOutput.success(receipt.resultJson);
-      case 'mission_create':
-      case 'mission_retry':
+        final entityId = input[toolName == 'updateGoal' ? 'goalId' : 'nodeId'];
+        return receipt?.kind == toolName && receipt?.entityId == entityId
+            ? ToolOutput.success(receipt!.resultJson)
+            : null;
+      case 'createMission':
+      case 'retryMission':
         final missionId = uuid.v5(
           Namespace.url.value,
           '$idempotencyKey:mission',
         );
         final detail = await _tools._missions.findDetail(missionId: missionId);
         return detail == null ? null : _missionResult(toolName, detail);
-      case 'mission_reschedule':
-      case 'mission_update':
+      case 'rescheduleMission':
+      case 'updateMission':
         final receipt = await _tools._missions.findOperationReceipt(
           idempotencyKey,
         );
-        if (receipt == null) return null;
+        if (receipt?.kind != 'mission_edit' ||
+            receipt?.entityId != input['missionId']) {
+          return null;
+        }
         final detail = await _tools._missions.findDetail(
           missionId: input['missionId'] as String,
         );
         return detail == null ? null : _missionResult(toolName, detail);
-      case 'mission_execute':
+      case 'executeMission':
         final missionId = input['missionId'] as String;
         final detail = await _tools._missions.findDetail(missionId: missionId);
         final event = detail?.events
             .where((item) => item.id == idempotencyKey)
             .firstOrNull;
         return event == null ? null : _eventResult(event, missionId);
-      case 'mission_cancel':
+      case 'cancelMission':
         final receipt = await _tools._missions.findOperationReceipt(
           idempotencyKey,
         );
-        if (receipt?.kind != 'mission_cancel' ||
+        if (receipt?.kind != 'cancelMission' ||
             receipt?.entityId != input['missionId']) {
           return null;
         }
@@ -94,8 +110,8 @@ class _AssistantToolExecution {
           'operation': toolName,
           'missionId': receipt!.entityId,
         });
-      case 'goal_create':
-      case 'goal_outline_create':
+      case 'createGoal':
+      case 'createGoalOutline':
         final goalId = uuid.v5(Namespace.url.value, '$idempotencyKey:goal');
         final goal = await _tools._goals.findById(goalId);
         if (goal == null) return null;
@@ -108,7 +124,7 @@ class _AssistantToolExecution {
             {'type': 'goal', 'id': goal.id, 'title': goal.title},
           ],
         });
-      case 'goal_node_create':
+      case 'createGoalNode':
         final nodeId = uuid.v5(Namespace.url.value, '$idempotencyKey:node');
         final node = await _tools._goals.findNodeById(nodeId);
         if (node == null) return null;
@@ -289,7 +305,7 @@ class _AssistantToolExecution {
       final saved = await _tools._missions.findDetail(
         missionId: request.mission.id,
       );
-      if (saved != null) return _missionResult('mission_create', saved);
+      if (saved != null) return _missionResult('createMission', saved);
       if (error is ArgumentError || error is StateError) {
         throw ToolRejected(
           'create_rejected',
@@ -302,7 +318,7 @@ class _AssistantToolExecution {
       missionId: request.mission.id,
     );
     if (saved == null) throw StateError('创建提交后未能读取任务');
-    return _missionResult('mission_create', saved);
+    return _missionResult('createMission', saved);
   }
 
   Future<ToolOutput> _createGoalOutline(
@@ -311,7 +327,7 @@ class _AssistantToolExecution {
   ) async {
     final values = _call(context, input).input;
     final recovered = await recoverOutcome(
-      toolName: 'goal_outline_create',
+      toolName: 'createGoalOutline',
       idempotencyKey: context.idempotencyKey,
       input: values,
     );
@@ -327,7 +343,7 @@ class _AssistantToolExecution {
       await _tools._goals.importOutline(request);
     } catch (error) {
       final saved = await recoverOutcome(
-        toolName: 'goal_outline_create',
+        toolName: 'createGoalOutline',
         idempotencyKey: context.idempotencyKey,
         input: values,
       );
@@ -342,7 +358,7 @@ class _AssistantToolExecution {
     }
     return AssistantTools._success({
       'ok': true,
-      'operation': 'goal_outline_create',
+      'operation': 'createGoalOutline',
       'goalId': request.goal.id,
       'title': request.goal.title,
       'nodeCount': request.nodes.length,
@@ -394,7 +410,7 @@ class _AssistantToolExecution {
       final saved = await _tools._missions.findDetail(
         missionId: request.mission.id,
       );
-      if (saved != null) return _missionResult('mission_retry', saved);
+      if (saved != null) return _missionResult('retryMission', saved);
       if (error is ArgumentError || error is StateError) {
         throw ToolRejected(
           'retry_rejected',
@@ -407,13 +423,13 @@ class _AssistantToolExecution {
       missionId: request.mission.id,
     );
     if (saved == null) throw StateError('新尝试保存后未能读取，请核对结果');
-    return _missionResult('mission_retry', saved);
+    return _missionResult('retryMission', saved);
   }
 
   Future<ToolOutput> _rescheduleMission(
     Map<String, Object?> input,
     ToolContext context, {
-    String operation = 'mission_reschedule',
+    String operation = 'rescheduleMission',
   }) async {
     final prepared = _call(context, input);
     final values = prepared.input;
@@ -552,10 +568,10 @@ class _AssistantToolExecution {
       final receipt = await _tools._missions.findOperationReceipt(
         context.idempotencyKey,
       );
-      if (receipt?.kind == 'mission_cancel' && receipt?.entityId == missionId) {
+      if (receipt?.kind == 'cancelMission' && receipt?.entityId == missionId) {
         return AssistantTools._success({
           'ok': true,
-          'operation': 'mission_cancel',
+          'operation': 'cancelMission',
           'missionId': missionId,
         });
       }
@@ -571,7 +587,7 @@ class _AssistantToolExecution {
     }
     return AssistantTools._success({
       'ok': true,
-      'operation': 'mission_cancel',
+      'operation': 'cancelMission',
       'missionId': missionId,
     });
   }
@@ -597,14 +613,14 @@ class _AssistantToolExecution {
       if (saved != null) {
         return AssistantTools._success({
           'ok': true,
-          'operation': 'goal_create',
+          'operation': 'createGoal',
           'goalId': saved.id,
           'title': saved.title,
         });
       }
       if (error is ArgumentError || error is StateError) {
         throw ToolRejected(
-          'goal_create_rejected',
+          'createGoal_rejected',
           userErrorMessage(error, fallback: '操作未完成，请重试；仍有问题时检查模型设置'),
         );
       }
@@ -612,7 +628,7 @@ class _AssistantToolExecution {
     }
     return AssistantTools._success({
       'ok': true,
-      'operation': 'goal_create',
+      'operation': 'createGoal',
       'goalId': goal.id,
       'title': goal.title,
     });
@@ -639,7 +655,7 @@ class _AssistantToolExecution {
       if (saved != null) {
         return AssistantTools._success({
           'ok': true,
-          'operation': 'goal_node_create',
+          'operation': 'createGoalNode',
           'goalId': saved.goalId,
           'nodeId': saved.id,
         });
@@ -654,7 +670,7 @@ class _AssistantToolExecution {
     }
     return AssistantTools._success({
       'ok': true,
-      'operation': 'goal_node_create',
+      'operation': 'createGoalNode',
       'goalId': request.goalId,
       'nodeId': request.id,
     });
@@ -682,7 +698,7 @@ class _AssistantToolExecution {
   ToolOutput _eventResult(ExecutionEvent event, String missionId) =>
       AssistantTools._success({
         'ok': true,
-        'operation': 'mission_execute',
+        'operation': 'executeMission',
         'missionId': missionId,
         'event': {
           'id': event.id,

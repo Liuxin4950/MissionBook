@@ -1,3 +1,5 @@
+import '../../../domain/entities/content_draft.dart';
+import '../../records/material_record_source.dart';
 import '../../../application/errors/user_error_message.dart';
 import 'dart:async';
 import 'dart:typed_data';
@@ -11,15 +13,15 @@ import '../../../domain/entities/mission_detail.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_expansion.dart';
 import '../shared/mission_execution_display.dart';
-import 'evidence_image_loader.dart';
+import '../../attachments/attachment_image_loader.dart';
 import '../../../core/theme/app_layout.dart';
 
-String evidenceTypeLabel(EvidenceType type) => switch (type) {
-  EvidenceType.text => '文字记录',
-  EvidenceType.code => '代码',
-  EvidenceType.image => '图片',
-  EvidenceType.file => '文件',
-  EvidenceType.manualRecord => '手动记录',
+String evidenceTypeLabel(ContentType type) => switch (type) {
+  ContentType.text => '文字记录',
+  ContentType.code => '代码',
+  ContentType.image => '图片',
+  ContentType.file => '文件',
+  ContentType.manualRecord => '手动记录',
 };
 
 /// 正式材料的当前有效项、完整修正历史与单条留痕修正。
@@ -169,7 +171,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
       _error = null;
     });
     try {
-      final picked = original.type == EvidenceType.image
+      final picked = original.type == ContentType.image
           ? await widget.service.pickEvidenceImage(
               _detail.mission.id,
               supersedesEvidenceId: original.id,
@@ -288,7 +290,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
       key,
       () => widget.service.readEvidenceImage(key),
     );
-    return EvidenceImageLoader(
+    return AttachmentImageLoader(
       future: future,
       name: name,
       height: widget.compact ? 120 : 148,
@@ -347,9 +349,9 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
             children: [
               if (!widget.compact) ...[
                 Icon(
-                  item.type == EvidenceType.image
+                  item.type == ContentType.image
                       ? Icons.image_outlined
-                      : item.type == EvidenceType.file
+                      : item.type == ContentType.file
                       ? Icons.attach_file_rounded
                       : Icons.notes_rounded,
                   size: AppLayout.iconSm,
@@ -395,12 +397,12 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                 ),
             ],
           ),
-          if (item.type == EvidenceType.image)
+          if (item.type == ContentType.image)
             _image(
               item.attachmentStorageKey!,
               item.attachmentFileName ?? '图片材料',
             ),
-          if (item.type == EvidenceType.image &&
+          if (item.type == ContentType.image &&
               item.attachmentFileName?.isNotEmpty == true) ...[
             const SizedBox(height: AppLayout.spaceSm),
             Text(
@@ -410,12 +412,17 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
               style: theme.textTheme.bodySmall,
             ),
           ],
-          if (item.type == EvidenceType.file) _file(item),
+          if (item.type == ContentType.file) _file(item),
           if (item.content?.trim().isNotEmpty == true) ...[
             if (item.attachmentStorageKey != null)
               const SizedBox(height: AppLayout.spaceSm),
             SelectableText(item.content!),
           ],
+          if (item.sourceRecordId != null)
+            MaterialRecordSource(
+              recordId: item.sourceRecordId!,
+              key: ValueKey(item.id),
+            ),
           if (!widget.compact)
             Text(
               '提交于 ${missionLocalTime(item.submittedAt, _detail.schedule.timeZone)}',
@@ -433,12 +440,12 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
       children: [
         const Divider(height: 24),
         const Text('修正草稿 · 原材料会保留'),
-        if (draft.type == EvidenceType.image)
+        if (draft.type == ContentType.image)
           _image(
             draft.attachmentStorageKey!,
             draft.attachmentFileName ?? '替代图片',
           ),
-        if (draft.type == EvidenceType.file)
+        if (draft.type == ContentType.file)
           Text('替代文件：${draft.attachmentFileName}'),
         const SizedBox(height: AppLayout.spaceSm),
         TextField(
@@ -483,8 +490,8 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
     super.build(context);
     final theme = Theme.of(context);
     final effective = _detail.effectiveEvidence;
-    final images = effective.where((item) => item.type == EvidenceType.image);
-    final others = effective.where((item) => item.type != EvidenceType.image);
+    final images = effective.where((item) => item.type == ContentType.image);
+    final others = effective.where((item) => item.type != ContentType.image);
     final corrections = _detail.evidence.where(
       (item) => item.supersedesEvidenceId != null,
     );
@@ -529,7 +536,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
               if (_attachmentError != null) ...[
                 Text(
                   _attachmentError!,
-                  style: TextStyle(color: theme.colorScheme.error),
+                  style: TextStyle(color: AppColors.error),
                 ),
                 TextButton(
                   onPressed: _prepareAttachments,
@@ -585,12 +592,12 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                               ),
                               style: theme.textTheme.bodySmall,
                             ),
-                            if (item.type == EvidenceType.image)
+                            if (item.type == ContentType.image)
                               _image(
                                 item.attachmentStorageKey!,
                                 item.attachmentFileName ?? '图片材料',
                               ),
-                            if (item.type == EvidenceType.file) _file(item),
+                            if (item.type == ContentType.file) _file(item),
                             if (item.content?.trim().isNotEmpty == true)
                               SelectableText(item.content!),
                           ],
@@ -599,7 +606,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                   ],
                 ),
               if (_error != null) ...[
-                Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+                Text(_error!, style: TextStyle(color: AppColors.error)),
                 TextButton(
                   onPressed: _busy ? null : _readLatest,
                   child: const Text('读取最新材料'),

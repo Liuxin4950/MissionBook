@@ -2,12 +2,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
-import 'evidence_image_preview.dart';
-import 'evidence_image_status.dart';
+import 'attachment_image_preview.dart';
+import 'attachment_image_status.dart';
 
-/// 图片读取状态统一呈现；Future 由页面缓存，重试由页面重新读取同一份材料。
-class EvidenceImageLoader extends StatelessWidget {
-  const EvidenceImageLoader({
+/// 图片读取状态统一呈现；Future 由页面缓存，重试由页面重新读取同一张图片。
+class AttachmentImageLoader extends StatelessWidget {
+  const AttachmentImageLoader({
     super.key,
     required this.future,
     required this.name,
@@ -29,7 +29,7 @@ class EvidenceImageLoader extends StatelessWidget {
     future: future,
     builder: (context, snapshot) {
       if (snapshot.hasError) {
-        return EvidenceImageStatus(
+        return AttachmentImageStatus(
           name: name,
           height: height,
           failed: true,
@@ -38,7 +38,7 @@ class EvidenceImageLoader extends StatelessWidget {
         );
       }
       if (!snapshot.hasData) {
-        return EvidenceImageStatus(
+        return AttachmentImageStatus(
           name: name,
           height: height,
           compact: compact,
@@ -49,7 +49,7 @@ class EvidenceImageLoader extends StatelessWidget {
           snapshot.data!,
           fit: BoxFit.cover,
           semanticLabel: name,
-          errorBuilder: (_, error, stack) => EvidenceImageStatus(
+          errorBuilder: (_, error, stack) => AttachmentImageStatus(
             name: name,
             height: height,
             failed: true,
@@ -58,7 +58,7 @@ class EvidenceImageLoader extends StatelessWidget {
           ),
         );
       }
-      return EvidenceImagePreview(
+      return AttachmentImagePreview(
         key: previewKey,
         bytes: snapshot.data!,
         name: name,

@@ -1,3 +1,4 @@
+import '../../core/theme/colors.dart';
 import '../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -5,11 +6,55 @@ import '../widgets/app_expansion.dart';
 import '../widgets/app_confirm_dialog.dart';
 import '../../core/theme/app_layout.dart';
 import 'record_scope.dart';
+import '../widgets/adaptive_sheet.dart';
+
+/// 次要总结操作由菜单打开，保留原页面的节点或任务上下文。
+Future<void> showAnalysisSummary(
+  BuildContext context, {
+  required AnalysisScope scope,
+  required String id,
+  required String title,
+}) => showAdaptiveSheet<void>(
+  context: context,
+  builder: (context) => SafeArea(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(AppLayout.spaceXl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              IconButton(
+                tooltip: '关闭摘要',
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close_rounded, size: AppLayout.iconLg),
+              ),
+            ],
+          ),
+          AnalysisPanel(scope: scope, id: id, initiallyExpanded: true),
+        ],
+      ),
+    ),
+  ),
+);
 
 class AnalysisPanel extends StatefulWidget {
-  const AnalysisPanel({super.key, required this.scope, required this.id});
+  const AnalysisPanel({
+    super.key,
+    required this.scope,
+    required this.id,
+    this.initiallyExpanded = false,
+  });
   final AnalysisScope scope;
   final String id;
+  final bool initiallyExpanded;
   @override
   State<AnalysisPanel> createState() => _AnalysisPanelState();
 }
@@ -120,6 +165,7 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AppExpansionTile(
+              initiallyExpanded: widget.initiallyExpanded,
               title: Text(
                 widget.scope == AnalysisScope.mission
                     ? '任务评价'
@@ -140,6 +186,11 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                       }}${a?['stale'] == true ? ' · 来源已变化' : ''}',
               ),
               children: [
+                if (_requestError != null)
+                  Text(
+                    _requestError!,
+                    style: TextStyle(color: AppColors.error),
+                  ),
                 if (scope.analysis.preferencesError != null)
                   TextButton.icon(
                     onPressed: _retryPreferences,
@@ -165,10 +216,20 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                 Text('已覆盖直接子项：${a?['coverage'] ?? 0}'),
                 Wrap(
                   children: [
-                    if (!missing)
-                      OutlinedButton(
+                    if (!s.hasError)
+                      OutlinedButton.icon(
+                        key: Key(
+                          'generate-summary-${widget.scope.name}-${widget.id}',
+                        ),
                         onPressed: busy ? null : request,
-                        child: const Text('更新总结'),
+                        icon: const Icon(Icons.auto_awesome_outlined),
+                        label: Text(
+                          busy
+                              ? '等待总结…'
+                              : missing
+                              ? '生成总结'
+                              : '更新总结',
+                        ),
                       ),
                     if (widget.scope == AnalysisScope.node)
                       OutlinedButton(
@@ -179,28 +240,6 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                 ),
               ],
             ),
-            if (_requestError != null)
-              Text(
-                _requestError!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            if (missing && !s.hasError)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppLayout.spaceLg,
-                  0,
-                  AppLayout.spaceLg,
-                  AppLayout.spaceLg,
-                ),
-                child: OutlinedButton.icon(
-                  key: Key(
-                    'generate-summary-${widget.scope.name}-${widget.id}',
-                  ),
-                  onPressed: busy ? null : request,
-                  icon: const Icon(Icons.auto_awesome_outlined),
-                  label: Text(busy ? '等待总结…' : '生成总结'),
-                ),
-              ),
           ],
         );
       },

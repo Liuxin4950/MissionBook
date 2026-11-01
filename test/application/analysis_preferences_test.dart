@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/record_draft.dart';
 import 'package:mission_book/domain/entities/analysis_scope.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -13,7 +14,6 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
-import 'package:mission_book/domain/entities/evidence.dart';
 
 class _Preferences implements AnalysisPreferencesStore {
   Set<AnalysisScope> scopes = {};
@@ -55,7 +55,11 @@ void main() {
     db = AppDatabase(executor: NativeDatabase.memory());
     missions = MissionService(DriftMissionRepository(db));
     goals = GoalService(DriftGoalRepository(db));
-    records = RecordService(DriftRecordRepository(db), missions);
+    records = RecordService(
+      DriftRecordRepository(db),
+      missions,
+      missions.attachments,
+    );
     store = DriftAnalysisStore(db);
     preferences = _Preferences();
     prompts = [];
@@ -77,10 +81,10 @@ void main() {
   });
 
   Future<void> seed() => records.save(
-    const EvidenceDraft(
+    const RecordDraft(
       id: 'record',
-      type: EvidenceType.text,
-      source: EvidenceSource.user,
+      type: ContentType.text,
+      source: ContentSource.user,
       content: '今天完成了阅读',
     ),
   );
@@ -95,10 +99,7 @@ void main() {
     await service.drain();
     expect(prompts, hasLength(1));
     expect(
-      (await records.repository.analysis(
-        AnalysisScope.record,
-        'record',
-      ))['content'],
+      (await records.analysis(AnalysisScope.record, 'record'))['content'],
       '可核对的总结',
     );
     expect(service.automaticScopes, isEmpty);
@@ -110,10 +111,10 @@ void main() {
     final node = goals.prepareNodeCreation(goalId: goal.id, title: '第一阶段');
     await goals.createNode(node);
     await records.save(
-      const EvidenceDraft(
+      const RecordDraft(
         id: 'record',
-        type: EvidenceType.text,
-        source: EvidenceSource.user,
+        type: ContentType.text,
+        source: ContentSource.user,
         content: '阶段笔记',
       ),
       goalId: goal.id,

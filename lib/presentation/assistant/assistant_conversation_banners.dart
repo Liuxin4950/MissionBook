@@ -61,7 +61,7 @@ class _ErrorBanner extends StatelessWidget {
           IconButton(
             tooltip: '关闭错误提示',
             onPressed: controller.clearError,
-            icon: const Icon(Icons.close, size: AppLayout.iconSm),
+            icon: const Icon(Icons.close_rounded, size: AppLayout.iconSm),
           ),
         ],
       ),
@@ -120,7 +120,7 @@ class _LocalScheduleCard extends StatelessWidget {
                 IconButton(
                   tooltip: '收起本地日程',
                   onPressed: controller.clearLocalSchedule,
-                  icon: const Icon(Icons.close),
+                  icon: const Icon(Icons.close_rounded),
                 ),
               ],
             ),

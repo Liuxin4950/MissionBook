@@ -21,6 +21,8 @@ abstract interface class MissionEvidenceRepository {
   /// 关联既有记录也复用材料提交规则；任何阶段可保留材料，超时事实不被覆盖。
   Future<EvidenceSubmissionResult> attachRecordEvidence(
     String recordId,
-    String missionId,
-  );
+    String missionId, {
+    EvidenceDraft? expected,
+    String? operationId,
+  });
 }

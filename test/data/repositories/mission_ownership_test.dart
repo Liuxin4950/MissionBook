@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/content_draft.dart';
 import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +13,6 @@ import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
-import 'package:mission_book/domain/entities/evidence.dart';
 
 void main() {
   late AppDatabase db;
@@ -263,7 +263,7 @@ void main() {
     expect(detail.mission.goalNodeId, nodeId);
     expect(detail.ownershipInfo!.label, '学习 Flutter / 界面 / 布局基础');
     expect(detail.ownershipInfo!.available, isFalse);
-    expect(detail.evidence.single.type, EvidenceType.text);
+    expect(detail.evidence.single.type, ContentType.text);
     expect((await missions.findFinished()).single.mission.goalNodeId, nodeId);
   });
 

@@ -61,7 +61,6 @@ class NativeAppDevice implements AppDevice {
       version: value['version'] as String,
       notifications: value['notifications'] as bool?,
       exactAlarms: value['exactAlarms'] as bool?,
-      android: Platform.isAndroid,
       platform: platform,
       executionNotifications: value['executionNotifications'] as bool?,
       islandSupported: value['islandSupported'] as bool?,

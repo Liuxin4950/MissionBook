@@ -1,13 +1,13 @@
 import '../../../domain/entities/analysis_scope.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../records/analysis_panel.dart';
-import '../../records/execution_report_button.dart';
-import '../../records/records_page.dart';
+import '../execution/execution_report_button.dart';
 import '../../records/record_scope.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../widgets/app_section_card.dart';
+import '../../widgets/app_expansion.dart';
 import '../../widgets/detail_pane.dart';
 
 import '../../../application/missions/mission_service.dart';
@@ -186,6 +186,30 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
       appBar: AppTopBar(
         title: '执行记录',
         actions: [
+          PopupMenuButton<String>(
+            key: const Key('record-more'),
+            tooltip: '记录更多操作',
+            icon: const Icon(Icons.more_horiz, size: AppLayout.iconLg),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'time', child: Text('更正实际日期 / 时段')),
+              if (RecordScope.maybeOf(context) != null)
+                const PopupMenuItem(value: 'analysis', child: Text('任务评价')),
+            ],
+            onSelected: (action) {
+              if (action == 'time') {
+                unawaited(showExecutionReportSheet(context, detail, service));
+              } else {
+                unawaited(
+                  showAnalysisSummary(
+                    context,
+                    scope: AnalysisScope.mission,
+                    id: detail.mission.id,
+                    title: detail.mission.title,
+                  ),
+                );
+              }
+            },
+          ),
           IconButton(
             onPressed: _openingDetails ? null : _viewDetails,
             tooltip: '任务详情',
@@ -195,7 +219,6 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
       ),
       body: MissionPageBody(
         listKey: const Key('mission-record-list'),
-        footer: MissionRetryButton(source: detail, service: service),
         children: [
           if (_refreshError != null)
             OutlinedButton.icon(
@@ -227,71 +250,82 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
           const SizedBox(height: AppLayout.sectionGap),
           AppSectionCard(
             key: const Key('execution-summary'),
-            paperBackground: true,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.access_time_rounded,
-                      size: AppLayout.iconXl,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: AppLayout.spaceXl),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                if (detail.effectiveUserReport case final report?) ...[
+                  Text('实际发生', style: theme.textTheme.bodyMedium),
+                  const SizedBox(height: AppLayout.spaceSm),
+                  Text(
+                    report.occurrenceDate,
+                    style: theme.textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: AppLayout.spaceSm),
+                  Text(
+                    report.actualStart == null
+                        ? '具体时段未记录'
+                        : '${missionLocalTime(report.actualStart!, report.timeZoneId, includeDate: false)} – ${missionLocalTime(report.actualEnd!, report.timeZoneId, includeDate: false)}',
+                  ),
+                  if (detail.events.any(
+                    (e) => e.type == ExecutionEventType.start,
+                  ))
+                    const SizedBox(height: AppLayout.spaceLg),
+                ],
+                if (detail.events.any(
+                  (e) => e.type == ExecutionEventType.start,
+                )) ...[
+                  Text('应用计时', style: theme.textTheme.bodyMedium),
+                  const SizedBox(height: AppLayout.spaceSm),
+                  Text(
+                    focusDuration(times.focus),
+                    style: theme.textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: AppLayout.spaceSm),
+                  AppExpansionTile(
+                    title: const Text('计时明细'),
+                    insetHeader: false,
+                    children: [
+                      Wrap(
+                        spacing: AppLayout.spaceXl,
+                        runSpacing: AppLayout.spaceMd,
                         children: [
-                          Text(
-                            detail.events.any(
-                                  (e) => e.type == ExecutionEventType.start,
-                                )
-                                ? '应用计时'
-                                : '应用未计时',
+                          _SummaryValue(
+                            label: '原计划',
+                            value:
+                                '${detail.schedule.plannedDurationMinutes} 分',
                           ),
-                          Text(
-                            detail.events.any(
-                                  (e) => e.type == ExecutionEventType.start,
-                                )
-                                ? focusDuration(times.focus)
-                                : '未记录',
-                            style: theme.textTheme.headlineSmall,
+                          if (times.extensionMinutes > 0)
+                            _SummaryValue(
+                              label: '增加额度',
+                              value: '${times.extensionMinutes} 分',
+                            ),
+                          if (times.pauseCount > 0)
+                            _SummaryValue(
+                              label: '暂停',
+                              value: '${times.pauseCount} 次',
+                            ),
+                          _SummaryValue(
+                            label: '总经过',
+                            value: executionDuration(times.elapsed),
                           ),
+                          if (times.paused > Duration.zero)
+                            _SummaryValue(
+                              label: '暂停时长',
+                              value: executionDuration(times.paused),
+                            ),
+                          if (overtime > Duration.zero)
+                            _SummaryValue(
+                              label: '实际超时',
+                              value: executionDuration(overtime),
+                            ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const Divider(height: 32),
-                Wrap(
-                  spacing: AppLayout.spaceXxl,
-                  runSpacing: AppLayout.spaceLg,
-                  children: [
-                    _SummaryValue(
-                      label: '原计划',
-                      value: '${detail.schedule.plannedDurationMinutes} 分',
-                    ),
-                    _SummaryValue(
-                      label: '增加额度',
-                      value: '${times.extensionMinutes} 分',
-                    ),
-                    _SummaryValue(label: '暂停', value: '${times.pauseCount} 次'),
-                  ],
-                ),
+                    ],
+                  ),
+                ] else
+                  Text('本次为用户补记，无应用计时', style: theme.textTheme.bodySmall),
               ],
             ),
-          ),
-          const SizedBox(height: AppLayout.sectionGap),
-          Wrap(
-            spacing: AppLayout.spaceXl,
-            runSpacing: AppLayout.spaceSm,
-            children: [
-              Text('总经过 ${executionDuration(times.elapsed)}'),
-              Text('暂停时长 ${executionDuration(times.paused)}'),
-              if (overtime > Duration.zero)
-                Text('实际超时 ${executionDuration(overtime)}'),
-            ],
           ),
           for (final failure in detail.failures)
             if (failure.userReasonCategory != null ||
@@ -307,20 +341,6 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
                 Text(failure.userReasonText!),
             ],
           const SizedBox(height: AppLayout.sectionGap),
-          if (RecordScope.maybeOf(context) != null) ...[
-            AppSectionCard(
-              padding: EdgeInsets.zero,
-              child: AnalysisPanel(
-                scope: AnalysisScope.mission,
-                id: detail.mission.id,
-              ),
-            ),
-            const SizedBox(height: AppLayout.spaceMd),
-            ExecutionReportButton(detail: detail),
-            const SizedBox(height: AppLayout.spaceMd),
-            RecordsEntry(missionId: detail.mission.id),
-            const SizedBox(height: AppLayout.spaceMd),
-          ],
           MissionEvidenceSection(
             key: ValueKey('record-evidence-${detail.mission.id}'),
             detail: detail,
@@ -328,6 +348,15 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
           ),
           const SizedBox(height: AppLayout.sectionGap),
           MissionEventTimeline(detail: detail),
+          const SizedBox(height: AppLayout.spaceLg),
+          Align(
+            alignment: Alignment.centerRight,
+            child: MissionRetryButton(
+              source: detail,
+              service: service,
+              secondary: true,
+            ),
+          ),
         ],
       ),
     );

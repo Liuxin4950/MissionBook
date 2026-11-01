@@ -3,7 +3,7 @@ import 'missions.dart';
 import 'goals.dart';
 import 'goal_nodes.dart';
 
-/// 内容只保存在记录中；任务材料通过 recordId 引用它。
+/// 独立记录保存当前内容和自身归属；任务引用时另外保存提交快照。
 @DataClassName('RecordRow')
 @TableIndex.sql(
   'CREATE INDEX records_scope ON records(goal_id, goal_node_id, occurred_at)',

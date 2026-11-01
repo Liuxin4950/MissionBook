@@ -18,7 +18,7 @@ final class SessionRecord {
   final DateTime timestamp;
   final String type;
   final Map<String, Object?> data;
-  final int version; // 记录自身的格式版本；旧记录未声明时视为 1。
+  final int version; // 记录自身的格式版本。
   final bool ignorable; // 只有明确声明为诊断类记录，未来读者才可以跳过。
 
   Map<String, Object?> toJson() => {
@@ -32,12 +32,14 @@ final class SessionRecord {
   factory SessionRecord.fromJson(Map<String, Object?> json) {
     final sequence = json['sequence'];
     if (sequence is! int) throw const FormatException('无效日志序号');
+    final version = json['version'];
+    if (version is! int) throw const FormatException('日志缺少有效版本');
     return SessionRecord(
       sequence: sequence,
       timestamp: DateTime.parse(readString(json, 'timestamp')),
       type: readString(json, 'type'),
       data: readObject(json['data']),
-      version: json['version'] as int? ?? 1,
+      version: version,
       ignorable: json['ignorable'] as bool? ?? false,
     );
   }

@@ -21,7 +21,7 @@ import '../../domain/entities/mission_ownership.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/rules/historical_completion_rules.dart';
 import '../goals/goal_service.dart';
-import 'assistant_reader.dart';
+import 'unified_reader.dart';
 import 'assistant_schedule.dart';
 import 'assistant_goal_outline.dart';
 import '../missions/mission_service.dart';
@@ -48,7 +48,7 @@ class AssistantTools {
   late final _execution = _AssistantToolExecution(this);
 
   AssistantTools({
-    required AssistantReader reader,
+    required UnifiedReader unifiedReader,
     required MissionService missions,
     required GoalService goals,
     required AssistantCallResolver resolveCall,
@@ -57,7 +57,7 @@ class AssistantTools {
     DateTime Function()? clock,
     String timeZone = defaultScheduleTimeZone,
   }) : _memory = memory,
-       _reader = reader,
+       _unifiedReader = unifiedReader,
        _missions = missions,
        _goals = goals,
        _resolveCall = resolveCall,
@@ -70,35 +70,7 @@ class AssistantTools {
     );
     _tools = _AssistantToolCatalog(this).build(extraTools);
   }
-  static const canonicalNames = {
-    'mission_complete_history': 'completeHistory',
-    'goal_outline_create': 'createGoalOutline',
-    'mission_retry': 'retryMission',
-    'mission_plan': 'planMissions',
-    'mission_create': 'createMission',
-    'mission_reschedule': 'rescheduleMission',
-    'mission_update': 'updateMission',
-    'mission_execute': 'executeMission',
-    'mission_cancel': 'cancelMission',
-    'goal_create': 'createGoal',
-    'goal_node_create': 'createGoalNode',
-    'goal_update': 'updateGoal',
-    'goal_node_update': 'updateGoalNode',
-    'schedule_query': 'getSchedule',
-    'mission_query': 'getMission',
-    'goal_list': 'listGoals',
-    'goal_query': 'getGoalDetail',
-    'goal_node_query': 'getGoalNode',
-    'mission_search': 'findMissions',
-    'mission_content': 'getMissionContent',
-    'mission_records': 'getMissionRecords',
-    'evidence_content': 'getMaterial',
-  };
-  static String legacyName(String name) =>
-      canonicalNames.entries.where((e) => e.value == name).firstOrNull?.key ??
-      name;
-
-  final AssistantReader _reader;
+  final UnifiedReader _unifiedReader;
   final MemoryService? _memory;
   int _readCharacters = 0;
   void beginTurn() {
@@ -124,25 +96,26 @@ class AssistantTools {
   static const writeToolNames = {
     'startMakeup',
     'saveRecord',
-    'linkRecord',
+    'setRecordOwnership',
+    'useRecordAsMaterial',
     'reportExecution',
     'correctExecutionTime',
     'saveMemory',
     'forgetMemory',
     'retryAnalysis',
-    'mission_complete_history',
-    'goal_outline_create',
-    'mission_retry',
-    'mission_plan',
-    'mission_create',
-    'mission_reschedule',
-    'mission_update',
-    'mission_execute',
-    'mission_cancel',
-    'goal_create',
-    'goal_node_create',
-    'goal_update',
-    'goal_node_update',
+    'completeHistory',
+    'createGoalOutline',
+    'retryMission',
+    'planMissions',
+    'createMission',
+    'rescheduleMission',
+    'updateMission',
+    'executeMission',
+    'cancelMission',
+    'createGoal',
+    'createGoalNode',
+    'updateGoal',
+    'updateGoalNode',
   };
 
   Future<PreparedToolCall> prepare(
@@ -183,32 +156,18 @@ class AssistantTools {
     Map<String, Object?> input,
     ToolContext context,
   ) => _queries._scheduleQuery(input, context);
-  Future<ToolOutput> _missionSearch(
-    Map<String, Object?> input,
-    ToolContext context,
-  ) => _queries._missionSearch(input, context);
-  Future<ToolOutput> _missionContent(
-    Map<String, Object?> input,
-    ToolContext context,
-  ) => _queries._missionContent(input, context);
   Future<ToolOutput> _missionQuery(
     Map<String, Object?> input,
     ToolContext context,
   ) => _queries._missionQuery(input, context);
-
-  Future<ToolOutput> _goalList(
-    Map<String, Object?> input,
-    ToolContext context,
-  ) => _queries._goalList(input, context);
   Future<ToolOutput> _goalQuery(
     Map<String, Object?> input,
     ToolContext context,
   ) => _queries._goalQuery(input, context);
-
-  Future<ToolOutput> _queryNode(
+  Future<ToolOutput> _missionContent(
     Map<String, Object?> input,
     ToolContext context,
-  ) => _queries._queryNode(input, context);
+  ) => _queries._missionContent(input, context);
 
   Future<ToolOutput> _updateGoal(
     Map<String, Object?> input,
@@ -241,7 +200,7 @@ class AssistantTools {
   Future<ToolOutput> _rescheduleMission(
     Map<String, Object?> input,
     ToolContext context, {
-    String operation = 'mission_reschedule',
+    String operation = 'rescheduleMission',
   }) => _execution._rescheduleMission(input, context, operation: operation);
 
   Future<ToolOutput> _executeMission(

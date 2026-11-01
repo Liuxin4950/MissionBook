@@ -1,3 +1,5 @@
+import 'package:mission_book/application/attachments/attachment_coordinator.dart';
+import 'package:mission_book/domain/entities/content_draft.dart';
 import 'package:mission_book/presentation/missions/evidence/formal_evidence_section.dart';
 import '../support/me_fakes.dart';
 import 'dart:typed_data';
@@ -7,7 +9,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mission_book/application/evidence/evidence_image_service.dart';
+import 'package:mission_book/application/attachments/attachment_file_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
@@ -22,7 +24,7 @@ import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
 import 'package:mission_book/presentation/missions/evidence/mission_evidence_section.dart';
-import 'package:mission_book/presentation/missions/evidence/evidence_image_preview.dart';
+import 'package:mission_book/presentation/attachments/attachment_image_preview.dart';
 import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
 import 'package:mission_book/presentation/missions/history/mission_history_page.dart';
 import 'package:mission_book/presentation/missions/record/mission_record_workspace.dart';
@@ -31,15 +33,15 @@ import 'package:mission_book/presentation/widgets/detail_pane.dart';
 
 late Uint8List _png;
 
-class _Images implements EvidenceImageStore, EvidenceImagePicker {
+class _Images implements AttachmentStore, ImageAttachmentPicker {
   final files = <String, Uint8List>{};
   bool cancel = false;
   bool failRead = false;
   int reads = 0;
   @override
-  Future<SelectedEvidenceImage?> pick() async => cancel
+  Future<SelectedAttachment?> pick() async => cancel
       ? null
-      : SelectedEvidenceImage(
+      : SelectedAttachment(
           fileName: '运行结果.png',
           byteLength: _png.length,
           readBytes: () async => _png,
@@ -89,15 +91,15 @@ class _LostReply extends DriftMissionRepository {
 }
 
 // UI 测试把系统选择/解码作为边界替身；真实图片解码和磁盘副本由附件测试覆盖。
-class _PreparedImages extends EvidenceImageService {
+class _PreparedImages extends AttachmentFileService {
   _PreparedImages(this.images) : super(store: images, picker: images);
   final _Images images;
   @override
-  Future<PreparedEvidenceImage?> pickAndPrepare(String missionId) async {
+  Future<PreparedAttachment?> pickAndPrepare(String missionId) async {
     if (images.cancel) return null;
     final key = 'attachments/$missionId/ui-test-${images.files.length}.png';
     await images.writeNew(key, _png);
-    return PreparedEvidenceImage(
+    return PreparedAttachment(
       storageKey: key,
       fileName: '运行结果.png',
       mimeType: 'image/png',
@@ -105,11 +107,11 @@ class _PreparedImages extends EvidenceImageService {
   }
 
   @override
-  Future<PreparedEvidenceImage?> pickFileAndPrepare(String missionId) async {
+  Future<PreparedAttachment?> pickFileAndPrepare(String missionId) async {
     if (images.cancel) return null;
     final key = 'attachments/$missionId/ui-file-${images.files.length}.pdf';
     await images.writeNew(key, _png);
-    return PreparedEvidenceImage(
+    return PreparedAttachment(
       storageKey: key,
       fileName: '练习报告.pdf',
       mimeType: 'application/pdf',
@@ -152,7 +154,10 @@ void main() {
     images = _Images();
     service = MissionService(
       repository,
-      images: _PreparedImages(images),
+      attachments: AttachmentCoordinator(
+        files: _PreparedImages(images),
+        referencedKeys: repository.referencedAttachmentKeys,
+      ),
       clock: () => now,
     );
   });
@@ -414,12 +419,12 @@ void main() {
     final saved = (await repository.findDetail(detail.mission.id))!;
     expect(saved.phase, MissionPhase.closed);
     expect(saved.evidence.map((item) => item.type).toSet(), {
-      EvidenceType.code,
-      EvidenceType.manualRecord,
-      EvidenceType.file,
+      ContentType.code,
+      ContentType.manualRecord,
+      ContentType.file,
     });
     final code = saved.evidence.singleWhere(
-      (item) => item.type == EvidenceType.code,
+      (item) => item.type == ContentType.code,
     );
     await tap(tester, 'evidence-correct-${code.id}');
     await tester.enterText(
@@ -436,7 +441,7 @@ void main() {
     );
     expect(
       corrected.effectiveEvidence
-          .singleWhere((item) => item.type == EvidenceType.code)
+          .singleWhere((item) => item.type == ContentType.code)
           .content,
       'print(2)',
     );
@@ -470,7 +475,7 @@ void main() {
     expect(images.files, hasLength(1));
     await tap(tester, 'evidence-submit');
     final saved = (await repository.findDetail(detail.mission.id))!;
-    expect(saved.evidence.single.type, EvidenceType.image);
+    expect(saved.evidence.single.type, ContentType.image);
     expect(saved.evidence.single.content, isNull);
     expect(images.files, hasLength(1));
     expect(tester.takeException(), isNull);
@@ -504,7 +509,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final previews = find.byType(EvidenceImagePreview);
+      final previews = find.byType(AttachmentImagePreview);
       expect(previews, findsNWidgets(2));
       expect(tester.getSize(previews.first).height, inHistory ? 88 : 148);
       if (inHistory) {
@@ -903,7 +908,7 @@ void main() {
     await tap(tester, 'evidence-submit');
     final saved = (await repository.findDetail(detail.mission.id))!;
     expect(saved.phase, MissionPhase.closed);
-    expect(saved.evidence.single.type, EvidenceType.image);
+    expect(saved.evidence.single.type, ContentType.image);
     // 独立任务路由现在属于右栏Navigator，根路由只保留外壳。
     final pane = tester.widget<DetailPaneHost>(find.byType(DetailPaneHost));
     expect(routes.pushes, 1);

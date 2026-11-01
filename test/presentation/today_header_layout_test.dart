@@ -25,7 +25,11 @@ void main() {
   setUp(() {
     db = AppDatabase(executor: NativeDatabase.memory());
     missions = MissionService(DriftMissionRepository(db));
-    records = RecordService(DriftRecordRepository(db), missions);
+    records = RecordService(
+      DriftRecordRepository(db),
+      missions,
+      missions.attachments,
+    );
     analysis = AnalysisService(
       store: DriftAnalysisStore(db),
       mainBusy: () => false,

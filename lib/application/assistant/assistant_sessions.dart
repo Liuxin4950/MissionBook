@@ -16,7 +16,6 @@ class _AssistantSessions {
   bool get compacting => _controller.compacting;
   bool get hasCredential => _controller.hasCredential;
   ModelProfile? get customProfile => _controller.customProfile;
-  bool get autoApproveWrites => _controller.autoApproveWrites;
   AssistantPermissionMode get permissionMode => _controller.permissionMode;
   AssistantSpeechSettings get speechSettings => _controller.speechSettings;
   AssistantPersona get persona => _controller.persona;

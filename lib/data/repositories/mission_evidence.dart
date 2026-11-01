@@ -8,13 +8,75 @@ class _MissionEvidence {
   /// 已有记录和页面草稿共用提交、截止判定、身份校验及完整阶段复查。
   Future<EvidenceSubmissionResult> attachRecordEvidence(
     String recordId,
-    String missionId,
-  ) => _repository.database.transaction(() async {
+    String missionId, {
+    EvidenceDraft? expected,
+    String? operationId,
+  }) async {
+    if (operationId == null) {
+      return _attachRecordEvidence(recordId, missionId, expected: expected);
+    }
+    EvidenceSubmissionResult? result;
+    await _repository._support.command(
+      operationId,
+      'record_material',
+      missionId,
+      {
+        'recordId': recordId,
+        'missionId': missionId,
+        'expected': expected == null
+            ? null
+            : {
+                'id': expected.id,
+                'type': expected.type.name,
+                'source': expected.source.name,
+                'content': expected.content,
+                'key': expected.attachmentStorageKey,
+                'name': expected.attachmentFileName,
+                'mime': expected.attachmentMimeType,
+                'capturedAt': expected.capturedAt?.millisecondsSinceEpoch,
+              },
+      },
+      {'saved': true, 'recordId': recordId, 'missionId': missionId},
+      () async {
+        result = await _attachRecordEvidence(
+          recordId,
+          missionId,
+          expected: expected,
+        );
+      },
+    );
+    return result ??
+        _submissionResult((await _repository.findDetail(missionId))!);
+  }
+
+  Future<EvidenceSubmissionResult> _attachRecordEvidence(
+    String recordId,
+    String missionId, {
+    EvidenceDraft? expected,
+  }) => _repository.database.transaction(() async {
     await _repository._acquireWrite(missionId);
+    final submitted = await (_repository.database.select(
+      _repository.database.evidenceRecords,
+    )..where((table) => table.recordId.equals(recordId))).getSingleOrNull();
+    if (submitted != null) {
+      if (submitted.missionId != missionId) {
+        throw const EvidenceConflict('这条记录已用于其他任务；本轮暂不支持多任务引用');
+      }
+      // 先确认已提交事实，再读取可变来源，重试不重新捕获内容。
+      return _submissionResult((await _repository.findDetail(missionId))!);
+    }
     final row = await (_repository.database.select(
       _repository.database.records,
     )..where((table) => table.id.equals(recordId))).getSingleOrNull();
-    if (row == null) throw const EvidenceConflict('记录不存在，请刷新');
+    if (row == null) throw ArgumentError('记录不存在，请刷新');
+    if (expected != null &&
+        !sameEvidenceInput(
+          evidenceDraftFromRecord(row, id: expected.id),
+          expected,
+        )) {
+      throw const EvidenceConflict('预览后记录内容已变化，请刷新后重新提交');
+    }
+
     final id = 'record:$recordId';
     return _submitEvidence(
       EvidenceSubmission(
@@ -65,7 +127,7 @@ class _MissionEvidence {
     }
     final ids = <String>{};
     for (final item in submission.items) {
-      validateEvidenceDraft(item, submission.missionId);
+      validateContentDraft(item);
       if (item.supersedesEvidenceId != null) {
         throw ArgumentError('首次提交不能替代已有材料');
       }
@@ -78,10 +140,7 @@ class _MissionEvidence {
       )..where((table) => table.submissionId.equals(submission.id))).get();
       // 先认出已经成功的原批次，之后才检查 CLOSED/截止；成功重试不得被新状态误拒绝。
       if (rows.isNotEmpty) {
-        final saved = (await hydrateEvidenceRows(
-          _repository.database,
-          rows,
-        )).map(evidenceFromRow).toList();
+        final saved = rows.map(evidenceFromRow).toList();
         final byId = {for (final item in saved) item.id: item};
         if (saved.length != submission.items.length ||
             saved.any((item) => item.missionId != submission.missionId) ||
@@ -146,16 +205,14 @@ class _MissionEvidence {
         draft.supersedesEvidenceId!.trim().isEmpty) {
       throw ArgumentError('请选择一份当前有效的正式材料');
     }
-    validateEvidenceDraft(draft, correction.missionId);
+    validateContentDraft(draft);
     return _repository.database.transaction(() async {
       await _repository._acquireWrite(correction.missionId);
       final existing = await (_repository.database.select(
         _repository.database.evidenceRecords,
       )..where((table) => table.id.equals(draft.id))).getSingleOrNull();
       if (existing != null) {
-        final saved = evidenceFromRow(
-          (await hydrateEvidenceRows(_repository.database, [existing])).single,
-        );
+        final saved = evidenceFromRow(existing);
         if (saved.missionId != correction.missionId ||
             saved.submissionId != draft.id ||
             !sameEvidenceInput(saved, draft)) {

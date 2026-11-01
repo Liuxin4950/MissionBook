@@ -4,25 +4,25 @@ import 'dart:typed_data';
 
 import 'package:web/web.dart' as web;
 
-import '../../application/evidence/evidence_image_service.dart';
+import '../../application/attachments/attachment_file_service.dart';
 
-EvidenceImageStore createImageStore() => WebEvidenceImageStore();
-EvidenceImagePicker createImagePicker() => WebEvidenceImagePicker();
-EvidenceFilePicker createFilePicker() => WebEvidenceFilePicker();
+AttachmentStore createImageStore() => WebAttachmentStore();
+ImageAttachmentPicker createImagePicker() => WebImageAttachmentPicker();
+FileAttachmentPicker createFilePicker() => WebFileAttachmentPicker();
 
-class WebEvidenceFilePicker implements EvidenceFilePicker {
+class WebFileAttachmentPicker implements FileAttachmentPicker {
   @override
-  Future<SelectedEvidenceImage?> pick() => _pickSelectedFile('');
+  Future<SelectedAttachment?> pick() => _pickSelectedFile('');
 }
 
 /// 系统选择仍由浏览器发起，取消回到同一草稿，不创建额外页面。
-class WebEvidenceImagePicker implements EvidenceImagePicker {
+class WebImageAttachmentPicker implements ImageAttachmentPicker {
   @override
-  Future<SelectedEvidenceImage?> pick() => _pickSelectedFile('image/*');
+  Future<SelectedAttachment?> pick() => _pickSelectedFile('image/*');
 }
 
-Future<SelectedEvidenceImage?> _pickSelectedFile(String acceptedType) async {
-  final result = Completer<SelectedEvidenceImage?>();
+Future<SelectedAttachment?> _pickSelectedFile(String acceptedType) async {
+  final result = Completer<SelectedAttachment?>();
   final input = web.HTMLInputElement()
     ..type = 'file'
     ..accept = acceptedType;
@@ -33,7 +33,7 @@ Future<SelectedEvidenceImage?> _pickSelectedFile(String acceptedType) async {
       result.complete(null);
     } else {
       result.complete(
-        SelectedEvidenceImage(
+        SelectedAttachment(
           fileName: file.name,
           byteLength: file.size,
           mimeType: file.type,
@@ -56,7 +56,7 @@ Future<SelectedEvidenceImage?> _pickSelectedFile(String acceptedType) async {
 }
 
 /// 浏览器附件存入同源 OPFS，刷新后仍读取实际文件；不可用时明确失败。
-class WebEvidenceImageStore implements EvidenceImageStore {
+class WebAttachmentStore implements AttachmentStore {
   Future<web.FileSystemDirectoryHandle> _root() async {
     try {
       final origin = await web.window.navigator.storage.getDirectory().toDart;
@@ -141,7 +141,7 @@ class WebEvidenceImageStore implements EvidenceImageStore {
       final directory = await _mission(storageKey);
       final handle = await directory.getFileHandle(parts[2]).toDart;
       final file = await handle.getFile().toDart;
-      if (file.size > EvidenceImageService.maxBytes) {
+      if (file.size > AttachmentFileService.maxBytes) {
         throw StateError('图片文件大小异常');
       }
       return (await file.arrayBuffer().toDart).toDart.asUint8List();

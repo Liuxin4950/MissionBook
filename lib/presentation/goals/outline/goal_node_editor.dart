@@ -215,7 +215,7 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                     IconButton(
                       tooltip: '关闭节点编辑',
                       onPressed: _saving ? null : _close,
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close_rounded),
                     ),
                   ],
                 ),

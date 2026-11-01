@@ -1,3 +1,4 @@
+import '../../../domain/entities/content_draft.dart';
 import '../../../application/errors/user_error_message.dart';
 import '../../../domain/entities/mission_phase.dart';
 import 'dart:async';
@@ -18,9 +19,9 @@ import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/app_settings_row.dart';
 import '../shared/mission_execution_display.dart';
-import 'evidence_image_loader.dart';
+import '../../attachments/attachment_image_loader.dart';
 import 'formal_evidence_section.dart';
-import 'evidence_camera_panel.dart';
+import '../../attachments/photo_capture_panel.dart';
 import '../../../core/theme/app_layout.dart';
 
 /// 同一任务上下文内的材料区域：编辑草稿、一次提交、查看正式材料。
@@ -141,7 +142,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
     return _confirmDiscard(leave: true);
   }
 
-  void _addText([EvidenceType type = EvidenceType.text]) {
+  void _addText([ContentType type = ContentType.text]) {
     final draft = widget.service.createTextEvidence('', type: type);
     setState(() {
       _drafts.add(draft);
@@ -259,7 +260,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
 
   EvidenceDraft _draftWithCurrentInput(EvidenceDraft draft) {
     final text = _controllers[draft.id]?.text ?? draft.content;
-    if ((draft.type == EvidenceType.image || draft.type == EvidenceType.file) &&
+    if ((draft.type == ContentType.image || draft.type == ContentType.file) &&
         (text?.trim().isEmpty ?? true)) {
       return draft.copyWithContent(null); // 没填写图片说明时保持“未提供”。
     }
@@ -430,7 +431,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       key,
       () => widget.service.readEvidenceImage(key),
     );
-    return EvidenceImageLoader(
+    return AttachmentImageLoader(
       future: image,
       name: name,
       height: height,
@@ -567,7 +568,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                     ),
                   ],
                 ),
-                if (draft.type == EvidenceType.image) ...[
+                if (draft.type == ContentType.image) ...[
                   _image(
                     draft.attachmentStorageKey!,
                     draft.attachmentFileName ?? '图片',
@@ -585,7 +586,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                     maxLines: draft.attachmentStorageKey == null ? 10 : 4,
                     decoration: InputDecoration(
                       labelText: draft.attachmentStorageKey == null
-                          ? draft.type == EvidenceType.text
+                          ? draft.type == ContentType.text
                                 ? '文本内容'
                                 : '${evidenceTypeLabel(draft.type)}内容'
                           : '附件说明（选填）',
@@ -611,7 +612,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                       key: const Key('evidence-add-code'),
                       onPressed: _locked
                           ? null
-                          : () => _addText(EvidenceType.code),
+                          : () => _addText(ContentType.code),
                       icon: const Icon(Icons.code_rounded),
                       label: const Text('添加代码'),
                     ),
@@ -619,7 +620,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                       key: const Key('evidence-add-manual'),
                       onPressed: _locked
                           ? null
-                          : () => _addText(EvidenceType.manualRecord),
+                          : () => _addText(ContentType.manualRecord),
                       icon: const Icon(Icons.edit_note_rounded),
                       label: const Text('手动记录'),
                     ),
@@ -648,8 +649,8 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                 ),
               if (_cameraOpen) ...[
                 const SizedBox(height: AppLayout.spaceMd),
-                EvidenceCameraPanel(
-                  missionTitle: _detail.mission.title,
+                PhotoCapturePanel(
+                  title: _detail.mission.title,
                   onConfirmed: _confirmCameraImage,
                   onChooseFile: () {
                     setState(() => _cameraOpen = false);
@@ -659,10 +660,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                 ),
               ],
               if (_imageError != null) ...[
-                Text(
-                  _imageError!,
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
+                Text(_imageError!, style: TextStyle(color: AppColors.error)),
                 OutlinedButton(
                   onPressed: _prepareImages,
                   child: const Text('重试图片准备'),
@@ -706,10 +704,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
               const SizedBox(height: AppLayout.spaceMd),
               Semantics(
                 liveRegion: true,
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: theme.colorScheme.error),
-                ),
+                child: Text(_error!, style: TextStyle(color: AppColors.error)),
               ),
               OutlinedButton(
                 onPressed: _busy ? null : _readLatest,

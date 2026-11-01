@@ -235,7 +235,7 @@ class _OwnershipPickerState extends State<_OwnershipPicker> {
                       IconButton(
                         onPressed: () => Navigator.pop(context),
                         tooltip: '关闭归属选择',
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(Icons.close_rounded),
                       ),
                     ],
                   ),
@@ -256,7 +256,7 @@ class _OwnershipPickerState extends State<_OwnershipPicker> {
                     decoration: InputDecoration(
                       hintText: '搜索目标或节点',
                       prefixIcon: const Icon(
-                        Icons.search,
+                        Icons.search_rounded,
                         size: AppLayout.iconMd,
                       ),
                       suffixIcon: _search.text.isEmpty
@@ -265,7 +265,7 @@ class _OwnershipPickerState extends State<_OwnershipPicker> {
                               tooltip: '清空搜索',
                               onPressed: () => setState(_search.clear),
                               icon: const Icon(
-                                Icons.close,
+                                Icons.close_rounded,
                                 size: AppLayout.iconSm,
                               ),
                             ),

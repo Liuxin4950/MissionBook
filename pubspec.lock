@@ -1065,7 +1065,7 @@ packages:
     source: hosted
     version: "0.6.0+eol"
   sqlparser:
-    dependency: "direct dev"
+    dependency: transitive
     description:
       name: sqlparser
       sha256: "2766766bbc591a60a6ca955cc42df4b46db711af7b83e9f3f51694569b049a2b"

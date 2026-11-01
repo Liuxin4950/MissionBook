@@ -2,8 +2,8 @@ import '../errors/user_error_message.dart';
 import 'dart:async';
 import 'execution_reminder.dart';
 
-import '../../data/notifications/notification_dispatcher.dart';
-import '../../data/notifications/reminder_store.dart';
+import 'notification_dispatcher.dart';
+import 'reminder_store.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/execution_command.dart';
 import '../../domain/entities/mission_detail.dart';
@@ -259,13 +259,12 @@ class AppNotificationService {
     }
   }
 
-  /// 通知按钮与前台按钮走同一工作流（§7.2）。
+  /// 通知按钮与前台按钮走同一工作流，空动作只打开任务。
   ///
-  /// 开始/继续写事实前校验 expectedSequence：旧按钮只得到 stale 提示。
-  /// 延后不碰事实；停止写 PAUSE 后交回 UI 打开 END 确认（取消确认保持 PAUSED）。
+  /// 写事实前校验 expectedSequence；停止写 PAUSE 后交回 UI 打开 END 确认。
   Future<NotificationActionResult> handleAction(
     ReminderRequest request, {
-    String? actionId,
+    required String actionId,
   }) {
     final result = _actions.then(
       (_) => _handleAction(request, actionId: actionId),
@@ -276,7 +275,7 @@ class AppNotificationService {
 
   Future<NotificationActionResult> _handleAction(
     ReminderRequest request, {
-    String? actionId,
+    required String actionId,
   }) async {
     NotificationActionResult result;
     String? message;
@@ -312,25 +311,15 @@ class AppNotificationService {
 
   Future<NotificationActionResult> _act(
     ReminderRequest request, {
-    String? actionId,
+    required String actionId,
   }) async {
     final detail = await _missions.findDetailAndReconcile(
       missionId: request.missionId,
     );
     if (detail == null) return NotificationActionResult.stale;
-    // 装配层明确传空字符串表示点击正文；兼容已有应用服务调用的默认动作。
-    final action =
-        actionId ??
-        switch (request.kind) {
-          ReminderKind.upcomingReminder => '',
-          ReminderKind.startReminder => 'start',
-          ReminderKind.executionRunning => 'stop',
-          ReminderKind.executionPaused => 'resume',
-          ReminderKind.executionStopped => '',
-        };
+    final action = actionId;
     if (action.isEmpty) return NotificationActionResult.openMission;
     final type = switch (action) {
-      'start' => ExecutionEventType.start,
       'stop' => ExecutionEventType.pause,
       'resume' => ExecutionEventType.resume,
       _ => null,
@@ -355,22 +344,6 @@ class AppNotificationService {
       return NotificationActionResult.stale;
     }
     switch (action) {
-      case 'snooze':
-        // 旧版本通知中的延后只改提醒，容易与自动开始冲突；新版本统一改排期。
-        return NotificationActionResult.stale;
-      case 'start':
-        if (request.kind != ReminderKind.startReminder ||
-            detail.phase != MissionPhase.notStarted) {
-          return NotificationActionResult.stale;
-        }
-        await _missions.execute(
-          _missions.prepareExecution(
-            detail: detail,
-            type: ExecutionEventType.start,
-            commandId: request.candidateEventIds['start'],
-          ),
-        );
-        return NotificationActionResult.handled;
       case 'resume':
         if (request.kind != ReminderKind.executionPaused ||
             detail.phase != MissionPhase.paused) {
@@ -402,7 +375,7 @@ class AppNotificationService {
         }
         return NotificationActionResult.openEndConfirm;
       default:
-        return NotificationActionResult.handled;
+        return NotificationActionResult.stale;
     }
   }
 

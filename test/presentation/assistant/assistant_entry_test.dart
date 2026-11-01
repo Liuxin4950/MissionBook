@@ -1,3 +1,4 @@
+import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
@@ -11,7 +12,6 @@ import 'package:mission_book/application/assistant/assistant_speech.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
-import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
@@ -186,7 +186,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetViewInsets);
     assistant = AssistantController(
-      reader: DriftAssistantReader(database),
+      unifiedReader: DriftUnifiedReader(database),
       sessionStore: DriftSessionStore(database),
       settingsStore: settingsStore ?? MemoryAssistantSettingsStore(),
       missions: missions,
@@ -529,7 +529,7 @@ void main() {
     await mount(
       tester,
       ScriptedModel([
-        (_) => toolResponse('voice-move', 'mission_reschedule', {
+        (_) => toolResponse('voice-move', 'rescheduleMission', {
           'missionId': missionId,
           'scheduledDate': '2026-10-31',
           'plannedMinutes': 45,
@@ -631,7 +631,7 @@ void main() {
     await mount(
       tester,
       ScriptedModel([
-        (_) => toolResponse('visual-move', 'mission_reschedule', {
+        (_) => toolResponse('visual-move', 'rescheduleMission', {
           'missionId': missionId,
           'scheduledDate': '2026-10-31',
           'plannedMinutes': 45,
@@ -688,7 +688,7 @@ void main() {
     await mount(
       tester,
       ScriptedModel([
-        (_) => toolResponse('edited-create', 'mission_create', {
+        (_) => toolResponse('edited-create', 'createMission', {
           'title': '待编辑标题',
           'scheduledDate': '2026-10-31',
           'plannedMinutes': 25,
@@ -853,9 +853,8 @@ void main() {
     await mount(
       tester,
       ScriptedModel([
-        (_) => toolResponse('tablet-query', 'schedule_query', {
-          'date': '2026-10-29',
-        }),
+        (_) =>
+            toolResponse('tablet-query', 'getSchedule', {'date': '2026-10-29'}),
         (_) => textResponse(
           '## 当前安排\n\n**今天没有排期。**\n\n- 可以创建新的学习任务\n- 也可以调整现有安排\n\n```dart\nfinal title = "复习布局";\n```',
         ),

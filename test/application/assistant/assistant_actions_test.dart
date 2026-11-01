@@ -1,3 +1,4 @@
+import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'package:mission_book/domain/entities/historical_completion.dart';
 import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'package:mission_book/domain/rules/execution_time_rules.dart';
@@ -7,7 +8,6 @@ import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/application/assistant/assistant_goal_outline.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
-import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
@@ -62,7 +62,7 @@ void main() {
       (_) => textResponse('操作结果已返回。'),
     ]);
     final result = AssistantController(
-      reader: DriftAssistantReader(db),
+      unifiedReader: DriftUnifiedReader(db),
       sessionStore: DriftSessionStore(db),
       settingsStore: MemoryAssistantSettingsStore()
         ..permissionMode = full
@@ -113,7 +113,7 @@ void main() {
 
   test('AI 整批补记历史课表，确认前零写入；保留今天和未来，补记不产生虚构时长', () async {
     final goalId = await seedHistory();
-    final ai = await controller('mission_complete_history', {
+    final ai = await controller('completeHistory', {
       'goalId': goalId,
       'beforeDate': '2026-10-29',
       'statement': '把今天以前的课程补记为已完成',
@@ -209,7 +209,7 @@ void main() {
   });
 
   test('整份大纲可修改后一次确认，保存真实父子关系，不创建任务，重开保留结果', () async {
-    final ai = await controller('goal_outline_create', outline);
+    final ai = await controller('createGoalOutline', outline);
     final sending = ai.send('创建目标及分层大纲');
     await waiting(ai);
     expect(await goals.findAll(), isEmpty);
@@ -235,7 +235,7 @@ void main() {
   });
 
   test('取消整份大纲零写入；完整权限直接执行整份', () async {
-    final ai = await controller('goal_outline_create', outline);
+    final ai = await controller('createGoalOutline', outline);
     final sending = ai.send('提出目标');
     await waiting(ai);
     ai.cancelProposal('action');
@@ -243,7 +243,7 @@ void main() {
     expect(await goals.findAll(), isEmpty);
     await ai.close();
     final automatic = await controller(
-      'goal_outline_create',
+      'createGoalOutline',
       outline,
       full: true,
     );
@@ -259,7 +259,7 @@ void main() {
     await db.customStatement(
       "CREATE TRIGGER reject_outline BEFORE INSERT ON goal_nodes WHEN NEW.title = '布局' BEGIN SELECT RAISE(ABORT, 'test failure'); END",
     );
-    final ai = await controller('goal_outline_create', outline, full: true);
+    final ai = await controller('createGoalOutline', outline, full: true);
     await ai.send('创建目标');
     expect(await goals.findAll(), isEmpty);
     expect((await db.select(db.goalNodes).get()), isEmpty);
@@ -334,7 +334,7 @@ void main() {
       ),
     );
     original = (await missions.findAllDetails()).single;
-    final ai = await controller('mission_retry', {
+    final ai = await controller('retryMission', {
       'missionId': original.mission.id,
       'scheduledDate': '2026-10-30',
       'steps': ['先写小示例', '再做完整布局'],
@@ -374,7 +374,7 @@ void main() {
       plannedDurationMinutes: 30,
     );
     var original = (await missions.findAllDetails()).single;
-    var ai = await controller('mission_retry', {
+    var ai = await controller('retryMission', {
       'missionId': original.mission.id,
       'scheduledDate': '2026-10-30',
     }, full: true);
@@ -393,7 +393,7 @@ void main() {
     await missions.createPrepared(request);
     await missions.cancel(missionId: request.mission.id);
     original = (await missions.findDetail(missionId: request.mission.id))!;
-    ai = await controller('mission_retry', {
+    ai = await controller('retryMission', {
       'missionId': original.mission.id,
       'scheduledDate': '2026-10-30',
     }, full: true);
@@ -406,7 +406,7 @@ void main() {
       isTrue,
     );
     await ai.close();
-    ai = await controller('mission_retry', {
+    ai = await controller('retryMission', {
       'missionId': original.mission.id,
       'scheduledDate': '2026-10-30',
       'evidenceDeadlineLocal': '2026-10-30 20:00',

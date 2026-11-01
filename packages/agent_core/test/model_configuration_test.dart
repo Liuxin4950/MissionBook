@@ -25,6 +25,13 @@ void main() {
     );
     final profile = testProfile('a').toJson();
     expect(
+      () => ModelProfile.fromJson({
+        ...profile,
+        'credentialEnvironment': 'OLD_KEY',
+      }),
+      throwsFormatException,
+    );
+    expect(
       () => ModelProfile.fromJson({...profile, 'protocol': 'misspelled'}),
       throwsFormatException,
     );
@@ -35,7 +42,7 @@ void main() {
     expect(
       () => ModelProfile.fromJson({
         ...profile,
-        'credentialEnvironment': 'sk-do-not-store-a-key',
+        'credentialKey': 'sk-do-not-store-a-key',
       }),
       throwsArgumentError,
     );

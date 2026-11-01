@@ -1,16 +1,14 @@
 import 'package:drift/drift.dart';
 
-import '../../application/assistant/assistant_reader.dart';
 import '../local/app_database.dart';
 
 /// 所有 LIMIT / substr 在 SQLite 执行，避免先装载全目标再在 Dart 截断。
-class DriftAssistantReader implements AssistantReader {
+class DriftAssistantReader {
   DriftAssistantReader(this.database);
   final AppDatabase database;
   static const pageSize = 20;
   static const chunkSize = 2000;
 
-  @override
   Future<Map<String, Object?>> missions({
     String? date,
     String? goalId,
@@ -63,7 +61,7 @@ class DriftAssistantReader implements AssistantReader {
         ..._page(total, offset, rows.map((row) => row.data).toList()),
         'scope': 'candidate_index',
         'phaseIncluded': false,
-        'hint': '索引未读取方案、材料和完整阶段；需要时用 mission_query / mission_content。',
+        'hint': '索引未读取方案、材料和完整阶段；需要时用 getMission / getMissionContent。',
         'references': [
           for (final row in rows)
             {
@@ -76,88 +74,6 @@ class DriftAssistantReader implements AssistantReader {
     });
   }
 
-  @override
-  Future<Map<String, Object?>> goals({int offset = 0}) async {
-    _checkOffset(offset);
-    return database.transaction(() async {
-      final total =
-          (await database
-                  .customSelect(
-                    "SELECT COUNT(*) AS total FROM goals WHERE status != 'DROPPED'",
-                  )
-                  .getSingle())
-              .read<int>('total');
-      final rows = await database
-          .customSelect(
-            "SELECT id, substr(title, 1, 120) AS title, status FROM goals WHERE status != 'DROPPED' ORDER BY id LIMIT $pageSize OFFSET ?",
-            variables: [Variable<int>(offset)],
-          )
-          .get();
-      return {
-        ..._page(total, offset, rows.map((row) => row.data).toList()),
-        'references': [
-          for (final row in rows)
-            {
-              'type': 'goal',
-              'id': row.read<String>('id'),
-              'title': row.read<String>('title'),
-            },
-        ],
-      };
-    });
-  }
-
-  @override
-  Future<Map<String, Object?>> goal(String id, {int offset = 0}) async {
-    _checkOffset(offset);
-    return database.transaction(() async {
-      final record = await database
-          .customSelect(
-            '''SELECT id, substr(title,1,120) AS title, status,
-        substr(description,1,1000) AS description, length(description) AS descriptionLength,
-        substr(why,1,500) AS why, length(why) AS whyLength, updated_at AS updatedAt FROM goals WHERE id = ?''',
-            variables: [Variable<String>(id)],
-          )
-          .getSingleOrNull();
-      if (record == null) {
-        return {'ok': false, 'code': 'not_found', 'message': '目标不存在'};
-      }
-      final total =
-          (await database
-                  .customSelect(
-                    'SELECT COUNT(*) AS total FROM goal_nodes WHERE goal_id = ?',
-                    variables: [Variable<String>(id)],
-                  )
-                  .getSingle())
-              .read<int>('total');
-      final nodes = await database
-          .customSelect(
-            '''SELECT id, parent_node_id AS parentNodeId,
-        substr(title,1,120) AS title, substr(description,1,300) AS description,
-        length(description) AS descriptionLength, archived_at AS archivedAt, order_index AS orderIndex
-        FROM goal_nodes WHERE goal_id = ? ORDER BY parent_node_id, order_index, id LIMIT $pageSize OFFSET ?''',
-            variables: [Variable<String>(id), Variable<int>(offset)],
-          )
-          .get();
-      final count =
-          (await database
-                  .customSelect(
-                    'SELECT COUNT(*) AS total FROM missions WHERE goal_id = ?',
-                    variables: [Variable<String>(id)],
-                  )
-                  .getSingle())
-              .read<int>('total');
-      return {
-        'ok': true,
-        'goal': record.data,
-        'missionCount': count,
-        'nodes': _page(total, offset, nodes.map((row) => row.data).toList()),
-        'hint': '任务不随目标返回，用 mission_search 按 goalId/nodeId 检索。较长文字明确按长度截断。',
-      };
-    });
-  }
-
-  @override
   Future<Map<String, Object?>> records(
     String missionId,
     String section, {
@@ -177,7 +93,7 @@ class DriftAssistantReader implements AssistantReader {
       ),
       'evidence' => (
         'evidence_records',
-        'id, type, source, substr(COALESCE(content,(SELECT content FROM records r WHERE r.id=evidence_records.record_id)),1,500) AS contentPreview, length(COALESCE(content,(SELECT content FROM records r WHERE r.id=evidence_records.record_id))) AS contentLength, COALESCE(attachment_file_name,(SELECT attachment_file_name FROM records r WHERE r.id=evidence_records.record_id)) AS attachmentFileName, COALESCE(attachment_mime_type,(SELECT attachment_mime_type FROM records r WHERE r.id=evidence_records.record_id)) AS attachmentMimeType, submitted_at AS submittedAt, supersedes_evidence_id AS supersedesEvidenceId, NOT EXISTS(SELECT 1 FROM evidence_records n WHERE n.supersedes_evidence_id = evidence_records.id) AS isCurrent',
+        'id, type, source, substr(content,1,500) AS contentPreview, length(content) AS contentLength, attachment_file_name AS attachmentFileName, attachment_mime_type AS attachmentMimeType, submitted_at AS submittedAt, supersedes_evidence_id AS supersedesEvidenceId, NOT EXISTS(SELECT 1 FROM evidence_records n WHERE n.supersedes_evidence_id = evidence_records.id) AS isCurrent',
         'submitted_at, id',
       ),
       _ => throw ArgumentError('不支持的记录范围'),
@@ -224,12 +140,11 @@ class DriftAssistantReader implements AssistantReader {
         'section': section,
         'source': 'saved_app_facts',
         'hint':
-            '用户报告、提交材料和规则阶段分别表达，不等于AI评价或掌握。预览可能截断；材料正文用 evidence_content 继续读取。修正链保留原文，最新有效材料需检查supersedesEvidenceId。',
+            '用户报告、提交材料和规则阶段分别表达，不等于AI评价或掌握。预览可能截断；材料正文用 getMaterial 继续读取。修正链保留原文，最新有效材料需检查supersedesEvidenceId。',
       };
     });
   }
 
-  @override
   Future<Map<String, Object?>> evidenceContent(
     String evidenceId, {
     int offset = 0,
@@ -237,7 +152,7 @@ class DriftAssistantReader implements AssistantReader {
     _checkOffset(offset);
     final row = await database
         .customSelect(
-          'SELECT id, mission_id AS missionId, type, source, substr(COALESCE(content,(SELECT content FROM records r WHERE r.id=evidence_records.record_id)), ?, $chunkSize) AS text, length(COALESCE(content,(SELECT content FROM records r WHERE r.id=evidence_records.record_id))) AS total, supersedes_evidence_id AS supersedesEvidenceId FROM evidence_records WHERE id = ?',
+          'SELECT id, mission_id AS missionId, type, source, substr(content, ?, $chunkSize) AS text, length(content) AS total, supersedes_evidence_id AS supersedesEvidenceId FROM evidence_records WHERE id = ?',
           variables: [Variable<int>(offset + 1), Variable<String>(evidenceId)],
         )
         .getSingleOrNull();
@@ -265,7 +180,6 @@ class DriftAssistantReader implements AssistantReader {
     };
   }
 
-  @override
   Future<Map<String, Object?>> content(
     String missionId,
     String field, {

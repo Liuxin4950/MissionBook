@@ -7,9 +7,6 @@ enum ReminderKind {
   /// 计划开始前的预告，只打开详情供调整，不开始任务。
   upcomingReminder,
 
-  /// 仅兼容旧通知 payload；新固定任务使用预告与自动开始流程。
-  startReminder,
-
   /// 执行通知（执行中）：标题 + Focus 摘要 +「停止」。
   executionRunning,
 

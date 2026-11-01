@@ -28,6 +28,6 @@ DateTime? scheduledExecutionEnd(
       .where((event) => event.type == ExecutionEventType.extend)
       .fold<int>(0, (sum, event) => sum + event.grantedDurationMinutes!);
   final end = baseEnd.add(Duration(minutes: extra));
-  // 旧版本可能已在应结束时刻之后保存动作；保留原事实，不能倒序插入 STOP。
+  // STOP 不能早于已保存的末次动作，保持时间线有序。
   return end.isBefore(events.last.occurredAt) ? events.last.occurredAt : end;
 }

@@ -1,13 +1,15 @@
 part of 'records_page.dart';
 
 class _AssociationDialog extends StatefulWidget {
-  const _AssociationDialog();
+  const _AssociationDialog({required this.material});
+  final bool material;
   @override
   State<_AssociationDialog> createState() => _AssociationDialogState();
 }
 
 class _AssociationDialogState extends State<_AssociationDialog> {
-  String _kind = 'mission', _search = '';
+  String _kind = 'goal', _search = '';
+  bool _initialized = false;
   int _offset = 0;
   Future<Map<String, Object?>>? _data;
   void load() {
@@ -21,6 +23,10 @@ class _AssociationDialogState extends State<_AssociationDialog> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      _kind = widget.material ? 'mission' : 'goal';
+    }
     _data ??= RecordScope.maybeOf(context)!.service.associationChoices(_kind);
   }
 
@@ -32,28 +38,28 @@ class _AssociationDialogState extends State<_AssociationDialog> {
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
     ),
-    title: const Text('关联到'),
+    title: Text(widget.material ? '用作任务材料' : '记录归属'),
     content: SizedBox(
       width: 440,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 440),
         child: Column(
           children: [
-            AppDropdownFormField<String>(
-              initialValue: _kind,
-              decoration: const InputDecoration(labelText: '关联类型'),
-              items: const [
-                DropdownMenuItem(value: 'goal', child: Text('目标')),
-                DropdownMenuItem(value: 'node', child: Text('目标节点')),
-                DropdownMenuItem(value: 'mission', child: Text('任务材料')),
-              ],
-              onChanged: (v) {
-                if (v == null) return;
-                _kind = v;
-                _offset = 0;
-                load();
-              },
-            ),
+            if (!widget.material)
+              AppDropdownFormField<String>(
+                initialValue: _kind,
+                decoration: const InputDecoration(labelText: '关联类型'),
+                items: const [
+                  DropdownMenuItem(value: 'goal', child: Text('目标')),
+                  DropdownMenuItem(value: 'node', child: Text('目标节点')),
+                ],
+                onChanged: (v) {
+                  if (v == null) return;
+                  _kind = v;
+                  _offset = 0;
+                  load();
+                },
+              ),
             const SizedBox(height: AppLayout.spaceMd),
             TextField(
               style: Theme.of(context).textTheme.bodyLarge,
@@ -127,10 +133,11 @@ class _AssociationDialogState extends State<_AssociationDialog> {
       ),
     ),
     actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context, <String, String>{}),
-        child: const Text('独立记录'),
-      ),
+      if (!widget.material)
+        TextButton(
+          onPressed: () => Navigator.pop(context, <String, String>{}),
+          child: const Text('独立记录'),
+        ),
       TextButton(
         onPressed: () => Navigator.pop(context),
         child: const Text('取消'),

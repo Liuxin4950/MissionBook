@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/notifications/app_notification_service.dart';
 import 'package:mission_book/data/local/app_database.dart';
-import 'package:mission_book/data/notifications/notification_dispatcher.dart';
+import 'package:mission_book/application/notifications/notification_dispatcher.dart';
 import 'package:mission_book/data/notifications/reminder_store.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
@@ -170,12 +170,7 @@ void main() {
       fixedStartAt: DateTime.utc(2026, 10, 25, 1),
     );
     await service.refresh();
-    final detail = (await missions.findDetail(missionId: id))!;
-    await store.snooze(
-      missionId: id,
-      scheduleRevisionId: detail.schedule.id,
-      until: now.add(const Duration(minutes: 15)),
-    ); // 兼容历史设置文件
+    await store.markDelivered(id);
     // 改期：固定开始时刻变化 → 追加排期版本。
     final before = (await missions.findDetail(missionId: id))!;
     await missions.edit(
@@ -189,7 +184,7 @@ void main() {
     );
     await service.refresh();
     final pref = store.preferenceOf(id)!;
-    expect(pref.snoozedUntil, isNull, reason: '旧版本延后不能用在新版本上（§7.1）');
+    expect(pref.delivered, isFalse, reason: '新排期应重新提醒');
     // 新版本按新时刻重排；旧幂等键的调度已撤销，不再生效。
     final rescheduled = dispatcher.scheduled.values
         .where(
@@ -226,21 +221,21 @@ void main() {
     final request = dispatcher.scheduled.values.single;
     // 提前提醒只打开详情，不能提前写 START。到点使用统一自动执行入口。
     expect(
-      await service.handleAction(request),
+      await service.handleAction(request, actionId: ''),
       NotificationActionResult.openMission,
     );
     now = DateTime.utc(2026, 10, 25, 1);
     await missions.reconcileScheduledMissions();
     // 原来的预告点击仍只是打开任务。
     expect(
-      await service.handleAction(request),
+      await service.handleAction(request, actionId: ''),
       NotificationActionResult.openMission,
     );
     final afterStart = (await missions.findDetail(missionId: id))!;
     expect(afterStart.events, hasLength(1));
     // 已处理的同一候选动作静默幂等，不写事实也不重复提示。
     expect(
-      await service.handleAction(request),
+      await service.handleAction(request, actionId: ''),
       NotificationActionResult.openMission,
     );
     expect(
@@ -262,7 +257,7 @@ void main() {
       candidateEventIds: const {},
     );
     expect(
-      await service.handleAction(stopRequest),
+      await service.handleAction(stopRequest, actionId: 'stop'),
       NotificationActionResult.openEndConfirm,
     );
     final afterStop = (await missions.findDetail(missionId: id))!;
@@ -270,14 +265,14 @@ void main() {
     expect(afterStop.events, hasLength(2));
   });
 
-  test('偏好持久化：延后与送达状态关闭重开仍在', () async {
+  test('提醒设置关闭重开仍在', () async {
     await createFixed(
       title: '持久任务',
       fixedStartAt: DateTime.utc(2026, 10, 25, 1),
     );
     await service.refresh();
     await service.setReminderLeadMinutes(15);
-    // 重新打开：同一文件读回，延后保持。
+    // 重新打开：同一文件读回提醒设置。
     final reopened = ReminderStore(File('${tempDir.path}/reminders.json'));
     await reopened.load();
     expect(reopened.reminderLeadMinutes, 15);

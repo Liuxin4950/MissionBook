@@ -3,8 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../core/theme/colors.dart';
 import '../../domain/notifications/reminder_request.dart';
-import 'notification_dispatcher.dart';
+import '../../application/notifications/notification_dispatcher.dart';
 
 /// Android 分发端：fln 的 zonedSchedule/立即显示/撤销。
 ///
@@ -26,8 +27,7 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
     'mission_book/notification_appearance',
   );
 
-  // 提前预告点击正文打开详情；旧版开始通知仅保留开始动作，
-  // 执行中「停止」、暂停中「继续」；事实类按钮拉起应用走同一工作流。
+  // 提前预告打开详情；执行中「停止」、暂停中「继续」经业务服务处理。
   NotificationDetails _detailsFor(ReminderRequest request) {
     final kind = request.kind;
     final executing =
@@ -66,8 +66,8 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
                   request.focusMilliseconds!
             : null,
         channelShowBadge: !executing,
-        // 与 AppColors.primary 一致；Android 通知不能引用 Flutter 主题对象。
-        color: const Color(0xFF244D3D),
+        // 通知使用与应用一致的品牌色。
+        color: AppColors.primary,
         subText: executing
             ? (running
                   ? '正在专注'
@@ -82,9 +82,6 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
         actions: switch (kind) {
           ReminderKind.executionStopped => [],
           ReminderKind.upcomingReminder => [],
-          ReminderKind.startReminder => [
-            AndroidNotificationAction('start', '开始', showsUserInterface: true),
-          ],
           ReminderKind.executionRunning => [
             AndroidNotificationAction(
               'stop',

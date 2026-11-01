@@ -1,3 +1,4 @@
+import '../../../domain/entities/content_draft.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../records/record_scope.dart';
 import '../../records/records_page.dart';
@@ -23,7 +24,7 @@ import '../detail/mission_detail_page.dart';
 import '../record/mission_record_workspace.dart';
 import '../shared/mission_execution_display.dart';
 import '../shared/mission_phase_display.dart';
-import '../evidence/evidence_image_loader.dart';
+import '../../attachments/attachment_image_loader.dart';
 
 /// 执行历史与取消记录分开读取。没有 END 的任务通过“当前任务”恢复执行。
 class MissionHistoryPage extends StatefulWidget {
@@ -280,7 +281,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
     final images = _cancelled
         ? <Evidence>[]
         : detail.effectiveEvidence
-              .where((item) => item.type == EvidenceType.image)
+              .where((item) => item.type == ContentType.image)
               .toList();
     final status = _cancelled
         ? '已取消'
@@ -432,7 +433,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
       await widget.service.initializeEvidenceImages();
       return widget.service.readEvidenceImage(key);
     });
-    return EvidenceImageLoader(
+    return AttachmentImageLoader(
       future: future,
       name: item.attachmentFileName ?? '图片材料',
       height: 88,

@@ -1,3 +1,4 @@
+import '../../domain/rules/content_rules.dart';
 import '../../domain/rules/schedule_proposal_rules.dart';
 import 'drift_repository_support.dart';
 import '../../domain/entities/user_execution_report.dart';
@@ -87,8 +88,15 @@ class DriftMissionRepository
   @override
   Future<EvidenceSubmissionResult> attachRecordEvidence(
     String recordId,
-    String missionId,
-  ) => _evidence.attachRecordEvidence(recordId, missionId);
+    String missionId, {
+    EvidenceDraft? expected,
+    String? operationId,
+  }) => _evidence.attachRecordEvidence(
+    recordId,
+    missionId,
+    expected: expected,
+    operationId: operationId,
+  );
 
   /// 接收应用持有的连接；本仓储不自行创建或关闭数据库。
   DriftMissionRepository(this.database, {this.clock = DateTime.now}) {

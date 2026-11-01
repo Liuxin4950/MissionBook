@@ -1,10 +1,10 @@
+import 'content_rules.dart';
 import '../entities/execution_event.dart'; // 引入执行事件及动作、报告结果枚举。
 import '../entities/mission.dart'; // 引入任务的材料策略枚举。
 import '../entities/mission_phase.dart'; // 任务阶段是计算结果，不是数据库字段。
 import '../entities/failure_record.dart';
 import '../entities/evidence.dart';
 import '../entities/mission_schedule_revision.dart';
-import 'evidence_rules.dart';
 
 /// 校验一条执行事件的字段组合；不修改对象，也不读写数据库。
 ///
@@ -163,7 +163,7 @@ MissionPhase deriveMissionPhase(
   final byId = <String, Evidence>{};
   final replaced = <String>{};
   for (final item in evidence) {
-    validateEvidenceDraft(item, mission.id);
+    validateContentDraft(item);
     if (item.missionId != mission.id ||
         byId.containsKey(item.id) ||
         item.submissionId.trim().isEmpty ||

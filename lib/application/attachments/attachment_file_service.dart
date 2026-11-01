@@ -6,8 +6,8 @@ import 'package:flutter/foundation.dart'
 import 'package:uuid/uuid.dart';
 
 /// 图片已复制到应用存储后的结果；调用者把这些值放进材料草稿。
-class PreparedEvidenceImage {
-  const PreparedEvidenceImage({
+class PreparedAttachment {
+  const PreparedAttachment({
     required this.storageKey,
     required this.fileName,
     this.mimeType,
@@ -19,8 +19,8 @@ class PreparedEvidenceImage {
 }
 
 /// 系统选择器返回的临时选择；读取前先检查声明大小，再检查实际字节数。
-class SelectedEvidenceImage {
-  const SelectedEvidenceImage({
+class SelectedAttachment {
+  const SelectedAttachment({
     required this.fileName,
     required this.byteLength,
     required this.readBytes,
@@ -33,16 +33,16 @@ class SelectedEvidenceImage {
   final String? mimeType;
 }
 
-abstract interface class EvidenceFilePicker {
-  Future<SelectedEvidenceImage?> pick();
+abstract interface class FileAttachmentPicker {
+  Future<SelectedAttachment?> pick();
 }
 
 /// 图片业务使用的两个外部能力；测试可以注入独立实现，不触碰用户文件。
-abstract interface class EvidenceImagePicker {
-  Future<SelectedEvidenceImage?> pick();
+abstract interface class ImageAttachmentPicker {
+  Future<SelectedAttachment?> pick();
 }
 
-abstract interface class EvidenceImageStore {
+abstract interface class AttachmentStore {
   Future<void> writeNew(String storageKey, Uint8List bytes);
   Future<Uint8List> read(String storageKey);
   Future<void> delete(String storageKey);
@@ -50,11 +50,11 @@ abstract interface class EvidenceImageStore {
 }
 
 /// 组织“选择 → 校验 → 复制”，不创建正式 Evidence，也不修改任务阶段。
-class EvidenceImageService {
-  EvidenceImageService({
-    required EvidenceImageStore store,
-    required EvidenceImagePicker picker,
-    EvidenceFilePicker? filePicker,
+class AttachmentFileService {
+  AttachmentFileService({
+    required AttachmentStore store,
+    required ImageAttachmentPicker picker,
+    FileAttachmentPicker? filePicker,
     String Function()? nextId,
   }) : _store = store,
        _picker = picker,
@@ -62,13 +62,13 @@ class EvidenceImageService {
        _nextId = nextId ?? const Uuid().v4;
 
   static const maxBytes = 20 * 1024 * 1024;
-  final EvidenceImageStore _store;
-  final EvidenceImagePicker _picker;
-  final EvidenceFilePicker? _filePicker;
+  final AttachmentStore _store;
+  final ImageAttachmentPicker _picker;
+  final FileAttachmentPicker? _filePicker;
   final String Function() _nextId;
 
-  Future<PreparedEvidenceImage?> pickAndPrepare(String missionId) async {
-    validateAttachmentSegment(missionId);
+  Future<PreparedAttachment?> pickAndPrepare(String ownerId) async {
+    validateAttachmentSegment(ownerId);
     // 系统选择取消返回 null，已有的文字和其他图片草稿不受影响。
     final selection = await _picker.pick();
     if (selection == null) return null;
@@ -80,18 +80,18 @@ class EvidenceImageService {
     final id = _nextId();
     validateAttachmentSegment(id);
     final format = _imageFormat(bytes);
-    final key = 'attachments/$missionId/$id.${format.$1}';
+    final key = 'attachments/$ownerId/$id.${format.$1}';
     // 等副本全部写完才返回。之后提交只写数据库引用，不再复制一遍图片。
     await _store.writeNew(key, bytes);
-    return PreparedEvidenceImage(
+    return PreparedAttachment(
       storageKey: key,
       fileName: _displayName(selection.fileName),
       mimeType: format.$2,
     );
   }
 
-  Future<PreparedEvidenceImage?> pickFileAndPrepare(String missionId) async {
-    validateAttachmentSegment(missionId);
+  Future<PreparedAttachment?> pickFileAndPrepare(String ownerId) async {
+    validateAttachmentSegment(ownerId);
     final picker = _filePicker;
     if (picker == null) throw StateError('当前平台没有配置文件选择');
     final selection = await picker.pick();
@@ -110,9 +110,9 @@ class EvidenceImageService {
     final extension = RegExp(r'^[a-z0-9]{1,8}$').hasMatch(suffix)
         ? suffix
         : 'bin';
-    final key = 'attachments/$missionId/$id.$extension';
+    final key = 'attachments/$ownerId/$id.$extension';
     await _store.writeNew(key, bytes);
-    return PreparedEvidenceImage(
+    return PreparedAttachment(
       storageKey: key,
       fileName: name,
       mimeType: selection.mimeType?.trim().isEmpty == true
@@ -121,19 +121,19 @@ class EvidenceImageService {
     );
   }
 
-  Future<PreparedEvidenceImage> prepareCapturedImage(
-    String missionId,
+  Future<PreparedAttachment> prepareCapturedImage(
+    String ownerId,
     Uint8List bytes,
   ) async {
-    validateAttachmentSegment(missionId);
+    validateAttachmentSegment(ownerId);
     _validateSize(bytes.length);
     await _validateDecodableImage(bytes);
     final id = _nextId();
     validateAttachmentSegment(id);
     final format = _imageFormat(bytes);
-    final key = 'attachments/$missionId/$id.${format.$1}';
+    final key = 'attachments/$ownerId/$id.${format.$1}';
     await _store.writeNew(key, bytes);
-    return PreparedEvidenceImage(
+    return PreparedAttachment(
       storageKey: key,
       fileName: '现场照片.${format.$1}',
       mimeType: format.$2,
@@ -211,7 +211,7 @@ List<String> validateAttachmentKey(String key) {
 
 void validateAttachmentSegment(String value) {
   if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$').hasMatch(value)) {
-    throw ArgumentError('图片所属任务或文件编号无效');
+    throw ArgumentError('附件所属对象或文件编号无效');
   }
 }
 

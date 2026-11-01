@@ -1,4 +1,19 @@
+/// 助手读取目标、任务、日程和任务资料的统一契约。
 abstract interface class UnifiedReader {
+  Future<Map<String, Object?>> records(
+    String missionId,
+    String section, {
+    int offset = 0,
+  });
+  Future<Map<String, Object?>> evidenceContent(
+    String evidenceId, {
+    int offset = 0,
+  });
+  Future<Map<String, Object?>> content(
+    String missionId,
+    String field, {
+    int offset = 0,
+  });
   Future<Map<String, Object?>> getGoal({
     String? goal,
     String? node,

@@ -23,16 +23,7 @@ class GoalService {
   Future<GoalImportSource?> pickImportSource() async {
     final picker = _filePicker;
     if (picker == null) throw UnsupportedError('当前环境无法选取文件，请粘贴 JSON');
-    if (picker is GoalSourcePicker) return picker.pickSource();
-    final bytes = await picker.pickBytes();
-    if (bytes == null) return null;
-    return GoalImportSource(
-      name: '目标 JSON',
-      length: bytes.length,
-      openRead: () async* {
-        yield bytes;
-      },
-    );
+    return picker.pickSource();
   }
 
   final _uuid = const Uuid();
@@ -165,12 +156,16 @@ class GoalService {
   Future<String?> pickOutlineText() async {
     final picker = _filePicker;
     if (picker == null) throw UnsupportedError('当前环境无法选取文件，请粘贴 JSON');
-    final bytes = await picker.pickBytes();
-    if (bytes == null) return null;
-    if (bytes.length > GoalOutlineParser.maxBytes) {
-      throw const FormatException('文件超过 2 MiB 限制');
+    final source = await picker.pickSource();
+    if (source == null) return null;
+    final chunks = <int>[];
+    await for (final chunk in source.openRead()) {
+      if (chunks.length + chunk.length > GoalOutlineParser.maxBytes) {
+        throw const FormatException('文件超过 2 MiB 限制');
+      }
+      chunks.addAll(chunk);
     }
-    return utf8.decode(bytes, allowMalformed: false);
+    return utf8.decode(chunks, allowMalformed: false);
   }
 
   Future<List<GoalNode>> findNodes(String goalId) =>

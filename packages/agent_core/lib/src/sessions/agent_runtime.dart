@@ -265,10 +265,7 @@ final class AgentSession {
       final candidate = ModelRequest(
         systemPrompt: systemPrompt,
         messages: [input],
-        tools: _runtime.tools
-            .where((tool) => tool.exposed)
-            .map((tool) => tool.definition)
-            .toList(),
+        tools: _runtime.tools.map((tool) => tool.definition).toList(),
         maxOutputTokens: outputTokens,
         reasoningEffort: reasoningEffort,
         jsonOutput: _state.jsonOutput,
@@ -355,10 +352,7 @@ final class AgentSession {
         ModelRequest(
           systemPrompt: systemPrompt,
           messages: contextMessages,
-          tools: _runtime.tools
-              .where((tool) => tool.exposed)
-              .map((tool) => tool.definition)
-              .toList(),
+          tools: _runtime.tools.map((tool) => tool.definition).toList(),
         ),
         token,
         trigger: CompactionTrigger.manual,
@@ -393,10 +387,7 @@ final class AgentSession {
         ModelRequest(
           systemPrompt: systemPrompt,
           messages: contextMessages,
-          tools: _runtime.tools
-              .where((tool) => tool.exposed)
-              .map((tool) => tool.definition)
-              .toList(),
+          tools: _runtime.tools.map((tool) => tool.definition).toList(),
         ),
         stream: false,
       );

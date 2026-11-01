@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/notifications/app_notification_service.dart';
 import 'package:mission_book/data/local/app_database.dart';
-import 'package:mission_book/data/notifications/notification_dispatcher.dart';
+import 'package:mission_book/application/notifications/notification_dispatcher.dart';
 import 'package:mission_book/data/notifications/reminder_store.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
@@ -157,20 +157,16 @@ void main() {
       );
     },
   );
-  test(
-    'legacy snooze action is stale and does not postpone automatic start',
-    () async {
-      final id = await create();
-      await service.refresh();
-      final request = dispatcher.scheduled.values.single;
-      expect(
-        await service.handleAction(request, actionId: 'snooze'),
-        NotificationActionResult.stale,
-      );
-      expect(store.preferenceOf(id)!.snoozedUntil, isNull);
-      expect((await missions.findDetail(missionId: id))!.events, isEmpty);
-    },
-  );
+  test('未知通知动作无效，不改变自动开始', () async {
+    final id = await create();
+    await service.refresh();
+    final request = dispatcher.scheduled.values.single;
+    expect(
+      await service.handleAction(request, actionId: 'snooze'),
+      NotificationActionResult.stale,
+    );
+    expect((await missions.findDetail(missionId: id))!.events, isEmpty);
+  });
   test('执行摘要复用真实时间规则：暂停冻结、延长不恢复、继续累计、END撤销', () async {
     final id = await create(duration: 120);
     await service.refresh();

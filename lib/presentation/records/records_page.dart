@@ -1,3 +1,5 @@
+import '../../domain/entities/saved_record.dart';
+import '../../domain/entities/record_draft.dart';
 import '../../application/errors/user_error_message.dart';
 import '../../domain/entities/analysis_scope.dart';
 import 'dart:async';
@@ -8,9 +10,8 @@ import 'package:uuid/uuid.dart';
 import '../../application/records/record_service.dart';
 import '../../core/theme/app_layout.dart';
 import '../../core/theme/colors.dart';
-import '../../domain/entities/evidence.dart';
-import '../missions/evidence/evidence_camera_panel.dart';
-import '../missions/evidence/evidence_image_loader.dart';
+import '../attachments/photo_capture_panel.dart';
+import '../attachments/attachment_image_loader.dart';
 import '../widgets/adaptive_columns.dart';
 import '../widgets/app_confirm_dialog.dart';
 import '../widgets/app_dropdown_form_field.dart';
@@ -45,7 +46,7 @@ class RecordsPage extends StatefulWidget {
 }
 
 class _RecordsPageState extends State<RecordsPage> {
-  Future<Map<String, Object?>>? _data;
+  Future<RecordPage>? _data;
   StreamSubscription<void>? _changes;
   int _offset = 0;
   bool _initialized = false;
@@ -56,7 +57,7 @@ class _RecordsPageState extends State<RecordsPage> {
     if (!_initialized) {
       _initialized = true;
       _load();
-      _changes = service.missions.changes.listen((_) {
+      _changes = service.changes.listen((_) {
         if (mounted) _load();
       });
       if (widget.capture) {
@@ -69,7 +70,7 @@ class _RecordsPageState extends State<RecordsPage> {
 
   void _load() {
     setState(() {
-      _data = service.queryRecords(
+      _data = service.readRecords(
         goalId: widget.goalId,
         nodeId: widget.nodeId,
         missionId: widget.missionId,
@@ -93,22 +94,16 @@ class _RecordsPageState extends State<RecordsPage> {
     if (mounted) _load();
   }
 
-  Future<void> _delete(Map<String, Object?> item) async {
-    if (item['mission_id'] != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已作为任务材料的记录不能删除，请在任务材料中追加修正')),
-      );
-      return;
-    }
+  Future<void> _delete(SavedRecord item) async {
     final confirmed = await AppConfirmDialog.show(
       context: context,
       title: '删除这条记录？',
-      message: '删除后将无法在记录中查看。',
+      message: '删除后将无法在记录中查看，任务中已经提交的材料仍会保留。',
       confirmText: '删除',
     );
     if (!confirmed || !mounted) return;
     try {
-      await service.delete(item['id'] as String);
+      await service.delete(item.id);
       if (mounted) {
         if (_offset > 0) {
           _offset = 0;
@@ -134,7 +129,14 @@ class _RecordsPageState extends State<RecordsPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppTopBar(
-      title: '记录',
+      title: widget.missionId != null
+          ? '材料来源记录'
+          : widget.nodeId != null
+          ? '节点记录'
+          : widget.goalId != null
+          ? '目标记录'
+          : '记录',
+      maxContentWidth: AppLayout.formMaxWidth,
       actions: [
         IconButton(
           tooltip: '拍照记录',
@@ -144,105 +146,145 @@ class _RecordsPageState extends State<RecordsPage> {
         IconButton(
           tooltip: '添加记录',
           onPressed: _create,
-          icon: const Icon(Icons.add),
+          icon: const Icon(Icons.add_rounded),
         ),
       ],
     ),
-    body: FutureBuilder<Map<String, Object?>>(
-      future: _data,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: AppEmptyState(
-              title: '记录读取失败',
-              details: const Text('请检查设备存储后重试。'),
-              actions: OutlinedButton.icon(
-                onPressed: _load,
-                icon: const Icon(Icons.refresh),
-                label: const Text('重试'),
-              ),
-            ),
-          );
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final data = snapshot.data!;
-        final items = data['items'] as List<Map<String, Object?>>;
-        return ListView(
-          padding: const EdgeInsets.all(AppLayout.spaceLg),
-          children: [
-            if (items.isEmpty)
-              AppEmptyState(
-                title: '还没有记录',
-                details: const Text('可以拍照或写下文字。'),
-                actions: FilledButton.icon(
-                  onPressed: _create,
-                  icon: const Icon(Icons.add),
-                  label: const Text('添加记录'),
-                ),
-              ),
-            for (final item in items)
-              _SwipeRecord(
-                key: ValueKey<String>(item['id'] as String),
-                onDelete: () => _delete(item),
-                child: Card(
-                  child: ListTile(
-                    leading: item['type'] == 'IMAGE'
-                        ? _RecordThumbnail(
-                            storageKey:
-                                item['attachment_storage_key'] as String,
-                            name:
-                                item['attachment_file_name'] as String? ??
-                                '记录图片',
-                            service: service,
-                          )
-                        : const Icon(Icons.notes),
-                    title: Text(
-                      (item['content'] as String?)?.isNotEmpty == true
-                          ? item['content'] as String
-                          : item['attachment_file_name'] as String? ?? '记录',
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
+    body: SafeArea(
+      top: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
+          child: LayoutBuilder(
+            builder: (context, box) => FutureBuilder<RecordPage>(
+              future: _data,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return SingleChildScrollView(
+                    padding: AppLayout.pagePadding(context),
+                    child: AppEmptyState(
+                      title: '记录读取失败',
+                      details: const Text('请检查设备存储后重试。'),
+                      actions: OutlinedButton.icon(
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('重试'),
+                      ),
                     ),
-                    subtitle: Text(
-                      '${DateTime.fromMillisecondsSinceEpoch(item['occurred_at'] as int).toLocal()}\n${_analysisLabel(item['analysis'])}',
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final data = snapshot.data!;
+                if (data.items.isEmpty) {
+                  return SingleChildScrollView(
+                    padding: AppLayout.pagePadding(context),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: (box.maxHeight - AppLayout.space3Xl).clamp(
+                          0,
+                          double.infinity,
+                        ),
+                      ),
+                      child: AppEmptyState(
+                        title: '还没有记录',
+                        details: const Text('拍下值得留下的瞬间，或写下一段想法。'),
+                        actions: FilledButton.icon(
+                          onPressed: _create,
+                          icon: const Icon(Icons.add_rounded),
+                          label: const Text('添加记录'),
+                        ),
+                      ),
                     ),
-                    onTap: () => Navigator.of(context).push<void>(
+                  );
+                }
+                final padding = AppLayout.horizontalPadding(context);
+                final wide =
+                    box.maxWidth - padding * 2 >=
+                    680 * MediaQuery.textScalerOf(context).scale(1);
+                Widget tile(SavedRecord item) => _SwipeRecord(
+                  key: ValueKey<String>(item.id),
+                  onDelete: () => _delete(item),
+                  child: _RecordTile(
+                    item: item,
+                    service: service,
+                    onDelete: () => _delete(item),
+                    onOpen: () => Navigator.of(context).push<void>(
                       MaterialPageRoute(
-                        builder: (_) => RecordDetail(id: item['id'] as String),
+                        builder: (_) => RecordDetail(id: item.id),
                       ),
                     ),
                   ),
-                ),
-              ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed: _offset == 0
-                      ? null
-                      : () {
-                          _offset = (_offset - 20).clamp(0, 1 << 30);
-                          _load();
-                        },
-                  child: const Text('上一页'),
-                ),
-                Text('共 ${data['total']} 条'),
-                TextButton(
-                  onPressed: data['nextOffset'] == null
-                      ? null
-                      : () {
-                          _offset = data['nextOffset'] as int;
-                          _load();
-                        },
-                  child: const Text('下一页'),
-                ),
-              ],
+                );
+                return ListView(
+                  padding: AppLayout.pagePadding(context),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppLayout.spaceLg),
+                      child: Text(
+                        '共 ${data.total} 条记录',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    for (
+                      var index = 0;
+                      index < data.items.length;
+                      index += wide ? 2 : 1
+                    )
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: AppLayout.spaceMd,
+                        ),
+                        child: wide
+                            ? Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(child: tile(data.items[index])),
+                                  const SizedBox(width: AppLayout.spaceLg),
+                                  Expanded(
+                                    child: index + 1 < data.items.length
+                                        ? tile(data.items[index + 1])
+                                        : const SizedBox.shrink(),
+                                  ),
+                                ],
+                              )
+                            : tile(data.items[index]),
+                      ),
+                    if (_offset > 0 || data.nextOffset != null)
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: AppLayout.spaceMd,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          TextButton(
+                            onPressed: _offset == 0
+                                ? null
+                                : () {
+                                    _offset = (_offset - 20).clamp(0, 1 << 30);
+                                    _load();
+                                  },
+                            child: const Text('上一页'),
+                          ),
+                          Text('第 ${_offset ~/ 20 + 1} 页'),
+                          TextButton(
+                            onPressed: data.nextOffset == null
+                                ? null
+                                : () {
+                                    _offset = data.nextOffset!;
+                                    _load();
+                                  },
+                            child: const Text('下一页'),
+                          ),
+                        ],
+                      ),
+                  ],
+                );
+              },
             ),
-          ],
-        );
-      },
+          ),
+        ),
+      ),
     ),
   );
 }
@@ -333,14 +375,91 @@ class _SwipeRecordState extends State<_SwipeRecord> {
   );
 }
 
-String _analysisLabel(Object? value) {
-  final a = value as Map<String, Object?>?;
-  return switch (a?['state']) {
-    'ready' => a?['stale'] == true ? '摘要待更新' : '已生成内容摘要',
-    'failed' => '分析失败，可重试',
-    'blocked' => '分析需配置模型能力',
-    'running' => '正在分析',
-    'pending' => '待分析',
-    _ => '尚未分析',
-  };
+/// 列表突出内容、发生时间和归属；摘要在详情查看，不铺开模型配置状态。
+class _RecordTile extends StatelessWidget {
+  const _RecordTile({
+    required this.item,
+    required this.service,
+    required this.onOpen,
+    required this.onDelete,
+  });
+  final SavedRecord item;
+  final RecordService service;
+  final VoidCallback onOpen, onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final local = item.occurredAt.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final date =
+        '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
+    return AppSectionCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(AppLayout.spaceLg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    item.type == ContentType.image
+                        ? Icons.photo_outlined
+                        : item.type == ContentType.file
+                        ? Icons.attach_file
+                        : Icons.notes_rounded,
+                    size: AppLayout.iconMd,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: AppLayout.spaceSm),
+                  Expanded(child: Text(date, style: text.bodySmall)),
+                  PopupMenuButton<String>(
+                    tooltip: '记录操作',
+                    onSelected: (_) => onDelete(),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'delete', child: Text('删除记录')),
+                    ],
+                    icon: const Icon(Icons.more_horiz, size: AppLayout.iconMd),
+                  ),
+                ],
+              ),
+              if (item.type == ContentType.image) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _RecordThumbnail(
+                    storageKey: item.attachmentStorageKey!,
+                    name: item.attachmentFileName ?? '记录图片',
+                    service: service,
+                  ),
+                ),
+                const SizedBox(height: AppLayout.spaceMd),
+              ],
+              Text(
+                item.content?.isNotEmpty == true
+                    ? item.content!
+                    : item.attachmentFileName ?? '记录',
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: text.bodyLarge,
+              ),
+              if (item.goalTitle != null) ...[
+                const SizedBox(height: AppLayout.spaceMd),
+                Text(
+                  '${item.goalTitle}${item.nodeTitle == null ? '' : ' / ${item.nodeTitle}'}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

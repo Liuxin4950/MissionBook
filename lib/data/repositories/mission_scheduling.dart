@@ -63,7 +63,7 @@ class _MissionScheduling {
         final fingerprint = _planFingerprint(plan);
         final previous = await _repository.findOperationReceipt(plan.id);
         if (previous != null) {
-          if (previous.kind != 'mission_plan' ||
+          if (previous.kind != 'planMissions' ||
               previous.fingerprint != fingerprint) {
             throw StateError('这份计划已经保存为其他内容，请核对结果后重新提出');
           }
@@ -93,7 +93,7 @@ class _MissionScheduling {
         final now = _repository._now();
         final result = jsonEncode({
           'ok': true,
-          'operation': 'mission_plan',
+          'operation': 'planMissions',
           'planId': plan.id,
           'savedCount': plan.items.length,
           'items': [
@@ -120,7 +120,7 @@ class _MissionScheduling {
             .insert(
               OperationReceiptsCompanion.insert(
                 id: plan.id,
-                kind: 'mission_plan',
+                kind: 'planMissions',
                 fingerprint: fingerprint,
                 entityId: plan.id,
                 resultJson: result,

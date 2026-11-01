@@ -16,7 +16,6 @@ class _AssistantConfiguration {
   bool get compacting => _controller.compacting;
   bool get hasCredential => _controller.hasCredential;
   ModelProfile? get customProfile => _controller.customProfile;
-  bool get autoApproveWrites => _controller.autoApproveWrites;
   AssistantPermissionMode get permissionMode => _controller.permissionMode;
   AssistantSpeechSettings get speechSettings => _controller.speechSettings;
   AssistantPersona get persona => _controller.persona;
@@ -147,12 +146,6 @@ class _AssistantConfiguration {
       }
     },
   );
-
-  Future<void> setAutoApproveWrites(bool value) =>
-      _updateConfiguration(() async {
-        await _controller._settingsStore.saveAutoApproveWrites(value);
-        await _reloadSettings();
-      });
 
   Future<void> setPermissionMode(AssistantPermissionMode mode) =>
       _updateConfiguration(() async {

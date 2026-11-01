@@ -74,10 +74,7 @@ class _MissionQueries {
       for (final row in failureRows) {
         (failures[row.missionId] ??= []).add(failureFromRow(row));
       }
-      for (final row in await hydrateEvidenceRows(
-        _repository.database,
-        evidenceRows,
-      )) {
+      for (final row in evidenceRows) {
         (evidence[row.missionId] ??= []).add(evidenceFromRow(row));
       }
       for (final row in page) {
@@ -423,10 +420,7 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
       );
       // 查询中的坏历史在 Future 内报错，由页面显示读取失败，不等到排版时崩溃。
       final evidence = List<Evidence>.unmodifiable(
-        (await hydrateEvidenceRows(
-          _repository.database,
-          evidenceRows,
-        )).map(evidenceFromRow),
+        (evidenceRows).map(evidenceFromRow),
       );
       // 读取时同步复查材料配置口径；数据被外部损坏时明确报错，不默默显示。
       validateEvidenceRequirement(

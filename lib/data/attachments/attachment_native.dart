@@ -4,22 +4,21 @@ import 'dart:typed_data';
 import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../../application/evidence/evidence_image_service.dart';
+import '../../application/attachments/attachment_file_service.dart';
 
-EvidenceImageStore createImageStore() => NativeEvidenceImageStore(
-  applicationDirectory: getApplicationSupportDirectory,
-);
-EvidenceImagePicker createImagePicker() => NativeEvidenceImagePicker();
-EvidenceFilePicker createFilePicker() => NativeEvidenceFilePicker();
+AttachmentStore createImageStore() =>
+    NativeAttachmentStore(applicationDirectory: getApplicationSupportDirectory);
+ImageAttachmentPicker createImagePicker() => NativeImageAttachmentPicker();
+FileAttachmentPicker createFilePicker() => NativeFileAttachmentPicker();
 
-class NativeEvidenceFilePicker implements EvidenceFilePicker {
+class NativeFileAttachmentPicker implements FileAttachmentPicker {
   @override
-  Future<SelectedEvidenceImage?> pick() async {
+  Future<SelectedAttachment?> pick() async {
     final file = await FileSelectorPlatform.instance.openFile(
       confirmButtonText: '添加文件',
     );
     if (file == null) return null;
-    return SelectedEvidenceImage(
+    return SelectedAttachment(
       fileName: file.name,
       mimeType: file.mimeType,
       byteLength: await file.length(),
@@ -31,7 +30,7 @@ class NativeEvidenceFilePicker implements EvidenceFilePicker {
 Future<Uint8List> _readSelectedFile(XFile file) async {
   final builder = BytesBuilder(copy: false);
   await for (final chunk in file.openRead()) {
-    if (builder.length + chunk.length > EvidenceImageService.maxBytes) {
+    if (builder.length + chunk.length > AttachmentFileService.maxBytes) {
       throw ArgumentError('每个附件不能超过 20 MiB');
     }
     builder.add(chunk);
@@ -40,9 +39,9 @@ Future<Uint8List> _readSelectedFile(XFile file) async {
 }
 
 /// Windows 使用已注册的官方选择器；Android 复用应用的 ACTION_OPEN_DOCUMENT 通道。
-class NativeEvidenceImagePicker implements EvidenceImagePicker {
+class NativeImageAttachmentPicker implements ImageAttachmentPicker {
   @override
-  Future<SelectedEvidenceImage?> pick() async {
+  Future<SelectedAttachment?> pick() async {
     final file = await FileSelectorPlatform.instance.openFile(
       acceptedTypeGroups: const [
         XTypeGroup(
@@ -54,7 +53,7 @@ class NativeEvidenceImagePicker implements EvidenceImagePicker {
       confirmButtonText: '添加图片',
     );
     if (file == null) return null;
-    return SelectedEvidenceImage(
+    return SelectedAttachment(
       fileName: file.name,
       byteLength: await file.length(),
       readBytes: () => _readSelectedFile(file),
@@ -63,8 +62,8 @@ class NativeEvidenceImagePicker implements EvidenceImagePicker {
 }
 
 /// 只读写应用支持目录下的 attachments；测试传入独立临时目录。
-class NativeEvidenceImageStore implements EvidenceImageStore {
-  NativeEvidenceImageStore({required this.applicationDirectory});
+class NativeAttachmentStore implements AttachmentStore {
+  NativeAttachmentStore({required this.applicationDirectory});
   final Future<Directory> Function() applicationDirectory;
 
   Future<Directory> _root({bool create = false}) async {
@@ -130,7 +129,7 @@ class NativeEvidenceImageStore implements EvidenceImageStore {
   Future<Uint8List> read(String storageKey) async {
     final file = await _file(storageKey);
     if (!await file.exists()) throw StateError('图片文件已缺失，请检查备份或原始材料');
-    if (await file.length() > EvidenceImageService.maxBytes) {
+    if (await file.length() > AttachmentFileService.maxBytes) {
       throw StateError('图片文件大小异常');
     }
     return file.readAsBytes();

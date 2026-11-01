@@ -1,3 +1,4 @@
+import '../../core/theme/colors.dart';
 import 'package:flutter/material.dart';
 
 import '../../application/assistant/assistant_goal_outline.dart';
@@ -132,10 +133,7 @@ class _AssistantOutlineEditorState extends State<AssistantOutlineEditor> {
             ),
           ),
         if (_error != null)
-          Text(
-            _error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
+          Text(_error!, style: TextStyle(color: AppColors.error)),
         Wrap(
           alignment: WrapAlignment.end,
           spacing: AppLayout.spaceSm,

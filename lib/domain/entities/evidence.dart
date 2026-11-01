@@ -1,31 +1,31 @@
-/// 类型说明如何读取原始材料，不表示验证通过。
-enum EvidenceType { text, code, image, file, manualRecord }
+import 'content_draft.dart';
 
-/// 输入渠道，不代表作者身份：粘贴 AI 文本仍属于用户提交。
-enum EvidenceSource { user, fileSystem, camera }
-
-/// 页面持有的一份草稿。id 在添加时固定，失败重试沿用；构造不等于入库。
-class EvidenceDraft {
+/// 任务材料草稿；修正目标仅属于材料，不进入记录模型。
+class EvidenceDraft extends ContentDraft {
   const EvidenceDraft({
-    required this.id,
-    required this.type,
-    required this.source,
-    this.content,
-    this.attachmentStorageKey,
-    this.attachmentFileName,
-    this.attachmentMimeType,
-    this.capturedAt,
+    required super.id,
+    required super.type,
+    required super.source,
+    super.content,
+    super.attachmentStorageKey,
+    super.attachmentFileName,
+    super.attachmentMimeType,
+    super.capturedAt,
     this.supersedesEvidenceId,
   });
 
-  final String id;
-  final EvidenceType type;
-  final EvidenceSource source;
-  final String? content; // 文本正文；图片为可空说明。
-  final String? attachmentStorageKey; // 应用私有附件目录内的相对键。
-  final String? attachmentFileName; // 原名仅用于展示，不作为文件路径。
-  final String? attachmentMimeType;
-  final DateTime? capturedAt; // 来源可确认的产生时刻；未知留空。
+  EvidenceDraft.fromContent(ContentDraft value, {String? supersedesEvidenceId})
+    : this(
+        id: value.id,
+        type: value.type,
+        source: value.source,
+        content: value.content,
+        attachmentStorageKey: value.attachmentStorageKey,
+        attachmentFileName: value.attachmentFileName,
+        attachmentMimeType: value.attachmentMimeType,
+        capturedAt: value.capturedAt,
+        supersedesEvidenceId: supersedesEvidenceId,
+      );
   final String? supersedesEvidenceId; // 修正指向旧正式材料；首次提交为空。
 
   /// 文本框提供新的内容，其他身份及附件引用保持不变。
@@ -50,6 +50,7 @@ class Evidence extends EvidenceDraft {
     required this.missionId,
     required this.submissionId,
     required this.submittedAt,
+    this.sourceRecordId,
     required super.type,
     required super.source,
     super.content,
@@ -63,6 +64,7 @@ class Evidence extends EvidenceDraft {
   final String missionId;
   final String submissionId; // 一批材料共用的稳定身份，用于识别响应丢失后的重试。
   final DateTime submittedAt;
+  final String? sourceRecordId; // 原记录可删除，材料内容仍由本对象自持。
 }
 
 /// 固定一次提交的完整输入。复制为不可修改列表，避免点击保存后草稿变化。

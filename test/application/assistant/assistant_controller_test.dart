@@ -1,3 +1,4 @@
+import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -14,7 +15,6 @@ import 'package:mission_book/application/assistant/assistant_settings.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
-import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
@@ -74,7 +74,7 @@ void main() {
     Duration resumeGrace = const Duration(seconds: 20),
   }) {
     final result = AssistantController(
-      reader: DriftAssistantReader(database),
+      unifiedReader: DriftUnifiedReader(database),
       sessionStore: DriftSessionStore(database),
       settingsStore: settings,
       missions: missions,
@@ -181,7 +181,7 @@ void main() {
   test('真实日期查询经工具返回，快捷查询不依赖模型', () async {
     await createMission('阅读第一章');
     final model = ScriptedModel([
-      (_) => toolResponse('call-query', 'schedule_query', const {
+      (_) => toolResponse('call-query', 'getSchedule', const {
         'date': '2026-10-29',
       }),
       (_) => textResponse('今天有阅读第一章。'),
@@ -209,10 +209,10 @@ void main() {
     settings.permissionMode = AssistantPermissionMode.standard;
     final assistant = makeController(
       ScriptedModel([
-        (_) => toolResponse('strict-read', 'schedule_query', {}),
+        (_) => toolResponse('strict-read', 'getSchedule', {}),
         (_) => textResponse('查询结束'),
-        (_) => toolResponse('relaxed-read', 'schedule_query', {}),
-        (_) => toolResponse('relaxed-write', 'mission_create', {
+        (_) => toolResponse('relaxed-read', 'getSchedule', {}),
+        (_) => toolResponse('relaxed-write', 'createMission', {
           'title': '应取消',
           'scheduledDate': '2026-10-30',
           'plannedMinutes': 20,
@@ -284,7 +284,7 @@ void main() {
 
   test('创建提案可编辑并确认，固定请求只产生一个任务', () async {
     final model = ScriptedModel([
-      (_) => toolResponse('call-create', 'mission_create', const {
+      (_) => toolResponse('call-create', 'createMission', const {
         'title': '原始标题',
         'scheduledDate': '2026-10-30',
         'plannedMinutes': 25,
@@ -328,7 +328,7 @@ void main() {
 
   test('取消提案没有业务写入', () async {
     final model = ScriptedModel([
-      (_) => toolResponse('call-create', 'mission_create', const {
+      (_) => toolResponse('call-create', 'createMission', const {
         'title': '不保存',
         'scheduledDate': '2026-10-30',
         'plannedMinutes': 25,
@@ -350,9 +350,9 @@ void main() {
   });
 
   test('完整权限直接执行已提供写入工具', () async {
-    settings.autoApprove = true;
+    settings.permissionMode = AssistantPermissionMode.full;
     final model = ScriptedModel([
-      (_) => toolResponse('call-create', 'mission_create', const {
+      (_) => toolResponse('call-create', 'createMission', const {
         'title': '自动创建',
         'scheduledDate': '2026-10-30',
         'plannedMinutes': 25,
@@ -375,7 +375,7 @@ void main() {
     await createMission('旧任务');
     final original = (await missions.findAllDetails()).single;
     final model = ScriptedModel([
-      (_) => toolResponse('call-edit', 'mission_reschedule', {
+      (_) => toolResponse('call-edit', 'rescheduleMission', {
         'missionId': original.mission.id,
         'scheduledDate': '2026-11-01',
       }),
@@ -406,7 +406,7 @@ void main() {
 
   test('停止待确认提案不会创建任务', () async {
     final model = ScriptedModel([
-      (_) => toolResponse('call-create', 'mission_create', const {
+      (_) => toolResponse('call-create', 'createMission', const {
         'title': '停止前不保存',
         'scheduledDate': '2026-10-30',
         'plannedMinutes': 25,
@@ -423,7 +423,7 @@ void main() {
 
   test('会话关闭后由 Drift 记录恢复', () async {
     final firstModel = ScriptedModel([
-      (_) => toolResponse('call-query', 'schedule_query', const {
+      (_) => toolResponse('call-query', 'getSchedule', const {
         'date': '2026-10-29',
       }),
       (_) => textResponse('查询完成'),
@@ -442,10 +442,10 @@ void main() {
     expect(second.operations.single.status, AssistantOperationStatus.succeeded);
   });
   test('非法日历日期零写入且不会阻塞为未知结果', () async {
-    settings.autoApprove = true;
+    settings.permissionMode = AssistantPermissionMode.full;
     final assistant = makeController(
       ScriptedModel([
-        (_) => toolResponse('invalid-date', 'mission_create', {
+        (_) => toolResponse('invalid-date', 'createMission', {
           'title': '非法任务',
           'scheduledDate': '2026-02-30',
           'plannedMinutes': 20,
@@ -461,7 +461,7 @@ void main() {
   });
 
   test('纽约任务改期仍按原时区解释15点', () async {
-    settings.autoApprove = true;
+    settings.permissionMode = AssistantPermissionMode.full;
     await missions.create(
       title: '纽约任务',
       scheduledDate: '2026-10-29',
@@ -479,7 +479,7 @@ void main() {
     final mission = (await missions.findAllDetails()).single;
     final assistant = makeController(
       ScriptedModel([
-        (_) => toolResponse('ny-reschedule', 'mission_reschedule', {
+        (_) => toolResponse('ny-reschedule', 'rescheduleMission', {
           'missionId': mission.mission.id,
           'scheduledDate': '2026-10-30',
           'fixedStartLocal': '15:00',
@@ -505,7 +505,7 @@ void main() {
     await goals.createNode(node);
     final assistant = makeController(
       ScriptedModel([
-        (_) => toolResponse('rename-node', 'goal_node_update', {
+        (_) => toolResponse('rename-node', 'updateGoalNode', {
           'nodeId': node.id,
           'title': '响应式布局',
         }),
@@ -532,7 +532,7 @@ void main() {
     final receipt = await missions.findOperationReceipt(
       '$sessionId:rename-node',
     );
-    expect(receipt?.kind, 'goal_node_update');
+    expect(receipt?.kind, 'updateGoalNode');
     await assistant.close();
     final restored = makeController(ScriptedModel([]));
     await restored.initialize();
@@ -578,19 +578,19 @@ void main() {
   });
 
   test('完整任务编辑保留归属且只提交一次，取消有独立回执', () async {
-    settings.autoApprove = true;
+    settings.permissionMode = AssistantPermissionMode.full;
     await createMission('原标题');
     final original = (await missions.findAllDetails()).single;
     final assistant = makeController(
       ScriptedModel([
-        (_) => toolResponse('edit-mission', 'mission_update', {
+        (_) => toolResponse('edit-mission', 'updateMission', {
           'missionId': original.mission.id,
           'title': '新标题',
           'steps': ['先阅读', '再验证'],
           'notes': '新备注',
         }),
         (_) => textResponse('已修改。'),
-        (_) => toolResponse('cancel-mission', 'mission_cancel', {
+        (_) => toolResponse('cancel-mission', 'cancelMission', {
           'missionId': original.mission.id,
         }),
         (_) => textResponse('已取消。'),
@@ -614,7 +614,7 @@ void main() {
       (await missions.findOperationReceipt(
         '${assistant.currentSessionId}:cancel-mission',
       ))?.kind,
-      'mission_cancel',
+      'cancelMission',
     );
     expect((await missions.findAllDetails()), hasLength(1));
   });

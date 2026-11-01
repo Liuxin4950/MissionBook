@@ -21,7 +21,7 @@ class TestAppDevice implements AppDevice {
     version: '0.2.2 (4)',
     notifications: false,
     exactAlarms: true,
-    android: true,
+    platform: DevicePlatform.android,
   );
   @override
   Future<void> openSettings({required bool exactAlarms}) async {}

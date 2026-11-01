@@ -1,46 +1,43 @@
-import '../../application/errors/user_error_message.dart';
+import '../../../application/errors/user_error_message.dart';
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:uuid/uuid.dart';
-import '../../domain/entities/mission_detail.dart';
-import '../../domain/entities/mission.dart';
-import '../../domain/entities/mission_phase.dart';
-import '../../domain/entities/user_execution_report.dart';
-import '../../domain/entities/execution_event.dart';
-import '../../domain/rules/mission_attention_rules.dart';
-import '../../core/theme/app_layout.dart';
-import '../../core/theme/colors.dart';
-import '../widgets/adaptive_sheet.dart';
-import '../widgets/app_expansion.dart';
-import '../widgets/app_settings_row.dart';
-import '../widgets/app_section_card.dart';
-import '../missions/shared/mission_execution_display.dart';
-import 'record_scope.dart';
+import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/entities/mission.dart';
+import '../../../domain/entities/mission_phase.dart';
+import '../../../domain/entities/user_execution_report.dart';
+import '../../../domain/entities/execution_event.dart';
+import '../../../domain/rules/mission_attention_rules.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/colors.dart';
+import '../../widgets/adaptive_sheet.dart';
+import '../../widgets/app_expansion.dart';
+import '../../widgets/app_settings_row.dart';
+import '../../widgets/app_section_card.dart';
+import '../shared/mission_execution_display.dart';
+import '../../../application/missions/mission_service.dart';
 
 /// 补记只用于未启动且已过期的任务；报告保存后只允许追加实际时间更正。
 class ExecutionReportButton extends StatelessWidget {
   const ExecutionReportButton({
     super.key,
     required this.detail,
+    required this.service,
     this.onPressed,
     this.enabled = true,
   });
   final MissionDetail detail;
+  final MissionService service;
   final VoidCallback? onPressed;
   final bool enabled;
   @override
   Widget build(BuildContext context) {
-    final scope = RecordScope.maybeOf(context);
-    if (scope == null || detail.phase == MissionPhase.cancelled) {
+    if (detail.phase == MissionPhase.cancelled) {
       return const SizedBox.shrink();
     }
     final ended = detail.events.any((e) => e.type == ExecutionEventType.end);
     final overdue =
-        missionAttention(
-          detail.phase,
-          detail.schedule,
-          scope.service.missions.currentTime,
-        ) ==
+        missionAttention(detail.phase, detail.schedule, service.currentTime) ==
         MissionAttention.overdue;
     if (!ended && !overdue) return const SizedBox.shrink();
     if (overdue) {
@@ -48,7 +45,8 @@ class ExecutionReportButton extends StatelessWidget {
         key: const Key('execution-report-entry'),
         onPressed: !enabled
             ? null
-            : onPressed ?? () => showExecutionReportSheet(context, detail),
+            : onPressed ??
+                  () => showExecutionReportSheet(context, detail, service),
         icon: const Icon(Icons.fact_check_outlined),
         label: const Text('确认完成情况'),
       );
@@ -64,7 +62,9 @@ class ExecutionReportButton extends StatelessWidget {
             ? null
             : '${report.occurrenceDate} · ${report.duration == null ? '具体时段未知' : '${report.duration!.inMinutes} 分钟'}',
         enabled: enabled,
-        onTap: onPressed ?? () => showExecutionReportSheet(context, detail),
+        onTap:
+            onPressed ??
+            () => showExecutionReportSheet(context, detail, service),
       ),
     );
   }
@@ -75,9 +75,11 @@ class MakeupExecutionButton extends StatefulWidget {
   const MakeupExecutionButton({
     super.key,
     required this.detail,
+    required this.service,
     this.enabled = true,
   });
   final MissionDetail detail;
+  final MissionService service;
   final bool enabled;
   @override
   State<MakeupExecutionButton> createState() => _MakeupButtonState();
@@ -89,7 +91,7 @@ class _MakeupButtonState extends State<MakeupExecutionButton> {
   String? _error;
   Future<void> start() async {
     if (_busy || !widget.enabled) return;
-    final service = RecordScope.maybeOf(context)!.service.missions;
+    final service = widget.service;
     DateTime? deadline;
     if (widget.detail.mission.verificationPolicy ==
             VerificationPolicy.requiredEvidence &&
@@ -154,7 +156,7 @@ class _MakeupButtonState extends State<MakeupExecutionButton> {
     children: [
       OutlinedButton.icon(
         onPressed: _busy || !widget.enabled ? null : start,
-        icon: const Icon(Icons.play_arrow),
+        icon: const Icon(Icons.play_arrow_rounded),
         key: const Key('execution-makeup'),
         label: const Text('现在补做'),
       ),
@@ -167,16 +169,18 @@ class _MakeupButtonState extends State<MakeupExecutionButton> {
 Future<bool?> showExecutionReportSheet(
   BuildContext context,
   MissionDetail detail,
+  MissionService service,
 ) => showAdaptiveSheet<bool>(
   context: context,
   isDismissible: false,
   enableDrag: false,
-  builder: (_) => _ExecutionReportForm(detail: detail),
+  builder: (_) => _ExecutionReportForm(detail: detail, service: service),
 );
 
 class _ExecutionReportForm extends StatefulWidget {
-  const _ExecutionReportForm({required this.detail});
+  const _ExecutionReportForm({required this.detail, required this.service});
   final MissionDetail detail;
+  final MissionService service;
   @override
   State<_ExecutionReportForm> createState() => _ExecutionReportFormState();
 }
@@ -259,9 +263,10 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
         actualStart: _unknown ? null : parse(_date.text, _start.text),
         actualEnd: _unknown ? null : parse(_endDate.text, _end.text),
       );
-      await RecordScope.maybeOf(context)!.service.report(
+      await widget.service.reportExecution(
         report,
-        d,
+        expectedSequence: d.lastSequence,
+        scheduleId: d.schedule.id,
         result: ended
             ? null
             : _completed
@@ -491,7 +496,7 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                           ),
                           child: Text(
                             _error!,
-                            style: TextStyle(color: theme.colorScheme.error),
+                            style: TextStyle(color: AppColors.error),
                           ),
                         ),
                       FilledButton(

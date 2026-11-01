@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:mission_book/application/notifications/app_notification_service.dart';
-import 'package:mission_book/data/notifications/notification_dispatcher.dart';
+import 'package:mission_book/application/notifications/notification_dispatcher.dart';
 import 'package:mission_book/data/notifications/reminder_store.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/domain/notifications/reminder_request.dart';
@@ -166,7 +166,7 @@ void main() {
     expect(find.textContaining('已结束 · 计划 20 分钟'), findsOneWidget);
     await tap(tester, 'mission-$missionId');
     expect(find.byType(MissionDetailPage), findsOneWidget);
-    expect(find.text('行动方案'), findsOneWidget);
+    expect(find.text('行动方案'), findsNothing); // 默认方案只有任务同名正文，不重复占区块。
     expect(find.text('自选时间'), findsOneWidget);
     expect(find.byType(MissionRecordWorkspace), findsNothing);
     expect(find.byKey(const Key('edit-mission')), findsNothing);
@@ -203,7 +203,7 @@ void main() {
     openDetails();
     await tester.pumpAndSettle();
     expect(find.byType(MissionDetailPage), findsOneWidget);
-    expect(find.text('行动方案'), findsOneWidget);
+    expect(find.text('行动方案'), findsNothing); // 默认方案只有任务同名正文，不重复占区块。
     expect(find.byKey(const Key('detail-view-record')), findsNothing);
     await tap(tester, 'detail-return-record');
     expect(
@@ -295,7 +295,7 @@ void main() {
     expect(find.byType(MissionDetailPage), findsOneWidget);
     expect(find.byType(MissionRecordWorkspace), findsNothing);
     expect(find.byType(MissionExecutionPage), findsNothing);
-    expect(find.text('行动方案'), findsOneWidget);
+    expect(find.text('行动方案'), findsNothing); // 默认方案只有任务同名正文，不重复占区块。
     expect(find.text('已结束'), findsOneWidget);
     expect(find.byKey(const Key('mission-material-card')), findsNothing);
     await tap(tester, 'detail-view-record');

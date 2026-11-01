@@ -1,6 +1,8 @@
+import 'package:mission_book/presentation/records/material_record_source.dart';
+import 'package:mission_book/domain/entities/record_draft.dart';
 import 'package:mission_book/data/repositories/drift_memory_repository.dart';
 import 'package:mission_book/application/memory/memory_service.dart';
-import 'package:mission_book/presentation/records/context_settings_page.dart';
+import 'package:mission_book/presentation/records/memory_page.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,11 +14,10 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
-import 'package:mission_book/domain/entities/evidence.dart';
 import 'package:mission_book/presentation/missions/history/mission_history_page.dart';
 import 'package:mission_book/presentation/records/record_scope.dart';
 import 'package:mission_book/presentation/records/records_page.dart';
-import 'package:mission_book/presentation/records/execution_report_button.dart';
+import 'package:mission_book/presentation/missions/execution/execution_report_button.dart';
 
 void main() {
   late AppDatabase db;
@@ -26,7 +27,11 @@ void main() {
   setUp(() {
     db = AppDatabase(executor: NativeDatabase.memory());
     missions = MissionService(DriftMissionRepository(db));
-    records = RecordService(DriftRecordRepository(db), missions);
+    records = RecordService(
+      DriftRecordRepository(db),
+      missions,
+      missions.attachments,
+    );
     analysis = AnalysisService(
       store: DriftAnalysisStore(db),
       mainBusy: () => false,
@@ -49,10 +54,10 @@ void main() {
   );
   testWidgets('记录左滑后确认删除，正式任务材料保留', (tester) async {
     await records.save(
-      const EvidenceDraft(
+      const RecordDraft(
         id: 'delete-me',
-        type: EvidenceType.text,
-        source: EvidenceSource.user,
+        type: ContentType.text,
+        source: ContentSource.user,
         content: '可删除的记录',
       ),
     );
@@ -64,10 +69,10 @@ void main() {
     );
     final mission = (await db.select(db.missions).get()).single;
     await records.save(
-      const EvidenceDraft(
+      const RecordDraft(
         id: 'keep-me',
-        type: EvidenceType.text,
-        source: EvidenceSource.user,
+        type: ContentType.text,
+        source: ContentSource.user,
         content: '正式任务材料',
       ),
       missionId: mission.id,
@@ -95,8 +100,21 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.textContaining('已作为任务材料的记录不能删除'), findsOneWidget);
-    expect((await db.select(db.records).get()).single.id, 'keep-me');
+    expect(find.textContaining('任务中已经提交的材料仍会保留'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OutlinedButton, '删除'));
+    await tester.pumpAndSettle();
+    expect(await db.select(db.records).get(), isEmpty);
+    expect(
+      (await missions.findDetail(
+        missionId: mission.id,
+      ))!.evidence.single.content,
+      '正式任务材料',
+    );
+    await tester.pumpWidget(
+      app(const MaterialRecordSource(recordId: 'keep-me')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('来源记录已删除，提交材料仍保留'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets('独立文字保存后在列表读取，补关联为已结束任务材料，原END不变', (tester) async {
@@ -107,7 +125,7 @@ void main() {
     expect(find.byKey(const Key('record-pick-photo')), findsOneWidget);
     expect(find.byKey(const Key('record-pick-file')), findsOneWidget);
     expect(find.text('记录类型'), findsOneWidget);
-    expect(find.text('独立记录 · 可选择目标、节点或任务'), findsOneWidget);
+    expect(find.text('独立记录 · 可设置目标或节点'), findsOneWidget);
     await tester.enterText(
       find.descendant(
         of: find.byKey(const Key('record-content-input')),
@@ -129,15 +147,42 @@ void main() {
     final mission = (await db.select(db.missions).get()).single;
     await tester.tap(find.text('午餐：米饭和蔬菜'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('补关联'));
+    await tester.tap(find.text('用作任务材料'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('午餐任务'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '提交材料'));
     await tester.pumpAndSettle();
     final detail = (await missions.findDetail(missionId: mission.id))!;
     expect(detail.phase, MissionPhase.notStarted);
     expect(detail.evidence.single.content, '午餐：米饭和蔬菜');
     expect(detail.events, isEmpty);
     expect((await db.select(db.records).get()).single.id, record.id);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+  testWidgets('长正文按段展示，编辑仍读取并保存完整正文', (tester) async {
+    final body = List.filled(7000, '文').join();
+    await records.save(
+      RecordDraft(
+        id: 'long-record',
+        type: ContentType.text,
+        source: ContentSource.user,
+        content: body,
+      ),
+    );
+    await tester.pumpWidget(app(const RecordDetail(id: 'long-record')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('修改文字 / 说明'));
+    await tester.tap(find.text('修改文字 / 说明'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      body,
+    );
+    await tester.enterText(find.byType(TextField), '$body追加');
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+    expect((await records.readDraft('long-record')).content, '$body追加');
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets('补记入口明确确认完成与日期，无START计时，并可再次更正时间', (tester) async {
@@ -153,7 +198,11 @@ void main() {
     final id = (await db.select(db.missions).get()).single.id;
     final d = (await missions.findDetail(missionId: id))!;
     await tester.pumpWidget(
-      app(Scaffold(body: ExecutionReportButton(detail: d))),
+      app(
+        Scaffold(
+          body: ExecutionReportButton(detail: d, service: missions),
+        ),
+      ),
     );
     await tester.tap(find.text('确认完成情况'));
     await tester.pumpAndSettle();
@@ -173,7 +222,11 @@ void main() {
     expect(saved.events.single.isRetrospective, isTrue);
     expect(saved.effectiveUserReport!.basis, '我上午已经完成这节课程');
     await tester.pumpWidget(
-      app(Scaffold(body: ExecutionReportButton(detail: saved))),
+      app(
+        Scaffold(
+          body: ExecutionReportButton(detail: saved, service: missions),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
     expect(find.text('更正实际日期 / 时段'), findsOneWidget);

@@ -1,5 +1,91 @@
 part of 'records_page.dart';
 
+/// 目标/节点内的真实记录入口；空集合不占位，读取失败保留重试。
+class RelatedRecordsEntry extends StatefulWidget {
+  const RelatedRecordsEntry({super.key, required this.goalId, this.nodeId});
+  final String goalId;
+  final String? nodeId;
+
+  @override
+  State<RelatedRecordsEntry> createState() => _RelatedRecordsEntryState();
+}
+
+class _RelatedRecordsEntryState extends State<RelatedRecordsEntry> {
+  RecordService? _service;
+  Future<RecordPage>? _records;
+  StreamSubscription<void>? _changes;
+
+  void _load() {
+    _records = _service?.readRecords(
+      goalId: widget.goalId,
+      nodeId: widget.nodeId,
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final service = RecordScope.maybeOf(context)?.service;
+    if (identical(service, _service)) return;
+    unawaited(_changes?.cancel());
+    _service = service;
+    _load();
+    _changes = service?.changes.listen((_) {
+      if (mounted) setState(_load);
+    });
+  }
+
+  @override
+  void didUpdateWidget(RelatedRecordsEntry oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.goalId != widget.goalId ||
+        oldWidget.nodeId != widget.nodeId) {
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_changes?.cancel());
+    super.dispose();
+  }
+
+  Future<void> _open() => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => RecordsPage(goalId: widget.goalId, nodeId: widget.nodeId),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    if (_service == null) return const SizedBox.shrink();
+    return FutureBuilder<RecordPage>(
+      // 换归属后不能短暂展示上一节点的记录数量。
+      key: ValueKey((widget.goalId, widget.nodeId, _service)),
+      future: _records,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return TextButton.icon(
+            onPressed: () => setState(_load),
+            icon: const Icon(Icons.refresh),
+            label: const Text('记录读取失败，点击重试'),
+          );
+        }
+        if (!snapshot.hasData || snapshot.data!.total == 0) {
+          return const SizedBox.shrink();
+        }
+        return AppSettingsRow(
+          icon: Icons.photo_library_outlined,
+          title:
+              '${widget.nodeId == null ? '目标记录' : '节点记录'} · ${snapshot.data!.total}',
+          subtitle: widget.nodeId == null ? '包含各节点的记录' : null,
+          onTap: _open,
+        );
+      },
+    );
+  }
+}
+
 class RecordsEntry extends StatelessWidget {
   const RecordsEntry({
     super.key,
@@ -44,7 +130,7 @@ class RecordsEntry extends StatelessWidget {
       child: AppSettingsRow(
         onTap: open,
         icon: Icons.photo_library_outlined,
-        title: label,
+        title: missionId == null ? label : '查看材料来源记录',
       ),
     );
   }
@@ -73,8 +159,7 @@ class _RecordImage extends StatefulWidget {
 
 class _RecordImageState extends State<_RecordImage> {
   late Future<Uint8List> _image;
-  Future<Uint8List> _read() =>
-      widget.service.missions.readEvidenceImage(widget.storageKey);
+  Future<Uint8List> _read() => widget.service.readAttachment(widget.storageKey);
 
   @override
   void initState() {
@@ -95,7 +180,7 @@ class _RecordImageState extends State<_RecordImage> {
   Widget build(BuildContext context) => SizedBox(
     width: widget.width,
     height: widget.height,
-    child: EvidenceImageLoader(
+    child: AttachmentImageLoader(
       future: _image,
       name: widget.name,
       height: widget.height,
@@ -116,14 +201,14 @@ class DailyRecordsStrip extends StatefulWidget {
 }
 
 class _DailyRecordsStripState extends State<DailyRecordsStrip> {
-  Future<Map<String, Object?>>? _data;
+  Future<RecordPage>? _data;
   StreamSubscription<void>? _changes;
   void load() {
     if (mounted) {
       setState(() {
         _data = RecordScope.maybeOf(
           context,
-        )?.service.queryRecords(date: widget.date);
+        )?.service.readRecords(date: widget.date);
       });
     }
   }
@@ -135,7 +220,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
       load();
       _changes ??= RecordScope.maybeOf(
         context,
-      )?.service.missions.changes.listen((_) => load());
+      )?.service.changes.listen((_) => load());
     }
   }
 
@@ -155,7 +240,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
   Widget build(BuildContext context) {
     final scope = RecordScope.maybeOf(context);
     if (scope == null) return const SizedBox.shrink();
-    return FutureBuilder<Map<String, Object?>>(
+    return FutureBuilder<RecordPage>(
       future: _data,
       builder: (c, s) {
         if (s.hasError) {
@@ -167,8 +252,8 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
             ),
           );
         }
-        final items = s.data?['items'] as List<Map<String, Object?>>? ?? [];
-        final total = s.data?['total'] as int? ?? 0;
+        final items = s.data?.items ?? [];
+        final total = s.data?.total ?? 0;
         // 没有记录时不占位置，也不显示一个空入口。
         if (!s.hasData || total == 0) {
           return const SizedBox.shrink();
@@ -178,7 +263,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
           children: [
             RecordsEntry(
               date: widget.date,
-              label: '当日记录 · ${s.data?['total'] ?? 0} 条',
+              label: '当日记录 · ${s.data?.total ?? 0} 条',
             ),
             Wrap(
               spacing: AppLayout.spaceSm,
@@ -187,30 +272,24 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
                 for (final r in items.take(3))
                   InkWell(
                     onTap: () => Navigator.of(context).push<void>(
-                      MaterialPageRoute(
-                        builder: (_) => RecordDetail(id: r['id'] as String),
-                      ),
+                      MaterialPageRoute(builder: (_) => RecordDetail(id: r.id)),
                     ),
                     child: SizedBox(
                       width: 120,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (r['type'] == 'IMAGE')
+                          if (r.type == ContentType.image)
                             _RecordImage(
                               service: scope.service,
-                              storageKey: r['attachment_storage_key'] as String,
-                              name:
-                                  r['attachment_file_name'] as String? ??
-                                  '记录图片',
+                              storageKey: r.attachmentStorageKey!,
+                              name: r.attachmentFileName ?? '记录图片',
                               width: 120,
                               height: 80,
                               compact: true,
                             ),
                           Text(
-                            r['content'] as String? ??
-                                r['attachment_file_name'] as String? ??
-                                '记录',
+                            r.content ?? r.attachmentFileName ?? '记录',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),

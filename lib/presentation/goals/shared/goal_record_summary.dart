@@ -109,7 +109,7 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
                 children: [
                   Expanded(
                     child: Text(
-                      '节点完成记录',
+                      '节点完成情况',
                       style: Theme.of(
                         context,
                       ).textTheme.bodyMedium?.copyWith(color: color),

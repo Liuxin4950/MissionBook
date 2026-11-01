@@ -2,7 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../domain/notifications/reminder_request.dart';
-import 'notification_dispatcher.dart';
+import '../../application/notifications/notification_dispatcher.dart';
 
 /// Windows 分发端：C++/WinRT Toast。
 ///

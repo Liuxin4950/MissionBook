@@ -7,6 +7,16 @@ import 'package:test/test.dart';
 import 'support/foundation_fixtures.dart';
 
 void main() {
+  test('读取会话记录必须声明格式版本', () {
+    final data = {
+      'sequence': 0,
+      'timestamp': DateTime.utc(2026).toIso8601String(),
+      'type': 'message_added',
+      'data': <String, Object?>{},
+    };
+    expect(() => SessionRecord.fromJson(data), throwsFormatException);
+    expect(SessionRecord.fromJson({...data, 'version': 1}).version, 1);
+  });
   test('批准参数先入日志，未知结果重开后保留，模型原调用不改写', () async {
     final store = MemorySessionStore();
     Map<String, Object?>? written;

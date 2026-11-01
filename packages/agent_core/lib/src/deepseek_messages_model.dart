@@ -20,7 +20,7 @@ final class DeepSeekMessagesModel extends HttpAgentModel {
                endpoint ??
                Uri.parse('https://api.deepseek.com/anthropic/v1/messages'),
            protocol: ModelProtocol.messages,
-           credentialEnvironment: 'DEEPSEEK_API_KEY',
+           credentialKey: 'DEEPSEEK_API_KEY',
            maxOutputTokens: maxTokens,
            contextWindowTokens: DeepSeekFlash.contextWindowTokens,
            outputTokenLimit: DeepSeekFlash.outputTokenLimit,

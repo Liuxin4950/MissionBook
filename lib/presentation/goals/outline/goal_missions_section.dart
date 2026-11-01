@@ -31,6 +31,7 @@ class GoalMissionsSection extends StatefulWidget {
     this.trailing,
     this.annotation,
     this.onNodeTap,
+    this.relatedContent,
     this.directOnly = false,
   });
   final Goal goal;
@@ -42,6 +43,7 @@ class GoalMissionsSection extends StatefulWidget {
   final Widget? trailing; // 节点维护菜单，由原来的树组件提供，操作逻辑不搬到这里。
   final String? annotation;
   final VoidCallback? onNodeTap; // 点击节点标题区域时展开或收起子节点。
+  final Widget? relatedContent; // 节点自身的记录入口，与任务并列，由目标工作区组装。
   final bool directOnly;
   @override
   State<GoalMissionsSection> createState() => GoalMissionsSectionState();
@@ -175,13 +177,13 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                       splashFactory: NoSplash.splashFactory,
                       overlayColor: theme.textButtonTheme.style?.overlayColor,
                     ),
-                icon: const Icon(Icons.add, size: AppLayout.iconSm),
+                icon: const Icon(Icons.add_rounded, size: AppLayout.iconSm),
                 label: Text(
                   widget.node == null && direct.isEmpty ? '直接为目标建任务' : '建任务',
                 ),
               )
             : null;
-        // 空节点没有任务可展开，不再用可点击箭头引导到空面板；新建入口始终独立保留。
+        final canExpand = direct.isNotEmpty || widget.node?.description != null;
         if (widget.node == null && direct.isEmpty && !snapshot.hasError) {
           return createButton == null
               ? const SizedBox.shrink()
@@ -193,7 +195,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                   ),
                 );
         }
-        final status = direct.isEmpty && !snapshot.hasError
+        final status = !canExpand && !snapshot.hasError
             ? Padding(
                 padding: const EdgeInsets.symmetric(vertical: 5),
                 child: Text(label, style: theme.textTheme.bodyMedium),
@@ -205,7 +207,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     TextButton.styleFrom(
                       foregroundColor: AppColors.textSecondary,
                       padding: EdgeInsets.zero,
-                      minimumSize: const Size(0, 36),
+                      minimumSize: const Size(0, AppLayout.touchTargetMin),
                       alignment: Alignment.centerLeft,
                       textStyle: theme.textTheme.bodyMedium,
                       shape: RoundedRectangleBorder(
@@ -215,16 +217,27 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                       splashFactory: NoSplash.splashFactory,
                       overlayColor: theme.textButtonTheme.style?.overlayColor,
                     ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(child: Text('$label · ${direct.length}')),
-                    const SizedBox(width: 3),
-                    Icon(
-                      _expanded ? Icons.expand_less : Icons.expand_more,
-                      size: AppLayout.iconSm,
-                    ),
-                  ],
+                // 子树箭头管理后代，这个按钮只管理当前节点的内容。
+                child: Semantics(
+                  expanded: _expanded,
+                  label: widget.node == null ? '关联任务' : '节点内容',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          direct.isEmpty
+                              ? '未建任务 · 查看内容'
+                              : '$label · ${direct.length}',
+                        ),
+                      ),
+                      const SizedBox(width: AppLayout.spaceXs),
+                      Icon(
+                        _expanded ? Icons.expand_less : Icons.expand_more,
+                        size: AppLayout.iconSm,
+                      ),
+                    ],
+                  ),
                 ),
               );
         final leading = SizedBox.square(
@@ -259,7 +272,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     builder: (context, box) {
                       final compact =
                           box.maxWidth <
-                          270 * MediaQuery.textScalerOf(context).scale(1);
+                          360 * MediaQuery.textScalerOf(context).scale(1);
                       final name = Text(
                         title,
                         style: theme.textTheme.titleMedium,
@@ -372,7 +385,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
-              if (_expanded && direct.isNotEmpty) ...[
+              if (_expanded) ...[
                 if (widget.node?.description != null)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
@@ -429,6 +442,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     ],
                   ),
               ],
+              if (widget.relatedContent != null) widget.relatedContent!,
             ],
           ),
         );

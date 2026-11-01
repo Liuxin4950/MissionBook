@@ -1,34 +1,10 @@
+import 'content_mapping.dart';
+import '../../domain/entities/record_draft.dart';
 import 'package:drift/drift.dart';
 import '../../domain/entities/evidence.dart';
 import '../local/app_database.dart';
 
-/// 旧列仅用于旧库/旧导入兼容，业务查询统一从记录还原材料投影。
-Future<List<EvidenceRow>> hydrateEvidenceRows(
-  AppDatabase database,
-  Iterable<EvidenceRow> input,
-) async {
-  final rows = input.toList();
-  final ids = rows.map((e) => e.recordId).whereType<String>().toSet();
-  if (ids.isEmpty) return rows;
-  final records = await (database.select(
-    database.records,
-  )..where((t) => t.id.isIn(ids))).get();
-  final byId = {for (final r in records) r.id: r};
-  return rows.map((e) {
-    if (e.recordId == null) return e;
-    final r = byId[e.recordId];
-    if (r == null) throw const FormatException('材料引用的记录不存在');
-    return e.copyWith(
-      content: Value(r.content),
-      attachmentStorageKey: Value(r.attachmentStorageKey),
-      attachmentFileName: Value(r.attachmentFileName),
-      attachmentMimeType: Value(r.attachmentMimeType),
-      capturedAt: Value(r.capturedAt),
-    );
-  }).toList();
-}
-
-/// 新材料创建记录；关联已有记录只追加引用，两条入口共用同一写入函数。
+/// 新材料创建记录；关联记录保留来源身份，两条入口均保存提交时的内容快照。
 Future<void> insertEvidence(
   AppDatabase database,
   Evidence item, {
@@ -72,16 +48,7 @@ Future<void> insertEvidence(
   }
   await database
       .into(database.evidenceRecords)
-      .insert(
-        payload.copyWith(
-          recordId: Value(existingRecordId ?? item.id),
-          content: const Value(null),
-          attachmentStorageKey: const Value(null),
-          attachmentFileName: const Value(null),
-          attachmentMimeType: const Value(null),
-          capturedAt: const Value(null),
-        ),
-      );
+      .insert(payload.copyWith(recordId: Value(existingRecordId ?? item.id)));
 }
 
 /// 存储层把稳定文本/UTC 毫秒转换成业务类型，未知值立即报错。
@@ -89,8 +56,9 @@ Evidence evidenceFromRow(EvidenceRow row) => Evidence(
   id: row.id,
   missionId: row.missionId,
   submissionId: row.submissionId,
-  type: evidenceTypeFromStorage(row.type),
-  source: evidenceSourceFromStorage(row.source),
+  sourceRecordId: row.recordId,
+  type: contentTypeFromStorage(row.type),
+  source: contentSourceFromStorage(row.source),
   content: row.content,
   attachmentStorageKey: row.attachmentStorageKey,
   attachmentFileName: row.attachmentFileName,
@@ -107,10 +75,14 @@ Evidence evidenceFromRow(EvidenceRow row) => Evidence(
 
 /// 从既有记录准备材料意图，提交身份与时刻仍由材料命令决定。
 EvidenceDraft evidenceDraftFromRecord(RecordRow row, {required String id}) =>
-    EvidenceDraft(
+    EvidenceDraft.fromContent(recordDraftFromRow(row, id: id));
+
+/// 数据行转换成独立记录草稿，不经过任务材料对象。
+RecordDraft recordDraftFromRow(RecordRow row, {required String id}) =>
+    RecordDraft(
       id: id,
-      type: evidenceTypeFromStorage(row.type),
-      source: evidenceSourceFromStorage(row.source),
+      type: contentTypeFromStorage(row.type),
+      source: contentSourceFromStorage(row.source),
       content: row.content,
       attachmentStorageKey: row.attachmentStorageKey,
       attachmentFileName: row.attachmentFileName,
@@ -120,38 +92,22 @@ EvidenceDraft evidenceDraftFromRecord(RecordRow row, {required String id}) =>
           : DateTime.fromMillisecondsSinceEpoch(row.capturedAt!, isUtc: true),
     );
 
-EvidenceType evidenceTypeFromStorage(String value) => switch (value) {
-  'TEXT' => EvidenceType.text,
-  'CODE' => EvidenceType.code,
-  'IMAGE' => EvidenceType.image,
-  'FILE' => EvidenceType.file,
-  'MANUAL_RECORD' => EvidenceType.manualRecord,
-  _ => throw FormatException('未知材料类型：$value'),
-};
-
-EvidenceSource evidenceSourceFromStorage(String value) => switch (value) {
-  'USER' => EvidenceSource.user,
-  'FILE_SYSTEM' => EvidenceSource.fileSystem,
-  'CAMERA' => EvidenceSource.camera,
-  _ => throw FormatException('未知材料来源：$value'),
-};
-
 EvidenceRecordsCompanion evidenceToCompanion(Evidence item) =>
     EvidenceRecordsCompanion.insert(
       id: item.id,
       missionId: item.missionId,
       submissionId: item.submissionId,
       type: switch (item.type) {
-        EvidenceType.text => 'TEXT',
-        EvidenceType.code => 'CODE',
-        EvidenceType.image => 'IMAGE',
-        EvidenceType.file => 'FILE',
-        EvidenceType.manualRecord => 'MANUAL_RECORD',
+        ContentType.text => 'TEXT',
+        ContentType.code => 'CODE',
+        ContentType.image => 'IMAGE',
+        ContentType.file => 'FILE',
+        ContentType.manualRecord => 'MANUAL_RECORD',
       },
       source: switch (item.source) {
-        EvidenceSource.user => 'USER',
-        EvidenceSource.fileSystem => 'FILE_SYSTEM',
-        EvidenceSource.camera => 'CAMERA',
+        ContentSource.user => 'USER',
+        ContentSource.fileSystem => 'FILE_SYSTEM',
+        ContentSource.camera => 'CAMERA',
       },
       content: Value(item.content),
       attachmentStorageKey: Value(item.attachmentStorageKey),

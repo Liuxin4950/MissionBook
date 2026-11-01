@@ -113,7 +113,7 @@ void main() {
             child: AssistantProposalEditor(
               operation: AssistantOperation(
                 callId: 'retry',
-                toolName: 'mission_retry',
+                toolName: 'retryMission',
                 input: const {
                   'missionId': 'source',
                   'title': '重做布局',

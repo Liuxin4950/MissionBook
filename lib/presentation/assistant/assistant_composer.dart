@@ -113,7 +113,8 @@ class _AssistantComposer {
                   key: const Key('assistant-input'),
                   controller: _page._input,
                   autofocus:
-                      widget.showBack && MediaQuery.sizeOf(context).width < 600,
+                      widget.showBack &&
+                      AppLayout.windowClassOf(context) == WindowClass.compact,
                   focusNode: _page._inputFocus,
                   readOnly:
                       (_page._voice?.listening ?? false) ||
@@ -463,7 +464,7 @@ class _AssistantComposer {
               trailing: IconButton(
                 tooltip: '关闭预览',
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
+                icon: const Icon(Icons.close_rounded),
               ),
             ),
             Flexible(

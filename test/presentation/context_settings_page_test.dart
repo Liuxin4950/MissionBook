@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/record_draft.dart';
 import 'package:mission_book/data/repositories/drift_memory_repository.dart';
 import 'package:mission_book/domain/entities/analysis_scope.dart';
 import 'package:drift/native.dart';
@@ -18,9 +19,10 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
 import 'package:mission_book/data/web/web_settings_store.dart';
-import 'package:mission_book/domain/entities/evidence.dart';
 import 'package:mission_book/presentation/records/analysis_panel.dart';
-import 'package:mission_book/presentation/records/context_settings_page.dart';
+import 'package:mission_book/presentation/records/memory_page.dart';
+import 'package:mission_book/presentation/records/web_settings_page.dart';
+import 'package:mission_book/presentation/records/analysis_settings_page.dart';
 import 'package:mission_book/presentation/records/record_scope.dart';
 import 'package:mission_book/presentation/widgets/app_top_bar.dart';
 
@@ -66,7 +68,11 @@ void main() {
   setUp(() {
     db = AppDatabase(executor: NativeDatabase.memory());
     missions = MissionService(DriftMissionRepository(db));
-    records = RecordService(DriftRecordRepository(db), missions);
+    records = RecordService(
+      DriftRecordRepository(db),
+      missions,
+      missions.attachments,
+    );
     memory = MemoryService(DriftMemoryRepository(db));
     preferences = _Preferences();
     analysis = AnalysisService(
@@ -218,7 +224,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('自动总结逐层保存，关闭后对应页面直接显示手动生成按钮', (tester) async {
+  testWidgets('自动总结逐层保存，关闭后展开摘要可手动生成', (tester) async {
     await open(tester, const AnalysisSettingsPage());
     await tester.tap(find.byKey(const Key('analysis-auto-record')));
     await tester.tap(find.byKey(const Key('analysis-auto-goal')));
@@ -226,10 +232,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(preferences.scopes, {AnalysisScope.mission, AnalysisScope.node});
     await records.save(
-      const EvidenceDraft(
+      const RecordDraft(
         id: 'manual-record',
-        type: EvidenceType.text,
-        source: EvidenceSource.user,
+        type: ContentType.text,
+        source: ContentSource.user,
         content: '新的笔记',
       ),
     );
@@ -241,6 +247,9 @@ void main() {
       ),
     );
     expect(find.textContaining('自动总结已关闭'), findsOneWidget);
+    expect(find.text('生成总结'), findsNothing);
+    await tester.tap(find.text('记录摘要'));
+    await tester.pumpAndSettle();
     expect(find.text('生成总结'), findsOneWidget);
     await tester.tap(
       find.byKey(const Key('generate-summary-record-manual-record')),

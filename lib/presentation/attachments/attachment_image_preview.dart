@@ -3,13 +3,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
-import '../../../core/theme/colors.dart';
-import 'evidence_image_status.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../core/theme/colors.dart';
+import 'attachment_image_status.dart';
+import '../../core/theme/app_layout.dart';
 
 /// 列表只展示有界缩略图；原有字节供独立查看层使用，不另存缩略文件或修改原图。
-class EvidenceImagePreview extends StatelessWidget {
-  const EvidenceImagePreview({
+class AttachmentImagePreview extends StatelessWidget {
+  const AttachmentImagePreview({
     super.key,
     required this.bytes,
     required this.name,
@@ -30,7 +30,7 @@ class EvidenceImagePreview extends StatelessWidget {
   );
 
   void _open(BuildContext context) {
-    // 图片本身就是入口。查看层不依赖所在材料区域的 PopScope，关闭不会丢弃草稿。
+    // 图片本身就是入口。查看层不依赖所在草稿区域的 PopScope，关闭不会丢弃草稿。
     showDialog<void>(
       context: context,
       // 背景铺满整屏，内容自己避让安全区；否则状态栏和底部会露出灰色遮罩。
@@ -86,11 +86,12 @@ class EvidenceImagePreview extends StatelessWidget {
                         image: MemoryImage(bytes),
                         fit: BoxFit.contain,
                         semanticLabel: name,
-                        errorBuilder: (_, error, stack) => EvidenceImageStatus(
-                          name: name,
-                          height: height,
-                          failed: true,
-                        ),
+                        errorBuilder: (_, error, stack) =>
+                            AttachmentImageStatus(
+                              name: name,
+                              height: height,
+                              failed: true,
+                            ),
                       ),
                     ),
                   ),
@@ -130,7 +131,7 @@ class EvidenceImagePreview extends StatelessWidget {
                 image: _thumbnail,
                 fit: BoxFit.contain,
                 excludeFromSemantics: true,
-                errorBuilder: (_, error, stack) => EvidenceImageStatus(
+                errorBuilder: (_, error, stack) => AttachmentImageStatus(
                   name: name,
                   height: height,
                   failed: true,

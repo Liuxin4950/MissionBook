@@ -4,16 +4,16 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../../data/local/app_database.dart';
-import '../../data/notifications/android_notification_dispatcher.dart';
-import '../../data/notifications/planned_alarm_bridge.dart';
-import '../../data/notifications/reminder_store.dart';
-import '../../data/repositories/drift_mission_repository.dart';
-import '../../domain/entities/mission_phase.dart';
-import '../../domain/notifications/reminder_request.dart';
-import '../notifications/execution_reminder.dart';
-import 'mission_service.dart';
-import 'planned_mission_scheduler.dart';
+import 'data/local/app_database.dart';
+import 'data/notifications/android_notification_dispatcher.dart';
+import 'data/notifications/planned_alarm_bridge.dart';
+import 'data/notifications/reminder_store.dart';
+import 'data/repositories/drift_mission_repository.dart';
+import 'domain/entities/mission_phase.dart';
+import 'domain/notifications/reminder_request.dart';
+import 'application/notifications/execution_reminder.dart';
+import 'application/missions/mission_service.dart';
+import 'application/missions/planned_mission_scheduler.dart';
 
 /// 无页面的后台入口；读取设置但不改提醒 JSON，避免与前台设置保存互相覆盖。
 Future<void> runPlannedMissionBackground() async {

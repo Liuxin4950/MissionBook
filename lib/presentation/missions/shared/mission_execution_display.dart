@@ -169,7 +169,7 @@ class MissionActionFeedback extends StatelessWidget {
           liveRegion: true,
           child: Text(
             controller.error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+            style: TextStyle(color: AppColors.error),
           ),
         ),
         Wrap(

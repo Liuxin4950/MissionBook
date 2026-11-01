@@ -17,12 +17,12 @@ class RecordEditor extends StatefulWidget {
 class _RecordEditorState extends State<RecordEditor> {
   final _text = TextEditingController();
   final _id = const Uuid().v4();
-  EvidenceDraft? _attachment;
+  RecordDraft? _attachment;
   Future<Uint8List>? _attachmentImage;
   String? _goal, _node, _mission, _association;
   bool _camera = false, _busy = false, _initialized = false, _saved = false;
   bool _allowPop = false;
-  EvidenceType _type = EvidenceType.text;
+  ContentType _type = ContentType.text;
   String? _error;
   late RecordService service;
   @override
@@ -45,6 +45,7 @@ class _RecordEditorState extends State<RecordEditor> {
   }
 
   Future<void> _photo() async {
+    if (!mounted) return;
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       setState(() => _camera = true);
       return;
@@ -55,17 +56,25 @@ class _RecordEditorState extends State<RecordEditor> {
   Future<void> _pick({bool file = false}) async {
     setState(() => _busy = true);
     try {
-      await service.missions.initializeEvidenceImages();
+      await service.initializeAttachments();
       final draft = file
-          ? await service.missions.pickEvidenceFile(_id)
-          : await service.missions.pickEvidenceImage(_id);
+          ? await service.pickFile(_id)
+          : await service.pickImage(_id);
       if (draft != null) {
+        if (!mounted) {
+          await service.discardDrafts([draft]);
+          return;
+        }
         final old = _attachment;
         setState(() => _setAttachment(draft));
-        if (old != null) await service.missions.discardEvidenceDrafts([old]);
+        if (old != null) await service.discardDrafts([old]);
       }
     } catch (e) {
-      setState(() => _error = userErrorMessage(e, fallback: '记录未保存，请检查输入后重试'));
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(e, fallback: '记录未保存，请检查输入后重试'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -74,20 +83,18 @@ class _RecordEditorState extends State<RecordEditor> {
   Future<void> _capture(Uint8List bytes, DateTime at) async {
     setState(() => _busy = true);
     try {
-      await service.missions.initializeEvidenceImages();
-      final draft = await service.missions.prepareEvidenceCameraImage(
-        _id,
-        bytes,
-        capturedAt: at,
-      );
-      final old = _attachment;
-      if (mounted) {
-        setState(() {
-          _setAttachment(draft);
-          _camera = false;
-        });
+      await service.initializeAttachments();
+      final draft = await service.captureImage(_id, bytes, capturedAt: at);
+      if (!mounted) {
+        await service.discardDrafts([draft]);
+        return;
       }
-      if (old != null) await service.missions.discardEvidenceDrafts([old]);
+      final old = _attachment;
+      setState(() {
+        _setAttachment(draft);
+        _camera = false;
+      });
+      if (old != null) await service.discardDrafts([old]);
     } catch (e) {
       if (mounted) {
         setState(
@@ -110,10 +117,10 @@ class _RecordEditorState extends State<RecordEditor> {
           _attachment?.copyWithContent(
             _text.text.trim().isEmpty ? null : _text.text.trim(),
           ) ??
-          EvidenceDraft(
+          RecordDraft(
             id: _id,
             type: _type,
-            source: EvidenceSource.user,
+            source: ContentSource.user,
             content: _text.text.trim(),
           );
       await service.save(
@@ -122,6 +129,7 @@ class _RecordEditorState extends State<RecordEditor> {
         nodeId: _node,
         missionId: _mission,
       );
+      if (!mounted) return;
       setState(() {
         _saved = true;
         _allowPop = true;
@@ -142,11 +150,11 @@ class _RecordEditorState extends State<RecordEditor> {
   String get _contentLabel {
     final attachment = _attachment;
     if (attachment != null) {
-      return attachment.type == EvidenceType.image ? '照片说明（选填）' : '文件说明（选填）';
+      return attachment.type == ContentType.image ? '照片说明（选填）' : '文件说明（选填）';
     }
     return switch (_type) {
-      EvidenceType.code => '代码内容',
-      EvidenceType.manualRecord => '手动记录内容',
+      ContentType.code => '代码内容',
+      ContentType.manualRecord => '手动记录内容',
       _ => '内容或照片说明',
     };
   }
@@ -154,24 +162,24 @@ class _RecordEditorState extends State<RecordEditor> {
   String get _contentHint {
     final attachment = _attachment;
     if (attachment != null) {
-      return attachment.type == EvidenceType.image
+      return attachment.type == ContentType.image
           ? '为这张照片补充说明（选填）'
           : '为这个文件补充说明（选填）';
     }
     return switch (_type) {
-      EvidenceType.code => '粘贴代码或说明',
-      EvidenceType.manualRecord => '写下这次手动记录的内容',
+      ContentType.code => '粘贴代码或说明',
+      ContentType.manualRecord => '写下这次手动记录的内容',
       _ => '例如：今天的午餐、学习笔记、训练记录',
     };
   }
 
-  void _setAttachment(EvidenceDraft? draft) {
+  void _setAttachment(RecordDraft? draft) {
     _attachment = draft;
     _attachmentImage =
         draft != null &&
-            draft.type == EvidenceType.image &&
+            draft.type == ContentType.image &&
             draft.attachmentStorageKey != null
-        ? service.missions.readEvidenceImage(draft.attachmentStorageKey!)
+        ? service.readAttachment(draft.attachmentStorageKey!)
         : null;
   }
 
@@ -180,7 +188,7 @@ class _RecordEditorState extends State<RecordEditor> {
     if (attachment == null || _busy) return;
     setState(() => _setAttachment(null));
     try {
-      await service.missions.discardEvidenceDrafts([attachment]);
+      await service.discardDrafts([attachment]);
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -226,11 +234,11 @@ class _RecordEditorState extends State<RecordEditor> {
       const SizedBox(height: AppLayout.spaceSm),
       IgnorePointer(
         ignoring: _busy,
-        child: AppSegmentedControl<EvidenceType>(
+        child: AppSegmentedControl<ContentType>(
           options: const {
-            EvidenceType.text: '文字',
-            EvidenceType.code: '代码',
-            EvidenceType.manualRecord: '手动',
+            ContentType.text: '文字',
+            ContentType.code: '代码',
+            ContentType.manualRecord: '手动',
           },
           selected: _type,
           onSelected: (value) => setState(() => _type = value),
@@ -242,7 +250,7 @@ class _RecordEditorState extends State<RecordEditor> {
   Widget _attachmentSection(BuildContext context) {
     final attachment = _attachment!;
     final theme = Theme.of(context);
-    final image = attachment.type == EvidenceType.image;
+    final image = attachment.type == ContentType.image;
     final name = attachment.attachmentFileName ?? '附件';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -276,14 +284,15 @@ class _RecordEditorState extends State<RecordEditor> {
         ),
         if (image) ...[
           const SizedBox(height: AppLayout.spaceMd),
-          EvidenceImageLoader(
+          AttachmentImageLoader(
             future: _attachmentImage,
             name: name,
             height: 220,
             previewKey: const Key('record-attachment-preview'),
             onRetry: () => setState(() {
-              _attachmentImage = RecordScope.maybeOf(context)!.service.missions
-                  .readEvidenceImage(attachment.attachmentStorageKey!);
+              _attachmentImage = RecordScope.maybeOf(
+                context,
+              )!.service.readAttachment(attachment.attachmentStorageKey!);
             }),
           ),
         ],
@@ -317,16 +326,14 @@ class _RecordEditorState extends State<RecordEditor> {
 
   Widget _associationRow(BuildContext context) {
     final theme = Theme.of(context);
-    final enabled = !_busy && widget.missionId == null;
+    final enabled = !_busy;
     final label =
         _association ??
-        (_mission != null
-            ? '保存为此任务的材料'
-            : _node != null
+        (_node != null
             ? '关联当前节点'
             : _goal != null
             ? '关联当前目标'
-            : '独立记录 · 可选择目标、节点或任务');
+            : '独立记录 · 可设置目标或节点');
     return Material(
       color: enabled ? AppColors.surfaceMuted : AppColors.disabled,
       borderRadius: BorderRadius.circular(AppLayout.radiusLg),
@@ -334,12 +341,11 @@ class _RecordEditorState extends State<RecordEditor> {
       child: InkWell(
         onTap: enabled
             ? () async {
-                final result = await chooseRecordAssociation(context);
+                final result = await chooseRecordOwnership(context);
                 if (result != null && mounted) {
                   setState(() {
                     _goal = result['goal'];
                     _node = result['node'];
-                    _mission = result['mission'];
                     _association = result['title'];
                   });
                 }
@@ -393,7 +399,7 @@ class _RecordEditorState extends State<RecordEditor> {
   @override
   void dispose() {
     if (!_saved && _attachment != null) {
-      unawaited(service.missions.discardEvidenceDrafts([_attachment!]));
+      unawaited(service.discardDrafts([_attachment!]));
     }
     _text.dispose();
     super.dispose();
@@ -420,9 +426,9 @@ class _RecordEditorState extends State<RecordEditor> {
     child: Scaffold(
       appBar: _camera ? null : AppTopBar(title: '添加记录', canGoBack: !_busy),
       body: _camera
-          ? EvidenceCameraPanel(
+          ? PhotoCapturePanel(
               fullScreen: true,
-              missionTitle: '随手记录',
+              title: '随手记录',
               onConfirmed: _capture,
               onBack: () {
                 if (widget.capture &&
@@ -478,6 +484,31 @@ class _RecordEditorState extends State<RecordEditor> {
                         ),
                         const SizedBox(height: AppLayout.spaceXl),
                         _associationRow(context),
+                        TextButton.icon(
+                          onPressed: _busy
+                              ? null
+                              : () async {
+                                  final choice = await chooseRecordMaterialTask(
+                                    context,
+                                  );
+                                  if (choice != null && mounted) {
+                                    setState(() {
+                                      _mission = choice['mission'];
+                                    });
+                                  }
+                                },
+                          icon: const Icon(Icons.attach_file),
+                          label: Text(
+                            _mission == null ? '同时用作任务材料（可选）' : '保存时同时提交任务材料',
+                          ),
+                        ),
+                        if (_mission != null && widget.missionId == null)
+                          TextButton(
+                            onPressed: _busy
+                                ? null
+                                : () => setState(() => _mission = null),
+                            child: const Text('仅保存记录'),
+                          ),
                         if (_error != null) ...[
                           const SizedBox(height: AppLayout.spaceMd),
                           Container(
@@ -516,8 +547,14 @@ class _RecordEditorState extends State<RecordEditor> {
   );
 }
 
-Future<Map<String, String>?> chooseRecordAssociation(BuildContext context) =>
+Future<Map<String, String>?> chooseRecordOwnership(BuildContext context) =>
     showDialog<Map<String, String>>(
       context: context,
-      builder: (_) => const _AssociationDialog(),
+      builder: (_) => const _AssociationDialog(material: false),
+    );
+
+Future<Map<String, String>?> chooseRecordMaterialTask(BuildContext context) =>
+    showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => const _AssociationDialog(material: true),
     );

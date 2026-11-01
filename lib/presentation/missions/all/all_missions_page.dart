@@ -708,7 +708,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
       padding: EdgeInsets.only(bottom: embedded ? 0 : AppLayout.spaceSm),
       child: Material(
         color: embedded ? Colors.transparent : AppColors.card,
-        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        borderRadius: BorderRadius.circular(AppLayout.radiusXl),
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           contentPadding: EdgeInsets.symmetric(

@@ -8,7 +8,6 @@ import 'package:uuid/uuid.dart';
 import '../local/app_database.dart';
 
 import '../../application/assistant/assistant_conversation_store.dart';
-export '../../application/assistant/assistant_conversation_store.dart';
 
 /// 把基座原始日志存入 AppDatabase；列表索引与记录在同一事务更新。
 class DriftSessionStore implements AssistantConversationStore {

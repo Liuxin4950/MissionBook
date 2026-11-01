@@ -10,7 +10,6 @@ class _AssistantToolPreparation {
     String toolName,
     Map<String, Object?> input,
   ) async {
-    toolName = AssistantTools.legacyName(toolName);
     if (!AssistantTools.writeToolNames.contains(toolName)) {
       return PreparedToolCall(input);
     }
@@ -43,7 +42,7 @@ class _AssistantToolPreparation {
       );
     }
 
-    if (toolName == 'mission_complete_history') {
+    if (toolName == 'completeHistory') {
       final date = input['beforeDate'] as String;
       try {
         validateScheduledDate(date);
@@ -86,7 +85,7 @@ class _AssistantToolPreparation {
         },
       );
     }
-    if (toolName == 'mission_plan') {
+    if (toolName == 'planMissions') {
       try {
         final draft = await _tools._plans.prepare(input);
         final prepared = PreparedToolCall(
@@ -107,7 +106,7 @@ class _AssistantToolPreparation {
         );
       }
     }
-    if (toolName == 'goal_update') {
+    if (toolName == 'updateGoal') {
       final goal = await _tools._goals.findById(input['goalId'] as String);
       if (goal == null) throw const ToolRejected('not_found', '目标不存在');
       return PreparedToolCall(
@@ -115,7 +114,7 @@ class _AssistantToolPreparation {
         snapshot: {'goal': goal, 'targetTitle': goal.title},
       );
     }
-    if (toolName == 'goal_node_update') {
+    if (toolName == 'updateGoalNode') {
       final node = await _tools._goals.findNodeById(input['nodeId'] as String);
       if (node == null) throw const ToolRejected('not_found', '节点不存在');
       return PreparedToolCall(
@@ -123,15 +122,15 @@ class _AssistantToolPreparation {
         snapshot: {'node': node, 'targetTitle': node.title},
       );
     }
-    if (toolName == 'mission_reschedule' ||
-        toolName == 'mission_update' ||
-        toolName == 'mission_execute' ||
-        toolName == 'mission_retry') {
+    if (toolName == 'rescheduleMission' ||
+        toolName == 'updateMission' ||
+        toolName == 'executeMission' ||
+        toolName == 'retryMission') {
       final detail = await _tools._missions.findDetail(
         missionId: input['missionId'] as String,
       );
       if (detail == null) throw const ToolRejected('not_found', '任务不存在，请刷新后重试');
-      if (toolName == 'mission_retry') {
+      if (toolName == 'retryMission') {
         if (detail.phase != MissionPhase.closed &&
             detail.phase != MissionPhase.cancelled) {
           throw const ToolRejected('retry_rejected', '只能从已结束或已取消任务创建新尝试');
@@ -156,7 +155,7 @@ class _AssistantToolPreparation {
           snapshot: {'detail': detail},
         );
       }
-      if (toolName == 'mission_reschedule' || toolName == 'mission_update') {
+      if (toolName == 'rescheduleMission' || toolName == 'updateMission') {
         final originalStart = detail.schedule.fixedStartAt;
         final localStart = originalStart == null
             ? null
@@ -188,21 +187,20 @@ class _AssistantToolPreparation {
   }
 
   String? validate(String toolName, Map<String, Object?> input) {
-    toolName = AssistantTools.legacyName(toolName);
     final tool = _tools._tools
         .where((item) => item.definition.name == toolName)
         .firstOrNull;
     if (tool == null) return '未知工具：$toolName';
     final schemaError = tool.validateInput(input);
     if (schemaError != null) return schemaError;
-    if (toolName == 'mission_plan') {
+    if (toolName == 'planMissions') {
       return AssistantScheduleService.validate(input);
     }
-    if (toolName == 'goal_outline_create') {
+    if (toolName == 'createGoalOutline') {
       return AssistantGoalOutline.validate(input);
     }
     try {
-      if (toolName == 'mission_complete_history') {
+      if (toolName == 'completeHistory') {
         validateScheduledDate(input['beforeDate'] as String);
         if ((input['beforeDate'] as String).compareTo(_tools._today()) > 0 ||
             (input['statement'] as String).trim().isEmpty) {

@@ -40,7 +40,7 @@ void main() {
       AssistantRole.assistant,
     );
   });
-  test('三档权限持久化，旧开关迁移保持原行为，转写凭据独立', () async {
+  test('三档权限持久化，转写凭据独立', () async {
     FlutterSecureStorage.setMockInitialValues({});
     const store = SecureAssistantSettingsStore();
     expect((await store.load()).permissionMode, AssistantPermissionMode.full);
@@ -48,17 +48,6 @@ void main() {
       await store.savePermissionMode(mode);
       expect((await store.load()).permissionMode, mode);
     }
-    FlutterSecureStorage.setMockInitialValues({
-      'assistant_auto_approve_writes': 'false',
-    });
-    expect(
-      (await store.load()).permissionMode,
-      AssistantPermissionMode.relaxed,
-    );
-    FlutterSecureStorage.setMockInitialValues({
-      'assistant_auto_approve_writes': 'true',
-    });
-    expect((await store.load()).permissionMode, AssistantPermissionMode.full);
     await store.saveSpeechSettings(
       const AssistantSpeechSettings(
         useTranscription: true,

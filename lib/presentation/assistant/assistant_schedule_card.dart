@@ -360,7 +360,10 @@ class AssistantScheduleCard extends StatelessWidget {
                           ? '移除这项安排'
                           : '最后一项可通过取消计划移除',
                       visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.close, size: AppLayout.iconSm),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        size: AppLayout.iconSm,
+                      ),
                       onPressed:
                           editable &&
                               AssistantScheduleService.rows(

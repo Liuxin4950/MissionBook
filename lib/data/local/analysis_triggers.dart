@@ -9,6 +9,15 @@ Future<void> installAnalysisTriggers(GeneratedDatabase db) async {
     ON CONFLICT(scope,target_id) DO UPDATE SET source_version=source_version+1,
       status='pending',attempts=0,available_at=0,error=NULL;
   ''';
+  String enqueueAncestors(String node) =>
+      '''
+      INSERT INTO analysis_jobs(scope,target_id,source_version,status,attempts,available_at)
+      SELECT 'node',id,1,'pending',0,0 FROM (
+        WITH RECURSIVE parents(id) AS (SELECT $node UNION SELECT n.parent_node_id
+          FROM goal_nodes n JOIN parents p ON n.id=p.id WHERE n.parent_node_id IS NOT NULL)
+        SELECT id FROM parents) WHERE id IS NOT NULL
+      ON CONFLICT(scope,target_id) DO UPDATE SET source_version=source_version+1,status='pending',attempts=0,available_at=0,error=NULL;
+    ''';
   final sources = <String, (String, String)>{
     'records': ('record', 'NEW.id'),
     'evidence_records': ('mission', 'NEW.mission_id'),
@@ -41,16 +50,7 @@ Future<void> installAnalysisTriggers(GeneratedDatabase db) async {
       node = '(SELECT goal_node_id FROM missions WHERE id=NEW.mission_id)';
       goal = '(SELECT goal_id FROM missions WHERE id=NEW.mission_id)';
     }
-    final ancestors = node == null
-        ? ''
-        : '''
-      INSERT INTO analysis_jobs(scope,target_id,source_version,status,attempts,available_at)
-      SELECT 'node',id,1,'pending',0,0 FROM (
-        WITH RECURSIVE parents(id) AS (SELECT $node UNION SELECT n.parent_node_id
-          FROM goal_nodes n JOIN parents p ON n.id=p.id WHERE n.parent_node_id IS NOT NULL)
-        SELECT id FROM parents) WHERE id IS NOT NULL
-      ON CONFLICT(scope,target_id) DO UPDATE SET source_version=source_version+1,status='pending',attempts=0,available_at=0,error=NULL;
-    ''';
+    final ancestors = node == null ? '' : enqueueAncestors(node);
     for (final action in ['INSERT', 'UPDATE']) {
       await db.customStatement(
         '''CREATE TRIGGER IF NOT EXISTS analysis_${entry.key}_${action.toLowerCase()}
@@ -70,30 +70,15 @@ Future<void> installAnalysisTriggers(GeneratedDatabase db) async {
     BEGIN INSERT OR IGNORE INTO analysis_jobs(scope,target_id,source_version,status,attempts,available_at)
       VALUES('memory',NEW.session_id || ':' || NEW.sequence,1,'pending',0,0); END''',
   );
-  // 移动尚未成为材料的记录或调整任务归属，也使原归属的摘要失效。
+  // 记录和任务独立调整归属时，旧节点的全部祖先和旧目标也需重新总结。
   for (final table in ['records', 'missions']) {
     await db.customStatement(
       '''CREATE TRIGGER IF NOT EXISTS analysis_${table}_old_scope
       AFTER UPDATE ON $table
       WHEN OLD.goal_id IS NOT NEW.goal_id OR OLD.goal_node_id IS NOT NEW.goal_node_id
-      BEGIN ${enqueue('node', 'OLD.goal_node_id')} ${enqueue('goal', 'OLD.goal_id')} END''',
+      BEGIN ${enqueueAncestors('OLD.goal_node_id')} ${enqueue('goal', 'OLD.goal_id')} END''',
     );
   }
-  await db.customStatement(
-    '''CREATE TRIGGER IF NOT EXISTS records_formal_immutable
-    BEFORE UPDATE OF content,type,source,attachment_storage_key,attachment_file_name,
-      attachment_mime_type,captured_at ON records
-    WHEN EXISTS(SELECT 1 FROM evidence_records e WHERE e.record_id=OLD.id)
-    BEGIN SELECT RAISE(ABORT,'正式材料只能追加修正'); END''',
-  );
-  // 任务开始前可调整归属，材料的目标/节点是任务的派生归属，必须同事务跟随。
-  await db.customStatement(
-    '''CREATE TRIGGER IF NOT EXISTS records_follow_mission_scope
-    AFTER UPDATE OF goal_id,goal_node_id ON missions
-    WHEN OLD.goal_id IS NOT NEW.goal_id OR OLD.goal_node_id IS NOT NEW.goal_node_id
-    BEGIN UPDATE records SET goal_id=NEW.goal_id,goal_node_id=NEW.goal_node_id
-      WHERE id IN(SELECT record_id FROM evidence_records WHERE mission_id=NEW.id); END''',
-  );
   for (final action in ['INSERT', 'UPDATE']) {
     await db.customStatement(
       '''CREATE TRIGGER IF NOT EXISTS records_scope_${action.toLowerCase()}

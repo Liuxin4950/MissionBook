@@ -68,7 +68,7 @@ ModelProfile _profile(String id, int window) => ModelProfile(
   model: 'scripted',
   endpoint: Uri.parse('https://example.invalid/$id'),
   protocol: ModelProtocol.messages,
-  credentialEnvironment: 'UNUSED_DEMO_KEY',
+  credentialKey: 'UNUSED_DEMO_KEY',
   contextWindowTokens: window,
   maxOutputTokens: 256,
 );

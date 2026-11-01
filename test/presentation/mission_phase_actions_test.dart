@@ -22,7 +22,6 @@ import 'package:mission_book/presentation/missions/execution/mission_execution_p
 import 'package:mission_book/presentation/records/analysis_panel.dart';
 import 'package:mission_book/presentation/records/record_scope.dart';
 import 'package:mission_book/presentation/records/records_page.dart';
-import 'package:mission_book/presentation/widgets/app_settings_row.dart';
 
 void main() {
   late DateTime now;
@@ -40,6 +39,7 @@ void main() {
     records = RecordService(
       DriftRecordRepository(db, clock: () => now),
       service,
+      service.attachments,
     );
     analysis = AnalysisService(
       store: DriftAnalysisStore(db),
@@ -226,11 +226,10 @@ void main() {
       expect(saved.effectiveUserReport!.occurrenceDate, '2026-10-31');
       expect(find.byType(MissionEvidenceSection), findsOneWidget);
       expect(find.byType(TextButton), findsNothing);
-      expect(find.byKey(const Key('execution-report-entry')), findsOneWidget);
-      expect(
-        tester.widget(find.byKey(const Key('execution-report-entry'))),
-        isA<AppSettingsRow>(),
-      );
+      expect(find.byKey(const Key('execution-report-entry')), findsNothing);
+      await tester.tap(find.byTooltip('任务更多操作'));
+      await tester.pumpAndSettle();
+      expect(find.text('更正实际日期 / 时段'), findsOneWidget);
       expect(find.byKey(const Key('execution-makeup')), findsNothing);
       await close(tester);
     });
@@ -304,7 +303,9 @@ void main() {
     );
     expect(saved.effectiveUserReport!.duration, isNull);
     expect(saved.phase, MissionPhase.closed);
-    await tester.tap(find.byKey(const Key('execution-report-entry')));
+    await tester.tap(find.byTooltip('任务更多操作'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('更正实际日期 / 时段'));
     await tester.pumpAndSettle();
     expect(
       tester
@@ -334,6 +335,8 @@ void main() {
     final saved = (await service.findDetail(missionId: d.mission.id))!;
     expect(saved.phase, MissionPhase.evidencePending);
     expect(find.byType(MissionEvidenceSection), findsOneWidget);
+    await tester.tap(find.byTooltip('任务更多操作'));
+    await tester.pumpAndSettle();
     expect(find.text('更正实际日期 / 时段'), findsOneWidget);
     expect(find.byKey(const Key('retrospective-completed')), findsNothing);
     await close(tester);

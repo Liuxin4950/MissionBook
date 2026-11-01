@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:mission_book/presentation/missions/evidence/evidence_camera_panel.dart';
+import 'package:mission_book/presentation/attachments/photo_capture_panel.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -15,8 +15,8 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
-            child: EvidenceCameraPanel(
-              missionTitle: '隔离的相机验收任务',
+            child: PhotoCapturePanel(
+              title: '隔离的相机验收任务',
               onConfirmed: (bytes, at) async {
                 captured = bytes;
                 capturedAt = at;

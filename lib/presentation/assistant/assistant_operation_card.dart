@@ -34,7 +34,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
   @override
   Widget build(BuildContext context) {
     final operation = widget.operation;
-    if (operation.toolName == 'mission_plan') {
+    if (operation.toolName == 'planMissions') {
       return AssistantScheduleCard(
         controller: widget.controller,
         operation: operation,
@@ -150,7 +150,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                   )
                 else
                   ..._summaryRows(operation),
-                if (operation.toolName == 'mission_complete_history') ...[
+                if (operation.toolName == 'completeHistory') ...[
                   const SizedBox(height: AppLayout.spaceSm),
                   Wrap(
                     spacing: AppLayout.spaceSm,
@@ -248,7 +248,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
     }
     if (before != null) rows.add(('任务', before.mission.title));
     if (before != null &&
-        ['mission_reschedule', 'mission_update'].contains(operation.toolName)) {
+        ['rescheduleMission', 'updateMission'].contains(operation.toolName)) {
       rows.add((
         '原安排',
         '${before.schedule.scheduledDate} · ${before.schedule.plannedDurationMinutes} 分钟',
@@ -311,13 +311,13 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
     if (steps is List && steps.isNotEmpty) {
       rows.add(('行动步骤', steps.join(' → ')));
     }
-    if (operation.toolName == 'mission_cancel') {
+    if (operation.toolName == 'cancelMission') {
       rows.add(('影响', '保留排期和方案；不新增执行或失败事实'));
     }
-    if (operation.toolName == 'mission_retry') {
+    if (operation.toolName == 'retryMission') {
       rows.add(('影响', '创建关联的新尝试，保留原任务的结果、记录及材料要求'));
     }
-    if (operation.toolName == 'goal_outline_create') {
+    if (operation.toolName == 'createGoalOutline') {
       final nodes = AssistantGoalOutline.rows(operation.input);
       final paths = <String, String>{};
       final counts = <String?, int>{};
@@ -625,7 +625,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
   Set<String> get _editableKeys {
     final tool = widget.operation.toolName;
     return switch (tool) {
-      'mission_create' || 'mission_update' => {
+      'createMission' || 'updateMission' => {
         'title',
         'scheduledDate',
         'plannedMinutes',
@@ -636,12 +636,12 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
         'description',
         'why',
       },
-      'mission_reschedule' => {
+      'rescheduleMission' => {
         'scheduledDate',
         'plannedMinutes',
         'fixedStartLocal',
       },
-      'mission_retry' => {
+      'retryMission' => {
         'title',
         'scheduledDate',
         'plannedMinutes',
@@ -653,13 +653,13 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
             VerificationPolicy.requiredEvidence)
           'evidenceDeadlineLocal',
       },
-      'goal_create' || 'goal_update' => {'title', 'description', 'why'},
-      'goal_node_create' || 'goal_node_update' => {'title', 'description'},
-      'mission_execute' => {
+      'createGoal' || 'updateGoal' => {'title', 'description', 'why'},
+      'createGoalNode' || 'updateGoalNode' => {'title', 'description'},
+      'executeMission' => {
         if (_draft['type'] == 'EXTEND') 'minutes',
         if (_draft['type'] == 'PAUSE') 'reason',
       },
-      'mission_complete_history' => {'statement'},
+      'completeHistory' => {'statement'},
       'saveRecord' || 'saveMemory' => {'content'},
       'reportExecution' ||
       'correctExecutionTime' => {'occurrenceDate', 'actualStart', 'actualEnd'},
@@ -708,7 +708,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
   @override
   Widget build(BuildContext context) {
     final tool = widget.operation.toolName;
-    if (tool == 'goal_outline_create') {
+    if (tool == 'createGoalOutline') {
       return AssistantOutlineEditor(
         input: widget.operation.input,
         onSave: widget.onSave,
@@ -728,41 +728,40 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
         if (tool == 'startMakeup')
           _field('evidenceDeadlineAt', '新的材料截止 ISO8601'),
         if ([
-          'mission_create',
-          'mission_update',
-          'mission_retry',
-          'goal_create',
-          'goal_update',
-          'goal_node_create',
-          'goal_node_update',
+          'createMission',
+          'updateMission',
+          'retryMission',
+          'createGoal',
+          'updateGoal',
+          'createGoalNode',
+          'updateGoalNode',
         ].contains(tool))
           _field('title', '名称'),
         if ([
-          'mission_create',
-          'mission_update',
-          'mission_reschedule',
-          'mission_retry',
+          'createMission',
+          'updateMission',
+          'rescheduleMission',
+          'retryMission',
         ].contains(tool)) ...[
           _field('scheduledDate', '日期 YYYY-MM-DD'),
           _field('plannedMinutes', '计划分钟数', keyboardType: TextInputType.number),
           _field('fixedStartLocal', '固定开始 HH:mm（留空为自选）'),
         ],
-        if (tool == 'mission_create' ||
-            tool == 'mission_update' ||
-            tool == 'mission_retry') ...[
+        if (tool == 'createMission' ||
+            tool == 'updateMission' ||
+            tool == 'retryMission') ...[
           _field('objective', '具体目标'),
           _field('steps', '行动步骤，每行一步', maxLines: 4),
           _field('notes', '备注（可留空）', maxLines: 3),
         ],
-        if (tool == 'mission_retry' &&
+        if (tool == 'retryMission' &&
             widget.operation.missionBefore?.mission.verificationPolicy ==
                 VerificationPolicy.requiredEvidence)
           _field('evidenceDeadlineLocal', '新材料截止 YYYY-MM-DD HH:mm'),
-        if (tool == 'mission_reschedule' || tool == 'mission_update')
+        if (tool == 'rescheduleMission' || tool == 'updateMission')
           _choice('timePolicy', '时间方式', const ['FLEXIBLE', 'FIXED']),
-        if (tool == 'mission_complete_history')
-          _field('statement', '补记依据', maxLines: 3),
-        if (tool == 'mission_execute') ...[
+        if (tool == 'completeHistory') _field('statement', '补记依据', maxLines: 3),
+        if (tool == 'executeMission') ...[
           _choice('type', '执行动作', const [
             'START',
             'PAUSE',
@@ -788,19 +787,19 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
           ],
         ],
         if ([
-          'goal_create',
-          'goal_update',
-          'goal_node_create',
-          'goal_node_update',
-          'mission_create',
-          'mission_update',
+          'createGoal',
+          'updateGoal',
+          'createGoalNode',
+          'updateGoalNode',
+          'createMission',
+          'updateMission',
         ].contains(tool))
           _field('description', '说明（可留空）'),
         if ([
-          'goal_create',
-          'goal_update',
-          'mission_create',
-          'mission_update',
+          'createGoal',
+          'updateGoal',
+          'createMission',
+          'updateMission',
         ].contains(tool))
           _field('why', '为什么（可留空）'),
         if (_error != null)
@@ -890,15 +889,15 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
       }
     }
     if ([
-          'mission_reschedule',
-          'mission_update',
+          'rescheduleMission',
+          'updateMission',
         ].contains(widget.operation.toolName) &&
         _touched.contains('fixedStartLocal') &&
         _controllers['fixedStartLocal']!.text.trim().isEmpty) {
       _draft['timePolicy'] = 'FLEXIBLE';
     }
     if (_draft['timePolicy'] == 'FLEXIBLE') _draft.remove('fixedStartLocal');
-    if (widget.operation.toolName == 'mission_execute') {
+    if (widget.operation.toolName == 'executeMission') {
       if (_draft['type'] != 'EXTEND') _draft.remove('minutes');
       if (_draft['type'] != 'PAUSE') _draft.remove('reason');
       if (_draft['type'] != 'END') {
@@ -929,7 +928,8 @@ String _toolLabel(String name) => switch (name) {
   'getRecord' => '读取记录',
   'getMemory' => '读取助手记忆',
   'saveRecord' => '保存记录',
-  'linkRecord' => '关联记录材料',
+  'setRecordOwnership' => '设置记录归属',
+  'useRecordAsMaterial' => '提交记录材料',
   'reportExecution' => '补记执行情况',
   'correctExecutionTime' => '更正实际日期与时段',
   'startMakeup' => '现在补做并保留原排期',
@@ -938,26 +938,26 @@ String _toolLabel(String name) => switch (name) {
   'retryAnalysis' => '更新分析摘要',
   'searchWeb' => '搜索实时信息',
   'fetchWeb' => '读取来源网页',
-  'mission_complete_history' => '批量补记历史完成',
-  'goal_outline_create' => '创建目标与分层大纲',
-  'mission_retry' => '安排新的尝试',
-  'schedule_query' => '查看日期安排',
-  'mission_query' => '读取任务详情',
-  'goal_list' => '查看目标列表',
-  'goal_query' => '读取目标与节点',
-  'mission_create' => '创建任务',
-  'mission_reschedule' => '调整任务安排',
-  'mission_update' => '修改任务',
-  'goal_update' => '修改目标',
-  'goal_node_update' => '修改节点',
-  'goal_node_query' => '读取节点',
-  'mission_search' => '搜索任务',
-  'mission_content' => '读取任务片段',
-  'mission_records' => '查看任务记录',
-  'evidence_content' => '读取材料正文',
-  'mission_execute' => '提交执行动作',
-  'mission_cancel' => '取消任务',
-  'goal_create' => '创建目标',
-  'goal_node_create' => '创建目标节点',
+  'completeHistory' => '批量补记历史完成',
+  'createGoalOutline' => '创建目标与分层大纲',
+  'retryMission' => '安排新的尝试',
+  'getSchedule' => '查看日期安排',
+  'getMission' => '读取任务详情',
+  'listGoals' => '查看目标列表',
+  'getGoalDetail' => '读取目标与节点',
+  'createMission' => '创建任务',
+  'rescheduleMission' => '调整任务安排',
+  'updateMission' => '修改任务',
+  'updateGoal' => '修改目标',
+  'updateGoalNode' => '修改节点',
+  'getGoalNode' => '读取节点',
+  'findMissions' => '搜索任务',
+  'getMissionContent' => '读取任务片段',
+  'getMissionRecords' => '查看任务记录',
+  'getMaterial' => '读取材料正文',
+  'executeMission' => '提交执行动作',
+  'cancelMission' => '取消任务',
+  'createGoal' => '创建目标',
+  'createGoalNode' => '创建目标节点',
   _ => name,
 };

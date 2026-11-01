@@ -13,11 +13,13 @@ import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/application/web/web_service.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
-import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
+import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/web/web_settings_store.dart';
 import 'package:mission_book/presentation/assistant/assistant_settings_page.dart';
-import 'package:mission_book/presentation/records/context_settings_page.dart';
+import 'package:mission_book/presentation/records/memory_page.dart';
+import 'package:mission_book/presentation/records/web_settings_page.dart';
+import 'package:mission_book/presentation/records/analysis_settings_page.dart';
 import 'package:http/http.dart' as http;
 import '../test/support/assistant_fakes.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
@@ -48,6 +50,7 @@ void main() {
     final records = RecordService(
       DriftRecordRepository(db, clock: () => now),
       service,
+      service.attachments,
     );
     final analysis = AnalysisService(
       store: DriftAnalysisStore(db),
@@ -62,7 +65,7 @@ void main() {
     );
     final goals = GoalService(DriftGoalRepository(db));
     final assistant = AssistantController(
-      reader: DriftAssistantReader(db),
+      unifiedReader: DriftUnifiedReader(db),
       sessionStore: DriftSessionStore(db),
       settingsStore: MemoryAssistantSettingsStore(),
       missions: service,

@@ -1,25 +1,31 @@
+import 'package:mission_book/application/attachments/attachment_coordinator.dart';
+import 'package:mission_book/domain/entities/record_draft.dart';
 import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/analysis/analysis_service.dart';
-import 'package:mission_book/application/evidence/evidence_image_service.dart';
+import 'package:mission_book/application/attachments/attachment_file_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/records/record_service.dart';
 import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
-import 'package:mission_book/domain/entities/evidence.dart';
 import 'package:mission_book/presentation/records/record_scope.dart';
 import 'package:mission_book/presentation/records/records_page.dart';
 
-class _Images implements EvidenceImageStore, EvidenceImagePicker {
+class _Images implements AttachmentStore, ImageAttachmentPicker {
   late Uint8List bytes;
   bool fail = false;
   int reads = 0;
+  Completer<SelectedAttachment?>? pendingPick;
+  final deleted = <String>[];
   @override
   Future<Uint8List> read(String key) async {
     reads++;
@@ -33,11 +39,11 @@ class _Images implements EvidenceImageStore, EvidenceImagePicker {
   }
 
   @override
-  Future<SelectedEvidenceImage?> pick() async => null;
+  Future<SelectedAttachment?> pick() async => pendingPick?.future;
   @override
   Future<Set<String>> listKeys() async => {'attachments/photo/image.png'};
   @override
-  Future<void> delete(String key) async {}
+  Future<void> delete(String key) async => deleted.add(key);
   @override
   Future<void> writeNew(String key, Uint8List bytes) async {}
 }
@@ -58,12 +64,19 @@ void main() {
     images = _Images()..bytes = png;
     missions = MissionService(
       DriftMissionRepository(db, clock: () => now),
-      images: EvidenceImageService(store: images, picker: images),
+      attachments: AttachmentCoordinator(
+        files: AttachmentFileService(store: images, picker: images),
+        referencedKeys: DriftMissionRepository(
+          db,
+          clock: () => now,
+        ).referencedAttachmentKeys,
+      ),
       clock: () => now,
     );
     records = RecordService(
       DriftRecordRepository(db, clock: () => now),
       missions,
+      missions.attachments,
     );
     analysis = AnalysisService(
       store: DriftAnalysisStore(db),
@@ -71,10 +84,10 @@ void main() {
       model: (prompt, {imageKey, mime, json = false}) async => '记录总结',
     );
     await records.save(
-      const EvidenceDraft(
+      const RecordDraft(
         id: 'photo',
-        type: EvidenceType.image,
-        source: EvidenceSource.fileSystem,
+        type: ContentType.image,
+        source: ContentSource.fileSystem,
         attachmentStorageKey: 'attachments/photo/image.png',
         attachmentFileName: '记录照片.png',
         attachmentMimeType: 'image/png',
@@ -121,6 +134,32 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
+
+  testWidgets('页面移除后迟到的图片选择清理草稿且不更新页面', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    images.pendingPick = Completer<SelectedAttachment?>();
+    await tester.pumpWidget(app(const Scaffold(body: RecordEditor())));
+    await tester.tap(find.byKey(const Key('record-pick-photo')));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    images.pendingPick!.complete(
+      SelectedAttachment(
+        fileName: 'late.png',
+        byteLength: png.length,
+        readBytes: () async => png,
+      ),
+    );
+    for (var i = 0; i < 100 && images.deleted.isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+    }
+    debugDefaultTargetPlatformOverride = null;
+    expect(images.deleted, hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('详情解码失败可重新读取有效字节，删除后的旧入口显示空态', (tester) async {
     images.bytes = Uint8List.fromList([1, 2, 3]);

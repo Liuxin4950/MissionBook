@@ -9,7 +9,7 @@ import 'goal_nodes.dart';
   'CREATE INDEX missions_goal_node ON missions (goal_id, goal_node_id)',
 )
 class Missions extends Table {
-  // v8：都可以为空，旧任务升级后自然仍是独立任务。
+  // 归属可为空，独立任务不需要目标或节点。
   TextColumn get goalId => text().nullable().references(Goals, #id)();
   TextColumn get goalNodeId => text()
       .nullable()

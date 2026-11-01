@@ -574,7 +574,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
               IconButton(
                 tooltip: '收起气泡',
                 onPressed: _closeBubble,
-                icon: const Icon(Icons.close, size: AppLayout.iconMd),
+                icon: const Icon(Icons.close_rounded, size: AppLayout.iconMd),
               ),
             ],
           ),

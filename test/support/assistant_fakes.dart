@@ -8,22 +8,17 @@ class MemoryAssistantSettingsStore implements AssistantSettingsStore {
   String profileId = 'deepseek-chat';
   String? customCredential;
   ModelProfile? customProfile;
-  bool autoApprove = false;
-  AssistantPermissionMode? permissionMode;
+  AssistantPermissionMode permissionMode = AssistantPermissionMode.relaxed;
   AssistantSpeechSettings speech = const AssistantSpeechSettings();
   String? transcriptionCredential;
   AssistantPersona persona = const AssistantPersona();
 
   @override
   Future<AssistantSettings> load() async => AssistantSettings(
-    hasCredential: profileId == 'custom'
-        ? customCredential != null
-        : credential != null && credential!.isNotEmpty,
     hasDeepSeekCredential: credential != null && credential!.isNotEmpty,
     hasCustomCredential: customCredential != null,
     customProfile: customProfile,
     modelProfileId: profileId,
-    autoApproveWrites: autoApprove,
     permissionMode: permissionMode,
     speech: speech,
     hasTranscriptionCredential: transcriptionCredential != null,
@@ -37,12 +32,6 @@ class MemoryAssistantSettingsStore implements AssistantSettingsStore {
       : credentialKey == 'MISSIONBOOK_CUSTOM_API_KEY'
       ? customCredential
       : credential;
-
-  @override
-  Future<void> saveAutoApproveWrites(bool value) async {
-    autoApprove = value;
-    permissionMode = null;
-  }
 
   @override
   Future<void> savePermissionMode(AssistantPermissionMode mode) async =>

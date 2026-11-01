@@ -89,7 +89,7 @@ class DriftGoalRepository implements GoalRepository {
     String? operationId,
   }) => _withReceipt(
     operationId,
-    'goal_update',
+    'updateGoal',
     expected.id,
     {
       'version': expected.updatedAt.toIso8601String(),
@@ -114,7 +114,7 @@ class DriftGoalRepository implements GoalRepository {
     required String title,
     String? description,
     String? operationId,
-  }) => _withReceipt(operationId, 'goal_node_update', expected.id, {
+  }) => _withReceipt(operationId, 'updateGoalNode', expected.id, {
     'version': expected.updatedAt.toIso8601String(),
     'title': title,
     'description': description,
@@ -150,10 +150,10 @@ class DriftGoalRepository implements GoalRepository {
         return;
       }
       await write();
-      final node = kind == 'goal_node_update'
+      final node = kind == 'updateGoalNode'
           ? await findNodeById(entityId)
           : null;
-      final goal = kind == 'goal_update' ? await findById(entityId) : null;
+      final goal = kind == 'updateGoal' ? await findById(entityId) : null;
       await database
           .into(database.operationReceipts)
           .insert(

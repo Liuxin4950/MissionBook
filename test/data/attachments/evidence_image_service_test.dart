@@ -3,14 +3,14 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mission_book/application/evidence/evidence_image_service.dart';
-import 'package:mission_book/data/attachments/evidence_image_native.dart';
+import 'package:mission_book/application/attachments/attachment_file_service.dart';
+import 'package:mission_book/data/attachments/attachment_native.dart';
 
-class _Picker implements EvidenceImagePicker {
+class _Picker implements ImageAttachmentPicker {
   _Picker(this.selection);
-  final SelectedEvidenceImage? selection;
+  final SelectedAttachment? selection;
   @override
-  Future<SelectedEvidenceImage?> pick() async => selection;
+  Future<SelectedAttachment?> pick() async => selection;
 }
 
 // 用真实图片编码和独立磁盘目录验证；不访问设备上正在使用的应用数据。
@@ -32,30 +32,28 @@ Future<Uint8List> _pngBytes() async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory directory;
-  late NativeEvidenceImageStore store;
+  late NativeAttachmentStore store;
   late Uint8List png;
   setUpAll(() async => png = await _pngBytes());
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('mission_book_images_');
-    store = NativeEvidenceImageStore(
-      applicationDirectory: () async => directory,
-    );
+    store = NativeAttachmentStore(applicationDirectory: () async => directory);
   });
   tearDown(() async => directory.delete(recursive: true));
 
-  EvidenceImageService service(
-    SelectedEvidenceImage? selection, {
+  AttachmentFileService service(
+    SelectedAttachment? selection, {
     String id = 'image-a',
   }) {
-    return EvidenceImageService(
+    return AttachmentFileService(
       store: store,
       picker: _Picker(selection),
       nextId: () => id,
     );
   }
 
-  SelectedEvidenceImage selection(Uint8List bytes, {int? declaredSize}) {
-    return SelectedEvidenceImage(
+  SelectedAttachment selection(Uint8List bytes, {int? declaredSize}) {
+    return SelectedAttachment(
       fileName: '事务结果.png',
       byteLength: declaredSize ?? bytes.length,
       readBytes: () async => bytes,
@@ -69,9 +67,9 @@ void main() {
 
   test('声明超限时不读取内容，不创建副本', () async {
     var read = false;
-    final pickerResult = SelectedEvidenceImage(
+    final pickerResult = SelectedAttachment(
       fileName: 'large.png',
-      byteLength: EvidenceImageService.maxBytes + 1,
+      byteLength: AttachmentFileService.maxBytes + 1,
       readBytes: () async {
         read = true;
         return png;
@@ -86,7 +84,7 @@ void main() {
   });
 
   test('实际读取超过限制也拒绝，不相信选择器的声明长度', () async {
-    final oversized = Uint8List(EvidenceImageService.maxBytes + 1);
+    final oversized = Uint8List(AttachmentFileService.maxBytes + 1);
     await expectLater(
       service(
         selection(oversized, declaredSize: 20),
@@ -110,7 +108,7 @@ void main() {
     final source = File('${directory.path}/original.png');
     await source.writeAsBytes(png);
     final images = service(
-      SelectedEvidenceImage(
+      SelectedAttachment(
         fileName: '事务结果.png',
         byteLength: await source.length(),
         readBytes: source.readAsBytes,
@@ -121,7 +119,7 @@ void main() {
     expect(image.fileName, '事务结果.png');
     expect(image.mimeType, 'image/png');
     await source.delete();
-    final reopened = NativeEvidenceImageStore(
+    final reopened = NativeAttachmentStore(
       applicationDirectory: () async => directory,
     );
     expect(await reopened.read(image.storageKey), png);
@@ -129,7 +127,7 @@ void main() {
 
   test('展示文件名不参与存储路径，去掉来源路径和控制字符', () async {
     final image = (await service(
-      SelectedEvidenceImage(
+      SelectedAttachment(
         fileName: '../other\\结果\u0000.png',
         byteLength: png.length,
         readBytes: () async => png,

@@ -1,3 +1,4 @@
+import 'package:mission_book/domain/entities/record_draft.dart';
 import 'package:mission_book/data/repositories/drift_memory_repository.dart';
 import 'package:mission_book/domain/entities/analysis_scope.dart';
 import 'package:mission_book/application/memory/memory_service.dart';
@@ -114,7 +115,7 @@ void main() {
     );
   }
 
-  test('午餐照片独立保存、后关联节点任务，内容只存一次，备份隔离还原完整', () async {
+  test('午餐照片独立保存、后关联节点任务，材料保留快照，备份隔离还原完整', () async {
     final goal = goals.prepareCreation(
       title: '减肥',
       why: '改善体能',
@@ -125,10 +126,10 @@ void main() {
     await goals.createNode(node);
     final id = await seed(goalId: goal.id, nodeId: node.id);
     const key = 'attachments/record-owner/lunch.jpg';
-    final draft = EvidenceDraft(
+    final draft = RecordDraft(
       id: 'lunch',
-      type: EvidenceType.image,
-      source: EvidenceSource.camera,
+      type: ContentType.image,
+      source: ContentSource.camera,
       content: '午餐',
       attachmentStorageKey: key,
       attachmentFileName: 'lunch.jpg',
@@ -138,18 +139,20 @@ void main() {
     await records.saveRecord(draft);
     await records.saveRecord(draft);
     expect((await repo.findDetail(id))!.events, isEmpty);
-    await records.linkRecord('lunch', missionId: id);
-    await records.linkRecord('lunch', missionId: id);
+    await repo.attachRecordEvidence('lunch', id);
+    await repo.attachRecordEvidence('lunch', id);
     final record = (await db.select(db.records).get()).single;
-    expect(record.goalId, goal.id);
-    expect(record.goalNodeId, node.id);
+    expect(record.goalId, isNull);
+    expect(record.goalNodeId, isNull);
     final evidence = (await db.select(db.evidenceRecords).get()).single;
-    expect(evidence.content, isNull);
-    expect(evidence.attachmentStorageKey, isNull);
+    expect(evidence.content, '午餐');
+    expect(evidence.attachmentStorageKey, key);
     expect(evidence.recordId, 'lunch');
     final detail = (await repo.findDetail(id))!;
     expect(detail.effectiveEvidence.single.content, '午餐');
     expect(detail.phase, MissionPhase.notStarted);
+    await records.deleteRecord('lunch');
+    expect(await repo.referencedAttachmentKeys(), contains(key));
     final backup = await DatabaseBackupService(
       database: db,
       readAttachment: (_) async => Uint8List.fromList([1, 2, 3]),
@@ -175,19 +178,20 @@ void main() {
       await restored.close();
     }
   });
-  test('开始前任务改归属时材料自动跟随，正文和正式引用不变', () async {
+  test('任务改归属不搬动记录，正文和正式引用不变', () async {
     final a = goals.prepareCreation(title: '目标A'),
         b = goals.prepareCreation(title: '目标B');
     await goals.create(a);
     await goals.create(b);
     final id = await seed(goalId: a.id);
     await records.saveRecord(
-      const EvidenceDraft(
+      const RecordDraft(
         id: 'owned',
-        type: EvidenceType.text,
-        source: EvidenceSource.user,
+        type: ContentType.text,
+        source: ContentSource.user,
         content: '先收集材料',
       ),
+      goalId: a.id,
       missionId: id,
     );
     final d = (await repo.findDetail(id))!;
@@ -200,18 +204,166 @@ void main() {
       timePolicy: TimePolicy.flexible,
       ownership: MissionOwnership(goalId: b.id),
     );
-    expect((await db.select(db.records).get()).single.goalId, b.id);
+    expect((await db.select(db.records).get()).single.goalId, a.id);
     expect((await repo.findDetail(id))!.evidence.single.content, '先收集材料');
-    expect((await records.queryRecords(goalId: a.id))['total'], 0);
-    expect((await records.queryRecords(goalId: b.id))['total'], 1);
+    expect((await records.readRecords(goalId: a.id)).total, 1);
+    expect((await records.readRecords(goalId: b.id)).total, 0);
   });
+  test('引用后编辑、重试、删除均保留任务材料快照和来源编号', () async {
+    final id = await seed();
+    await records.saveRecord(
+      const RecordDraft(
+        id: 'mutable-source',
+        type: ContentType.text,
+        source: ContentSource.user,
+        content: '提交原文',
+      ),
+    );
+    await repo.attachRecordEvidence('mutable-source', id);
+    await records.updateRecordContent('mutable-source', '提交原文', '新正文');
+    await repo.attachRecordEvidence('mutable-source', id);
+    expect((await repo.findDetail(id))!.evidence.single.content, '提交原文');
+    await records.deleteRecord('mutable-source');
+    await repo.attachRecordEvidence('mutable-source', id);
+    expect((await repo.findDetail(id))!.evidence.single.content, '提交原文');
+    expect(
+      (await db.select(db.evidenceRecords).get()).single.recordId,
+      'mutable-source',
+    );
+    expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);
+  });
+  test('预览后正文变化拒绝提交；删除来源后任务评价仍读取材料快照', () async {
+    final id = await seed();
+    await records.saveRecord(
+      const RecordDraft(
+        id: 'preview',
+        type: ContentType.text,
+        source: ContentSource.user,
+        content: '原文',
+      ),
+    );
+    final preview = await records.readDraft('preview');
+    await records.updateRecordContent('preview', '原文', '提交内容');
+    await expectLater(
+      missions.useRecordAsMaterial(
+        'preview',
+        id,
+        expected: EvidenceDraft.fromContent(preview),
+      ),
+      throwsA(isA<EvidenceConflict>()),
+    );
+    expect((await repo.findDetail(id))!.evidence, isEmpty);
+    await missions.useRecordAsMaterial('preview', id);
+    await records.updateRecordContent('preview', '提交内容', '后续记录');
+    final store = DriftAnalysisStore(db);
+    final before = await store.input(
+      AnalysisWork(AnalysisScope.mission, id, 1, false, 0, false),
+    );
+    expect(before.items.single['content'], '提交内容');
+    await records.deleteRecord('preview');
+    final after = await store.input(
+      AnalysisWork(AnalysisScope.mission, id, 1, false, 0, false),
+    );
+    expect(after.items.single['content'], '提交内容');
+    expect((await records.readRecords(id: 'preview')).total, 0);
+  });
+
+  test('图片提交时无说明，后来补写说明不污染助手的历史材料正文', () async {
+    final id = await seed();
+    await records.saveRecord(
+      const RecordDraft(
+        id: 'empty-caption',
+        type: ContentType.image,
+        source: ContentSource.camera,
+        attachmentStorageKey: 'attachments/caption/p.png',
+        attachmentFileName: 'p.png',
+      ),
+    );
+    await repo.attachRecordEvidence('empty-caption', id);
+    await records.updateRecordContent('empty-caption', null, '事后说明');
+    final evidence = (await repo.findDetail(id))!.evidence.single;
+    expect(evidence.content, isNull);
+    final content = await DriftAssistantReader(db).evidenceContent(evidence.id);
+    expect(content['text'], '');
+  });
+
+  test('来源删除后任务评价仍观察提交快照图片并汇总观察结果', () async {
+    final id = await seed();
+    await records.saveRecord(
+      const RecordDraft(
+        id: 'visual-source',
+        type: ContentType.image,
+        source: ContentSource.camera,
+        attachmentStorageKey: 'attachments/visual/photo.png',
+        attachmentFileName: 'photo.png',
+        attachmentMimeType: 'image/png',
+      ),
+    );
+    await repo.attachRecordEvidence('visual-source', id);
+    await records.deleteRecord('visual-source');
+    final store = DriftAnalysisStore(db);
+    final calls = <String?>[];
+    final prompts = <String>[];
+    final analysis = AnalysisService(
+      store: store,
+      mainBusy: () => false,
+      model: (prompt, {imageKey, mime, json = false}) async {
+        calls.add(imageKey);
+        prompts.add(prompt);
+        return imageKey == null ? '评价完成' : '可见练习截图';
+      },
+    );
+    try {
+      await store.retry(AnalysisScope.mission, id);
+      await analysis.drain();
+      expect(calls, contains('attachments/visual/photo.png'));
+      expect(prompts.last, contains('可见练习截图'));
+      expect(
+        (await records.analysis(AnalysisScope.mission, id))['state'],
+        'ready',
+      );
+    } finally {
+      await analysis.dispose();
+    }
+  });
+
+  test('跨目标引用保留自身归属，并能改回独立记录；单任务限制明确拒绝重复复用', () async {
+    final a = goals.prepareCreation(title: '记录目标');
+    final b = goals.prepareCreation(title: '任务目标');
+    await goals.create(a);
+    await goals.create(b);
+    final first = await seed(goalId: b.id);
+    final second = await seed();
+    await records.saveRecord(
+      const RecordDraft(
+        id: 'cross',
+        type: ContentType.text,
+        source: ContentSource.user,
+        content: '记录佐证',
+      ),
+      goalId: a.id,
+    );
+    await repo.attachRecordEvidence('cross', first);
+    expect((await records.readRecords(id: 'cross')).items.single.goalId, a.id);
+    await records.updateOwnership('cross');
+    expect(
+      (await records.readRecords(id: 'cross')).items.single.goalId,
+      isNull,
+    );
+    await expectLater(
+      repo.attachRecordEvidence('cross', second),
+      throwsA(isA<EvidenceConflict>()),
+    );
+    expect((await repo.findDetail(second))!.evidence, isEmpty);
+  });
+
   test('结束前材料满足要求，补记不造START，之后补充不改结果及原事件', () async {
     final id = await seed(policy: VerificationPolicy.requiredEvidence);
     await records.saveRecord(
-      const EvidenceDraft(
+      const RecordDraft(
         id: 'before',
-        type: EvidenceType.text,
-        source: EvidenceSource.user,
+        type: ContentType.text,
+        source: ContentSource.user,
         content: '餐盘说明',
       ),
       missionId: id,
@@ -227,10 +379,10 @@ void main() {
     expect(before.phase, MissionPhase.closed);
     expect(before.effectiveUserReport!.duration, const Duration(minutes: 30));
     await records.saveRecord(
-      const EvidenceDraft(
+      const RecordDraft(
         id: 'after',
-        type: EvidenceType.text,
-        source: EvidenceSource.user,
+        type: ContentType.text,
+        source: ContentSource.user,
         content: '补充营养信息',
       ),
       missionId: id,
@@ -249,10 +401,10 @@ void main() {
     await report(late);
     now = now.add(const Duration(hours: 2));
     await records.saveRecord(
-      const EvidenceDraft(
+      const RecordDraft(
         id: 'late',
-        type: EvidenceType.text,
-        source: EvidenceSource.user,
+        type: ContentType.text,
+        source: ContentSource.user,
         content: '晚补材料',
       ),
       missionId: late,
@@ -264,10 +416,10 @@ void main() {
     final missed = await seed();
     await report(missed, reportId: 'missed', completed: false);
     await records.saveRecord(
-      const EvidenceDraft(
+      const RecordDraft(
         id: 'explanation',
-        type: EvidenceType.text,
-        source: EvidenceSource.user,
+        type: ContentType.text,
+        source: ContentSource.user,
         content: '未执行的说明',
       ),
       missionId: missed,
@@ -337,15 +489,15 @@ void main() {
     );
     await expectLater(
       records.saveRecord(
-        const EvidenceDraft(
+        const RecordDraft(
           id: 'bad',
-          type: EvidenceType.text,
-          source: EvidenceSource.user,
+          type: ContentType.text,
+          source: ContentSource.user,
           content: '无效归属',
         ),
         missionId: 'missing',
       ),
-      throwsArgumentError,
+      throwsA(isA<EvidenceConflict>()),
     );
     expect(
       await (db.select(db.records)..where((t) => t.id.equals('bad'))).get(),
@@ -411,11 +563,11 @@ void main() {
   test('AI补记采用确认时快照；并发开始后拒绝旧提案，回执支持新写入恢复', () async {
     final id = await seed();
     final before = (await repo.findDetail(id))!;
-    final service = RecordService(records, missions);
+    final service = RecordService(records, missions, missions.attachments);
     final store = DriftAnalysisStore(db);
     final tools = contextTools(
-      reader: DriftUnifiedReader(db),
       records: service,
+      missions: missions,
       memory: MemoryService(DriftMemoryRepository(db)),
       analysis: store,
       analyze: (p, {imageKey, mime, json = false}) async => '摘要',
@@ -447,22 +599,31 @@ void main() {
     expect((await repo.findDetail(id))!.events, hasLength(1));
     expect(await db.select(db.userExecutionReports).get(), isEmpty);
     final host = AssistantTools(
-      reader: DriftAssistantReader(db),
+      unifiedReader: DriftUnifiedReader(db),
       missions: missions,
       goals: goals,
       memory: MemoryService(DriftMemoryRepository(db)),
       extraTools: tools,
       resolveCall: (_) => throw StateError('未准备'),
     );
-    final exposed = host.tools
-        .where((t) => t.exposed)
-        .map((t) => t.definition.name);
-    expect(exposed, contains('getGoal'));
-    expect(exposed, isNot(contains('goal_query')));
-    expect(
-      host.tools.any((t) => t.definition.name == 'goal_query' && !t.exposed),
-      true,
+    final queryNames = host.tools.map((tool) => tool.definition.name).toList();
+    expect(queryNames.where((name) => name == 'getGoal'), hasLength(1));
+    expect(queryNames.where((name) => name == 'getMission'), hasLength(1));
+    expect(queryNames.where((name) => name == 'getSchedule'), hasLength(1));
+    expect(queryNames, isNot(contains('getGoalDetail')));
+    final readContext = ToolContext(
+      callId: 'query-call',
+      sessionId: 'session',
+      cancellation: CancellationToken(),
     );
+    final queried = await host.tools
+        .firstWhere((tool) => tool.definition.name == 'getMission')
+        .execute({'mission': id}, readContext);
+    expect((jsonDecode(queried.text) as Map)['id'], id);
+    final goalList = await host.tools
+        .firstWhere((tool) => tool.definition.name == 'getGoal')
+        .execute({}, readContext);
+    expect((jsonDecode(goalList.text) as Map)['total'], isA<int>());
     final save = host.tools.firstWhere(
       (t) => t.definition.name == 'saveRecord',
     );
@@ -480,6 +641,147 @@ void main() {
     );
     expect(recovered!.text, output.text);
     expect(await db.select(db.records).get(), hasLength(1));
+
+    final recordId =
+        (jsonDecode(output.text) as Map<String, dynamic>)['recordId'] as String;
+    final ownershipInput = {'recordId': recordId};
+    final ownershipContext = ToolContext(
+      callId: 'ownership-call',
+      sessionId: 'session',
+      cancellation: CancellationToken(),
+    );
+    final ownership = host.tools.firstWhere(
+      (t) => t.definition.name == 'setRecordOwnership',
+    );
+    final ownershipOutput = await ownership.execute(
+      ownershipInput,
+      ownershipContext,
+    );
+    final ownershipRecovery = await host.recoverOutcome(
+      toolName: 'setRecordOwnership',
+      idempotencyKey: ownershipContext.idempotencyKey,
+      input: ownershipInput,
+    );
+    expect(ownershipRecovery!.text, ownershipOutput.text);
+    expect(
+      await host.recoverOutcome(
+        toolName: 'useRecordAsMaterial',
+        idempotencyKey: ownershipContext.idempotencyKey,
+        input: {'recordId': recordId, 'missionId': id},
+      ),
+      isNull,
+    );
+    expect(
+      await host.recoverOutcome(
+        toolName: 'setRecordOwnership',
+        idempotencyKey: ownershipContext.idempotencyKey,
+        input: {'recordId': 'another-record'},
+      ),
+      isNull,
+    );
+
+    final materialInput = {'recordId': recordId, 'missionId': id};
+    final materialContext = ToolContext(
+      callId: 'material-call',
+      sessionId: 'session',
+      cancellation: CancellationToken(),
+    );
+    final material = host.tools.firstWhere(
+      (t) => t.definition.name == 'useRecordAsMaterial',
+    );
+    expect(
+      await host.recoverOutcome(
+        toolName: 'useRecordAsMaterial',
+        idempotencyKey: materialContext.idempotencyKey,
+        input: materialInput,
+      ),
+      isNull,
+    );
+    final materialOutput = await material.execute(
+      materialInput,
+      materialContext,
+    );
+    expect(
+      await host.recoverOutcome(
+        toolName: 'useRecordAsMaterial',
+        idempotencyKey: materialContext.idempotencyKey,
+        input: {'recordId': 'different-record', 'missionId': id},
+      ),
+      isNull,
+    );
+    final otherContext = ToolContext(
+      callId: 'other-material-call',
+      sessionId: 'session',
+      cancellation: CancellationToken(),
+    );
+    expect(
+      await host.recoverOutcome(
+        toolName: 'useRecordAsMaterial',
+        idempotencyKey: otherContext.idempotencyKey,
+        input: materialInput,
+      ),
+      isNull,
+    );
+    await service.delete(recordId);
+    final materialRecovery = await host.recoverOutcome(
+      toolName: 'useRecordAsMaterial',
+      idempotencyKey: materialContext.idempotencyKey,
+      input: materialInput,
+    );
+    expect(materialRecovery!.text, materialOutput.text);
+    expect((await repo.findDetail(id))!.evidence.single.content, '需要记住的独立记录');
+    final getRecord = host.tools.firstWhere(
+      (t) => t.definition.name == 'getRecord',
+    );
+    final longText = '字' * 6200;
+    await records.saveRecord(
+      RecordDraft(
+        id: 'long-tool',
+        type: ContentType.text,
+        source: ContentSource.user,
+        content: longText,
+      ),
+    );
+    await db.customStatement(
+      "INSERT INTO analysis_versions(id,scope,target_id,source_version,content,sources_json,coverage,created_at,closing) VALUES('summary-id','record','long-tool',1,'内容摘要','[]',3,1234,1)",
+    );
+    final longOutput = await getRecord.execute({
+      'record': 'long-tool',
+      'content': true,
+      'contentOffset': 6000,
+    }, otherContext);
+    final longResult = jsonDecode(longOutput.text) as Map<String, dynamic>;
+    final longItem =
+        (longResult['items'] as List).single as Map<String, dynamic>;
+    expect(longItem['content'], longText.substring(6000));
+    expect(longItem['contentLength'], 6200);
+    expect(longItem['contentOffset'], 6000);
+    expect(longItem['contentTruncated'], false);
+    final analysis = longItem['analysis'] as Map;
+    expect(analysis['state'], isNotNull);
+    expect(analysis['content'], '内容摘要');
+    expect(analysis['coverage'], 3);
+    expect(analysis['closing'], true);
+    await records.saveRecord(
+      const RecordDraft(
+        id: 'image-tool',
+        type: ContentType.image,
+        source: ContentSource.fileSystem,
+        attachmentStorageKey: 'attachments/image/test.jpg',
+        attachmentFileName: 'test.jpg',
+        attachmentMimeType: 'image/jpeg',
+      ),
+    );
+    final imageOutput = await getRecord.execute({
+      'record': 'image-tool',
+      'imageQuestion': '图中是什么',
+    }, otherContext);
+    final imageResult = jsonDecode(imageOutput.text) as Map<String, dynamic>;
+    expect(imageResult['imageObservation'], '摘要');
+    expect(
+      ((imageResult['items'] as List).single as Map)['attachmentMimeType'],
+      'image/jpeg',
+    );
   });
   test('对话持久化同事务排记忆提取，原话核对、附件排除与忘记来源阻止恢复', () async {
     await db
@@ -594,10 +896,10 @@ void main() {
     await goals.create(goal);
     for (var i = 0; i < 45; i++) {
       await records.saveRecord(
-        EvidenceDraft(
+        RecordDraft(
           id: 'r$i',
-          type: EvidenceType.text,
-          source: EvidenceSource.user,
+          type: ContentType.text,
+          source: ContentSource.user,
           content: '笔记$i',
         ),
         goalId: goal.id,
@@ -712,7 +1014,7 @@ void main() {
     expect(
       (list['items'] as List)
           .where((g) => g['id'] == goal.id)
-          .single['desire_level'],
+          .single['desireLevel'],
       4,
     );
     final detail = await reader.getGoal(goal: goal.id, mission: id);
@@ -731,16 +1033,16 @@ void main() {
     final id = await seed(policy: VerificationPolicy.requiredEvidence);
     await report(id);
     await records.saveRecord(
-      const EvidenceDraft(
+      const RecordDraft(
         id: 'late-note',
-        type: EvidenceType.text,
-        source: EvidenceSource.user,
+        type: ContentType.text,
+        source: ContentSource.user,
         content: '补充的午餐记录',
       ),
     );
     now = now.add(const Duration(hours: 2));
-    await records.linkRecord('late-note', missionId: id);
-    await records.linkRecord('late-note', missionId: id);
+    await repo.attachRecordEvidence('late-note', id);
+    await repo.attachRecordEvidence('late-note', id);
     expect(
       await repo.attachRecordEvidence('late-note', id),
       EvidenceSubmissionResult.deadlineMissed,

@@ -4356,758 +4356,6 @@ class FailureRecordsCompanion extends UpdateCompanion<FailureRecordRow> {
   }
 }
 
-class $RecordsTable extends Records with TableInfo<$RecordsTable, RecordRow> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $RecordsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<String> id = GeneratedColumn<String>(
-    'id',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _typeMeta = const VerificationMeta('type');
-  @override
-  late final GeneratedColumn<String> type = GeneratedColumn<String>(
-    'type',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
-  @override
-  late final GeneratedColumn<String> source = GeneratedColumn<String>(
-    'source',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _contentMeta = const VerificationMeta(
-    'content',
-  );
-  @override
-  late final GeneratedColumn<String> content = GeneratedColumn<String>(
-    'content',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _attachmentStorageKeyMeta =
-      const VerificationMeta('attachmentStorageKey');
-  @override
-  late final GeneratedColumn<String> attachmentStorageKey =
-      GeneratedColumn<String>(
-        'attachment_storage_key',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-        defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
-      );
-  static const VerificationMeta _attachmentFileNameMeta =
-      const VerificationMeta('attachmentFileName');
-  @override
-  late final GeneratedColumn<String> attachmentFileName =
-      GeneratedColumn<String>(
-        'attachment_file_name',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
-  static const VerificationMeta _attachmentMimeTypeMeta =
-      const VerificationMeta('attachmentMimeType');
-  @override
-  late final GeneratedColumn<String> attachmentMimeType =
-      GeneratedColumn<String>(
-        'attachment_mime_type',
-        aliasedName,
-        true,
-        type: DriftSqlType.string,
-        requiredDuringInsert: false,
-      );
-  static const VerificationMeta _capturedAtMeta = const VerificationMeta(
-    'capturedAt',
-  );
-  @override
-  late final GeneratedColumn<int> capturedAt = GeneratedColumn<int>(
-    'captured_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
-    'occurredAt',
-  );
-  @override
-  late final GeneratedColumn<int> occurredAt = GeneratedColumn<int>(
-    'occurred_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
-  @override
-  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _goalIdMeta = const VerificationMeta('goalId');
-  @override
-  late final GeneratedColumn<String> goalId = GeneratedColumn<String>(
-    'goal_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES goals (id)',
-    ),
-  );
-  static const VerificationMeta _goalNodeIdMeta = const VerificationMeta(
-    'goalNodeId',
-  );
-  @override
-  late final GeneratedColumn<String> goalNodeId = GeneratedColumn<String>(
-    'goal_node_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES goal_nodes (id)',
-    ),
-  );
-  @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    type,
-    source,
-    content,
-    attachmentStorageKey,
-    attachmentFileName,
-    attachmentMimeType,
-    capturedAt,
-    occurredAt,
-    createdAt,
-    goalId,
-    goalNodeId,
-  ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'records';
-  @override
-  VerificationContext validateIntegrity(
-    Insertable<RecordRow> instance, {
-    bool isInserting = false,
-  }) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    } else if (isInserting) {
-      context.missing(_idMeta);
-    }
-    if (data.containsKey('type')) {
-      context.handle(
-        _typeMeta,
-        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_typeMeta);
-    }
-    if (data.containsKey('source')) {
-      context.handle(
-        _sourceMeta,
-        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_sourceMeta);
-    }
-    if (data.containsKey('content')) {
-      context.handle(
-        _contentMeta,
-        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
-      );
-    }
-    if (data.containsKey('attachment_storage_key')) {
-      context.handle(
-        _attachmentStorageKeyMeta,
-        attachmentStorageKey.isAcceptableOrUnknown(
-          data['attachment_storage_key']!,
-          _attachmentStorageKeyMeta,
-        ),
-      );
-    }
-    if (data.containsKey('attachment_file_name')) {
-      context.handle(
-        _attachmentFileNameMeta,
-        attachmentFileName.isAcceptableOrUnknown(
-          data['attachment_file_name']!,
-          _attachmentFileNameMeta,
-        ),
-      );
-    }
-    if (data.containsKey('attachment_mime_type')) {
-      context.handle(
-        _attachmentMimeTypeMeta,
-        attachmentMimeType.isAcceptableOrUnknown(
-          data['attachment_mime_type']!,
-          _attachmentMimeTypeMeta,
-        ),
-      );
-    }
-    if (data.containsKey('captured_at')) {
-      context.handle(
-        _capturedAtMeta,
-        capturedAt.isAcceptableOrUnknown(data['captured_at']!, _capturedAtMeta),
-      );
-    }
-    if (data.containsKey('occurred_at')) {
-      context.handle(
-        _occurredAtMeta,
-        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_occurredAtMeta);
-    }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
-    }
-    if (data.containsKey('goal_id')) {
-      context.handle(
-        _goalIdMeta,
-        goalId.isAcceptableOrUnknown(data['goal_id']!, _goalIdMeta),
-      );
-    }
-    if (data.containsKey('goal_node_id')) {
-      context.handle(
-        _goalNodeIdMeta,
-        goalNodeId.isAcceptableOrUnknown(
-          data['goal_node_id']!,
-          _goalNodeIdMeta,
-        ),
-      );
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  RecordRow map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return RecordRow(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}id'],
-      )!,
-      type: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}type'],
-      )!,
-      source: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}source'],
-      )!,
-      content: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}content'],
-      ),
-      attachmentStorageKey: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}attachment_storage_key'],
-      ),
-      attachmentFileName: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}attachment_file_name'],
-      ),
-      attachmentMimeType: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}attachment_mime_type'],
-      ),
-      capturedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}captured_at'],
-      ),
-      occurredAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}occurred_at'],
-      )!,
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}created_at'],
-      )!,
-      goalId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}goal_id'],
-      ),
-      goalNodeId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}goal_node_id'],
-      ),
-    );
-  }
-
-  @override
-  $RecordsTable createAlias(String alias) {
-    return $RecordsTable(attachedDatabase, alias);
-  }
-}
-
-class RecordRow extends DataClass implements Insertable<RecordRow> {
-  final String id;
-  final String type;
-  final String source;
-  final String? content;
-  final String? attachmentStorageKey;
-  final String? attachmentFileName;
-  final String? attachmentMimeType;
-  final int? capturedAt;
-  final int occurredAt;
-  final int createdAt;
-  final String? goalId;
-  final String? goalNodeId;
-  const RecordRow({
-    required this.id,
-    required this.type,
-    required this.source,
-    this.content,
-    this.attachmentStorageKey,
-    this.attachmentFileName,
-    this.attachmentMimeType,
-    this.capturedAt,
-    required this.occurredAt,
-    required this.createdAt,
-    this.goalId,
-    this.goalNodeId,
-  });
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<String>(id);
-    map['type'] = Variable<String>(type);
-    map['source'] = Variable<String>(source);
-    if (!nullToAbsent || content != null) {
-      map['content'] = Variable<String>(content);
-    }
-    if (!nullToAbsent || attachmentStorageKey != null) {
-      map['attachment_storage_key'] = Variable<String>(attachmentStorageKey);
-    }
-    if (!nullToAbsent || attachmentFileName != null) {
-      map['attachment_file_name'] = Variable<String>(attachmentFileName);
-    }
-    if (!nullToAbsent || attachmentMimeType != null) {
-      map['attachment_mime_type'] = Variable<String>(attachmentMimeType);
-    }
-    if (!nullToAbsent || capturedAt != null) {
-      map['captured_at'] = Variable<int>(capturedAt);
-    }
-    map['occurred_at'] = Variable<int>(occurredAt);
-    map['created_at'] = Variable<int>(createdAt);
-    if (!nullToAbsent || goalId != null) {
-      map['goal_id'] = Variable<String>(goalId);
-    }
-    if (!nullToAbsent || goalNodeId != null) {
-      map['goal_node_id'] = Variable<String>(goalNodeId);
-    }
-    return map;
-  }
-
-  RecordsCompanion toCompanion(bool nullToAbsent) {
-    return RecordsCompanion(
-      id: Value(id),
-      type: Value(type),
-      source: Value(source),
-      content: content == null && nullToAbsent
-          ? const Value.absent()
-          : Value(content),
-      attachmentStorageKey: attachmentStorageKey == null && nullToAbsent
-          ? const Value.absent()
-          : Value(attachmentStorageKey),
-      attachmentFileName: attachmentFileName == null && nullToAbsent
-          ? const Value.absent()
-          : Value(attachmentFileName),
-      attachmentMimeType: attachmentMimeType == null && nullToAbsent
-          ? const Value.absent()
-          : Value(attachmentMimeType),
-      capturedAt: capturedAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(capturedAt),
-      occurredAt: Value(occurredAt),
-      createdAt: Value(createdAt),
-      goalId: goalId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(goalId),
-      goalNodeId: goalNodeId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(goalNodeId),
-    );
-  }
-
-  factory RecordRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return RecordRow(
-      id: serializer.fromJson<String>(json['id']),
-      type: serializer.fromJson<String>(json['type']),
-      source: serializer.fromJson<String>(json['source']),
-      content: serializer.fromJson<String?>(json['content']),
-      attachmentStorageKey: serializer.fromJson<String?>(
-        json['attachmentStorageKey'],
-      ),
-      attachmentFileName: serializer.fromJson<String?>(
-        json['attachmentFileName'],
-      ),
-      attachmentMimeType: serializer.fromJson<String?>(
-        json['attachmentMimeType'],
-      ),
-      capturedAt: serializer.fromJson<int?>(json['capturedAt']),
-      occurredAt: serializer.fromJson<int>(json['occurredAt']),
-      createdAt: serializer.fromJson<int>(json['createdAt']),
-      goalId: serializer.fromJson<String?>(json['goalId']),
-      goalNodeId: serializer.fromJson<String?>(json['goalNodeId']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<String>(id),
-      'type': serializer.toJson<String>(type),
-      'source': serializer.toJson<String>(source),
-      'content': serializer.toJson<String?>(content),
-      'attachmentStorageKey': serializer.toJson<String?>(attachmentStorageKey),
-      'attachmentFileName': serializer.toJson<String?>(attachmentFileName),
-      'attachmentMimeType': serializer.toJson<String?>(attachmentMimeType),
-      'capturedAt': serializer.toJson<int?>(capturedAt),
-      'occurredAt': serializer.toJson<int>(occurredAt),
-      'createdAt': serializer.toJson<int>(createdAt),
-      'goalId': serializer.toJson<String?>(goalId),
-      'goalNodeId': serializer.toJson<String?>(goalNodeId),
-    };
-  }
-
-  RecordRow copyWith({
-    String? id,
-    String? type,
-    String? source,
-    Value<String?> content = const Value.absent(),
-    Value<String?> attachmentStorageKey = const Value.absent(),
-    Value<String?> attachmentFileName = const Value.absent(),
-    Value<String?> attachmentMimeType = const Value.absent(),
-    Value<int?> capturedAt = const Value.absent(),
-    int? occurredAt,
-    int? createdAt,
-    Value<String?> goalId = const Value.absent(),
-    Value<String?> goalNodeId = const Value.absent(),
-  }) => RecordRow(
-    id: id ?? this.id,
-    type: type ?? this.type,
-    source: source ?? this.source,
-    content: content.present ? content.value : this.content,
-    attachmentStorageKey: attachmentStorageKey.present
-        ? attachmentStorageKey.value
-        : this.attachmentStorageKey,
-    attachmentFileName: attachmentFileName.present
-        ? attachmentFileName.value
-        : this.attachmentFileName,
-    attachmentMimeType: attachmentMimeType.present
-        ? attachmentMimeType.value
-        : this.attachmentMimeType,
-    capturedAt: capturedAt.present ? capturedAt.value : this.capturedAt,
-    occurredAt: occurredAt ?? this.occurredAt,
-    createdAt: createdAt ?? this.createdAt,
-    goalId: goalId.present ? goalId.value : this.goalId,
-    goalNodeId: goalNodeId.present ? goalNodeId.value : this.goalNodeId,
-  );
-  RecordRow copyWithCompanion(RecordsCompanion data) {
-    return RecordRow(
-      id: data.id.present ? data.id.value : this.id,
-      type: data.type.present ? data.type.value : this.type,
-      source: data.source.present ? data.source.value : this.source,
-      content: data.content.present ? data.content.value : this.content,
-      attachmentStorageKey: data.attachmentStorageKey.present
-          ? data.attachmentStorageKey.value
-          : this.attachmentStorageKey,
-      attachmentFileName: data.attachmentFileName.present
-          ? data.attachmentFileName.value
-          : this.attachmentFileName,
-      attachmentMimeType: data.attachmentMimeType.present
-          ? data.attachmentMimeType.value
-          : this.attachmentMimeType,
-      capturedAt: data.capturedAt.present
-          ? data.capturedAt.value
-          : this.capturedAt,
-      occurredAt: data.occurredAt.present
-          ? data.occurredAt.value
-          : this.occurredAt,
-      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
-      goalId: data.goalId.present ? data.goalId.value : this.goalId,
-      goalNodeId: data.goalNodeId.present
-          ? data.goalNodeId.value
-          : this.goalNodeId,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('RecordRow(')
-          ..write('id: $id, ')
-          ..write('type: $type, ')
-          ..write('source: $source, ')
-          ..write('content: $content, ')
-          ..write('attachmentStorageKey: $attachmentStorageKey, ')
-          ..write('attachmentFileName: $attachmentFileName, ')
-          ..write('attachmentMimeType: $attachmentMimeType, ')
-          ..write('capturedAt: $capturedAt, ')
-          ..write('occurredAt: $occurredAt, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('goalId: $goalId, ')
-          ..write('goalNodeId: $goalNodeId')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    type,
-    source,
-    content,
-    attachmentStorageKey,
-    attachmentFileName,
-    attachmentMimeType,
-    capturedAt,
-    occurredAt,
-    createdAt,
-    goalId,
-    goalNodeId,
-  );
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is RecordRow &&
-          other.id == this.id &&
-          other.type == this.type &&
-          other.source == this.source &&
-          other.content == this.content &&
-          other.attachmentStorageKey == this.attachmentStorageKey &&
-          other.attachmentFileName == this.attachmentFileName &&
-          other.attachmentMimeType == this.attachmentMimeType &&
-          other.capturedAt == this.capturedAt &&
-          other.occurredAt == this.occurredAt &&
-          other.createdAt == this.createdAt &&
-          other.goalId == this.goalId &&
-          other.goalNodeId == this.goalNodeId);
-}
-
-class RecordsCompanion extends UpdateCompanion<RecordRow> {
-  final Value<String> id;
-  final Value<String> type;
-  final Value<String> source;
-  final Value<String?> content;
-  final Value<String?> attachmentStorageKey;
-  final Value<String?> attachmentFileName;
-  final Value<String?> attachmentMimeType;
-  final Value<int?> capturedAt;
-  final Value<int> occurredAt;
-  final Value<int> createdAt;
-  final Value<String?> goalId;
-  final Value<String?> goalNodeId;
-  final Value<int> rowid;
-  const RecordsCompanion({
-    this.id = const Value.absent(),
-    this.type = const Value.absent(),
-    this.source = const Value.absent(),
-    this.content = const Value.absent(),
-    this.attachmentStorageKey = const Value.absent(),
-    this.attachmentFileName = const Value.absent(),
-    this.attachmentMimeType = const Value.absent(),
-    this.capturedAt = const Value.absent(),
-    this.occurredAt = const Value.absent(),
-    this.createdAt = const Value.absent(),
-    this.goalId = const Value.absent(),
-    this.goalNodeId = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  RecordsCompanion.insert({
-    required String id,
-    required String type,
-    required String source,
-    this.content = const Value.absent(),
-    this.attachmentStorageKey = const Value.absent(),
-    this.attachmentFileName = const Value.absent(),
-    this.attachmentMimeType = const Value.absent(),
-    this.capturedAt = const Value.absent(),
-    required int occurredAt,
-    required int createdAt,
-    this.goalId = const Value.absent(),
-    this.goalNodeId = const Value.absent(),
-    this.rowid = const Value.absent(),
-  }) : id = Value(id),
-       type = Value(type),
-       source = Value(source),
-       occurredAt = Value(occurredAt),
-       createdAt = Value(createdAt);
-  static Insertable<RecordRow> custom({
-    Expression<String>? id,
-    Expression<String>? type,
-    Expression<String>? source,
-    Expression<String>? content,
-    Expression<String>? attachmentStorageKey,
-    Expression<String>? attachmentFileName,
-    Expression<String>? attachmentMimeType,
-    Expression<int>? capturedAt,
-    Expression<int>? occurredAt,
-    Expression<int>? createdAt,
-    Expression<String>? goalId,
-    Expression<String>? goalNodeId,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (type != null) 'type': type,
-      if (source != null) 'source': source,
-      if (content != null) 'content': content,
-      if (attachmentStorageKey != null)
-        'attachment_storage_key': attachmentStorageKey,
-      if (attachmentFileName != null)
-        'attachment_file_name': attachmentFileName,
-      if (attachmentMimeType != null)
-        'attachment_mime_type': attachmentMimeType,
-      if (capturedAt != null) 'captured_at': capturedAt,
-      if (occurredAt != null) 'occurred_at': occurredAt,
-      if (createdAt != null) 'created_at': createdAt,
-      if (goalId != null) 'goal_id': goalId,
-      if (goalNodeId != null) 'goal_node_id': goalNodeId,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  RecordsCompanion copyWith({
-    Value<String>? id,
-    Value<String>? type,
-    Value<String>? source,
-    Value<String?>? content,
-    Value<String?>? attachmentStorageKey,
-    Value<String?>? attachmentFileName,
-    Value<String?>? attachmentMimeType,
-    Value<int?>? capturedAt,
-    Value<int>? occurredAt,
-    Value<int>? createdAt,
-    Value<String?>? goalId,
-    Value<String?>? goalNodeId,
-    Value<int>? rowid,
-  }) {
-    return RecordsCompanion(
-      id: id ?? this.id,
-      type: type ?? this.type,
-      source: source ?? this.source,
-      content: content ?? this.content,
-      attachmentStorageKey: attachmentStorageKey ?? this.attachmentStorageKey,
-      attachmentFileName: attachmentFileName ?? this.attachmentFileName,
-      attachmentMimeType: attachmentMimeType ?? this.attachmentMimeType,
-      capturedAt: capturedAt ?? this.capturedAt,
-      occurredAt: occurredAt ?? this.occurredAt,
-      createdAt: createdAt ?? this.createdAt,
-      goalId: goalId ?? this.goalId,
-      goalNodeId: goalNodeId ?? this.goalNodeId,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<String>(id.value);
-    }
-    if (type.present) {
-      map['type'] = Variable<String>(type.value);
-    }
-    if (source.present) {
-      map['source'] = Variable<String>(source.value);
-    }
-    if (content.present) {
-      map['content'] = Variable<String>(content.value);
-    }
-    if (attachmentStorageKey.present) {
-      map['attachment_storage_key'] = Variable<String>(
-        attachmentStorageKey.value,
-      );
-    }
-    if (attachmentFileName.present) {
-      map['attachment_file_name'] = Variable<String>(attachmentFileName.value);
-    }
-    if (attachmentMimeType.present) {
-      map['attachment_mime_type'] = Variable<String>(attachmentMimeType.value);
-    }
-    if (capturedAt.present) {
-      map['captured_at'] = Variable<int>(capturedAt.value);
-    }
-    if (occurredAt.present) {
-      map['occurred_at'] = Variable<int>(occurredAt.value);
-    }
-    if (createdAt.present) {
-      map['created_at'] = Variable<int>(createdAt.value);
-    }
-    if (goalId.present) {
-      map['goal_id'] = Variable<String>(goalId.value);
-    }
-    if (goalNodeId.present) {
-      map['goal_node_id'] = Variable<String>(goalNodeId.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('RecordsCompanion(')
-          ..write('id: $id, ')
-          ..write('type: $type, ')
-          ..write('source: $source, ')
-          ..write('content: $content, ')
-          ..write('attachmentStorageKey: $attachmentStorageKey, ')
-          ..write('attachmentFileName: $attachmentFileName, ')
-          ..write('attachmentMimeType: $attachmentMimeType, ')
-          ..write('capturedAt: $capturedAt, ')
-          ..write('occurredAt: $occurredAt, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('goalId: $goalId, ')
-          ..write('goalNodeId: $goalNodeId, ')
-          ..write('rowid: $rowid')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $EvidenceRecordsTable extends EvidenceRecords
     with TableInfo<$EvidenceRecordsTable, EvidenceRow> {
   @override
@@ -5158,9 +4406,7 @@ class $EvidenceRecordsTable extends EvidenceRecords
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'UNIQUE REFERENCES records (id)',
-    ),
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
   static const VerificationMeta _typeMeta = const VerificationMeta('type');
   @override
@@ -5201,7 +4447,6 @@ class $EvidenceRecordsTable extends EvidenceRecords
         true,
         type: DriftSqlType.string,
         requiredDuringInsert: false,
-        defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
       );
   static const VerificationMeta _attachmentFileNameMeta =
       const VerificationMeta('attachmentFileName');
@@ -7978,6 +7223,758 @@ class OperationReceiptsCompanion extends UpdateCompanion<OperationReceipt> {
   }
 }
 
+class $RecordsTable extends Records with TableInfo<$RecordsTable, RecordRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RecordsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attachmentStorageKeyMeta =
+      const VerificationMeta('attachmentStorageKey');
+  @override
+  late final GeneratedColumn<String> attachmentStorageKey =
+      GeneratedColumn<String>(
+        'attachment_storage_key',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+      );
+  static const VerificationMeta _attachmentFileNameMeta =
+      const VerificationMeta('attachmentFileName');
+  @override
+  late final GeneratedColumn<String> attachmentFileName =
+      GeneratedColumn<String>(
+        'attachment_file_name',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _attachmentMimeTypeMeta =
+      const VerificationMeta('attachmentMimeType');
+  @override
+  late final GeneratedColumn<String> attachmentMimeType =
+      GeneratedColumn<String>(
+        'attachment_mime_type',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _capturedAtMeta = const VerificationMeta(
+    'capturedAt',
+  );
+  @override
+  late final GeneratedColumn<int> capturedAt = GeneratedColumn<int>(
+    'captured_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
+    'occurredAt',
+  );
+  @override
+  late final GeneratedColumn<int> occurredAt = GeneratedColumn<int>(
+    'occurred_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _goalIdMeta = const VerificationMeta('goalId');
+  @override
+  late final GeneratedColumn<String> goalId = GeneratedColumn<String>(
+    'goal_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES goals (id)',
+    ),
+  );
+  static const VerificationMeta _goalNodeIdMeta = const VerificationMeta(
+    'goalNodeId',
+  );
+  @override
+  late final GeneratedColumn<String> goalNodeId = GeneratedColumn<String>(
+    'goal_node_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES goal_nodes (id)',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    type,
+    source,
+    content,
+    attachmentStorageKey,
+    attachmentFileName,
+    attachmentMimeType,
+    capturedAt,
+    occurredAt,
+    createdAt,
+    goalId,
+    goalNodeId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'records';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RecordRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
+    if (data.containsKey('attachment_storage_key')) {
+      context.handle(
+        _attachmentStorageKeyMeta,
+        attachmentStorageKey.isAcceptableOrUnknown(
+          data['attachment_storage_key']!,
+          _attachmentStorageKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attachment_file_name')) {
+      context.handle(
+        _attachmentFileNameMeta,
+        attachmentFileName.isAcceptableOrUnknown(
+          data['attachment_file_name']!,
+          _attachmentFileNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attachment_mime_type')) {
+      context.handle(
+        _attachmentMimeTypeMeta,
+        attachmentMimeType.isAcceptableOrUnknown(
+          data['attachment_mime_type']!,
+          _attachmentMimeTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('captured_at')) {
+      context.handle(
+        _capturedAtMeta,
+        capturedAt.isAcceptableOrUnknown(data['captured_at']!, _capturedAtMeta),
+      );
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+        _occurredAtMeta,
+        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('goal_id')) {
+      context.handle(
+        _goalIdMeta,
+        goalId.isAcceptableOrUnknown(data['goal_id']!, _goalIdMeta),
+      );
+    }
+    if (data.containsKey('goal_node_id')) {
+      context.handle(
+        _goalNodeIdMeta,
+        goalNodeId.isAcceptableOrUnknown(
+          data['goal_node_id']!,
+          _goalNodeIdMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  RecordRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RecordRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      ),
+      attachmentStorageKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_storage_key'],
+      ),
+      attachmentFileName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_file_name'],
+      ),
+      attachmentMimeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_mime_type'],
+      ),
+      capturedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}captured_at'],
+      ),
+      occurredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}occurred_at'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      goalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}goal_id'],
+      ),
+      goalNodeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}goal_node_id'],
+      ),
+    );
+  }
+
+  @override
+  $RecordsTable createAlias(String alias) {
+    return $RecordsTable(attachedDatabase, alias);
+  }
+}
+
+class RecordRow extends DataClass implements Insertable<RecordRow> {
+  final String id;
+  final String type;
+  final String source;
+  final String? content;
+  final String? attachmentStorageKey;
+  final String? attachmentFileName;
+  final String? attachmentMimeType;
+  final int? capturedAt;
+  final int occurredAt;
+  final int createdAt;
+  final String? goalId;
+  final String? goalNodeId;
+  const RecordRow({
+    required this.id,
+    required this.type,
+    required this.source,
+    this.content,
+    this.attachmentStorageKey,
+    this.attachmentFileName,
+    this.attachmentMimeType,
+    this.capturedAt,
+    required this.occurredAt,
+    required this.createdAt,
+    this.goalId,
+    this.goalNodeId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['type'] = Variable<String>(type);
+    map['source'] = Variable<String>(source);
+    if (!nullToAbsent || content != null) {
+      map['content'] = Variable<String>(content);
+    }
+    if (!nullToAbsent || attachmentStorageKey != null) {
+      map['attachment_storage_key'] = Variable<String>(attachmentStorageKey);
+    }
+    if (!nullToAbsent || attachmentFileName != null) {
+      map['attachment_file_name'] = Variable<String>(attachmentFileName);
+    }
+    if (!nullToAbsent || attachmentMimeType != null) {
+      map['attachment_mime_type'] = Variable<String>(attachmentMimeType);
+    }
+    if (!nullToAbsent || capturedAt != null) {
+      map['captured_at'] = Variable<int>(capturedAt);
+    }
+    map['occurred_at'] = Variable<int>(occurredAt);
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || goalId != null) {
+      map['goal_id'] = Variable<String>(goalId);
+    }
+    if (!nullToAbsent || goalNodeId != null) {
+      map['goal_node_id'] = Variable<String>(goalNodeId);
+    }
+    return map;
+  }
+
+  RecordsCompanion toCompanion(bool nullToAbsent) {
+    return RecordsCompanion(
+      id: Value(id),
+      type: Value(type),
+      source: Value(source),
+      content: content == null && nullToAbsent
+          ? const Value.absent()
+          : Value(content),
+      attachmentStorageKey: attachmentStorageKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentStorageKey),
+      attachmentFileName: attachmentFileName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentFileName),
+      attachmentMimeType: attachmentMimeType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentMimeType),
+      capturedAt: capturedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(capturedAt),
+      occurredAt: Value(occurredAt),
+      createdAt: Value(createdAt),
+      goalId: goalId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(goalId),
+      goalNodeId: goalNodeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(goalNodeId),
+    );
+  }
+
+  factory RecordRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RecordRow(
+      id: serializer.fromJson<String>(json['id']),
+      type: serializer.fromJson<String>(json['type']),
+      source: serializer.fromJson<String>(json['source']),
+      content: serializer.fromJson<String?>(json['content']),
+      attachmentStorageKey: serializer.fromJson<String?>(
+        json['attachmentStorageKey'],
+      ),
+      attachmentFileName: serializer.fromJson<String?>(
+        json['attachmentFileName'],
+      ),
+      attachmentMimeType: serializer.fromJson<String?>(
+        json['attachmentMimeType'],
+      ),
+      capturedAt: serializer.fromJson<int?>(json['capturedAt']),
+      occurredAt: serializer.fromJson<int>(json['occurredAt']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      goalId: serializer.fromJson<String?>(json['goalId']),
+      goalNodeId: serializer.fromJson<String?>(json['goalNodeId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'type': serializer.toJson<String>(type),
+      'source': serializer.toJson<String>(source),
+      'content': serializer.toJson<String?>(content),
+      'attachmentStorageKey': serializer.toJson<String?>(attachmentStorageKey),
+      'attachmentFileName': serializer.toJson<String?>(attachmentFileName),
+      'attachmentMimeType': serializer.toJson<String?>(attachmentMimeType),
+      'capturedAt': serializer.toJson<int?>(capturedAt),
+      'occurredAt': serializer.toJson<int>(occurredAt),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'goalId': serializer.toJson<String?>(goalId),
+      'goalNodeId': serializer.toJson<String?>(goalNodeId),
+    };
+  }
+
+  RecordRow copyWith({
+    String? id,
+    String? type,
+    String? source,
+    Value<String?> content = const Value.absent(),
+    Value<String?> attachmentStorageKey = const Value.absent(),
+    Value<String?> attachmentFileName = const Value.absent(),
+    Value<String?> attachmentMimeType = const Value.absent(),
+    Value<int?> capturedAt = const Value.absent(),
+    int? occurredAt,
+    int? createdAt,
+    Value<String?> goalId = const Value.absent(),
+    Value<String?> goalNodeId = const Value.absent(),
+  }) => RecordRow(
+    id: id ?? this.id,
+    type: type ?? this.type,
+    source: source ?? this.source,
+    content: content.present ? content.value : this.content,
+    attachmentStorageKey: attachmentStorageKey.present
+        ? attachmentStorageKey.value
+        : this.attachmentStorageKey,
+    attachmentFileName: attachmentFileName.present
+        ? attachmentFileName.value
+        : this.attachmentFileName,
+    attachmentMimeType: attachmentMimeType.present
+        ? attachmentMimeType.value
+        : this.attachmentMimeType,
+    capturedAt: capturedAt.present ? capturedAt.value : this.capturedAt,
+    occurredAt: occurredAt ?? this.occurredAt,
+    createdAt: createdAt ?? this.createdAt,
+    goalId: goalId.present ? goalId.value : this.goalId,
+    goalNodeId: goalNodeId.present ? goalNodeId.value : this.goalNodeId,
+  );
+  RecordRow copyWithCompanion(RecordsCompanion data) {
+    return RecordRow(
+      id: data.id.present ? data.id.value : this.id,
+      type: data.type.present ? data.type.value : this.type,
+      source: data.source.present ? data.source.value : this.source,
+      content: data.content.present ? data.content.value : this.content,
+      attachmentStorageKey: data.attachmentStorageKey.present
+          ? data.attachmentStorageKey.value
+          : this.attachmentStorageKey,
+      attachmentFileName: data.attachmentFileName.present
+          ? data.attachmentFileName.value
+          : this.attachmentFileName,
+      attachmentMimeType: data.attachmentMimeType.present
+          ? data.attachmentMimeType.value
+          : this.attachmentMimeType,
+      capturedAt: data.capturedAt.present
+          ? data.capturedAt.value
+          : this.capturedAt,
+      occurredAt: data.occurredAt.present
+          ? data.occurredAt.value
+          : this.occurredAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      goalId: data.goalId.present ? data.goalId.value : this.goalId,
+      goalNodeId: data.goalNodeId.present
+          ? data.goalNodeId.value
+          : this.goalNodeId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecordRow(')
+          ..write('id: $id, ')
+          ..write('type: $type, ')
+          ..write('source: $source, ')
+          ..write('content: $content, ')
+          ..write('attachmentStorageKey: $attachmentStorageKey, ')
+          ..write('attachmentFileName: $attachmentFileName, ')
+          ..write('attachmentMimeType: $attachmentMimeType, ')
+          ..write('capturedAt: $capturedAt, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('goalId: $goalId, ')
+          ..write('goalNodeId: $goalNodeId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    type,
+    source,
+    content,
+    attachmentStorageKey,
+    attachmentFileName,
+    attachmentMimeType,
+    capturedAt,
+    occurredAt,
+    createdAt,
+    goalId,
+    goalNodeId,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RecordRow &&
+          other.id == this.id &&
+          other.type == this.type &&
+          other.source == this.source &&
+          other.content == this.content &&
+          other.attachmentStorageKey == this.attachmentStorageKey &&
+          other.attachmentFileName == this.attachmentFileName &&
+          other.attachmentMimeType == this.attachmentMimeType &&
+          other.capturedAt == this.capturedAt &&
+          other.occurredAt == this.occurredAt &&
+          other.createdAt == this.createdAt &&
+          other.goalId == this.goalId &&
+          other.goalNodeId == this.goalNodeId);
+}
+
+class RecordsCompanion extends UpdateCompanion<RecordRow> {
+  final Value<String> id;
+  final Value<String> type;
+  final Value<String> source;
+  final Value<String?> content;
+  final Value<String?> attachmentStorageKey;
+  final Value<String?> attachmentFileName;
+  final Value<String?> attachmentMimeType;
+  final Value<int?> capturedAt;
+  final Value<int> occurredAt;
+  final Value<int> createdAt;
+  final Value<String?> goalId;
+  final Value<String?> goalNodeId;
+  final Value<int> rowid;
+  const RecordsCompanion({
+    this.id = const Value.absent(),
+    this.type = const Value.absent(),
+    this.source = const Value.absent(),
+    this.content = const Value.absent(),
+    this.attachmentStorageKey = const Value.absent(),
+    this.attachmentFileName = const Value.absent(),
+    this.attachmentMimeType = const Value.absent(),
+    this.capturedAt = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.goalId = const Value.absent(),
+    this.goalNodeId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RecordsCompanion.insert({
+    required String id,
+    required String type,
+    required String source,
+    this.content = const Value.absent(),
+    this.attachmentStorageKey = const Value.absent(),
+    this.attachmentFileName = const Value.absent(),
+    this.attachmentMimeType = const Value.absent(),
+    this.capturedAt = const Value.absent(),
+    required int occurredAt,
+    required int createdAt,
+    this.goalId = const Value.absent(),
+    this.goalNodeId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       type = Value(type),
+       source = Value(source),
+       occurredAt = Value(occurredAt),
+       createdAt = Value(createdAt);
+  static Insertable<RecordRow> custom({
+    Expression<String>? id,
+    Expression<String>? type,
+    Expression<String>? source,
+    Expression<String>? content,
+    Expression<String>? attachmentStorageKey,
+    Expression<String>? attachmentFileName,
+    Expression<String>? attachmentMimeType,
+    Expression<int>? capturedAt,
+    Expression<int>? occurredAt,
+    Expression<int>? createdAt,
+    Expression<String>? goalId,
+    Expression<String>? goalNodeId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (type != null) 'type': type,
+      if (source != null) 'source': source,
+      if (content != null) 'content': content,
+      if (attachmentStorageKey != null)
+        'attachment_storage_key': attachmentStorageKey,
+      if (attachmentFileName != null)
+        'attachment_file_name': attachmentFileName,
+      if (attachmentMimeType != null)
+        'attachment_mime_type': attachmentMimeType,
+      if (capturedAt != null) 'captured_at': capturedAt,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (goalId != null) 'goal_id': goalId,
+      if (goalNodeId != null) 'goal_node_id': goalNodeId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RecordsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? type,
+    Value<String>? source,
+    Value<String?>? content,
+    Value<String?>? attachmentStorageKey,
+    Value<String?>? attachmentFileName,
+    Value<String?>? attachmentMimeType,
+    Value<int?>? capturedAt,
+    Value<int>? occurredAt,
+    Value<int>? createdAt,
+    Value<String?>? goalId,
+    Value<String?>? goalNodeId,
+    Value<int>? rowid,
+  }) {
+    return RecordsCompanion(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      source: source ?? this.source,
+      content: content ?? this.content,
+      attachmentStorageKey: attachmentStorageKey ?? this.attachmentStorageKey,
+      attachmentFileName: attachmentFileName ?? this.attachmentFileName,
+      attachmentMimeType: attachmentMimeType ?? this.attachmentMimeType,
+      capturedAt: capturedAt ?? this.capturedAt,
+      occurredAt: occurredAt ?? this.occurredAt,
+      createdAt: createdAt ?? this.createdAt,
+      goalId: goalId ?? this.goalId,
+      goalNodeId: goalNodeId ?? this.goalNodeId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (attachmentStorageKey.present) {
+      map['attachment_storage_key'] = Variable<String>(
+        attachmentStorageKey.value,
+      );
+    }
+    if (attachmentFileName.present) {
+      map['attachment_file_name'] = Variable<String>(attachmentFileName.value);
+    }
+    if (attachmentMimeType.present) {
+      map['attachment_mime_type'] = Variable<String>(attachmentMimeType.value);
+    }
+    if (capturedAt.present) {
+      map['captured_at'] = Variable<int>(capturedAt.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<int>(occurredAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (goalId.present) {
+      map['goal_id'] = Variable<String>(goalId.value);
+    }
+    if (goalNodeId.present) {
+      map['goal_node_id'] = Variable<String>(goalNodeId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecordsCompanion(')
+          ..write('id: $id, ')
+          ..write('type: $type, ')
+          ..write('source: $source, ')
+          ..write('content: $content, ')
+          ..write('attachmentStorageKey: $attachmentStorageKey, ')
+          ..write('attachmentFileName: $attachmentFileName, ')
+          ..write('attachmentMimeType: $attachmentMimeType, ')
+          ..write('capturedAt: $capturedAt, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('goalId: $goalId, ')
+          ..write('goalNodeId: $goalNodeId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $UserExecutionReportsTable extends UserExecutionReports
     with TableInfo<$UserExecutionReportsTable, UserExecutionReportRow> {
   @override
@@ -10557,7 +10554,6 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $FailureRecordsTable failureRecords = $FailureRecordsTable(this);
-  late final $RecordsTable records = $RecordsTable(this);
   late final $EvidenceRecordsTable evidenceRecords = $EvidenceRecordsTable(
     this,
   );
@@ -10568,6 +10564,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $AssistantSessionRecordsTable(this);
   late final $OperationReceiptsTable operationReceipts =
       $OperationReceiptsTable(this);
+  late final $RecordsTable records = $RecordsTable(this);
   late final $UserExecutionReportsTable userExecutionReports =
       $UserExecutionReportsTable(this);
   late final $AnalysisJobsTable analysisJobs = $AnalysisJobsTable(this);
@@ -10648,12 +10645,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     executionPlans,
     executionEvents,
     failureRecords,
-    records,
     evidenceRecords,
     importReceipts,
     assistantSessions,
     assistantSessionRecords,
     operationReceipts,
+    records,
     userExecutionReports,
     analysisJobs,
     analysisVersions,
@@ -10758,6 +10755,24 @@ final class $$GoalsTableReferences
     );
   }
 
+  static MultiTypedResultKey<$ImportReceiptsTable, List<ImportReceipt>>
+  _importReceiptsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.importReceipts,
+    aliasName: 'goals__id__import_receipts__goal_id',
+  );
+
+  $$ImportReceiptsTableProcessedTableManager get importReceiptsRefs {
+    final manager = $$ImportReceiptsTableTableManager(
+      $_db,
+      $_db.importReceipts,
+    ).filter((f) => f.goalId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_importReceiptsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
   static MultiTypedResultKey<$RecordsTable, List<RecordRow>> _recordsRefsTable(
     _$AppDatabase db,
   ) => MultiTypedResultKey.fromTable(
@@ -10772,24 +10787,6 @@ final class $$GoalsTableReferences
     ).filter((f) => f.goalId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_recordsRefsTable($_db));
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-
-  static MultiTypedResultKey<$ImportReceiptsTable, List<ImportReceipt>>
-  _importReceiptsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.importReceipts,
-    aliasName: 'goals__id__import_receipts__goal_id',
-  );
-
-  $$ImportReceiptsTableProcessedTableManager get importReceiptsRefs {
-    final manager = $$ImportReceiptsTableTableManager(
-      $_db,
-      $_db.importReceipts,
-    ).filter((f) => f.goalId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_importReceiptsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -10912,31 +10909,6 @@ class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
     return f(composer);
   }
 
-  Expression<bool> recordsRefs(
-    Expression<bool> Function($$RecordsTableFilterComposer f) f,
-  ) {
-    final $$RecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.records,
-      getReferencedColumn: (t) => t.goalId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$RecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.records,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
   Expression<bool> importReceiptsRefs(
     Expression<bool> Function($$ImportReceiptsTableFilterComposer f) f,
   ) {
@@ -10953,6 +10925,31 @@ class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
           }) => $$ImportReceiptsTableFilterComposer(
             $db: $db,
             $table: $db.importReceipts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> recordsRefs(
+    Expression<bool> Function($$RecordsTableFilterComposer f) f,
+  ) {
+    final $$RecordsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.records,
+      getReferencedColumn: (t) => t.goalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RecordsTableFilterComposer(
+            $db: $db,
+            $table: $db.records,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11125,31 +11122,6 @@ class $$GoalsTableAnnotationComposer
     return f(composer);
   }
 
-  Expression<T> recordsRefs<T extends Object>(
-    Expression<T> Function($$RecordsTableAnnotationComposer a) f,
-  ) {
-    final $$RecordsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.records,
-      getReferencedColumn: (t) => t.goalId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$RecordsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.records,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-
   Expression<T> importReceiptsRefs<T extends Object>(
     Expression<T> Function($$ImportReceiptsTableAnnotationComposer a) f,
   ) {
@@ -11166,6 +11138,31 @@ class $$GoalsTableAnnotationComposer
           }) => $$ImportReceiptsTableAnnotationComposer(
             $db: $db,
             $table: $db.importReceipts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> recordsRefs<T extends Object>(
+    Expression<T> Function($$RecordsTableAnnotationComposer a) f,
+  ) {
+    final $$RecordsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.records,
+      getReferencedColumn: (t) => t.goalId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RecordsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.records,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11217,8 +11214,8 @@ class $$GoalsTableTableManager
           PrefetchHooks Function({
             bool goalNodesRefs,
             bool missionsRefs,
-            bool recordsRefs,
             bool importReceiptsRefs,
+            bool recordsRefs,
             bool memoryEntriesRefs,
           })
         > {
@@ -11287,8 +11284,8 @@ class $$GoalsTableTableManager
               ({
                 goalNodesRefs = false,
                 missionsRefs = false,
-                recordsRefs = false,
                 importReceiptsRefs = false,
+                recordsRefs = false,
                 memoryEntriesRefs = false,
               }) {
                 return PrefetchHooks(
@@ -11296,8 +11293,8 @@ class $$GoalsTableTableManager
                   explicitlyWatchedTables: [
                     if (goalNodesRefs) db.goalNodes,
                     if (missionsRefs) db.missions,
-                    if (recordsRefs) db.records,
                     if (importReceiptsRefs) db.importReceipts,
+                    if (recordsRefs) db.records,
                     if (memoryEntriesRefs) db.memoryEntries,
                   ],
                   addJoins: null,
@@ -11345,23 +11342,6 @@ class $$GoalsTableTableManager
                               ),
                           typedResults: items,
                         ),
-                      if (recordsRefs)
-                        await $_getPrefetchedData<
-                          GoalRow,
-                          $GoalsTable,
-                          RecordRow
-                        >(
-                          currentTable: table,
-                          referencedTable: $$GoalsTableReferences
-                              ._recordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$GoalsTableReferences(db, table, p0).recordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.goalId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
                       if (importReceiptsRefs)
                         await $_getPrefetchedData<
                           GoalRow,
@@ -11377,6 +11357,23 @@ class $$GoalsTableTableManager
                                 table,
                                 p0,
                               ).importReceiptsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.goalId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (recordsRefs)
+                        await $_getPrefetchedData<
+                          GoalRow,
+                          $GoalsTable,
+                          RecordRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$GoalsTableReferences
+                              ._recordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$GoalsTableReferences(db, table, p0).recordsRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.goalId == item.id,
@@ -11427,8 +11424,8 @@ typedef $$GoalsTableProcessedTableManager =
       PrefetchHooks Function({
         bool goalNodesRefs,
         bool missionsRefs,
-        bool recordsRefs,
         bool importReceiptsRefs,
+        bool recordsRefs,
         bool memoryEntriesRefs,
       })
     >;
@@ -15138,659 +15135,6 @@ typedef $$FailureRecordsTableProcessedTableManager =
       FailureRecordRow,
       PrefetchHooks Function({bool missionId})
     >;
-typedef $$RecordsTableCreateCompanionBuilder =
-    RecordsCompanion Function({
-      required String id,
-      required String type,
-      required String source,
-      Value<String?> content,
-      Value<String?> attachmentStorageKey,
-      Value<String?> attachmentFileName,
-      Value<String?> attachmentMimeType,
-      Value<int?> capturedAt,
-      required int occurredAt,
-      required int createdAt,
-      Value<String?> goalId,
-      Value<String?> goalNodeId,
-      Value<int> rowid,
-    });
-typedef $$RecordsTableUpdateCompanionBuilder =
-    RecordsCompanion Function({
-      Value<String> id,
-      Value<String> type,
-      Value<String> source,
-      Value<String?> content,
-      Value<String?> attachmentStorageKey,
-      Value<String?> attachmentFileName,
-      Value<String?> attachmentMimeType,
-      Value<int?> capturedAt,
-      Value<int> occurredAt,
-      Value<int> createdAt,
-      Value<String?> goalId,
-      Value<String?> goalNodeId,
-      Value<int> rowid,
-    });
-
-final class $$RecordsTableReferences
-    extends BaseReferences<_$AppDatabase, $RecordsTable, RecordRow> {
-  $$RecordsTableReferences(super.$_db, super.$_table, super.$_typedResult);
-
-  static $GoalsTable _goalIdTable(_$AppDatabase db) =>
-      db.goals.createAlias('records__goal_id__goals__id');
-
-  $$GoalsTableProcessedTableManager? get goalId {
-    final $_column = $_itemColumn<String>('goal_id');
-    if ($_column == null) return null;
-    final manager = $$GoalsTableTableManager(
-      $_db,
-      $_db.goals,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_goalIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static $GoalNodesTable _goalNodeIdTable(_$AppDatabase db) =>
-      db.goalNodes.createAlias('records__goal_node_id__goal_nodes__id');
-
-  $$GoalNodesTableProcessedTableManager? get goalNodeId {
-    final $_column = $_itemColumn<String>('goal_node_id');
-    if ($_column == null) return null;
-    final manager = $$GoalNodesTableTableManager(
-      $_db,
-      $_db.goalNodes,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_goalNodeIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
-  static MultiTypedResultKey<$EvidenceRecordsTable, List<EvidenceRow>>
-  _evidenceRecordsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.evidenceRecords,
-    aliasName: 'records__id__evidence_records__record_id',
-  );
-
-  $$EvidenceRecordsTableProcessedTableManager get evidenceRecordsRefs {
-    final manager = $$EvidenceRecordsTableTableManager(
-      $_db,
-      $_db.evidenceRecords,
-    ).filter((f) => f.recordId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(
-      _evidenceRecordsRefsTable($_db),
-    );
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: cache),
-    );
-  }
-}
-
-class $$RecordsTableFilterComposer
-    extends Composer<_$AppDatabase, $RecordsTable> {
-  $$RecordsTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get type => $composableBuilder(
-    column: $table.type,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get source => $composableBuilder(
-    column: $table.source,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get content => $composableBuilder(
-    column: $table.content,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get attachmentStorageKey => $composableBuilder(
-    column: $table.attachmentStorageKey,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get attachmentFileName => $composableBuilder(
-    column: $table.attachmentFileName,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<String> get attachmentMimeType => $composableBuilder(
-    column: $table.attachmentMimeType,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get capturedAt => $composableBuilder(
-    column: $table.capturedAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get occurredAt => $composableBuilder(
-    column: $table.occurredAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  $$GoalsTableFilterComposer get goalId {
-    final $$GoalsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.goalId,
-      referencedTable: $db.goals,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$GoalsTableFilterComposer(
-            $db: $db,
-            $table: $db.goals,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$GoalNodesTableFilterComposer get goalNodeId {
-    final $$GoalNodesTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.goalNodeId,
-      referencedTable: $db.goalNodes,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$GoalNodesTableFilterComposer(
-            $db: $db,
-            $table: $db.goalNodes,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  Expression<bool> evidenceRecordsRefs(
-    Expression<bool> Function($$EvidenceRecordsTableFilterComposer f) f,
-  ) {
-    final $$EvidenceRecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.evidenceRecords,
-      getReferencedColumn: (t) => t.recordId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$EvidenceRecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.evidenceRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-}
-
-class $$RecordsTableOrderingComposer
-    extends Composer<_$AppDatabase, $RecordsTable> {
-  $$RecordsTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get type => $composableBuilder(
-    column: $table.type,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get source => $composableBuilder(
-    column: $table.source,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get content => $composableBuilder(
-    column: $table.content,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get attachmentStorageKey => $composableBuilder(
-    column: $table.attachmentStorageKey,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get attachmentFileName => $composableBuilder(
-    column: $table.attachmentFileName,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<String> get attachmentMimeType => $composableBuilder(
-    column: $table.attachmentMimeType,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get capturedAt => $composableBuilder(
-    column: $table.capturedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get occurredAt => $composableBuilder(
-    column: $table.occurredAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  $$GoalsTableOrderingComposer get goalId {
-    final $$GoalsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.goalId,
-      referencedTable: $db.goals,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$GoalsTableOrderingComposer(
-            $db: $db,
-            $table: $db.goals,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$GoalNodesTableOrderingComposer get goalNodeId {
-    final $$GoalNodesTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.goalNodeId,
-      referencedTable: $db.goalNodes,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$GoalNodesTableOrderingComposer(
-            $db: $db,
-            $table: $db.goalNodes,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-}
-
-class $$RecordsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $RecordsTable> {
-  $$RecordsTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get type =>
-      $composableBuilder(column: $table.type, builder: (column) => column);
-
-  GeneratedColumn<String> get source =>
-      $composableBuilder(column: $table.source, builder: (column) => column);
-
-  GeneratedColumn<String> get content =>
-      $composableBuilder(column: $table.content, builder: (column) => column);
-
-  GeneratedColumn<String> get attachmentStorageKey => $composableBuilder(
-    column: $table.attachmentStorageKey,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get attachmentFileName => $composableBuilder(
-    column: $table.attachmentFileName,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<String> get attachmentMimeType => $composableBuilder(
-    column: $table.attachmentMimeType,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get capturedAt => $composableBuilder(
-    column: $table.capturedAt,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get occurredAt => $composableBuilder(
-    column: $table.occurredAt,
-    builder: (column) => column,
-  );
-
-  GeneratedColumn<int> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
-
-  $$GoalsTableAnnotationComposer get goalId {
-    final $$GoalsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.goalId,
-      referencedTable: $db.goals,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$GoalsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.goals,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  $$GoalNodesTableAnnotationComposer get goalNodeId {
-    final $$GoalNodesTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.goalNodeId,
-      referencedTable: $db.goalNodes,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$GoalNodesTableAnnotationComposer(
-            $db: $db,
-            $table: $db.goalNodes,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
-  Expression<T> evidenceRecordsRefs<T extends Object>(
-    Expression<T> Function($$EvidenceRecordsTableAnnotationComposer a) f,
-  ) {
-    final $$EvidenceRecordsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.id,
-      referencedTable: $db.evidenceRecords,
-      getReferencedColumn: (t) => t.recordId,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$EvidenceRecordsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.evidenceRecords,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return f(composer);
-  }
-}
-
-class $$RecordsTableTableManager
-    extends
-        RootTableManager<
-          _$AppDatabase,
-          $RecordsTable,
-          RecordRow,
-          $$RecordsTableFilterComposer,
-          $$RecordsTableOrderingComposer,
-          $$RecordsTableAnnotationComposer,
-          $$RecordsTableCreateCompanionBuilder,
-          $$RecordsTableUpdateCompanionBuilder,
-          (RecordRow, $$RecordsTableReferences),
-          RecordRow,
-          PrefetchHooks Function({
-            bool goalId,
-            bool goalNodeId,
-            bool evidenceRecordsRefs,
-          })
-        > {
-  $$RecordsTableTableManager(_$AppDatabase db, $RecordsTable table)
-    : super(
-        TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$RecordsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$RecordsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$RecordsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<String> id = const Value.absent(),
-                Value<String> type = const Value.absent(),
-                Value<String> source = const Value.absent(),
-                Value<String?> content = const Value.absent(),
-                Value<String?> attachmentStorageKey = const Value.absent(),
-                Value<String?> attachmentFileName = const Value.absent(),
-                Value<String?> attachmentMimeType = const Value.absent(),
-                Value<int?> capturedAt = const Value.absent(),
-                Value<int> occurredAt = const Value.absent(),
-                Value<int> createdAt = const Value.absent(),
-                Value<String?> goalId = const Value.absent(),
-                Value<String?> goalNodeId = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => RecordsCompanion(
-                id: id,
-                type: type,
-                source: source,
-                content: content,
-                attachmentStorageKey: attachmentStorageKey,
-                attachmentFileName: attachmentFileName,
-                attachmentMimeType: attachmentMimeType,
-                capturedAt: capturedAt,
-                occurredAt: occurredAt,
-                createdAt: createdAt,
-                goalId: goalId,
-                goalNodeId: goalNodeId,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required String id,
-                required String type,
-                required String source,
-                Value<String?> content = const Value.absent(),
-                Value<String?> attachmentStorageKey = const Value.absent(),
-                Value<String?> attachmentFileName = const Value.absent(),
-                Value<String?> attachmentMimeType = const Value.absent(),
-                Value<int?> capturedAt = const Value.absent(),
-                required int occurredAt,
-                required int createdAt,
-                Value<String?> goalId = const Value.absent(),
-                Value<String?> goalNodeId = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => RecordsCompanion.insert(
-                id: id,
-                type: type,
-                source: source,
-                content: content,
-                attachmentStorageKey: attachmentStorageKey,
-                attachmentFileName: attachmentFileName,
-                attachmentMimeType: attachmentMimeType,
-                capturedAt: capturedAt,
-                occurredAt: occurredAt,
-                createdAt: createdAt,
-                goalId: goalId,
-                goalNodeId: goalNodeId,
-                rowid: rowid,
-              ),
-          withReferenceMapper: (p0) => p0
-              .map(
-                (e) => (
-                  e.readTable(table),
-                  $$RecordsTableReferences(db, table, e),
-                ),
-              )
-              .toList(),
-          prefetchHooksCallback:
-              ({
-                goalId = false,
-                goalNodeId = false,
-                evidenceRecordsRefs = false,
-              }) {
-                return PrefetchHooks(
-                  db: db,
-                  explicitlyWatchedTables: [
-                    if (evidenceRecordsRefs) db.evidenceRecords,
-                  ],
-                  addJoins:
-                      <
-                        T extends TableManagerState<
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic,
-                          dynamic
-                        >
-                      >(state) {
-                        if (goalId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.goalId,
-                                    referencedTable: $$RecordsTableReferences
-                                        ._goalIdTable(db),
-                                    referencedColumn: $$RecordsTableReferences
-                                        ._goalIdTable(db)
-                                        .id,
-                                  )
-                                  as T;
-                        }
-                        if (goalNodeId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.goalNodeId,
-                                    referencedTable: $$RecordsTableReferences
-                                        ._goalNodeIdTable(db),
-                                    referencedColumn: $$RecordsTableReferences
-                                        ._goalNodeIdTable(db)
-                                        .id,
-                                  )
-                                  as T;
-                        }
-
-                        return state;
-                      },
-                  getPrefetchedDataCallback: (items) async {
-                    return [
-                      if (evidenceRecordsRefs)
-                        await $_getPrefetchedData<
-                          RecordRow,
-                          $RecordsTable,
-                          EvidenceRow
-                        >(
-                          currentTable: table,
-                          referencedTable: $$RecordsTableReferences
-                              ._evidenceRecordsRefsTable(db),
-                          managerFromTypedResult: (p0) =>
-                              $$RecordsTableReferences(
-                                db,
-                                table,
-                                p0,
-                              ).evidenceRecordsRefs,
-                          referencedItemsForCurrentItem:
-                              (item, referencedItems) => referencedItems.where(
-                                (e) => e.recordId == item.id,
-                              ),
-                          typedResults: items,
-                        ),
-                    ];
-                  },
-                );
-              },
-        ),
-      );
-}
-
-typedef $$RecordsTableProcessedTableManager =
-    ProcessedTableManager<
-      _$AppDatabase,
-      $RecordsTable,
-      RecordRow,
-      $$RecordsTableFilterComposer,
-      $$RecordsTableOrderingComposer,
-      $$RecordsTableAnnotationComposer,
-      $$RecordsTableCreateCompanionBuilder,
-      $$RecordsTableUpdateCompanionBuilder,
-      (RecordRow, $$RecordsTableReferences),
-      RecordRow,
-      PrefetchHooks Function({
-        bool goalId,
-        bool goalNodeId,
-        bool evidenceRecordsRefs,
-      })
-    >;
 typedef $$EvidenceRecordsTableCreateCompanionBuilder =
     EvidenceRecordsCompanion Function({
       required String id,
@@ -15851,23 +15195,6 @@ final class $$EvidenceRecordsTableReferences
     );
   }
 
-  static $RecordsTable _recordIdTable(_$AppDatabase db) =>
-      db.records.createAlias('evidence_records__record_id__records__id');
-
-  $$RecordsTableProcessedTableManager? get recordId {
-    final $_column = $_itemColumn<String>('record_id');
-    if ($_column == null) return null;
-    final manager = $$RecordsTableTableManager(
-      $_db,
-      $_db.records,
-    ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_recordIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-      manager.$state.copyWith(prefetchedData: [item]),
-    );
-  }
-
   static $EvidenceRecordsTable _supersedesEvidenceIdTable(_$AppDatabase db) =>
       db.evidenceRecords.createAlias(
         'evidence_records__supersedes_evidence_id__evidence_records__id',
@@ -15906,6 +15233,11 @@ class $$EvidenceRecordsTableFilterComposer
 
   ColumnFilters<String> get submissionId => $composableBuilder(
     column: $table.submissionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recordId => $composableBuilder(
+    column: $table.recordId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -15972,29 +15304,6 @@ class $$EvidenceRecordsTableFilterComposer
     return composer;
   }
 
-  $$RecordsTableFilterComposer get recordId {
-    final $$RecordsTableFilterComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.recordId,
-      referencedTable: $db.records,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$RecordsTableFilterComposer(
-            $db: $db,
-            $table: $db.records,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
   $$EvidenceRecordsTableFilterComposer get supersedesEvidenceId {
     final $$EvidenceRecordsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -16035,6 +15344,11 @@ class $$EvidenceRecordsTableOrderingComposer
 
   ColumnOrderings<String> get submissionId => $composableBuilder(
     column: $table.submissionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recordId => $composableBuilder(
+    column: $table.recordId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -16101,29 +15415,6 @@ class $$EvidenceRecordsTableOrderingComposer
     return composer;
   }
 
-  $$RecordsTableOrderingComposer get recordId {
-    final $$RecordsTableOrderingComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.recordId,
-      referencedTable: $db.records,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$RecordsTableOrderingComposer(
-            $db: $db,
-            $table: $db.records,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
   $$EvidenceRecordsTableOrderingComposer get supersedesEvidenceId {
     final $$EvidenceRecordsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -16164,6 +15455,9 @@ class $$EvidenceRecordsTableAnnotationComposer
     column: $table.submissionId,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get recordId =>
+      $composableBuilder(column: $table.recordId, builder: (column) => column);
 
   GeneratedColumn<String> get type =>
       $composableBuilder(column: $table.type, builder: (column) => column);
@@ -16222,29 +15516,6 @@ class $$EvidenceRecordsTableAnnotationComposer
     return composer;
   }
 
-  $$RecordsTableAnnotationComposer get recordId {
-    final $$RecordsTableAnnotationComposer composer = $composerBuilder(
-      composer: this,
-      getCurrentColumn: (t) => t.recordId,
-      referencedTable: $db.records,
-      getReferencedColumn: (t) => t.id,
-      builder:
-          (
-            joinBuilder, {
-            $addJoinBuilderToRootComposer,
-            $removeJoinBuilderFromRootComposer,
-          }) => $$RecordsTableAnnotationComposer(
-            $db: $db,
-            $table: $db.records,
-            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-            joinBuilder: joinBuilder,
-            $removeJoinBuilderFromRootComposer:
-                $removeJoinBuilderFromRootComposer,
-          ),
-    );
-    return composer;
-  }
-
   $$EvidenceRecordsTableAnnotationComposer get supersedesEvidenceId {
     final $$EvidenceRecordsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -16282,11 +15553,7 @@ class $$EvidenceRecordsTableTableManager
           $$EvidenceRecordsTableUpdateCompanionBuilder,
           (EvidenceRow, $$EvidenceRecordsTableReferences),
           EvidenceRow,
-          PrefetchHooks Function({
-            bool missionId,
-            bool recordId,
-            bool supersedesEvidenceId,
-          })
+          PrefetchHooks Function({bool missionId, bool supersedesEvidenceId})
         > {
   $$EvidenceRecordsTableTableManager(
     _$AppDatabase db,
@@ -16374,11 +15641,7 @@ class $$EvidenceRecordsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({
-                missionId = false,
-                recordId = false,
-                supersedesEvidenceId = false,
-              }) {
+              ({missionId = false, supersedesEvidenceId = false}) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [],
@@ -16409,21 +15672,6 @@ class $$EvidenceRecordsTableTableManager
                                     referencedColumn:
                                         $$EvidenceRecordsTableReferences
                                             ._missionIdTable(db)
-                                            .id,
-                                  )
-                                  as T;
-                        }
-                        if (recordId) {
-                          state =
-                              state.withJoin(
-                                    currentTable: table,
-                                    currentColumn: table.recordId,
-                                    referencedTable:
-                                        $$EvidenceRecordsTableReferences
-                                            ._recordIdTable(db),
-                                    referencedColumn:
-                                        $$EvidenceRecordsTableReferences
-                                            ._recordIdTable(db)
                                             .id,
                                   )
                                   as T;
@@ -16467,11 +15715,7 @@ typedef $$EvidenceRecordsTableProcessedTableManager =
       $$EvidenceRecordsTableUpdateCompanionBuilder,
       (EvidenceRow, $$EvidenceRecordsTableReferences),
       EvidenceRow,
-      PrefetchHooks Function({
-        bool missionId,
-        bool recordId,
-        bool supersedesEvidenceId,
-      })
+      PrefetchHooks Function({bool missionId, bool supersedesEvidenceId})
     >;
 typedef $$ImportReceiptsTableCreateCompanionBuilder =
     ImportReceiptsCompanion Function({
@@ -17908,6 +17152,552 @@ typedef $$OperationReceiptsTableProcessedTableManager =
       ),
       OperationReceipt,
       PrefetchHooks Function()
+    >;
+typedef $$RecordsTableCreateCompanionBuilder =
+    RecordsCompanion Function({
+      required String id,
+      required String type,
+      required String source,
+      Value<String?> content,
+      Value<String?> attachmentStorageKey,
+      Value<String?> attachmentFileName,
+      Value<String?> attachmentMimeType,
+      Value<int?> capturedAt,
+      required int occurredAt,
+      required int createdAt,
+      Value<String?> goalId,
+      Value<String?> goalNodeId,
+      Value<int> rowid,
+    });
+typedef $$RecordsTableUpdateCompanionBuilder =
+    RecordsCompanion Function({
+      Value<String> id,
+      Value<String> type,
+      Value<String> source,
+      Value<String?> content,
+      Value<String?> attachmentStorageKey,
+      Value<String?> attachmentFileName,
+      Value<String?> attachmentMimeType,
+      Value<int?> capturedAt,
+      Value<int> occurredAt,
+      Value<int> createdAt,
+      Value<String?> goalId,
+      Value<String?> goalNodeId,
+      Value<int> rowid,
+    });
+
+final class $$RecordsTableReferences
+    extends BaseReferences<_$AppDatabase, $RecordsTable, RecordRow> {
+  $$RecordsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $GoalsTable _goalIdTable(_$AppDatabase db) =>
+      db.goals.createAlias('records__goal_id__goals__id');
+
+  $$GoalsTableProcessedTableManager? get goalId {
+    final $_column = $_itemColumn<String>('goal_id');
+    if ($_column == null) return null;
+    final manager = $$GoalsTableTableManager(
+      $_db,
+      $_db.goals,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_goalIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $GoalNodesTable _goalNodeIdTable(_$AppDatabase db) =>
+      db.goalNodes.createAlias('records__goal_node_id__goal_nodes__id');
+
+  $$GoalNodesTableProcessedTableManager? get goalNodeId {
+    final $_column = $_itemColumn<String>('goal_node_id');
+    if ($_column == null) return null;
+    final manager = $$GoalNodesTableTableManager(
+      $_db,
+      $_db.goalNodes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_goalNodeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$RecordsTableFilterComposer
+    extends Composer<_$AppDatabase, $RecordsTable> {
+  $$RecordsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentStorageKey => $composableBuilder(
+    column: $table.attachmentStorageKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentFileName => $composableBuilder(
+    column: $table.attachmentFileName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentMimeType => $composableBuilder(
+    column: $table.attachmentMimeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get capturedAt => $composableBuilder(
+    column: $table.capturedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$GoalsTableFilterComposer get goalId {
+    final $$GoalsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableFilterComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GoalNodesTableFilterComposer get goalNodeId {
+    final $$GoalNodesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalNodeId,
+      referencedTable: $db.goalNodes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalNodesTableFilterComposer(
+            $db: $db,
+            $table: $db.goalNodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecordsTableOrderingComposer
+    extends Composer<_$AppDatabase, $RecordsTable> {
+  $$RecordsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentStorageKey => $composableBuilder(
+    column: $table.attachmentStorageKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentFileName => $composableBuilder(
+    column: $table.attachmentFileName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentMimeType => $composableBuilder(
+    column: $table.attachmentMimeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get capturedAt => $composableBuilder(
+    column: $table.capturedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$GoalsTableOrderingComposer get goalId {
+    final $$GoalsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableOrderingComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GoalNodesTableOrderingComposer get goalNodeId {
+    final $$GoalNodesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalNodeId,
+      referencedTable: $db.goalNodes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalNodesTableOrderingComposer(
+            $db: $db,
+            $table: $db.goalNodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecordsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RecordsTable> {
+  $$RecordsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get attachmentStorageKey => $composableBuilder(
+    column: $table.attachmentStorageKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get attachmentFileName => $composableBuilder(
+    column: $table.attachmentFileName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get attachmentMimeType => $composableBuilder(
+    column: $table.attachmentMimeType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get capturedAt => $composableBuilder(
+    column: $table.capturedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$GoalsTableAnnotationComposer get goalId {
+    final $$GoalsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalId,
+      referencedTable: $db.goals,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.goals,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$GoalNodesTableAnnotationComposer get goalNodeId {
+    final $$GoalNodesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.goalNodeId,
+      referencedTable: $db.goalNodes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$GoalNodesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.goalNodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecordsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RecordsTable,
+          RecordRow,
+          $$RecordsTableFilterComposer,
+          $$RecordsTableOrderingComposer,
+          $$RecordsTableAnnotationComposer,
+          $$RecordsTableCreateCompanionBuilder,
+          $$RecordsTableUpdateCompanionBuilder,
+          (RecordRow, $$RecordsTableReferences),
+          RecordRow,
+          PrefetchHooks Function({bool goalId, bool goalNodeId})
+        > {
+  $$RecordsTableTableManager(_$AppDatabase db, $RecordsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RecordsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RecordsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RecordsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<String?> content = const Value.absent(),
+                Value<String?> attachmentStorageKey = const Value.absent(),
+                Value<String?> attachmentFileName = const Value.absent(),
+                Value<String?> attachmentMimeType = const Value.absent(),
+                Value<int?> capturedAt = const Value.absent(),
+                Value<int> occurredAt = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<String?> goalId = const Value.absent(),
+                Value<String?> goalNodeId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RecordsCompanion(
+                id: id,
+                type: type,
+                source: source,
+                content: content,
+                attachmentStorageKey: attachmentStorageKey,
+                attachmentFileName: attachmentFileName,
+                attachmentMimeType: attachmentMimeType,
+                capturedAt: capturedAt,
+                occurredAt: occurredAt,
+                createdAt: createdAt,
+                goalId: goalId,
+                goalNodeId: goalNodeId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String type,
+                required String source,
+                Value<String?> content = const Value.absent(),
+                Value<String?> attachmentStorageKey = const Value.absent(),
+                Value<String?> attachmentFileName = const Value.absent(),
+                Value<String?> attachmentMimeType = const Value.absent(),
+                Value<int?> capturedAt = const Value.absent(),
+                required int occurredAt,
+                required int createdAt,
+                Value<String?> goalId = const Value.absent(),
+                Value<String?> goalNodeId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RecordsCompanion.insert(
+                id: id,
+                type: type,
+                source: source,
+                content: content,
+                attachmentStorageKey: attachmentStorageKey,
+                attachmentFileName: attachmentFileName,
+                attachmentMimeType: attachmentMimeType,
+                capturedAt: capturedAt,
+                occurredAt: occurredAt,
+                createdAt: createdAt,
+                goalId: goalId,
+                goalNodeId: goalNodeId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$RecordsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({goalId = false, goalNodeId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (goalId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.goalId,
+                                referencedTable: $$RecordsTableReferences
+                                    ._goalIdTable(db),
+                                referencedColumn: $$RecordsTableReferences
+                                    ._goalIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (goalNodeId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.goalNodeId,
+                                referencedTable: $$RecordsTableReferences
+                                    ._goalNodeIdTable(db),
+                                referencedColumn: $$RecordsTableReferences
+                                    ._goalNodeIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$RecordsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RecordsTable,
+      RecordRow,
+      $$RecordsTableFilterComposer,
+      $$RecordsTableOrderingComposer,
+      $$RecordsTableAnnotationComposer,
+      $$RecordsTableCreateCompanionBuilder,
+      $$RecordsTableUpdateCompanionBuilder,
+      (RecordRow, $$RecordsTableReferences),
+      RecordRow,
+      PrefetchHooks Function({bool goalId, bool goalNodeId})
     >;
 typedef $$UserExecutionReportsTableCreateCompanionBuilder =
     UserExecutionReportsCompanion Function({
@@ -19575,8 +19365,6 @@ class $AppDatabaseManager {
       $$ExecutionEventsTableTableManager(_db, _db.executionEvents);
   $$FailureRecordsTableTableManager get failureRecords =>
       $$FailureRecordsTableTableManager(_db, _db.failureRecords);
-  $$RecordsTableTableManager get records =>
-      $$RecordsTableTableManager(_db, _db.records);
   $$EvidenceRecordsTableTableManager get evidenceRecords =>
       $$EvidenceRecordsTableTableManager(_db, _db.evidenceRecords);
   $$ImportReceiptsTableTableManager get importReceipts =>
@@ -19590,6 +19378,8 @@ class $AppDatabaseManager {
       );
   $$OperationReceiptsTableTableManager get operationReceipts =>
       $$OperationReceiptsTableTableManager(_db, _db.operationReceipts);
+  $$RecordsTableTableManager get records =>
+      $$RecordsTableTableManager(_db, _db.records);
   $$UserExecutionReportsTableTableManager get userExecutionReports =>
       $$UserExecutionReportsTableTableManager(_db, _db.userExecutionReports);
   $$AnalysisJobsTableTableManager get analysisJobs =>

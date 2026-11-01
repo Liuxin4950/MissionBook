@@ -54,7 +54,7 @@ ModelProfile testProfile(
   model: 'test-model',
   endpoint: Uri.parse('https://example.invalid/$id'),
   protocol: protocol,
-  credentialEnvironment: 'TEST_API_KEY',
+  credentialKey: 'TEST_API_KEY',
   contextWindowTokens: window,
   maxOutputTokens: output,
   streamResponses: stream,

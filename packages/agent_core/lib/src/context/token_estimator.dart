@@ -63,6 +63,3 @@ final class ApproximateTokenEstimator implements TokenEstimator {
     return estimated.ceil() + imageTokens + messages.length * 8;
   }
 }
-
-@Deprecated('使用语义明确的 ApproximateTokenEstimator；它是估算，不是精确计数')
-typedef ConservativeTokenEstimator = ApproximateTokenEstimator;

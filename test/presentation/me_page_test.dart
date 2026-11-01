@@ -39,7 +39,6 @@ class _Device extends TestAppDevice {
     return pendingCapabilities?.future ??
         DeviceCapabilities(
           version: '0.2.2 (4)',
-          android: platform == DevicePlatform.android,
           platform: platform,
           notifications: notifications,
           exactAlarms: exactAlarms,
@@ -173,6 +172,14 @@ void main() {
     expect(find.byKey(const Key('grant-exact-alarms')), findsNothing);
   });
 
+  testWidgets('Android 通知已授权而准时权限未知时，不显示全部就绪', (tester) async {
+    device.notifications = true;
+    device.exactAlarms = null;
+    await open(tester);
+    expect(find.text('部分提醒权限无法查询'), findsOneWidget);
+    expect(find.text('提醒权限已就绪'), findsNothing);
+  });
+
   testWidgets('权限未知或读取失败不显示就绪，可重试恢复', (tester) async {
     device.notifications = null;
     device.exactAlarms = null;
@@ -245,7 +252,7 @@ void main() {
     pending.complete(
       const DeviceCapabilities(
         version: '旧结果',
-        android: true,
+        platform: DevicePlatform.android,
         notifications: false,
         exactAlarms: false,
       ),

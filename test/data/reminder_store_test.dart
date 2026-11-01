@@ -49,13 +49,12 @@ void main() {
   test('并发分配与偏好写入串行落盘，文件有效且重启后一致', () async {
     final store = ReminderStore(file);
     await store.load();
-    final until = DateTime.utc(2026, 10, 25, 3, 15);
 
+    await store.register(missionId: 'm1', scheduleRevisionId: 'r1');
     final keyIds = List.generate(10, (i) => store.notificationIdOf('key-$i'));
     final sameKeyIds = List.generate(5, (_) => store.notificationIdOf('same'));
     await Future.wait<void>([
-      store.register(missionId: 'm1', scheduleRevisionId: 'r1'),
-      store.snooze(missionId: 'm1', scheduleRevisionId: 'r1', until: until),
+      store.markDelivered('m1'),
       store.register(missionId: 'm2', scheduleRevisionId: 'r2'),
       ...keyIds.map((future) => future.then((_) {})),
       ...sameKeyIds.map((future) => future.then((_) {})),
@@ -81,8 +80,7 @@ void main() {
     final reopened = ReminderStore(file);
     await reopened.load();
     expect(reopened.notificationIds, ids);
-    expect(reopened.preferenceOf('m1')!.snoozedUntil, until);
-    expect(reopened.preferenceOf('m1')!.delivered, isFalse);
+    expect(reopened.preferenceOf('m1')!.delivered, isTrue);
   });
 
   test('保存失败回滚内存并向调用方抛出；修复路径后重试成功', () async {
@@ -92,7 +90,6 @@ void main() {
     final blockedFile = File('${blocker.path}/reminders.json');
     final store = ReminderStore(blockedFile);
     await store.load();
-    final until = DateTime.utc(2026, 10, 25, 4);
 
     await expectLater(
       store.notificationIdOf('key-a'),
@@ -100,7 +97,7 @@ void main() {
     );
     expect(store.notificationIds, isEmpty, reason: '失败分配必须回滚编号');
     await expectLater(
-      store.snooze(missionId: 'm1', scheduleRevisionId: 'r1', until: until),
+      store.register(missionId: 'm1', scheduleRevisionId: 'r1'),
       throwsA(isA<FileSystemException>()),
     );
     expect(store.preferenceOf('m1'), isNull, reason: '失败偏好不能伪装成功');
@@ -108,12 +105,12 @@ void main() {
     // 修复写入路径后重试：失败的那笔没有占用 id，后续仍可正常保存。
     await blocker.delete();
     expect(await store.notificationIdOf('key-a'), 1);
-    await store.snooze(missionId: 'm1', scheduleRevisionId: 'r1', until: until);
+    await store.register(missionId: 'm1', scheduleRevisionId: 'r1');
 
     final reopened = ReminderStore(blockedFile);
     await reopened.load();
     expect(await reopened.notificationIdOf('key-a'), 1);
-    expect(reopened.preferenceOf('m1')!.snoozedUntil, until);
+    expect(reopened.preferenceOf('m1')!.scheduleRevisionId, 'r1');
   });
   test('旧设置文件默认提前10分钟，新选择持久化且非法值不覆盖', () async {
     await file.writeAsString(

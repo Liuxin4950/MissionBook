@@ -1,5 +1,6 @@
 import '../repositories/drift_memory_repository.dart';
 import '../../domain/entities/analysis_scope.dart';
+import '../../domain/entities/content_draft.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:drift/drift.dart';
@@ -99,19 +100,26 @@ class DriftAnalysisStore implements AnalysisStore {
     }
     if (w.scope == AnalysisScope.mission) {
       final d = (await DriftMissionRepository(db).findDetail(w.id))!;
-      final materials = await records.rows(
-        'SELECT r.id,e.id evidenceId,e.submitted_at submittedAt,e.supersedes_evidence_id supersedesId FROM records r JOIN evidence_records e ON e.record_id=r.id WHERE e.mission_id=? AND NOT EXISTS(SELECT 1 FROM evidence_records n WHERE n.supersedes_evidence_id=e.id) ORDER BY e.submitted_at,e.id',
-        [w.id],
-      );
-      final items = <Map<String, Object?>>[];
-      for (final r in materials) {
-        items.add({
-          ...await child(AnalysisScope.record, r['id'] as String),
-          'evidenceId': r['evidenceId'],
-          'submittedAt': r['submittedAt'],
-          'supersedesId': r['supersedesId'],
-        });
-      }
+      final items = <Map<String, Object?>>[
+        for (final e in d.effectiveEvidence)
+          {
+            'id': e.id,
+            'scope': 'mission',
+            'version': e.submittedAt.millisecondsSinceEpoch,
+            'state': 'snapshot',
+            'type': e.type.name,
+            'content': e.content?.substring(
+              0,
+              min(8000, e.content?.length ?? 0),
+            ),
+            'contentTruncated': (e.content?.length ?? 0) > 8000,
+            'attachmentFileName': e.attachmentFileName,
+            'attachmentStorageKey': e.attachmentStorageKey,
+            'capturedAt': e.capturedAt?.toIso8601String(),
+            'submittedAt': e.submittedAt.toIso8601String(),
+            'supersedesId': e.supersedesEvidenceId,
+          },
+      ];
       final events = d.events
           .map(
             (e) => {
@@ -124,36 +132,49 @@ class DriftAnalysisStore implements AnalysisStore {
             },
           )
           .toList();
-      return AnalysisInput({
-        'id': d.mission.id,
-        'title': d.mission.title,
-        'policy': d.mission.verificationPolicy.name,
-        'objective': d.executionPlan.objective,
-        'steps': d.executionPlan.steps,
-        'criteria': d.executionPlan.verificationCriteria,
-        'deadline': d.schedule.evidenceDeadlineAt?.toIso8601String(),
-        'phase': d.phase.name,
-        'events': events.take(100).toList(),
-        'eventCount': events.length,
-        'eventsTruncated': events.length > 100,
-        'failures': d.failures
-            .map(
-              (f) => {
-                'trigger': f.trigger,
-                'occurredAt': f.occurredAt.toIso8601String(),
-              },
-            )
-            .toList(),
-        'userTime': d.effectiveUserReport == null
-            ? null
-            : {
-                'date': d.effectiveUserReport!.occurrenceDate,
-                'start': d.effectiveUserReport!.actualStart?.toIso8601String(),
-                'end': d.effectiveUserReport!.actualEnd?.toIso8601String(),
-                'basis': d.effectiveUserReport!.basis,
-              },
-        'materialCount': d.effectiveEvidence.length,
-      }, items);
+      return AnalysisInput(
+        {
+          'id': d.mission.id,
+          'title': d.mission.title,
+          'policy': d.mission.verificationPolicy.name,
+          'objective': d.executionPlan.objective,
+          'steps': d.executionPlan.steps,
+          'criteria': d.executionPlan.verificationCriteria,
+          'deadline': d.schedule.evidenceDeadlineAt?.toIso8601String(),
+          'phase': d.phase.name,
+          'events': events.take(100).toList(),
+          'eventCount': events.length,
+          'eventsTruncated': events.length > 100,
+          'failures': d.failures
+              .map(
+                (f) => {
+                  'trigger': f.trigger,
+                  'occurredAt': f.occurredAt.toIso8601String(),
+                },
+              )
+              .toList(),
+          'userTime': d.effectiveUserReport == null
+              ? null
+              : {
+                  'date': d.effectiveUserReport!.occurrenceDate,
+                  'start': d.effectiveUserReport!.actualStart
+                      ?.toIso8601String(),
+                  'end': d.effectiveUserReport!.actualEnd?.toIso8601String(),
+                  'basis': d.effectiveUserReport!.basis,
+                },
+          'materialCount': d.effectiveEvidence.length,
+        },
+        items,
+        images: [
+          for (final e in d.effectiveEvidence)
+            if (e.type == ContentType.image && e.attachmentStorageKey != null)
+              AnalysisImage(
+                materialId: e.id,
+                storageKey: e.attachmentStorageKey!,
+                mime: e.attachmentMimeType,
+              ),
+        ],
+      );
     }
     final node = w.scope == AnalysisScope.node;
     final facts = (await records.rows(
@@ -175,7 +196,7 @@ class DriftAnalysisStore implements AnalysisStore {
     facts['directMissionCount'] = allMissionCount;
     facts['missionsWithoutReviewFacts'] = allMissionCount - meaningful.length;
     final directRecords = await records.rows(
-      'SELECT r.id FROM records r WHERE ${node ? 'r.goal_node_id=?' : 'r.goal_id=? AND r.goal_node_id IS NULL'} AND NOT EXISTS(SELECT 1 FROM evidence_records e WHERE e.record_id=r.id)',
+      'SELECT r.id FROM records r WHERE ${node ? 'r.goal_node_id=?' : 'r.goal_id=? AND r.goal_node_id IS NULL'}',
       [w.id],
     );
     final nodes = await records.rows(
@@ -280,8 +301,8 @@ class DriftAnalysisStore implements AnalysisStore {
     List<Map<String, Object?>> targets = [];
     if (scope == AnalysisScope.record) {
       targets = await records.rows(
-        "SELECT 'mission' scope,mission_id id FROM evidence_records WHERE record_id=? UNION SELECT 'node',goal_node_id FROM records WHERE id=? AND goal_node_id IS NOT NULL UNION SELECT 'goal',goal_id FROM records WHERE id=? AND goal_id IS NOT NULL",
-        [id, id, id],
+        "SELECT 'node' scope,goal_node_id id FROM records WHERE id=? AND goal_node_id IS NOT NULL UNION SELECT 'goal',goal_id FROM records WHERE id=? AND goal_id IS NOT NULL",
+        [id, id],
       );
     } else if (scope == AnalysisScope.mission) {
       targets = await records.rows(

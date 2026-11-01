@@ -16,7 +16,6 @@ class _AssistantOperations {
   bool get compacting => _controller.compacting;
   bool get hasCredential => _controller.hasCredential;
   ModelProfile? get customProfile => _controller.customProfile;
-  bool get autoApproveWrites => _controller.autoApproveWrites;
   AssistantPermissionMode get permissionMode => _controller.permissionMode;
   AssistantSpeechSettings get speechSettings => _controller.speechSettings;
   AssistantPersona get persona => _controller.persona;
@@ -69,7 +68,7 @@ class _AssistantOperations {
   String? updateProposal(String callId, Map<String, Object?> input) {
     final pending = _controller._pending[callId];
     if (pending == null || pending.decided) return '这份提案已失效，请重新检查';
-    if (pending.operation.toolName == 'mission_plan') {
+    if (pending.operation.toolName == 'planMissions') {
       final oldItems = {
         for (final item in AssistantScheduleService.rows(
           pending.prepared.input,
@@ -94,7 +93,7 @@ class _AssistantOperations {
         return '不能在编辑提案时更换操作对象，请取消后重新提出';
       }
     }
-    if (pending.operation.toolName == 'mission_complete_history' &&
+    if (pending.operation.toolName == 'completeHistory' &&
         input['beforeDate'] != pending.prepared.input['beforeDate']) {
       return '日期范围变化后需要重新预览，请取消并重新提出';
     }
@@ -105,7 +104,7 @@ class _AssistantOperations {
     if (validation != null) return validation;
     pending.prepared.input = Map<String, Object?>.unmodifiable(input);
     pending.operation.input = pending.prepared.input;
-    if (pending.operation.toolName == 'mission_plan') {
+    if (pending.operation.toolName == 'planMissions') {
       pending.operation.planPreviewReady = false;
     }
     _controller._notifyListeners();
@@ -145,7 +144,7 @@ class _AssistantOperations {
   String? confirmProposal(String callId) {
     final pending = _controller._pending[callId];
     if (pending == null || pending.decided) return '这份提案已失效，请重新检查';
-    if (pending.operation.toolName == 'mission_plan' &&
+    if (pending.operation.toolName == 'planMissions' &&
         (!pending.operation.planPreviewReady ||
             pending.operation.planChecking ||
             pending.operation.planConflicts.isNotEmpty)) {
@@ -179,7 +178,7 @@ class _AssistantOperations {
     ToolCallBlock call,
     CancellationToken cancellation,
   ) async {
-    final toolName = AssistantTools.legacyName(tool.name);
+    final toolName = tool.name;
     final isWrite = AssistantTools.writeToolNames.contains(toolName);
     if (!isWrite &&
         !_controller._settings.permissionMode.requiresConfirmation(
@@ -205,7 +204,7 @@ class _AssistantOperations {
           prepared.snapshot['historySkippedCount'] as int? ?? 0
       ..missionBefore = prepared.snapshot['detail'] as MissionDetail?
       ..status = AssistantOperationStatus.waitingConfirmation;
-    if (toolName == 'mission_plan') {
+    if (toolName == 'planMissions') {
       operation
         ..planConflicts =
             prepared.snapshot['planConflicts'] as List<ScheduleConflict>
@@ -242,7 +241,7 @@ class _AssistantOperations {
   AssistantOperation _operationFor(ToolCallBlock call) =>
       _controller._operations[call.id] ??= AssistantOperation(
         callId: call.id,
-        toolName: AssistantTools.legacyName(call.name),
+        toolName: call.name,
         input: call.input,
       );
 

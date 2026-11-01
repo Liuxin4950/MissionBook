@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app.dart';
-import 'application/missions/planned_mission_background.dart';
+import 'planned_mission_background.dart';
 
 // 主入口，用于启动项目
 void main() {

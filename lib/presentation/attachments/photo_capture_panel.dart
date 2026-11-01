@@ -4,15 +4,15 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/colors.dart';
-import '../../../core/theme/app_layout.dart';
-import '../../../application/errors/user_error_message.dart';
+import '../../core/theme/colors.dart';
+import '../../core/theme/app_layout.dart';
+import '../../application/errors/user_error_message.dart';
 
-/// Android 材料草稿区内直接取景、重拍与确认，失败时保留原草稿。
-class EvidenceCameraPanel extends StatefulWidget {
-  const EvidenceCameraPanel({
+/// Android 草稿区内直接取景、重拍与确认，失败时保留原草稿。
+class PhotoCapturePanel extends StatefulWidget {
+  const PhotoCapturePanel({
     super.key,
-    required this.missionTitle,
+    required this.title,
     required this.onConfirmed,
     required this.onChooseFile,
     required this.onCancel,
@@ -20,7 +20,7 @@ class EvidenceCameraPanel extends StatefulWidget {
     this.onBack,
   });
 
-  final String missionTitle;
+  final String title;
   final Future<void> Function(Uint8List bytes, DateTime capturedAt) onConfirmed;
   final VoidCallback onChooseFile;
   final VoidCallback onCancel;
@@ -28,10 +28,10 @@ class EvidenceCameraPanel extends StatefulWidget {
   final VoidCallback? onBack;
 
   @override
-  State<EvidenceCameraPanel> createState() => _EvidenceCameraPanelState();
+  State<PhotoCapturePanel> createState() => _PhotoCapturePanelState();
 }
 
-class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
+class _PhotoCapturePanelState extends State<PhotoCapturePanel>
     with WidgetsBindingObserver {
   CameraController? _controller;
   Uint8List? _capture;
@@ -331,12 +331,9 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            '为「${widget.missionTitle}」拍照',
-            style: theme.textTheme.titleSmall,
-          ),
+          Text('为「${widget.title}」拍照', style: theme.textTheme.titleSmall),
           const SizedBox(height: AppLayout.spaceSm),
-          const Text('照片确认后加入当前草稿，提交材料前不会成为正式记录。'),
+          const Text('照片确认后加入当前草稿，保存后生效。'),
           const SizedBox(height: AppLayout.spaceMd),
           if (_capture != null)
             AspectRatio(
@@ -358,7 +355,7 @@ class _EvidenceCameraPanelState extends State<EvidenceCameraPanel>
             const Center(child: CircularProgressIndicator()),
           if (_error != null) ...[
             const SizedBox(height: AppLayout.spaceSm),
-            Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+            Text(_error!, style: TextStyle(color: AppColors.error)),
           ],
           const SizedBox(height: AppLayout.spaceMd),
           Wrap(

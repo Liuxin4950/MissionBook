@@ -1,6 +1,7 @@
 import '../../../domain/entities/analysis_scope.dart';
 import '../../records/analysis_panel.dart';
 import '../../records/records_page.dart';
+import '../../records/record_scope.dart';
 import 'dart:async';
 import '../../assistant/assistant_launcher.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +14,9 @@ import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_empty_state.dart';
 import '../../widgets/app_expansion.dart';
+import '../../widgets/app_section_card.dart';
 import '../form/goal_form_page.dart';
 import '../outline/goal_outline_section.dart';
 import '../shared/goal_record_summary.dart';
@@ -163,7 +166,9 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                     ),
                   );
                 }
-                return const Center(child: Text('未找到这个目标，请返回列表刷新'));
+                return const Center(
+                  child: AppEmptyState(title: '未找到这个目标，请返回列表刷新'),
+                );
               }
               // 有最近成功内容时先继续显示，刷新完成后原位替换。
               _lastGoal = goal;
@@ -187,7 +192,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                           decoration: BoxDecoration(
                             color: AppColors.primarySoft,
                             borderRadius: BorderRadius.circular(
-                              AppLayout.radiusXl,
+                              AppLayout.radiusSm,
                             ),
                           ),
                           child: Text(
@@ -198,7 +203,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                           ),
                         );
                         if (box.maxWidth <
-                            300 * MediaQuery.textScalerOf(context).scale(1)) {
+                            480 * MediaQuery.textScalerOf(context).scale(1)) {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -219,8 +224,6 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                       },
                     ),
                     const SizedBox(height: AppLayout.spaceMd),
-                    AnalysisPanel(scope: AnalysisScope.goal, id: goal.id),
-                    RecordsEntry(goalId: goal.id, label: '目标相关记录'),
                     Wrap(
                       spacing: AppLayout.spaceMd,
                       runSpacing: AppLayout.spaceSm,
@@ -305,6 +308,24 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                           ],
                         ],
                       ),
+                    if (RecordScope.maybeOf(context) != null) ...[
+                      const SizedBox(height: AppLayout.spaceLg),
+                      AppSectionCard(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppLayout.spaceSm,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            RelatedRecordsEntry(goalId: goal.id),
+                            AnalysisPanel(
+                              scope: AnalysisScope.goal,
+                              id: goal.id,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: AppLayout.spaceXxl),
                     if (widget.missionService != null) ...[
                       GoalRecordSummary(

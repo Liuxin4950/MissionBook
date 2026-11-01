@@ -229,33 +229,26 @@ final class SessionState {
             }
           }
         } else if (purpose == 'summary') {
-          final legacy = data['messages'];
-          if (legacy is List<Object?>) {
-            validateConversation(
-              legacy.map((value) => decodeMessage(readObject(value))).toList(),
-            );
-          } else {
-            final ids = data['messageIds'];
-            final extra = data['extraMessages'];
-            if (ids is! List<Object?> || extra is! List<Object?>) {
-              throw const FormatException('摘要请求缺少输入引用');
-            }
-            final available = <String, AgentMessage>{..._knownMessages};
-            for (final raw in extra) {
-              final message = decodeMessage(readObject(raw));
-              if (available.containsKey(message.id)) {
-                throw const FormatException('摘要附加输入与原始消息编号重复');
-              }
-              available[message.id] = message;
-            }
-            final messages = <AgentMessage>[];
-            for (final id in ids) {
-              final message = available[id];
-              if (message == null) throw const FormatException('摘要引用了不存在的消息');
-              messages.add(message);
-            }
-            validateConversation(messages);
+          final ids = data['messageIds'];
+          final extra = data['extraMessages'];
+          if (ids is! List<Object?> || extra is! List<Object?>) {
+            throw const FormatException('摘要请求缺少输入引用');
           }
+          final available = <String, AgentMessage>{..._knownMessages};
+          for (final raw in extra) {
+            final message = decodeMessage(readObject(raw));
+            if (available.containsKey(message.id)) {
+              throw const FormatException('摘要附加输入与原始消息编号重复');
+            }
+            available[message.id] = message;
+          }
+          final messages = <AgentMessage>[];
+          for (final id in ids) {
+            final message = available[id];
+            if (message == null) throw const FormatException('摘要引用了不存在的消息');
+            messages.add(message);
+          }
+          validateConversation(messages);
         } else {
           throw const FormatException('未知模型请求用途');
         }

@@ -1,3 +1,4 @@
+import '../../core/theme/colors.dart';
 import '../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -199,7 +200,7 @@ class _MemoryPageState extends State<MemoryPage> {
           style: IconButton.styleFrom(
             foregroundColor: Theme.of(context).colorScheme.onPrimary,
           ),
-          icon: const Icon(Icons.add),
+          icon: const Icon(Icons.add_rounded),
         ),
       ],
     ),
@@ -239,7 +240,7 @@ class _MemoryPageState extends State<MemoryPage> {
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
                       hintText: '搜索助手记住的内容',
-                      prefixIcon: const Icon(Icons.search),
+                      prefixIcon: const Icon(Icons.search_rounded),
                       suffixIcon: IconButton(
                         tooltip: '搜索记忆',
                         onPressed: () => load(reset: true),
@@ -285,12 +286,7 @@ class _MemoryPageState extends State<MemoryPage> {
                     const SizedBox(height: AppLayout.spaceMd),
                   ],
                   if (_error != null)
-                    Text(
-                      _error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
+                    Text(_error!, style: TextStyle(color: AppColors.error)),
                   if (items.isEmpty)
                     AppEmptyState(
                       title: _offset > 0
@@ -305,7 +301,7 @@ class _MemoryPageState extends State<MemoryPage> {
                       ),
                       actions: OutlinedButton.icon(
                         onPressed: edit,
-                        icon: const Icon(Icons.add),
+                        icon: const Icon(Icons.add_rounded),
                         label: const Text('添加记忆'),
                       ),
                     ),
@@ -516,12 +512,7 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                   ],
                 ),
                 if (_error != null)
-                  Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
+                  Text(_error!, style: TextStyle(color: AppColors.error)),
                 const SizedBox(height: AppLayout.spaceLg),
                 FilledButton(
                   key: const Key('memory-save'),

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_layout.dart';
+import '../../core/theme/app_layout.dart';
 
-/// 读取或解码失败只影响图片展示，保留材料说明与独立的操作入口。
-class EvidenceImageStatus extends StatelessWidget {
-  const EvidenceImageStatus({
+/// 读取或解码失败只影响图片展示，保留已有说明与独立的操作入口。
+class AttachmentImageStatus extends StatelessWidget {
+  const AttachmentImageStatus({
     super.key,
     required this.name,
     required this.height,
@@ -46,7 +46,7 @@ class EvidenceImageStatus extends StatelessWidget {
                   ),
                   const SizedBox(height: AppLayout.spaceSm),
                   Text(
-                    '图片无法显示：$name。材料记录仍然保留。',
+                    '图片无法显示：$name。内容仍然保留。',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),

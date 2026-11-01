@@ -223,12 +223,12 @@ class _MissionCommands {
     await _repository.database.transaction(() async {
       await _repository._acquireWrite(missionId);
       final fingerprint = sha256
-          .convert(utf8.encode('mission_cancel:$missionId'))
+          .convert(utf8.encode('cancelMission:$missionId'))
           .toString();
       if (operationId != null) {
         final receipt = await _repository.findOperationReceipt(operationId);
         if (receipt != null) {
-          if (receipt.kind != 'mission_cancel' ||
+          if (receipt.kind != 'cancelMission' ||
               receipt.entityId != missionId ||
               receipt.fingerprint != fingerprint) {
             throw StateError('操作编号已用于其他请求');
@@ -240,7 +240,7 @@ class _MissionCommands {
         operationId: operationId,
         missionId: missionId,
         fingerprint: fingerprint,
-        kind: 'mission_cancel',
+        kind: 'cancelMission',
       );
       final missions = _repository.database.missions;
       final query = _repository.database.select(missions);

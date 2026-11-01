@@ -136,24 +136,17 @@ class AssistantSpeechSettings {
 
 class AssistantSettings {
   const AssistantSettings({
-    required this.hasCredential,
     required this.modelProfileId,
-    bool autoApproveWrites = false,
-    AssistantPermissionMode? permissionMode,
+    this.permissionMode = AssistantPermissionMode.relaxed,
     this.customProfile,
-    this.hasDeepSeekCredential,
+    this.hasDeepSeekCredential = false,
     this.hasCustomCredential = false,
     this.speech = const AssistantSpeechSettings(),
     this.hasTranscriptionCredential = false,
     this.persona = const AssistantPersona(),
-  }) : permissionMode =
-           permissionMode ??
-           (autoApproveWrites
-               ? AssistantPermissionMode.full
-               : AssistantPermissionMode.relaxed);
+  });
 
-  final bool hasCredential;
-  final bool? hasDeepSeekCredential;
+  final bool hasDeepSeekCredential;
   final bool hasCustomCredential;
   final ModelProfile? customProfile;
   final AssistantSpeechSettings speech;
@@ -161,7 +154,8 @@ class AssistantSettings {
   final String modelProfileId;
   final AssistantPermissionMode permissionMode;
   final AssistantPersona persona;
-  bool get autoApproveWrites => permissionMode == AssistantPermissionMode.full;
+  bool get hasCredential =>
+      modelProfileId == 'custom' ? hasCustomCredential : hasDeepSeekCredential;
 }
 
 abstract interface class AssistantSettingsStore {
@@ -170,7 +164,6 @@ abstract interface class AssistantSettingsStore {
   Future<void> saveCredential(String credentialKey, String value);
   Future<void> saveModelProfile(String profileId);
   Future<void> saveCustomProfile(ModelProfile profile);
-  Future<void> saveAutoApproveWrites(bool value);
   Future<void> savePermissionMode(AssistantPermissionMode mode);
   Future<void> saveSpeechSettings(AssistantSpeechSettings settings);
   Future<void> savePersona(AssistantPersona persona);

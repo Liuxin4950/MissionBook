@@ -1,3 +1,4 @@
+import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'dart:io';
 
 import 'package:agent_core/agent_core.dart';
@@ -6,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
-import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
@@ -45,7 +45,7 @@ void main() {
       );
       AssistantController? assistant;
       AssistantController controller() => AssistantController(
-        reader: DriftAssistantReader(database),
+        unifiedReader: DriftUnifiedReader(database),
         sessionStore: DriftSessionStore(database),
         settingsStore: settings,
         missions: missions,
@@ -150,7 +150,7 @@ void main() {
           '把当前引用的节点改名为响应式布局。调用工具修改名称，不创建新节点，不改任务。',
         );
         final rename = await pending(assistant, renaming);
-        expect(rename.toolName, 'goal_node_update');
+        expect(rename.toolName, 'updateGoalNode');
         expect(rename.input['nodeId'], node.id);
         assistant.confirmProposal(rename.callId);
         expect((await renaming)?.reason, AgentStopReason.completed);
@@ -159,7 +159,7 @@ void main() {
           '在2026-11-01创建一个自报完成的独立任务，名称集成验收取消项，计划20分钟，先提出提案。',
         );
         final creation = await pending(assistant, creating);
-        expect(creation.toolName, 'mission_create');
+        expect(creation.toolName, 'createMission');
         assistant.cancelProposal(creation.callId);
         await creating;
         expect(await missions.findAllDetails(), hasLength(1));

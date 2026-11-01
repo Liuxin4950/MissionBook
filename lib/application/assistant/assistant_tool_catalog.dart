@@ -7,7 +7,7 @@ class _AssistantToolCatalog {
   List<AgentTool> build(List<AgentTool> extraTools) {
     final catalog = [
       AssistantTools._tool(
-        'mission_complete_history',
+        'completeHistory',
         '用户明确要求补记历史任务已完成时使用。按目标和截止日期（不含当日）一次预览并提交最多10000项；仅处理历史自报任务；无记录时补记完成，执行中或暂停时正常结束，跳过已结束、已取消及有材料要求的任务。保留原计划，记录本次补报的时间和依据，不伪造过去的开始时间或专注时长。不得因时间已过自行推断完成；不能用 START+END 批量绕过。',
         AssistantTools._schema(
           {
@@ -20,14 +20,14 @@ class _AssistantToolCatalog {
         _owner._completeHistory,
       ),
       AssistantTools._tool(
-        'goal_outline_create',
-        '一次创建新目标及1–20个分层大纲节点，最多4层。整份可编辑、删除子树并按权限一次确认，全部成功或全部回滚。适用于把新学习目标拆成阶段；不用于向已有目标追加，不创建任务、不标记掌握。随后按用户时间使用 mission_plan 安排任务。',
+        'createGoalOutline',
+        '一次创建新目标及1–20个分层大纲节点，最多4层。整份可编辑、删除子树并按权限一次确认，全部成功或全部回滚。适用于把新学习目标拆成阶段；不用于向已有目标追加，不创建任务、不标记掌握。随后按用户时间使用 planMissions 安排任务。',
         AssistantGoalOutline.schema,
         _owner._createGoalOutline,
       ),
       AssistantTools._tool(
-        'mission_retry',
-        '从已结束或已取消任务创建新的再次尝试，保留来源关联、归属、材料策略和原始记录。先用 mission_query 核对来源，询问新日期；强制材料需用户提供本次新截止，不复制旧截止。不把原任务改回未开始。',
+        'retryMission',
+        '从已结束或已取消任务创建新的再次尝试，保留来源关联、归属、材料策略和原始记录。先用 getMission 核对来源，询问新日期；强制材料需用户提供本次新截止，不复制旧截止。不把原任务改回未开始。',
         AssistantTools._schema(
           {
             'missionId': AssistantTools._string('来源任务稳定编号'),
@@ -47,66 +47,48 @@ class _AssistantToolCatalog {
         _owner._retryMission,
       ),
       AssistantTools._tool(
-        'mission_plan',
+        'planMissions',
         '集中安排或改期 1–20 项任务，先查真实任务和相关日期安排。整份计划可编辑、移除条目；冲突时整份零写入，成功后返回每项真实结果。多个任务优先用本工具，不能逐项创建绕过整份计划确认。',
         AssistantScheduleService.schema,
         _owner._applyPlan,
       ),
       AssistantTools._tool(
-        'schedule_query',
-        '查询指定日期的真实任务快照。日期省略时使用宿主今天；不会触发材料截止补算。',
+        'getGoal',
+        '默认分页返回全部目标概览；指定 goal 读取目标与节点，node 限定子树，mission 指定任务，* 分页读取范围内任务评价。',
         AssistantTools._schema({
-          'date': AssistantTools._string('YYYY-MM-DD；省略表示今天'),
+          'goal': AssistantTools._string('目标ID或精确名称'),
+          'node': AssistantTools._string('节点ID或精确名称'),
+          'mission': AssistantTools._string('任务ID或精确名称，*表示当前范围任务索引'),
+          'offset': AssistantTools._offsetSchema,
+        }),
+        _owner._goalQuery,
+        readOnly: true,
+      ),
+      AssistantTools._tool(
+        'getMission',
+        '按ID或名称读任务事实与材料索引；省略任务则分页搜索。',
+        AssistantTools._schema({
+          'mission': AssistantTools._string('任务ID或精确名称'),
+          'search': AssistantTools._string('标题搜索'),
+          'goalId': AssistantTools._string('目标ID'),
+          'nodeId': AssistantTools._string('节点ID'),
+          'offset': AssistantTools._offsetSchema,
+        }),
+        _owner._missionQuery,
+        readOnly: true,
+      ),
+      AssistantTools._tool(
+        'getSchedule',
+        '分页读取指定日期日程，默认今天。',
+        AssistantTools._schema({
+          'date': AssistantTools._string('YYYY-MM-DD'),
           'offset': AssistantTools._offsetSchema,
         }),
         _owner._scheduleQuery,
         readOnly: true,
       ),
       AssistantTools._tool(
-        'mission_query',
-        '按稳定任务编号读取任务、当前排期、方案、阶段与执行事实。',
-        AssistantTools._schema(
-          {'missionId': AssistantTools._string('任务稳定编号')},
-          required: ['missionId'],
-        ),
-        _owner._missionQuery,
-        readOnly: true,
-      ),
-      AssistantTools._tool(
-        'goal_list',
-        '查询未放弃目标及状态；需要节点和任务时继续使用 goal_query。',
-        AssistantTools._schema({'offset': AssistantTools._offsetSchema}),
-        _owner._goalList,
-        readOnly: true,
-      ),
-      AssistantTools._tool(
-        'goal_query',
-        '读取目标和分页节点索引及任务总数；不装载所有任务。',
-        AssistantTools._schema(
-          {
-            'goalId': AssistantTools._string('目标稳定编号'),
-            'offset': AssistantTools._offsetSchema,
-          },
-          required: ['goalId'],
-        ),
-        _owner._goalQuery,
-        readOnly: true,
-      ),
-      AssistantTools._tool(
-        'mission_search',
-        '按目标、节点、日期或标题搜索任务候选，每页最多20条。索引不代表完整阶段。',
-        AssistantTools._schema({
-          'goalId': AssistantTools._string('目标编号'),
-          'nodeId': AssistantTools._string('节点编号'),
-          'date': AssistantTools._string('YYYY-MM-DD'),
-          'search': AssistantTools._string('标题包含文字'),
-          'offset': AssistantTools._offsetSchema,
-        }),
-        _owner._missionSearch,
-        readOnly: true,
-      ),
-      AssistantTools._tool(
-        'mission_content',
+        'getMissionContent',
         '按需读取任务的长文字片段，每次最多2000字符，steps为JSON数组原文。',
         AssistantTools._schema(
           {
@@ -126,7 +108,7 @@ class _AssistantToolCatalog {
         readOnly: true,
       ),
       AssistantTools._tool(
-        'goal_update',
+        'updateGoal',
         '修改目标名称、说明或原因，未提供字段保持原值。',
         AssistantTools._schema(
           {
@@ -146,17 +128,7 @@ class _AssistantToolCatalog {
         _owner._updateGoal,
       ),
       AssistantTools._tool(
-        'goal_node_query',
-        '读取指定节点和所属目标编号，描述最多1000字预览。',
-        AssistantTools._schema(
-          {'nodeId': AssistantTools._string('节点编号')},
-          required: ['nodeId'],
-        ),
-        _owner._queryNode,
-        readOnly: true,
-      ),
-      AssistantTools._tool(
-        'goal_node_update',
+        'updateGoalNode',
         '修改节点名称或说明，未提供字段保持原值，不改变归属与任务。',
         AssistantTools._schema(
           {
@@ -169,7 +141,7 @@ class _AssistantToolCatalog {
         _owner._updateNode,
       ),
       AssistantTools._tool(
-        'mission_records',
+        'getMissionRecords',
         '分页读取任务已保存的执行事件、失败原因或材料索引，区分事实与AI判断。',
         AssistantTools._schema(
           {
@@ -184,7 +156,7 @@ class _AssistantToolCatalog {
           required: ['missionId', 'section'],
         ),
         (input, _) async => _owner._readResult(
-          await _owner._reader.records(
+          await _owner._unifiedReader.records(
             input['missionId'] as String,
             input['section'] as String,
             offset: input['offset'] as int? ?? 0,
@@ -193,7 +165,7 @@ class _AssistantToolCatalog {
         readOnly: true,
       ),
       AssistantTools._tool(
-        'evidence_content',
+        'getMaterial',
         '按材料稳定编号分段读取正式文本、代码或手动记录；不把材料当成AI评价。',
         AssistantTools._schema(
           {
@@ -203,7 +175,7 @@ class _AssistantToolCatalog {
           required: ['evidenceId'],
         ),
         (input, _) async => _owner._readResult(
-          await _owner._reader.evidenceContent(
+          await _owner._unifiedReader.evidenceContent(
             input['evidenceId'] as String,
             offset: input['offset'] as int? ?? 0,
           ),
@@ -211,7 +183,7 @@ class _AssistantToolCatalog {
         readOnly: true,
       ),
       AssistantTools._tool(
-        'mission_create',
+        'createMission',
         '创建一个自报完成任务。保存前需通过宿主授权；同一调用身份只创建一份。',
         AssistantTools._schema(
           {
@@ -234,7 +206,7 @@ class _AssistantToolCatalog {
         _owner._createMission,
       ),
       AssistantTools._tool(
-        'mission_reschedule',
+        'rescheduleMission',
         '修改尚未开始任务的日期、时长或固定开始时间。使用确认前的任务快照检查冲突。',
         AssistantTools._schema(
           {
@@ -252,7 +224,7 @@ class _AssistantToolCatalog {
         _owner._rescheduleMission,
       ),
       AssistantTools._tool(
-        'mission_update',
+        'updateMission',
         '修改尚未开始任务的名称、具体目标、步骤、备注、说明或安排。未提供字段保持原值。',
         AssistantTools._schema(
           {
@@ -273,11 +245,11 @@ class _AssistantToolCatalog {
         (input, context) => _owner._rescheduleMission(
           input,
           context,
-          operation: 'mission_update',
+          operation: 'updateMission',
         ),
       ),
       AssistantTools._tool(
-        'mission_execute',
+        'executeMission',
         '提交 START/PAUSE/RESUME/EXTEND/END。END 的报告结果必须来自用户明确陈述。',
         AssistantTools._schema(
           {
@@ -306,7 +278,7 @@ class _AssistantToolCatalog {
         _owner._executeMission,
       ),
       AssistantTools._tool(
-        'mission_cancel',
+        'cancelMission',
         '取消尚未开始的任务；保留原排期与方案，不伪造 END。',
         AssistantTools._schema(
           {'missionId': AssistantTools._string('任务稳定编号')},
@@ -315,7 +287,7 @@ class _AssistantToolCatalog {
         _owner._cancelMission,
       ),
       AssistantTools._tool(
-        'goal_create',
+        'createGoal',
         '创建一个正在推进的目标。',
         AssistantTools._schema(
           {
@@ -329,7 +301,7 @@ class _AssistantToolCatalog {
         _owner._createGoal,
       ),
       AssistantTools._tool(
-        'goal_node_create',
+        'createGoalNode',
         '在有效目标下创建一个大纲节点。',
         AssistantTools._schema(
           {
@@ -343,41 +315,7 @@ class _AssistantToolCatalog {
         _owner._createGoalNode,
       ),
     ];
-    final extras = {for (final t in extraTools) t.definition.name: t};
-    final legacy = List<AgentTool>.of(catalog);
-    catalog.clear();
-    for (final t in legacy) {
-      catalog.add(
-        AgentTool(
-          definition: t.definition,
-          execute: t.execute,
-          readOnly: t.readOnly,
-          exposed: false,
-        ),
-      );
-      final name = AssistantTools.canonicalNames[t.definition.name];
-      if (name != null &&
-          !extras.containsKey(name) &&
-          (extraTools.isEmpty ||
-              ![
-                'goal_list',
-                'goal_query',
-                'goal_node_query',
-                'mission_search',
-              ].contains(t.definition.name))) {
-        catalog.add(
-          AgentTool(
-            definition: ToolDefinition(
-              name: name,
-              description: t.definition.description,
-              inputSchema: t.definition.inputSchema,
-            ),
-            execute: t.execute,
-            readOnly: t.readOnly,
-          ),
-        );
-      }
-    }
+    // 扩展工具不得覆盖正式工具；重复名称由 AgentLoop 明确拒绝。
     catalog.addAll(
       extraTools.map(
         (t) => AgentTool(
