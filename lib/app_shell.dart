@@ -398,9 +398,8 @@ class _AppShellState extends State<AppShell> {
                               horizontal: AppLayout.spaceLg,
                             ),
                             child: Align(
-                              alignment: expanded
-                                  ? Alignment.centerLeft
-                                  : Alignment.center,
+                              // 展开与收起都以导航栏中线对齐，圆形入口不随宽度变化偏左。
+                              alignment: Alignment.center,
                               child: AssistantLauncher(
                                 key: _assistantEntry,
                                 navigationRailWidth: expanded ? 192 : 88,

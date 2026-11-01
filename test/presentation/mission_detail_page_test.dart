@@ -284,9 +284,12 @@ void main() {
     await tester.pumpAndSettle();
     final objective = tester.getRect(find.text('能说明完整读取过程'));
     final notes = tester.getRect(find.text('补充说明'));
+    // 两个分区都是共享内容卡：间距由上方卡内边距、分区间距和下方卡内边距组成。
+    // 只校验这三段标准间距，多出分隔线或额外留白都会让间距变大而失败。
+    const cardPadding = AppLayout.spaceXl;
     expect(
       notes.top - objective.bottom,
-      lessThanOrEqualTo(AppLayout.sectionGap + 0.5),
+      closeTo(cardPadding + AppLayout.sectionGap + cardPadding, 0.5),
     );
     expect(find.byType(Divider), findsNothing);
     expect(tester.takeException(), isNull);

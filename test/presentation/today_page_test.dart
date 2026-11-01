@@ -313,7 +313,7 @@ void main() {
     expect(find.text('真实阅读任务'), findsOneWidget);
     expect(find.text('自选时间'), findsOneWidget);
     expect(find.text('计划 20 分钟'), findsOneWidget);
-    // 从真实列表进入真实详情查询：标题同时是默认具体目标，所以详情中出现两次。
+    // 标题与默认具体目标同名且没有步骤时省略重复的方案区块，标题只出现一次。
     await Scrollable.ensureVisible(
       tester.element(find.text('真实阅读任务')),
       alignment: 0.5,
@@ -322,7 +322,7 @@ void main() {
     await tester.tap(find.text('真实阅读任务'));
     await tester.pumpAndSettle();
     expect(find.byType(MissionDetailPage), findsOneWidget);
-    expect(find.text('真实阅读任务'), findsNWidgets(2));
+    expect(find.text('真实阅读任务'), findsOneWidget);
     expect(find.text('20 分'), findsOneWidget);
     expect(find.byTooltip('今天'), findsNothing); // 子页不复制底部导航。
     await tester.tap(find.byTooltip('返回'));

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -809,6 +810,8 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
     }
     if (error is GoalImportCancelled) return '已取消，可重新选择文件';
     debugPrint('目标导入失败：$error');
+    // 开发期直接显示真实异常类型和消息，避免兜底文案把可诊断的原因藏起来。
+    if (kDebugMode) return '导入失败（${error.runtimeType}）：$error';
     return '暂时无法完成操作，输入已保留。请重试；若保存结果尚未确认，请先核对原导入结果。';
   }
 

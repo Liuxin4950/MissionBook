@@ -415,9 +415,14 @@ void main() {
     );
     final brand = find.byKey(const Key('navigation-brand'));
     final navIcon = find.byKey(const Key('navigation-icon-0'));
+    final rail = find.byKey(const Key('navigation-rail-width'));
     final launcher = find.byKey(const Key('assistant-launcher')).hitTestable();
     expect(tester.getTopLeft(brand).dx, tester.getTopLeft(navIcon).dx);
-    expect(tester.getCenter(launcher).dx, tester.getCenter(navIcon).dx);
+    // 展开态圆形助手入口与侧栏中线对齐，不跟随导航图标贴左。
+    expect(
+      tester.getCenter(launcher).dx,
+      closeTo(tester.getCenter(rail).dx, .5),
+    );
     await tester.tap(find.byKey(const Key('assistant-launcher')).hitTestable());
     await tester.pumpAndSettle();
     await tester.tap(find.text('文字'));
