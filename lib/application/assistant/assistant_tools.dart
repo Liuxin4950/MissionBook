@@ -24,6 +24,7 @@ import '../goals/goal_service.dart';
 import 'unified_reader.dart';
 import 'assistant_schedule.dart';
 import 'assistant_goal_outline.dart';
+import 'assistant_operation_result.dart';
 import '../missions/mission_service.dart';
 
 part 'assistant_tool_catalog.dart';
@@ -69,6 +70,10 @@ class AssistantTools {
       timeZone: timeZone,
     );
     _tools = _AssistantToolCatalog(this).build(extraTools);
+    _toolsByName = {for (final tool in _tools) tool.definition.name: tool};
+    if (_toolsByName.length != _tools.length) {
+      throw StateError('助手工具名称重复');
+    }
   }
   final UnifiedReader _unifiedReader;
   final MemoryService? _memory;
@@ -89,39 +94,19 @@ class AssistantTools {
   final DateTime Function() _clock;
   final tz.Location _location;
   late final List<AgentTool> _tools;
+  late final Map<String, AgentTool> _toolsByName;
   late final AssistantScheduleService _plans;
 
   List<AgentTool> get tools => List.unmodifiable(_tools);
 
-  static const writeToolNames = {
-    'startMakeup',
-    'saveRecord',
-    'setRecordOwnership',
-    'useRecordAsMaterial',
-    'reportExecution',
-    'correctExecutionTime',
-    'saveMemory',
-    'forgetMemory',
-    'retryAnalysis',
-    'completeHistory',
-    'createGoalOutline',
-    'retryMission',
-    'planMissions',
-    'createMission',
-    'rescheduleMission',
-    'updateMission',
-    'executeMission',
-    'cancelMission',
-    'createGoal',
-    'createGoalNode',
-    'updateGoal',
-    'updateGoalNode',
-  };
+  /// 读写属性来自实际注册的工具，不维护另一份名称清单。
+  bool isWriteTool(String name) => !(_toolsByName[name]?.readOnly ?? false);
 
   Future<PreparedToolCall> prepare(
     String toolName,
-    Map<String, Object?> input,
-  ) => _preparation.prepare(toolName, input);
+    Map<String, Object?> input, {
+    String? sessionId,
+  }) => _preparation.prepare(toolName, input, sessionId: sessionId);
 
   String? validate(String toolName, Map<String, Object?> input) =>
       _preparation.validate(toolName, input);

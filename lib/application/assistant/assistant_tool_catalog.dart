@@ -13,7 +13,7 @@ class _AssistantToolCatalog {
           {
             'goalId': AssistantTools._string('目标编号；先查真实目标'),
             'beforeDate': AssistantTools._string('截止日期 YYYY-MM-DD，不含这一天，不晚于今天'),
-            'statement': AssistantTools._string('用户明确要求补记完成的原意或依据'),
+            'statement': AssistantTools._string('用户明确提供完成事实的原话片段，不得改写或编造'),
           },
           required: ['goalId', 'beforeDate', 'statement'],
         ),
@@ -48,7 +48,7 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'planMissions',
-        '集中安排或改期 1–20 项任务，先查真实任务和相关日期安排。整份计划可编辑、移除条目；冲突时整份零写入，成功后返回每项真实结果。多个任务优先用本工具，不能逐项创建绕过整份计划确认。',
+        '集中安排或改期 1–100 项任务，先查真实任务和相关日期安排。整份计划可编辑、移除条目；冲突时整份零写入，成功后返回真实结果。多个任务优先用本工具。',
         AssistantScheduleService.schema,
         _owner._applyPlan,
       ),

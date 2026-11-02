@@ -851,6 +851,7 @@ void main() {
               clock: () => now,
             ).queryMemory())['items']
             as List<Map<String, Object?>>;
+    expect(entries.map((entry) => entry['content']), isNot(contains('模型猜测')));
     await DriftMemoryRepository(db, clock: () => now).forgetMemory(
       entries.firstWhere((e) => e['content'] == '喜欢上午学习')['id'] as String,
     );
@@ -991,7 +992,7 @@ void main() {
         db,
         clock: () => now,
       ).queryMemory())['total'],
-      0,
+      1,
     );
     for (var i = 0; i < 30; i++) {
       await DriftMemoryRepository(db, clock: () => now).saveMemory(
@@ -1001,6 +1002,523 @@ void main() {
     final core = await DriftMemoryRepository(db, clock: () => now).coreMemory();
     expect(core.length, lessThanOrEqualTo(2000));
     expect(jsonDecode(core) as List, hasLength(10));
+  });
+  test('记忆写入回执反映实际结果并在重复操作时保持不变', () async {
+    final repository = DriftMemoryRepository(db, clock: () => now);
+    Map<String, Object?> entry(String id) => {
+      'id': id,
+      'content': '喜欢上午学习',
+      'kind': 'preference',
+      'certainty': 'stated',
+      'source': '来源$id',
+      'conflictKey': '学习时间',
+    };
+    expect(await repository.saveMemory(entry('first'), operationId: 'op1'), {
+      'status': 'created',
+      'id': 'first',
+    });
+    final duplicate = await repository.saveMemory(
+      entry('second'),
+      operationId: 'op2',
+    );
+    expect(duplicate, {'status': 'unchanged', 'id': 'first'});
+    expect(
+      await repository.saveMemory(entry('second'), operationId: 'op2'),
+      duplicate,
+    );
+    await repository.forgetMemory('first');
+    expect(await repository.saveMemory(entry('third'), operationId: 'op3'), {
+      'status': 'blocked',
+      'id': 'first',
+      'reason': 'protected_memory',
+    });
+    expect((await db.select(db.memoryEntries).get()).map((e) => e.id), [
+      'first',
+    ]);
+    final receipt = await (db.select(
+      db.operationReceipts,
+    )..where((t) => t.id.equals('op2'))).getSingle();
+    expect(jsonDecode(receipt.resultJson), duplicate);
+    await expectLater(
+      repository.saveMemory({
+        ...entry('second'),
+        'content': '不同内容',
+      }, operationId: 'op2'),
+      throwsA(isA<EvidenceConflict>()),
+    );
+  });
+  test('记忆更正采用原快照，期间被修改则不覆盖新事实', () async {
+    final repository = DriftMemoryRepository(db, clock: () => now);
+    final original = {
+      'id': 'edit-memory',
+      'content': '原内容',
+      'kind': 'fact',
+      'certainty': 'stated',
+      'source': '用户',
+      'conflictKey': '主题',
+    };
+    await repository.saveMemory(original);
+    final row =
+        ((await repository.queryMemory())['items']
+                as List<Map<String, Object?>>)
+            .single;
+    const fields = [
+      'id',
+      'goal_id',
+      'kind',
+      'content',
+      'source',
+      'certainty',
+      'conflict_key',
+      'updated_at',
+      'expires_at',
+      'forgotten',
+      'user_edited',
+    ];
+    final version = {for (final field in fields) field: row[field]};
+    await repository.saveMemory({
+      ...original,
+      'content': '其他入口的新内容',
+    }, userEdited: true);
+    final result = await repository.saveMemory(
+      {...original, 'content': '旧提案', 'expectedVersion': version},
+      userEdited: true,
+      operationId: 'stale-edit',
+    );
+    expect(result, {
+      'status': 'blocked',
+      'id': 'edit-memory',
+      'reason': 'changed',
+    });
+    expect(
+      (await db.select(db.memoryEntries).get()).single.content,
+      '其他入口的新内容',
+    );
+    expect(
+      await repository.saveMemory(
+        {...original, 'content': '旧提案', 'expectedVersion': version},
+        userEdited: true,
+        operationId: 'stale-edit',
+      ),
+      result,
+    );
+  });
+  test('助手更正记忆时未指定的目标、主题和期限沿用原值', () async {
+    final goal = goals.prepareCreation(title: '测试目标');
+    await goals.create(goal);
+    final repository = DriftMemoryRepository(db, clock: () => now);
+    final expiry = now.add(const Duration(days: 10)).millisecondsSinceEpoch;
+    await repository.saveMemory({
+      'id': 'scoped-memory',
+      'content': '旧事实',
+      'kind': 'fact',
+      'certainty': 'stated',
+      'source': '用户',
+      'goalId': goal.id,
+      'conflictKey': '原主题',
+      'expiresAt': expiry,
+    });
+    final original =
+        ((await repository.queryMemory(search: 'scoped-memory'))['items']
+                as List<Map<String, Object?>>)
+            .single;
+    const fields = [
+      'id',
+      'goal_id',
+      'kind',
+      'content',
+      'source',
+      'certainty',
+      'conflict_key',
+      'updated_at',
+      'expires_at',
+      'forgotten',
+      'user_edited',
+    ];
+    final version = {for (final field in fields) field: original[field]};
+    final tools = contextTools(
+      records: RecordService(records, missions, missions.attachments),
+      missions: missions,
+      memory: MemoryService(repository),
+      analysis: DriftAnalysisStore(db),
+      analyze: (p, {imageKey, mime, json = false}) async => '',
+      web: WebService(
+        settings: const SecureWebSettings(),
+        quota: DriftSearchQuota(db),
+        fetchClient: () => throw StateError('不出网'),
+      ),
+      userStatement: () => '请把旧事实更正为新事实',
+      snapshot: (_) => {'memoryVersion': version},
+    );
+    final output = await tools
+        .firstWhere((tool) => tool.definition.name == 'saveMemory')
+        .execute(
+          {
+            'id': 'scoped-memory',
+            'content': '新事实',
+            'kind': 'fact',
+            'basis': '请把旧事实更正为新事实',
+          },
+          ToolContext(
+            callId: 'edit',
+            sessionId: 'session',
+            cancellation: CancellationToken(),
+          ),
+        );
+    expect((jsonDecode(output.text) as Map)['status'], 'updated');
+    final current = (await db.select(db.memoryEntries).get()).single;
+    expect(current.goalId, goal.id);
+    expect(current.conflictKey, '原主题');
+    expect(current.expiresAt, expiry);
+  });
+  test('同来源的不同记忆独立保护，同主题矛盾不覆盖原事实', () async {
+    final repository = DriftMemoryRepository(db, clock: () => now);
+    Map<String, Object?> entry(String id, String content, String key) => {
+      'id': id,
+      'content': content,
+      'kind': 'preference',
+      'certainty': 'stated',
+      'source': '同一条用户消息',
+      'conflictKey': key,
+    };
+    await repository.saveMemory(entry('first', '喜欢上午学习', '学习时间'));
+    await repository.forgetMemory('first');
+    expect(await repository.saveMemory(entry('second', '喜欢安静的环境', '学习环境')), {
+      'status': 'created',
+      'id': 'second',
+    });
+    expect(await repository.saveMemory(entry('third', '喜欢热闹的环境', '学习环境')), {
+      'status': 'pending',
+      'id': 'third',
+    });
+    final core = await repository.coreMemory();
+    expect(core, contains('喜欢安静的环境'));
+    expect(core, isNot(contains('喜欢热闹的环境')));
+  });
+  test('记忆选择固定编号，批量删除原子校验、按会话隔离并可幂等重试', () async {
+    final repository = DriftMemoryRepository(db, clock: () => now);
+    await db
+        .into(db.assistantSessions)
+        .insert(
+          AssistantSessionsCompanion.insert(
+            id: 'session-a',
+            title: '测试',
+            createdAt: now.millisecondsSinceEpoch,
+            updatedAt: now.millisecondsSinceEpoch,
+          ),
+        );
+    await db
+        .into(db.assistantSessionRecords)
+        .insert(
+          AssistantSessionRecordsCompanion.insert(
+            sessionId: 'session-a',
+            sequence: 0,
+            timestamp: now.millisecondsSinceEpoch,
+            type: 'message_added',
+            data: jsonEncode({
+              'message': {
+                'id': 'user-a',
+                'role': 'user',
+                'content': [
+                  {'type': 'text', 'text': '删除第1、3条'},
+                ],
+              },
+            }),
+          ),
+        );
+    for (var i = 1; i <= 9; i++) {
+      await repository.saveMemory({
+        'id': 'memory-$i',
+        'content': '偏好$i',
+        'kind': 'preference',
+        'certainty': 'stated',
+        'source': 'source-$i',
+        'conflictKey': 'key-$i',
+      });
+    }
+    final selection = await repository.selectMemory(
+      sessionId: 'session-a',
+      selectionId: 'selection-a',
+    );
+    final items = (selection['items'] as List).cast<Map<String, Object?>>();
+    expect(items, hasLength(9));
+    expect(items.first['itemId'], '1');
+    final firstId = items[0]['id'] as String;
+    final thirdId = items[2]['id'] as String;
+    await expectLater(
+      repository.forgetSelection(
+        sessionId: 'session-a',
+        sourceMessageId: 'missing-user',
+        selectionId: 'selection-a',
+        itemIds: ['1'],
+        operationId: 'missing-source',
+      ),
+      throwsArgumentError,
+    );
+    await expectLater(
+      repository.previewForget(
+        sessionId: 'session-b',
+        selectionId: 'selection-a',
+        itemIds: ['1'],
+      ),
+      throwsArgumentError,
+    );
+    final changedId = items[1]['id'] as String;
+    await repository.saveMemory({
+      'id': changedId,
+      'content': '更新后的偏好',
+      'kind': 'preference',
+      'certainty': 'stated',
+      'source': 'edited',
+      'conflictKey': 'edited',
+    }, userEdited: true);
+    final blocked = await repository.forgetSelection(
+      sessionId: 'session-a',
+      sourceMessageId: 'user-a',
+      selectionId: 'selection-a',
+      itemIds: ['1', '2'],
+      operationId: 'batch-blocked',
+    );
+    expect(blocked['status'], 'blocked');
+    expect(
+      (await db.select(db.memoryEntries).get()).where(
+        (entry) => entry.forgotten,
+      ),
+      isEmpty,
+    );
+    final result = await repository.forgetSelection(
+      sessionId: 'session-a',
+      sourceMessageId: 'user-a',
+      selectionId: 'selection-a',
+      itemIds: ['1', '3'],
+      operationId: 'batch-ok',
+    );
+    expect(result['status'], 'success');
+    expect(result['counts'], {'requested': 2, 'changed': 2});
+    expect(
+      await repository.forgetSelection(
+        sessionId: 'session-a',
+        sourceMessageId: 'user-a',
+        selectionId: 'selection-a',
+        itemIds: ['1', '3'],
+        operationId: 'batch-ok',
+      ),
+      result,
+    );
+    final forgotten = (await db.select(db.memoryEntries).get())
+        .where((entry) => entry.forgotten)
+        .map((entry) => entry.id)
+        .toSet();
+    expect(forgotten, {firstId, thirdId});
+    await expectLater(
+      repository.forgetSelection(
+        sessionId: 'session-a',
+        sourceMessageId: 'user-a',
+        selectionId: 'selection-a',
+        itemIds: ['1'],
+        operationId: 'batch-ok',
+      ),
+      throwsA(isA<EvidenceConflict>()),
+    );
+    final repeated = await repository.selectMemory(
+      sessionId: 'session-a',
+      selectionId: 'selection-a',
+    );
+    expect((repeated['items'] as List).length, 9);
+  });
+  test('100条记忆一次清理，结果保留全部明细并按20条分页', () async {
+    final repository = DriftMemoryRepository(db, clock: () => now);
+    await db
+        .into(db.assistantSessions)
+        .insert(
+          AssistantSessionsCompanion.insert(
+            id: 'batch-session',
+            title: '测试',
+            createdAt: now.millisecondsSinceEpoch,
+            updatedAt: now.millisecondsSinceEpoch,
+          ),
+        );
+    await db
+        .into(db.assistantSessionRecords)
+        .insert(
+          AssistantSessionRecordsCompanion.insert(
+            sessionId: 'batch-session',
+            sequence: 0,
+            timestamp: now.millisecondsSinceEpoch,
+            type: 'message_added',
+            data: jsonEncode({
+              'message': {
+                'id': 'batch-user',
+                'role': 'user',
+                'content': [
+                  {'type': 'text', 'text': '全部删除'},
+                ],
+              },
+            }),
+          ),
+        );
+    for (var i = 0; i < 100; i++) {
+      await repository.saveMemory({
+        'id': 'batch-$i',
+        'content': '批量测试$i',
+        'kind': 'fact',
+        'certainty': 'stated',
+        'source': '源$i',
+        'conflictKey': '主题$i',
+      });
+    }
+    final selection = await repository.selectMemory(
+      sessionId: 'batch-session',
+      selectionId: 'batch-selection',
+      limit: 100,
+    );
+    final items = selection['items'] as List;
+    expect(items, hasLength(100));
+    final result = await repository.forgetSelection(
+      sessionId: 'batch-session',
+      sourceMessageId: 'batch-user',
+      selectionId: 'batch-selection',
+      itemIds: items.map((item) => item['itemId'] as String).toList(),
+      operationId: 'batch-operation',
+    );
+    expect(result['counts'], {'requested': 100, 'changed': 100});
+    expect((result['items'] as List), hasLength(20));
+    expect(result['page'], {'offset': 0, 'complete': false, 'nextOffset': 20});
+    final last = await repository.memoryOperation(
+      sessionId: 'batch-session',
+      operationId: 'batch-operation',
+      offset: 80,
+    );
+    expect((last['items'] as List), hasLength(20));
+    expect(last['page'], {'offset': 80, 'complete': true});
+    expect(
+      (await db.select(db.memoryEntries).get()).where(
+        (entry) => entry.forgotten,
+      ),
+      hasLength(100),
+    );
+    await expectLater(
+      repository.memoryOperation(
+        sessionId: 'other-session',
+        operationId: 'batch-operation',
+      ),
+      throwsArgumentError,
+    );
+  });
+  test('记忆索引默认截断长正文并可按需读取完整内容', () async {
+    final repository = DriftMemoryRepository(db, clock: () => now);
+    final content = List.filled(300, '测').join();
+    await repository.saveMemory({
+      'id': 'long-memory',
+      'content': content,
+      'kind': 'fact',
+      'certainty': 'stated',
+      'source': '用户',
+      'conflictKey': '主题',
+    });
+    final index = await repository.selectMemory(
+      sessionId: 'session',
+      selectionId: 'index',
+    );
+    final item = (index['items'] as List).single as Map;
+    expect(item['contentTruncated'], true);
+    expect((item['content'] as String).runes.length, 200);
+    expect(item['contentLength'], 300);
+    final detail = await repository.selectMemory(
+      sessionId: 'session',
+      selectionId: 'detail',
+      search: 'long-memory',
+      limit: 1,
+      fullContent: true,
+    );
+    expect(((detail['items'] as List).single as Map)['content'], content);
+  });
+  test('历史与排期操作回执只允许所属会话分页读取', () async {
+    final items = [
+      for (var i = 0; i < 23; i++) {'id': 'task-$i', 'code': 'cancelled'},
+    ];
+    await db
+        .into(db.operationReceipts)
+        .insert(
+          OperationReceiptsCompanion.insert(
+            id: 'session-a:history',
+            kind: 'completeHistory',
+            fingerprint: 'fingerprint',
+            entityId: 'goal',
+            resultJson: jsonEncode({
+              'status': 'success',
+              'operationId': 'session-a:history',
+              'issues': items,
+            }),
+            createdAt: now.millisecondsSinceEpoch,
+          ),
+        );
+    await db
+        .into(db.operationReceipts)
+        .insert(
+          OperationReceiptsCompanion.insert(
+            id: 'session-a:plan',
+            kind: 'planMissions',
+            fingerprint: 'fingerprint',
+            entityId: 'session-a:plan',
+            resultJson: jsonEncode({
+              'planId': 'session-a:plan',
+              'items': items,
+              'references': items,
+            }),
+            createdAt: now.millisecondsSinceEpoch,
+          ),
+        );
+    final tools = contextTools(
+      records: RecordService(records, missions, missions.attachments),
+      missions: missions,
+      memory: MemoryService(DriftMemoryRepository(db)),
+      analysis: DriftAnalysisStore(db),
+      analyze: (p, {imageKey, mime, json = false}) async => '',
+      web: WebService(
+        settings: const SecureWebSettings(),
+        quota: DriftSearchQuota(db),
+        fetchClient: () => throw StateError('不出网'),
+      ),
+      userStatement: () => '',
+    );
+    final tool = tools.firstWhere(
+      (item) => item.definition.name == 'getOperation',
+    );
+    final output = await tool.execute(
+      {'operationId': 'session-a:history', 'offset': 20},
+      ToolContext(
+        callId: 'read',
+        sessionId: 'session-a',
+        cancellation: CancellationToken(),
+      ),
+    );
+    final result = jsonDecode(output.text) as Map;
+    expect(result['issues'], hasLength(3));
+    expect(result['page'], {'offset': 20, 'complete': true});
+    final plan = await tool.execute(
+      {'operationId': 'session-a:plan', 'offset': 20},
+      ToolContext(
+        callId: 'read-plan',
+        sessionId: 'session-a',
+        cancellation: CancellationToken(),
+      ),
+    );
+    final planResult = jsonDecode(plan.text) as Map;
+    expect(planResult['items'], hasLength(3));
+    expect(planResult['page'], {'offset': 20, 'complete': true});
+    expect(planResult.containsKey('references'), isFalse);
+    await expectLater(
+      tool.execute(
+        {'operationId': 'session-a:history'},
+        ToolContext(
+          callId: 'read',
+          sessionId: 'session-b',
+          cancellation: CancellationToken(),
+        ),
+      ),
+      throwsA(isA<ToolRejected>()),
+    );
   });
   test('统一目标查询有界、同名候选、希望程度、任务详情不返回原图', () async {
     final goal = goals.prepareCreation(title: '学习', desireLevel: 4);

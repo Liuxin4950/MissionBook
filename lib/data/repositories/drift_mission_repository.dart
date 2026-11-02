@@ -132,6 +132,16 @@ WHERE m.cancelled_at IS NULL AND r.time_policy='FIXED'
   @override
   Future<List<MissionDetail>> findForGoal(String goalId) =>
       _queries.findForGoal(goalId);
+
+  @override
+  Future<List<MissionDetail>> findDetailsByIds(List<String> ids) =>
+      _queries.findDetailsByIds(ids);
+
+  @override
+  Future<List<MissionDetail>> findHistoryScope(
+    String goalId,
+    String beforeDate,
+  ) => _queries.findHistoryScope(goalId, beforeDate);
   Future<void> _acquireWrite(String missionId) async {
     // 显式在读取事实前执行写语句，字段值不变；同库连接受 SQLite 写锁约束。
     // 当前 Native/Wasm 驱动也使用 BEGIN IMMEDIATE，不能误认为 transaction 默认都为延迟事务。

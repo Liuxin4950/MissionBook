@@ -33,7 +33,10 @@ class _AssistantToolExecution {
       'reportExecution' ||
       'correctExecutionTime' => ('execution_report', input['missionId']),
       'saveMemory' => ('memory_save', input['id'] ?? commandId),
-      'forgetMemory' => ('memory_forget', input['id']),
+      'manageMemory' => (
+        'memory_forget_batch',
+        idempotencyKey.substring(0, idempotencyKey.lastIndexOf(':')),
+      ),
       'retryAnalysis' => ('analysis_retry', input['id']),
       _ => null,
     };
@@ -49,16 +52,50 @@ class _AssistantToolExecution {
           return null;
         }
       }
+      if (toolName == 'manageMemory' && _tools._memory != null) {
+        return ToolOutput.success(
+          jsonEncode(
+            await _tools._memory.operation(
+              sessionId: receiptTarget.$2 as String,
+              operationId: commandId,
+            ),
+          ),
+        );
+      }
       return ToolOutput.success(receipt!.resultJson);
     }
     switch (toolName) {
       case 'completeHistory':
+        final receipt = await _tools._missions.findOperationReceipt(
+          idempotencyKey,
+        );
+        return receipt?.kind == toolName
+            ? ToolOutput.success(
+                jsonEncode(
+                  historyOperationPage(
+                    Map<String, Object?>.from(
+                      jsonDecode(receipt!.resultJson) as Map,
+                    ),
+                    0,
+                  ),
+                ),
+              )
+            : null;
       case 'planMissions':
         final receipt = await _tools._missions.findOperationReceipt(
           idempotencyKey,
         );
         return receipt?.kind == toolName
-            ? ToolOutput.success(receipt!.resultJson)
+            ? ToolOutput.success(
+                jsonEncode(
+                  planOperationPage(
+                    Map<String, Object?>.from(
+                      jsonDecode(receipt!.resultJson) as Map,
+                    ),
+                    0,
+                  ),
+                ),
+              )
             : null;
       case 'updateGoal':
       case 'updateGoalNode':
@@ -151,11 +188,13 @@ class _AssistantToolExecution {
         context.idempotencyKey,
       );
       final receipt = await _tools._missions.applyPlan(plan);
-      return ToolOutput.success(receipt.resultJson);
-    } on ScheduleConflictException catch (error) {
-      throw ToolRejected(
-        'plan_conflict',
-        userErrorMessage(error, fallback: '整份计划未保存，请重试'),
+      return ToolOutput.success(
+        jsonEncode(
+          planOperationPage(
+            Map<String, Object?>.from(jsonDecode(receipt.resultJson) as Map),
+            0,
+          ),
+        ),
       );
     } on MissionEditConflict catch (error) {
       throw ToolRejected(
@@ -186,9 +225,17 @@ class _AssistantToolExecution {
           statement: prepared.input['statement'] as String,
           originals:
               prepared.snapshot['historyMissions'] as List<MissionDetail>,
+          excluded: prepared.snapshot['historyExcluded'] as List<MissionDetail>,
         ),
       );
-      return ToolOutput.success(receipt.resultJson);
+      return ToolOutput.success(
+        jsonEncode(
+          historyOperationPage(
+            Map<String, Object?>.from(jsonDecode(receipt.resultJson) as Map),
+            0,
+          ),
+        ),
+      );
     } on ExecutionConflict catch (error) {
       throw ToolRejected(
         'history_changed',

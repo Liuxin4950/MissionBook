@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../../application/assistant/assistant_controller.dart';
 import '../../core/theme/colors.dart';
 import '../../domain/entities/mission.dart';
+import '../../domain/entities/mission_detail.dart';
+import '../../domain/rules/historical_completion_rules.dart';
 import 'assistant_schedule_card.dart';
 import 'assistant_outline_editor.dart';
 import '../../application/assistant/assistant_goal_outline.dart';
@@ -34,6 +36,12 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
   @override
   Widget build(BuildContext context) {
     final operation = widget.operation;
+    final receiptCounts = _ResultDetails._decode(operation.output)?['counts'];
+    final skippedCount = operation.historySkippedCount > 0
+        ? operation.historySkippedCount
+        : receiptCounts is Map
+        ? (receiptCounts['skipped'] as int? ?? 0)
+        : 0;
     if (operation.toolName == 'planMissions') {
       return AssistantScheduleCard(
         controller: widget.controller,
@@ -161,16 +169,20 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                           Icons.task_alt,
                           size: AppLayout.iconSm,
                         ),
-                        label: Text(
-                          '${operation.historyMissions.isEmpty ? (_ResultDetails._decode(operation.output)?['completedCount'] ?? 0) : operation.historyMissions.length} 项补记完成',
-                        ),
+                        label: Text(switch (operation.status) {
+                          AssistantOperationStatus.succeeded =>
+                            '${_ResultDetails._decode(operation.output)?['completedCount'] ?? 0} 项已补记',
+                          AssistantOperationStatus.waitingConfirmation =>
+                            '${operation.historyMissions.length} 项待补记',
+                          AssistantOperationStatus.running =>
+                            '${operation.historyMissions.length} 项正在补记',
+                          AssistantOperationStatus.unknown => '补记结果待核对',
+                          AssistantOperationStatus.failed => '未能补记',
+                          AssistantOperationStatus.cancelled => '已取消补记',
+                        }),
                       ),
-                      if (operation.historySkippedCount > 0)
-                        Chip(
-                          label: Text(
-                            '${operation.historySkippedCount} 项保留原记录',
-                          ),
-                        ),
+                      if (skippedCount > 0)
+                        Chip(label: Text('$skippedCount 项保留原记录')),
                     ],
                   ),
                   if (operation.historyMissions.isNotEmpty)
@@ -183,17 +195,14 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                         top: AppLayout.spaceSm,
                       ),
                       title: const Text('查看本批任务'),
+                      children: [_historyList(operation.historyMissions)],
+                    ),
+                  if (operation.historyExcluded.isNotEmpty)
+                    AppExpansionTile(
+                      insetHeader: false,
+                      title: const Text('查看跳过原因'),
                       children: [
-                        for (final detail in operation.historyMissions.take(20))
-                          ListTile(
-                            dense: true,
-                            title: Text(detail.mission.title),
-                            subtitle: Text(detail.schedule.scheduledDate),
-                          ),
-                        if (operation.historyMissions.length > 20)
-                          Text(
-                            '共 ${operation.historyMissions.length} 项，按以上日期范围处理',
-                          ),
+                        _historyList(operation.historyExcluded, skipped: true),
                       ],
                     ),
                 ],
@@ -240,11 +249,38 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
     );
   }
 
+  Widget _historyList(List<MissionDetail> details, {bool skipped = false}) =>
+      SizedBox(
+        height: details.length < 4 ? details.length * 72.0 : 288,
+        child: ListView.builder(
+          primary: false,
+          itemCount: details.length,
+          itemBuilder: (context, index) {
+            final detail = details[index];
+            final reason = switch (historicalCompletionSkipReason(detail)) {
+              'cancelled' => '已取消',
+              'already_ended' => '已结束',
+              'required_evidence' => '要求材料',
+              'optional_evidence' => '需处理可选材料',
+              _ => '当前阶段不支持补记',
+            };
+            return ListTile(
+              dense: true,
+              title: Text(detail.mission.title),
+              subtitle: Text(skipped ? reason : detail.schedule.scheduledDate),
+            );
+          },
+        ),
+      );
+
   List<Widget> _summaryRows(AssistantOperation operation) {
     final rows = <(String, String)>[];
     final before = operation.missionBefore;
     if (operation.targetTitle != null) {
-      rows.add(('原名称', operation.targetTitle!));
+      rows.add((
+        operation.toolName == 'manageMemory' ? '所选记忆' : '原名称',
+        operation.targetTitle!,
+      ));
     }
     if (before != null) rows.add(('任务', before.mission.title));
     if (before != null &&
@@ -927,6 +963,7 @@ String _toolLabel(String name) => switch (name) {
   'getGoal' => '读取目标与分层摘要',
   'getRecord' => '读取记录',
   'getMemory' => '读取助手记忆',
+  'getOperation' => '读取操作回执',
   'saveRecord' => '保存记录',
   'setRecordOwnership' => '设置记录归属',
   'useRecordAsMaterial' => '提交记录材料',
@@ -934,7 +971,7 @@ String _toolLabel(String name) => switch (name) {
   'correctExecutionTime' => '更正实际日期与时段',
   'startMakeup' => '现在补做并保留原排期',
   'saveMemory' => '保存助手记忆',
-  'forgetMemory' => '忘记指定记忆',
+  'manageMemory' => '清理所选记忆',
   'retryAnalysis' => '更新分析摘要',
   'searchWeb' => '搜索实时信息',
   'fetchWeb' => '读取来源网页',

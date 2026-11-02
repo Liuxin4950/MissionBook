@@ -1,6 +1,7 @@
 import '../../domain/rules/content_rules.dart';
 import '../../domain/entities/content_draft.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
@@ -176,6 +177,17 @@ class MissionService {
     return receipt;
   }
 
+  Future<List<MissionDetail>> findHistoryScope(
+    String goalId,
+    String beforeDate,
+  ) {
+    final Object source = repository;
+    if (source is! HistoricalCompletionRepository) {
+      throw StateError('当前存储不支持历史补记');
+    }
+    return source.findHistoryScope(goalId, beforeDate);
+  }
+
   Future<List<MissionDetail>> findActive() => repository.findActive();
   Future<List<MissionGoalChoices>> findGoalChoices() =>
       repository.findGoalChoices();
@@ -191,6 +203,12 @@ class MissionService {
   /// Agent 快照只读取事实，不触发截止补算或其他维护写入。
   Future<List<MissionDetail>> findForGoal(String goalId) =>
       repository.findForGoal(goalId);
+
+  Future<List<MissionDetail>> findDetailsByIds(List<String> ids) {
+    final Object source = repository;
+    if (source is! MissionQueryRepository) throw StateError('当前存储不支持批量查询任务');
+    return source.findDetailsByIds(ids);
+  }
 
   Future<List<MissionDetail>> findFinished() => repository.findFinished();
 
@@ -733,7 +751,9 @@ class MissionService {
     final receipt = await (source as ScheduleProposalRepository).applyPlan(
       plan,
     );
-    _notify();
+    if ((jsonDecode(receipt.resultJson) as Map)['status'] != 'blocked') {
+      _notify();
+    }
     return receipt;
   }
 

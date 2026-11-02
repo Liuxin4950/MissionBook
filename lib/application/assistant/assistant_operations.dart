@@ -5,6 +5,15 @@ class _AssistantOperations {
   _AssistantOperations(this._controller);
   final AssistantController _controller;
 
+  bool _hasHistorySource(Map<String, Object?> input) {
+    final statement = (input['statement'] as String?)?.trim() ?? '';
+    if (statement.isEmpty) return false;
+    return _controller._session?.transcript.whereType<UserMessage>().any(
+          (message) => message.text.contains(statement),
+        ) ??
+        false;
+  }
+
   bool get canContinueInterrupted => _controller.canContinueInterrupted;
   bool get initialized => _controller.initialized;
   bool get initializing => _controller.initializing;
@@ -68,6 +77,14 @@ class _AssistantOperations {
   String? updateProposal(String callId, Map<String, Object?> input) {
     final pending = _controller._pending[callId];
     if (pending == null || pending.decided) return '这份提案已失效，请重新检查';
+    if (pending.operation.toolName == 'completeHistory' &&
+        !_hasHistorySource(input)) {
+      return '补记依据必须来自本会话的用户原话';
+    }
+    if (pending.operation.toolName == 'manageMemory' &&
+        jsonEncode(input) != jsonEncode(pending.prepared.input)) {
+      return '选择范围变化后需要重新查询并提出操作';
+    }
     if (pending.operation.toolName == 'planMissions') {
       final oldItems = {
         for (final item in AssistantScheduleService.rows(
@@ -144,6 +161,10 @@ class _AssistantOperations {
   String? confirmProposal(String callId) {
     final pending = _controller._pending[callId];
     if (pending == null || pending.decided) return '这份提案已失效，请重新检查';
+    if (pending.operation.toolName == 'completeHistory' &&
+        !_hasHistorySource(pending.prepared.input)) {
+      return '补记依据必须来自本会话的用户原话';
+    }
     if (pending.operation.toolName == 'planMissions' &&
         (!pending.operation.planPreviewReady ||
             pending.operation.planChecking ||
@@ -179,7 +200,10 @@ class _AssistantOperations {
     CancellationToken cancellation,
   ) async {
     final toolName = tool.name;
-    final isWrite = AssistantTools.writeToolNames.contains(toolName);
+    if (toolName == 'completeHistory' && !_hasHistorySource(call.input)) {
+      return const ToolDecision.deny('补记依据必须来自本会话的用户原话');
+    }
+    final isWrite = _controller._tools.isWriteTool(toolName);
     if (!isWrite &&
         !_controller._settings.permissionMode.requiresConfirmation(
           isWrite: false,
@@ -188,7 +212,11 @@ class _AssistantOperations {
     }
     final PreparedToolCall prepared;
     try {
-      prepared = await _controller._tools.prepare(tool.name, call.input);
+      prepared = await _controller._tools.prepare(
+        tool.name,
+        call.input,
+        sessionId: _controller.currentSessionId,
+      );
     } on ToolRejected catch (error) {
       return ToolDecision.deny(error.message);
     }
@@ -202,6 +230,9 @@ class _AssistantOperations {
           const []
       ..historySkippedCount =
           prepared.snapshot['historySkippedCount'] as int? ?? 0
+      ..historyExcluded =
+          prepared.snapshot['historyExcluded'] as List<MissionDetail>? ??
+          const []
       ..missionBefore = prepared.snapshot['detail'] as MissionDetail?
       ..status = AssistantOperationStatus.waitingConfirmation;
     if (toolName == 'planMissions') {
@@ -243,6 +274,7 @@ class _AssistantOperations {
         callId: call.id,
         toolName: call.name,
         input: call.input,
+        isWrite: _controller._tools.isWriteTool(call.name),
       );
 
   void _refreshOperations() {
@@ -266,11 +298,20 @@ class _AssistantOperations {
         operation.error =
             resolved?.errorCode ??
             (resolved == null ? message.errorCode : null);
+        var resultBlocked = false;
+        if (operation.error == null) {
+          try {
+            final decoded = jsonDecode(operation.output ?? '');
+            resultBlocked = decoded is Map && decoded['status'] == 'blocked';
+          } on FormatException {
+            // 文本结果不含结构化业务状态。
+          }
+        }
         operation.status = switch (operation.error) {
           'outcome_unknown' => AssistantOperationStatus.unknown,
           'permission_denied' => AssistantOperationStatus.cancelled,
           null =>
-            (resolved?.isError ?? message.isError)
+            ((resolved?.isError ?? message.isError) || resultBlocked)
                 ? AssistantOperationStatus.failed
                 : AssistantOperationStatus.succeeded,
           _ => AssistantOperationStatus.failed,

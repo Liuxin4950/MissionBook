@@ -36,7 +36,7 @@ class AssistantScheduleService {
       'items': {
         'type': 'array',
         'minItems': 1,
-        'maxItems': 20,
+        'maxItems': 100,
         'items': {
           'type': 'object',
           'additionalProperties': false,
@@ -94,7 +94,7 @@ class AssistantScheduleService {
   static String? validate(Map<String, Object?> input) {
     if ((input['title'] as String).trim().isEmpty) return '请填写计划名称';
     final items = rows(input);
-    if (items.isEmpty || items.length > 20) return '每份计划需要 1–20 项安排';
+    if (items.isEmpty || items.length > 100) return '每份计划需要 1–100 项安排';
     final ids = <String>{};
     final missions = <String>{};
     for (final item in items) {
@@ -153,11 +153,17 @@ class AssistantScheduleService {
     if (error != null) throw ArgumentError(error);
     final items = rows(input);
     final originals = <String, MissionDetail>{};
+    final requestedIds = [
+      for (final item in items)
+        if (item['kind'] == 'RESCHEDULE') item['missionId'] as String,
+    ];
+    final details = requestedIds.isEmpty
+        ? <MissionDetail>[]
+        : await _missions.findDetailsByIds(requestedIds);
+    final byId = {for (final detail in details) detail.mission.id: detail};
     for (final item in items) {
       if (item['kind'] == 'RESCHEDULE') {
-        final detail = await _missions.findDetail(
-          missionId: item['missionId'] as String,
-        );
+        final detail = byId[item['missionId']];
         if (detail == null) throw ArgumentError('计划中的任务已不存在');
         if (detail.events.isNotEmpty || detail.mission.cancelledAt != null) {
           throw ArgumentError('“${detail.mission.title}”已经开始或取消，不能改期');

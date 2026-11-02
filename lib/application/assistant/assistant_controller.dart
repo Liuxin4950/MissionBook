@@ -78,6 +78,7 @@ class AssistantOperation {
     required this.callId,
     required this.toolName,
     required this.input,
+    this.isWrite = true,
   });
 
   final String callId;
@@ -89,6 +90,7 @@ class AssistantOperation {
   MissionDetail? missionBefore;
   String? targetTitle;
   List<MissionDetail> historyMissions = const [];
+  List<MissionDetail> historyExcluded = const [];
   int historySkippedCount = 0;
   List<ScheduleConflict> planConflicts = const [];
   Map<String, MissionDetail> planOriginals = const {};
@@ -96,7 +98,7 @@ class AssistantOperation {
   bool planPreviewReady = false;
   String? planPreviewError;
 
-  bool get isWrite => AssistantTools.writeToolNames.contains(toolName);
+  final bool isWrite;
 }
 
 class _PendingAuthorization {
@@ -161,7 +163,15 @@ class AssistantController extends ChangeNotifier {
               web: web,
               analyze: analyzeOnDemand,
               snapshot: (id) => _preparedCalls[id]?.snapshot ?? const {},
-              userStatement: () => _lastUserInput ?? '',
+              userStatement: () =>
+                  _session?.transcript
+                      .whereType<UserMessage>()
+                      .lastOrNull
+                      ?.text ??
+                  _lastUserInput ??
+                  '',
+              userMessageId: () =>
+                  _session?.transcript.whereType<UserMessage>().lastOrNull?.id,
             )
           : const [],
       clock: _clock,

@@ -3,7 +3,6 @@ import 'package:agent_core/agent_core.dart';
 import '../../domain/entities/evidence.dart';
 import '../../domain/entities/execution_command.dart';
 import '../../domain/entities/mission_detail.dart';
-import '../../domain/entities/schedule_proposal.dart';
 
 /// 保留业务拒绝的中文原因；平台、路径、响应正文和凭据使用操作级兜底文案。
 String userErrorMessage(Object error, {required String fallback}) {
@@ -11,7 +10,6 @@ String userErrorMessage(Object error, {required String fallback}) {
     EvidenceConflict value => value.message,
     ExecutionConflict value => value.message,
     MissionEditConflict value => value.message,
-    ScheduleConflictException value => value.toString(),
     ToolRejected value => value.message,
     ArgumentError value => value.message,
     StateError value => value.message,

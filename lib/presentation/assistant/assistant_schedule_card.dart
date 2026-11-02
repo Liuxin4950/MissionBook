@@ -162,6 +162,13 @@ class AssistantScheduleCard extends StatelessWidget {
               ),
             ],
           ),
+          if (success &&
+              result?['page'] is Map &&
+              (result!['page'] as Map)['complete'] == false)
+            const Padding(
+              padding: EdgeInsets.only(top: AppLayout.spaceSm),
+              child: Text('已保存全部条目；当前展示前20项的任务入口，其余可通过操作回执查看。'),
+            ),
           const SizedBox(height: AppLayout.spaceLg),
           for (var index = 0; index < items.length; index++) ...[
             if (index > 0) const SizedBox(height: AppLayout.spaceMd),
@@ -172,7 +179,31 @@ class AssistantScheduleCard extends StatelessWidget {
               padding: EdgeInsets.only(top: AppLayout.spaceMd),
               child: LinearProgressIndicator(minHeight: 2),
             ),
-          if (operation.planPreviewError != null || failed)
+          if (failed &&
+              result?['status'] == 'blocked' &&
+              result?['issues'] is List)
+            Padding(
+              padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '存在时间冲突，本次没有保存任何任务。',
+                    style: TextStyle(color: AppColors.error),
+                  ),
+                  for (final issue in result!['issues'] as List)
+                    if (issue is Map)
+                      Text(
+                        '${issue['itemId']}：${issue['message']}',
+                        style: const TextStyle(color: AppColors.error),
+                      ),
+                  if (result['page'] is Map &&
+                      (result['page'] as Map)['complete'] == false)
+                    const Text('其余冲突可通过操作回执继续查看。'),
+                ],
+              ),
+            )
+          else if (operation.planPreviewError != null || failed)
             Padding(
               padding: const EdgeInsets.only(top: AppLayout.spaceMd),
               child: Text(

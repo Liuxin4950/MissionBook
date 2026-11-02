@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/application/assistant/assistant_schedule.dart';
+import 'package:mission_book/application/assistant/assistant_operation_result.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
@@ -122,43 +123,100 @@ void main() {
     await seed('跨日任务', start: '23:30');
     final crossing = await build([
       createRow('next-day', date: '2026-10-30', start: '00:00'),
-    ]);
+    ], id: 'crossing');
     expect(await missions.checkPlan(crossing), isNotEmpty);
-    await expectLater(
-      missions.applyPlan(crossing),
-      throwsA(isA<ScheduleConflictException>()),
+    expect(
+      (jsonDecode((await missions.applyPlan(crossing)).resultJson)
+          as Map)['status'],
+      'blocked',
     );
     final internal = await build([
       createRow('one', start: '09:00'),
       createRow('two', start: '09:30'),
-    ]);
+    ], id: 'internal');
     expect(await missions.checkPlan(internal), hasLength(2));
-    await expectLater(
-      missions.applyPlan(internal),
-      throwsA(isA<ScheduleConflictException>()),
+    expect(
+      (jsonDecode((await missions.applyPlan(internal)).resultJson)
+          as Map)['status'],
+      'blocked',
     );
     expect(await database.select(database.missions).get(), hasLength(1));
     final adjacent = await build([
       createRow('one', start: '09:00'),
       createRow('two', start: '09:50'),
-    ]);
+    ], id: 'adjacent');
     expect(await missions.checkPlan(adjacent), isEmpty);
     await missions.applyPlan(adjacent);
   });
 
-  test('预览后出现新安排，提交时复查冲突且不产生任务与回执', () async {
+  test('100项计划完整检测所有已有冲突并整批回滚', () async {
+    for (var i = 0; i < 25; i++) {
+      await seed('已有安排$i', start: '09:00');
+    }
+    final plan = await build([
+      createRow('fixed', start: '09:00'),
+      for (var i = 1; i < 100; i++) createRow('item-$i'),
+    ]);
+    final conflicts = await missions.checkPlan(plan);
+    expect(conflicts.where((item) => item.itemId == 'fixed'), hasLength(25));
+    final blocked = await missions.applyPlan(plan);
+    expect((jsonDecode(blocked.resultJson) as Map)['status'], 'blocked');
+    final full = Map<String, Object?>.from(
+      jsonDecode(blocked.resultJson) as Map,
+    );
+    expect(full['issues'], hasLength(25));
+    expect(planOperationPage(full, 0)['issues'], hasLength(20));
+    expect(planOperationPage(full, 20)['issues'], hasLength(5));
+    expect(planOperationPage(full, 0)['status'], 'blocked');
+    expect(await database.select(database.missions).get(), hasLength(25));
+    expect(
+      (await missions.findOperationReceipt(plan.id))?.resultJson,
+      blocked.resultJson,
+    );
+
+    final valid = await build([
+      for (var i = 0; i < 100; i++) createRow('flex-$i'),
+    ], id: 'hundred-valid');
+    final receipt = await missions.applyPlan(valid);
+    expect((jsonDecode(receipt.resultJson) as Map)['savedCount'], 100);
+    expect((await missions.applyPlan(valid)).resultJson, receipt.resultJson);
+    expect(await database.select(database.missions).get(), hasLength(125));
+    final moved = await build([
+      for (final item in valid.items)
+        {
+          'itemId': 'move-${item.id}',
+          'kind': 'RESCHEDULE',
+          'missionId': item.missionId,
+          'scheduledDate': '2026-10-30',
+        },
+    ], id: 'hundred-move');
+    expect(moved.items, hasLength(100));
+    final movedReceipt = await missions.applyPlan(moved);
+    expect((jsonDecode(movedReceipt.resultJson) as Map)['savedCount'], 100);
+    final reloaded = await missions.findDetailsByIds(
+      valid.items.map((item) => item.missionId).toList(),
+    );
+    expect(reloaded, hasLength(100));
+    expect(
+      reloaded.every((detail) => detail.schedule.scheduledDate == '2026-10-30'),
+      isTrue,
+    );
+  });
+
+  test('预览后出现新安排，提交时复查冲突并记录零写入回执', () async {
     final plan = await build([
       createRow('one', start: '09:00'),
       createRow('two'),
     ]);
     expect(await missions.checkPlan(plan), isEmpty);
     await seed('后来新增的安排', start: '09:20');
-    await expectLater(
-      missions.applyPlan(plan),
-      throwsA(isA<ScheduleConflictException>()),
-    );
+    final blocked = await missions.applyPlan(plan);
+    expect((jsonDecode(blocked.resultJson) as Map)['status'], 'blocked');
     expect(await database.select(database.missions).get(), hasLength(1));
-    expect(await missions.findOperationReceipt(plan.id), isNull);
+    expect(
+      (await missions.findOperationReceipt(plan.id))?.resultJson,
+      blocked.resultJson,
+    );
   });
 
   test('后一项任务已开始时回滚前一项创建，保留原执行事实', () async {
@@ -269,6 +327,40 @@ void main() {
       AssistantScheduleService.rows(assistant.operations.single.input),
       hasLength(2),
     );
-    expect(jsonDecode(assistant.operations.single.output!)['savedCount'], 2);
+    expect(
+      jsonDecode(assistant.operations.single.output!)['counts']['changed'],
+      2,
+    );
+  });
+
+  test('完整权限遇到排期冲突返回阻塞回执并显示未保存', () async {
+    await seed('已有任务', start: '09:00');
+    final model = ScriptedModel([
+      (_) => toolResponse('conflict-plan', 'planMissions', {
+        'title': '测试冲突',
+        'items': [createRow('new', start: '09:00')],
+      }),
+      (_) => textResponse('该安排存在冲突。'),
+    ]);
+    controller = AssistantController(
+      unifiedReader: DriftUnifiedReader(database),
+      sessionStore: DriftSessionStore(database),
+      settingsStore: MemoryAssistantSettingsStore()
+        ..permissionMode = AssistantPermissionMode.full,
+      missions: missions,
+      goals: goals,
+      clock: () => now,
+      modelOverrides: {'deepseek-chat': model, 'deepseek': model},
+    );
+    final assistant = controller!;
+    await assistant.initialize();
+    await assistant.send('安排一个九点任务');
+    final operation = assistant.operations.single;
+    expect(operation.status, AssistantOperationStatus.failed);
+    final result = jsonDecode(operation.output!) as Map;
+    expect(result['status'], 'blocked');
+    expect((result['counts'] as Map)['changed'], 0);
+    expect((result['issues'] as List).single['code'], 'existing_overlap');
+    expect(await database.select(database.missions).get(), hasLength(1));
   });
 }

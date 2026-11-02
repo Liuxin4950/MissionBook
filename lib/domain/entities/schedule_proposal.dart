@@ -8,8 +8,8 @@ class ScheduleProposal {
     required this.id,
     required List<ScheduleProposalItem> items,
   }) : items = List.unmodifiable(items) {
-    if (id.trim().isEmpty || items.isEmpty || items.length > 20) {
-      throw ArgumentError('一份计划需要 1–20 项安排和固定操作编号');
+    if (id.trim().isEmpty || items.isEmpty || items.length > 100) {
+      throw ArgumentError('一份计划需要 1–100 项安排和固定操作编号');
     }
     if (items.map((item) => item.id).toSet().length != items.length ||
         items.map((item) => item.missionId).toSet().length != items.length) {
@@ -55,16 +55,13 @@ class ScheduleConflict {
     required this.itemId,
     required this.otherMissionId,
     required this.message,
+    this.otherItemId,
   });
 
   final String itemId;
   final String otherMissionId;
   final String message;
-}
 
-class ScheduleConflictException implements Exception {
-  ScheduleConflictException(this.conflicts);
-  final List<ScheduleConflict> conflicts;
-  @override
-  String toString() => conflicts.map((item) => item.message).join('；');
+  /// 计划内冲突时，对方在同份计划中的稳定条目编号。
+  final String? otherItemId;
 }

@@ -1,6 +1,7 @@
 import '../../domain/entities/record_draft.dart';
 import '../../domain/entities/analysis_scope.dart';
 import '../memory/memory_service.dart';
+import 'assistant_operation_result.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/execution_command.dart';
 import 'dart:convert';
@@ -23,6 +24,7 @@ List<AgentTool> contextTools({
   required AnalysisModel analyze,
   required WebService web,
   required String Function() userStatement,
+  String? Function()? userMessageId,
   Map<String, Object?> Function(String callId)? snapshot,
 }) {
   Map<String, Object?> s(String description) => {
@@ -294,12 +296,64 @@ List<AgentTool> contextTools({
     tool(
       'getMemory',
       '分页查询有效全局/目标记忆。过期约束默认排除；观察与用户明确陈述分别表达。',
-      {'goalId': s('目标ID'), 'search': s('关键词'), 'offset': offset},
-      (i, c) => memory.query(
-        goalId: i['goalId'] as String?,
-        search: i['search'] as String?,
-        offset: i['offset'] as int? ?? 0,
-      ),
+      {
+        'goalId': s('目标ID'),
+        'search': s('关键词'),
+        'offset': offset,
+        'limit': {
+          'type': 'integer',
+          'minimum': 1,
+          'maximum': 100,
+          'description': '每页条数；默认20，清理较多条目时可指定最多100',
+        },
+        'fullContent': {
+          'type': 'boolean',
+          'description': '按需读取完整正文，必须同时设置 limit=1',
+        },
+      },
+      (i, c) {
+        if (c.sessionId == null) throw ArgumentError('记忆查询需要当前会话');
+        return memory.select(
+          sessionId: c.sessionId!,
+          selectionId: 'memory-selection:${commandId(c)}',
+          goalId: i['goalId'] as String?,
+          search: i['search'] as String?,
+          offset: i['offset'] as int? ?? 0,
+          limit: i['limit'] as int? ?? 20,
+          fullContent: i['fullContent'] == true,
+        );
+      },
+    ),
+    tool(
+      'getOperation',
+      '按 operationId 分页读取当前会话中的记忆清理、历史补记或排期回执；每页最多20条。',
+      {'operationId': s('清理操作回执编号'), 'offset': offset},
+      (i, c) async {
+        if (c.sessionId == null) throw ArgumentError('查询操作回执需要当前会话');
+        final operationId = i['operationId'] as String;
+        final offset = i['offset'] as int? ?? 0;
+        if (operationId.startsWith('${c.sessionId}:')) {
+          final receipt = await missions.findOperationReceipt(operationId);
+          if (receipt?.kind == 'completeHistory') {
+            return historyOperationPage(
+              Map<String, Object?>.from(jsonDecode(receipt!.resultJson) as Map),
+              offset,
+            );
+          }
+          if (receipt?.kind == 'planMissions') {
+            return planOperationPage(
+              Map<String, Object?>.from(jsonDecode(receipt!.resultJson) as Map),
+              offset,
+            );
+          }
+        }
+        return memory.operation(
+          sessionId: c.sessionId!,
+          operationId: operationId,
+          offset: offset,
+        );
+      },
+      required: ['operationId'],
     ),
     tool(
       'startMakeup',
@@ -324,61 +378,97 @@ List<AgentTool> contextTools({
     ),
     tool(
       'saveMemory',
-      '保存有来源的长期偏好、事实、临时约束或待验证观察，不保存任务进度；用户明确更正优先。',
+      '保存有用户原话来源的稳定偏好、事实或有期限的约束；不保存推断、闲聊过程和任务进度。',
       {
         'id': s('修改已有条目时使用稳定ID'),
         'content': s('记忆正文'),
         'kind': {
           'type': 'string',
-          'enum': ['preference', 'fact', 'constraint', 'observation'],
+          'enum': ['preference', 'fact', 'constraint'],
         },
         'goalId': s('可选目标ID'),
         'certainty': {
           'type': 'string',
-          'enum': ['stated', 'unverified'],
+          'enum': ['stated'],
         },
         'conflictKey': s('稳定主题用于冲突检查'),
-        'basis': s('本轮用户原话；不确定观察用unverified'),
+        'basis': s('能核对该记忆的本轮用户原话'),
         'expiresAt': s('可选约束期限ISO8601'),
       },
       (i, c) async {
-        final stated = i['certainty'] == 'stated';
-        if (stated) explicitBasis(i['basis'] as String? ?? '');
+        explicitBasis(i['basis'] as String? ?? '');
         final id = i['id'] as String? ?? commandId(c);
-        await memory.save(
+        final version =
+            snapshot?.call(c.callId)['memoryVersion'] as Map<String, Object?>?;
+        if (i['id'] != null && version == null) {
+          throw const ToolRejected('stale_proposal', '更正前需要重新查询并固定原记忆');
+        }
+        return memory.save(
           {
             'id': id,
+            'expectedVersion': ?version,
             'content': i['content'],
             'kind': i['kind'],
-            'goalId': i['goalId'],
-            'certainty': stated ? 'stated' : 'unverified',
-            'conflictKey': i['conflictKey'] ?? i['content'],
+            'goalId': i.containsKey('goalId')
+                ? i['goalId']
+                : version?['goal_id'],
+            'certainty': 'stated',
+            'conflictKey':
+                i['conflictKey'] ?? version?['conflict_key'] ?? i['content'],
             'source': 'conversation:${c.sessionId}:${c.callId}',
             'expiresAt': i['expiresAt'] == null
-                ? null
+                ? (version?['expires_at'])
                 : DateTime.parse(
                     i['expiresAt'] as String,
                   ).millisecondsSinceEpoch,
           },
-          userEdited: stated && i['id'] != null,
+          userEdited: i['id'] != null,
           operationId: commandId(c),
         );
-        return {'saved': true, 'id': id};
       },
       write: true,
-      required: ['content', 'kind'],
+      required: ['content', 'kind', 'basis'],
     ),
     tool(
-      'forgetMemory',
-      '用户明确要求忘记指定记忆时使用，保留来源墓碑避免再次恢复。',
-      {'id': s('记忆ID'), 'basis': s('本轮用户明确要求忘记的原话')},
+      'manageMemory',
+      '用户明确要求清理已查询清单时，使用 getMemory 返回的 selectionId 和编号 itemId 批量忘记；不得将闲聊视为授权。清单发生变化时整批不执行。',
+      {
+        'action': {
+          'type': 'string',
+          'enum': ['forget'],
+        },
+        'selectionId': s('本会话 getMemory 返回的固定清单编号'),
+        'items': {
+          'type': 'array',
+          'minItems': 1,
+          'maxItems': 100,
+          'items': {
+            'type': 'object',
+            'properties': {'itemId': s('该清单中固定显示的编号')},
+            'required': ['itemId'],
+            'additionalProperties': false,
+          },
+        },
+      },
       (i, c) async {
-        explicitBasis(i['basis'] as String);
-        await memory.forget(i['id'] as String, operationId: commandId(c));
-        return {'forgotten': true};
+        final sourceMessageId = userMessageId?.call();
+        if (c.sessionId == null ||
+            sourceMessageId == null ||
+            userStatement().trim().isEmpty) {
+          throw const ToolRejected('user_basis_required', '记忆清理需要当前会话的用户请求');
+        }
+        return memory.forgetSelection(
+          sessionId: c.sessionId!,
+          sourceMessageId: sourceMessageId,
+          selectionId: i['selectionId'] as String,
+          itemIds: (i['items'] as List)
+              .map((item) => (item as Map)['itemId'] as String)
+              .toList(),
+          operationId: commandId(c),
+        );
       },
       write: true,
-      required: ['id', 'basis'],
+      required: ['action', 'selectionId', 'items'],
     ),
     tool(
       'retryAnalysis',

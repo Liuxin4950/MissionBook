@@ -10,17 +10,18 @@ class _MissionScheduling {
     final occupied = <ExistingScheduleSlot>[];
     final replacedIds = plan.items.map((item) => item.missionId).toList();
     final placeholders = List.filled(replacedIds.length, '?').join(',');
-    for (var index = 0; index < plan.items.length; index++) {
-      final item = plan.items[index];
-      final start = item.schedule.fixedStartAt;
-      if (start == null) continue;
-      final end = start.add(
-        Duration(minutes: item.schedule.plannedDurationMinutes),
-      );
-      // 只读取相交的当前排期，每项最多显示三条，不装配全日或全目标任务。
-      final rows = await _repository.database
-          .customSelect(
-            '''
+    final fixed = plan.items
+        .where((item) => item.schedule.fixedStartAt != null)
+        .toList();
+    if (fixed.isEmpty) return scheduleProposalConflicts(plan, occupied);
+    // 一次读取与任一提案时段相交的当前安排；不能静默隐藏第四项及后续冲突。
+    final windows = List.filled(
+      fixed.length,
+      '(s.fixed_start_at < ? AND s.fixed_start_at + s.planned_duration_minutes * 60000 > ?)',
+    ).join(' OR ');
+    final rows = await _repository.database
+        .customSelect(
+          '''
         SELECT m.id, substr(m.title, 1, 120) AS title, s.fixed_start_at AS conflict_start, s.planned_duration_minutes AS conflict_minutes
         FROM missions m JOIN mission_schedule_revisions s ON s.mission_id = m.id
         WHERE m.cancelled_at IS NULL AND s.fixed_start_at IS NOT NULL
@@ -29,30 +30,36 @@ class _MissionScheduling {
           AND NOT EXISTS (SELECT 1 FROM execution_events e
             WHERE e.mission_id = m.id AND e.type = 'END')
           AND m.id NOT IN ($placeholders)
-          AND s.fixed_start_at < ?
-          AND s.fixed_start_at + s.planned_duration_minutes * 60000 > ?
-        ORDER BY s.fixed_start_at, m.id LIMIT 3
+          AND ($windows)
+        ORDER BY s.fixed_start_at, m.id
       ''',
-            variables: [
-              for (final id in replacedIds) Variable<String>(id),
-              Variable<int>(end.millisecondsSinceEpoch),
-              Variable<int>(start.millisecondsSinceEpoch),
+          variables: [
+            for (final id in replacedIds) Variable<String>(id),
+            for (final item in fixed) ...[
+              Variable<int>(
+                item.schedule.fixedStartAt!
+                    .add(
+                      Duration(minutes: item.schedule.plannedDurationMinutes),
+                    )
+                    .millisecondsSinceEpoch,
+              ),
+              Variable<int>(item.schedule.fixedStartAt!.millisecondsSinceEpoch),
             ],
-          )
-          .get();
-      for (final row in rows) {
-        occupied.add(
-          ExistingScheduleSlot(
-            missionId: row.read<String>('id'),
-            title: row.read<String>('title'),
-            start: DateTime.fromMillisecondsSinceEpoch(
-              row.read<int>('conflict_start'),
-              isUtc: true,
-            ),
-            minutes: row.read<int>('conflict_minutes'),
+          ],
+        )
+        .get();
+    for (final row in rows) {
+      occupied.add(
+        ExistingScheduleSlot(
+          missionId: row.read<String>('id'),
+          title: row.read<String>('title'),
+          start: DateTime.fromMillisecondsSinceEpoch(
+            row.read<int>('conflict_start'),
+            isUtc: true,
           ),
-        );
-      }
+          minutes: row.read<int>('conflict_minutes'),
+        ),
+      );
     }
     return scheduleProposalConflicts(plan, occupied);
   }
@@ -70,7 +77,43 @@ class _MissionScheduling {
           return previous;
         }
         final conflicts = await _planConflicts(plan);
-        if (conflicts.isNotEmpty) throw ScheduleConflictException(conflicts);
+        if (conflicts.isNotEmpty) {
+          final result = jsonEncode({
+            'status': 'blocked',
+            'operationId': plan.id,
+            'planId': plan.id,
+            'counts': {
+              'requested': plan.items.length,
+              'changed': 0,
+              'rejected': plan.items.length,
+            },
+            'issues': [
+              for (final conflict in conflicts)
+                {
+                  'code': conflict.otherItemId == null
+                      ? 'existing_overlap'
+                      : 'plan_overlap',
+                  'itemId': conflict.itemId,
+                  'otherMissionId': conflict.otherMissionId,
+                  'otherItemId': ?conflict.otherItemId,
+                  'message': conflict.message,
+                },
+            ],
+          });
+          await _repository.database
+              .into(_repository.database.operationReceipts)
+              .insert(
+                OperationReceiptsCompanion.insert(
+                  id: plan.id,
+                  kind: 'planMissions',
+                  fingerprint: fingerprint,
+                  entityId: plan.id,
+                  resultJson: result,
+                  createdAt: _repository._now().millisecondsSinceEpoch,
+                ),
+              );
+          return (await _repository.findOperationReceipt(plan.id))!;
+        }
         for (final item in plan.items) {
           final creation = item.creation;
           if (creation != null) {

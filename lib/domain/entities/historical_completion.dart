@@ -8,11 +8,16 @@ class HistoricalCompletion {
     required this.beforeDate,
     required this.statement,
     required List<MissionDetail> originals,
-  }) : originals = List.unmodifiable(originals);
+    required List<MissionDetail> excluded,
+  }) : originals = List.unmodifiable(originals),
+       excluded = List.unmodifiable(excluded);
 
   final String id;
   final String goalId;
   final String beforeDate; // 不含这一天。
   final String statement; // 用户的补记依据，随事件保存。
   final List<MissionDetail> originals;
+
+  /// 预览时不符合补记条件的同范围任务，提交时也必须重新核对。
+  final List<MissionDetail> excluded;
 }

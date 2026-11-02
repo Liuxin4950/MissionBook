@@ -8,9 +8,10 @@ class _AssistantToolPreparation {
 
   Future<PreparedToolCall> prepare(
     String toolName,
-    Map<String, Object?> input,
-  ) async {
-    if (!AssistantTools.writeToolNames.contains(toolName)) {
+    Map<String, Object?> input, {
+    String? sessionId,
+  }) async {
+    if (!_tools.isWriteTool(toolName)) {
       return PreparedToolCall(input);
     }
     if ([
@@ -27,18 +28,68 @@ class _AssistantToolPreparation {
         snapshot: {'detail': detail, 'targetTitle': detail.mission.title},
       );
     }
-    if (toolName == 'forgetMemory' && _tools._memory != null) {
+    if (toolName == 'manageMemory' && _tools._memory != null) {
+      if (sessionId == null) {
+        throw const ToolRejected('invalid_selection', '缺少当前会话');
+      }
+      final Map<String, Object?> result;
+      try {
+        result = await _tools._memory.previewForget(
+          sessionId: sessionId,
+          selectionId: input['selectionId'] as String,
+          itemIds: (input['items'] as List)
+              .map((item) => (item as Map)['itemId'] as String)
+              .toList(),
+        );
+      } on ArgumentError catch (error) {
+        throw ToolRejected(
+          'invalid_selection',
+          error.message?.toString() ?? '无效选择',
+        );
+      }
+      if (result['status'] != 'ready') {
+        throw ToolRejected('invalid_selection', jsonEncode(result));
+      }
+      final items = result['items'] as List;
+      return PreparedToolCall(
+        input,
+        snapshot: {
+          'targetTitle': items
+              .map((item) => '${item['itemId']}. ${item['content']}')
+              .join('\n'),
+        },
+      );
+    }
+    if (toolName == 'saveMemory' &&
+        input['id'] != null &&
+        _tools._memory != null) {
       final result = await _tools._memory.query(
         search: input['id'] as String,
         includeExpired: true,
       );
       final target = (result['items'] as List<Map<String, Object?>>)
-          .where((e) => e['id'] == input['id'])
+          .where((entry) => entry['id'] == input['id'])
           .firstOrNull;
       if (target == null) throw const ToolRejected('not_found', '记忆不存在或已忘记');
+      const fields = [
+        'id',
+        'goal_id',
+        'kind',
+        'content',
+        'source',
+        'certainty',
+        'conflict_key',
+        'updated_at',
+        'expires_at',
+        'forgotten',
+        'user_edited',
+      ];
       return PreparedToolCall(
         input,
-        snapshot: {'targetTitle': target['content']},
+        snapshot: {
+          'targetTitle': target['content'],
+          'memoryVersion': {for (final field in fields) field: target[field]},
+        },
       );
     }
 
@@ -55,10 +106,12 @@ class _AssistantToolPreparation {
       }
       final goal = await _tools._goals.findById(input['goalId'] as String);
       if (goal == null) throw const ToolRejected('not_found', '目标不存在');
-      final all = await _tools._missions.findForGoal(goal.id);
-      final past = all
-          .where((d) => d.schedule.scheduledDate.compareTo(date) < 0)
-          .toList();
+      final List<MissionDetail> past;
+      try {
+        past = await _tools._missions.findHistoryScope(goal.id, date);
+      } on ArgumentError catch (error) {
+        throw ToolRejected('too_many', error.message?.toString() ?? '请缩小日期范围');
+      }
       final eligible =
           past
               .where(
@@ -70,18 +123,27 @@ class _AssistantToolPreparation {
               )
               .toList()
             ..sort((a, b) => a.mission.id.compareTo(b.mission.id));
-      if (eligible.isEmpty) {
-        throw const ToolRejected('no_candidates', '这个日期范围没有可处理的历史自报任务');
-      }
-      if (eligible.length > 10000) {
+      if (past.length > 10000) {
         throw const ToolRejected('too_many', '请缩小日期范围，每批最多10000项');
       }
+      final excluded =
+          past
+              .where(
+                (d) => !isHistoricalCompletionCandidate(
+                  d,
+                  beforeDate: date,
+                  goalId: goal.id,
+                ),
+              )
+              .toList()
+            ..sort((a, b) => a.mission.id.compareTo(b.mission.id));
       return PreparedToolCall(
         input,
         snapshot: {
           'targetTitle': goal.title,
           'historyMissions': eligible,
-          'historySkippedCount': past.length - eligible.length,
+          'historyExcluded': excluded,
+          'historySkippedCount': excluded.length,
         },
       );
     }

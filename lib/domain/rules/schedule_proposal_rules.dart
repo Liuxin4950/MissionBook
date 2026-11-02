@@ -70,6 +70,7 @@ List<ScheduleConflict> scheduleProposalConflicts(
         ScheduleConflict(
           itemId: item.id,
           otherMissionId: other.missionId,
+          otherItemId: other.id,
           message: '与计划内“${other.title}”时间重叠，请调整',
         ),
       );
@@ -77,6 +78,7 @@ List<ScheduleConflict> scheduleProposalConflicts(
         ScheduleConflict(
           itemId: other.id,
           otherMissionId: item.missionId,
+          otherItemId: item.id,
           message: '与计划内“${item.title}”时间重叠，请调整',
         ),
       );

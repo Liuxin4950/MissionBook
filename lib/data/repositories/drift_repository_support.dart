@@ -84,6 +84,51 @@ class DriftRepositorySupport {
     });
   }
 
+  /// 在同一事务中保存真实执行结果，重试时返回原回执。
+  Future<Map<String, Object?>> commandResult(
+    String? operationId,
+    String kind,
+    String entityId,
+    Map<String, Object?> input,
+    Future<Map<String, Object?>> Function() write,
+  ) async {
+    final fingerprint = sha256
+        .convert(utf8.encode(jsonEncode(input)))
+        .toString();
+    return db.transaction(() async {
+      await lock();
+      if (operationId != null) {
+        final saved = await (db.select(
+          db.operationReceipts,
+        )..where((t) => t.id.equals(operationId))).getSingleOrNull();
+        if (saved != null) {
+          if (saved.kind != kind ||
+              saved.fingerprint != fingerprint ||
+              saved.entityId != entityId) {
+            throw const EvidenceConflict('操作编号已用于不同请求');
+          }
+          return Map<String, Object?>.from(jsonDecode(saved.resultJson) as Map);
+        }
+      }
+      final result = await write();
+      if (operationId != null) {
+        await db
+            .into(db.operationReceipts)
+            .insert(
+              OperationReceiptsCompanion.insert(
+                id: operationId,
+                kind: kind,
+                fingerprint: fingerprint,
+                entityId: entityId,
+                resultJson: jsonEncode(result),
+                createdAt: clock().millisecondsSinceEpoch,
+              ),
+            );
+      }
+      return result;
+    });
+  }
+
   static Map<String, Object?> page(
     List<Map<String, Object?>> items,
     int total,

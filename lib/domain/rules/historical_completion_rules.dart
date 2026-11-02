@@ -20,3 +20,24 @@ bool isHistoricalCompletionCandidate(
     detail.mission.verificationPolicy == VerificationPolicy.selfReport &&
     detail.schedule.scheduledDate.compareTo(beforeDate) < 0 &&
     historicalCompletionPhases.contains(detail.phase);
+
+/// 同一范围内不补记的稳定原因；null 表示符合补记条件。
+String? historicalCompletionSkipReason(MissionDetail detail) {
+  if (detail.phase == MissionPhase.cancelled) return 'cancelled';
+  if (detail.phase == MissionPhase.closed ||
+      detail.phase == MissionPhase.evidencePending) {
+    return 'already_ended';
+  }
+  if (detail.mission.verificationPolicy ==
+      VerificationPolicy.requiredEvidence) {
+    return 'required_evidence';
+  }
+  if (detail.mission.verificationPolicy ==
+      VerificationPolicy.optionalEvidence) {
+    return 'optional_evidence';
+  }
+  if (!historicalCompletionPhases.contains(detail.phase)) {
+    return 'ineligible_phase';
+  }
+  return null;
+}

@@ -1,11 +1,14 @@
 import 'package:mission_book/data/assistant/drift_unified_reader.dart';
+import 'dart:convert';
 import 'package:mission_book/domain/entities/historical_completion.dart';
 import 'package:mission_book/domain/entities/mission_ownership.dart';
 import 'package:mission_book/domain/rules/execution_time_rules.dart';
 import 'package:drift/native.dart';
+import 'package:agent_core/agent_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/application/assistant/assistant_goal_outline.dart';
+import 'package:mission_book/application/assistant/assistant_operation_result.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
@@ -139,6 +142,199 @@ void main() {
     );
   });
 
+  test('模型编造历史完成依据时，即使完整权限也不能写入', () async {
+    final goalId = await seedHistory();
+    final ai = await controller('completeHistory', {
+      'goalId': goalId,
+      'beforeDate': '2026-10-29',
+      'statement': '这些课程我都已完成',
+    }, full: true);
+    await ai.send('你好');
+    expect(await db.select(db.executionEvents).get(), isEmpty);
+    final output = ai.transcript.whereType<ToolResultMessage>().single;
+    expect(output.isError, isTrue);
+  });
+
+  test('历史补记回执解释跳过原因，零候选仍保存完整范围结果', () async {
+    final goalId = await seedHistory();
+    final old = (await missions.findForGoal(goalId))
+        .where((d) => d.schedule.scheduledDate.compareTo('2026-10-29') < 0)
+        .toList();
+    await missions.cancel(missionId: old.first.mission.id);
+    await missions.create(
+      title: '需要材料',
+      scheduledDate: '2026-10-22',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 20,
+      verificationPolicy: VerificationPolicy.requiredEvidence,
+      verificationCriteria: '提交笔记',
+      evidenceDeadlineAt: now.add(const Duration(days: 1)),
+      ownership: MissionOwnership(goalId: goalId),
+    );
+    final ai = await controller('completeHistory', {
+      'goalId': goalId,
+      'beforeDate': '2026-10-29',
+      'statement': '这些课程我都完成了',
+    }, full: true);
+    await ai.send('这些课程我都完成了');
+    final output = ai.transcript.whereType<ToolResultMessage>().single;
+    expect(output.isError, isFalse);
+    final result = jsonDecode(output.text) as Map<String, dynamic>;
+    expect(result['counts'], {
+      'matched': 3,
+      'eligible': 1,
+      'changed': 1,
+      'skipped': 2,
+    });
+    expect((result['issues'] as List).map((issue) => issue['code']).toSet(), {
+      'cancelled',
+      'required_evidence',
+    });
+    expect(result['page']['complete'], isTrue);
+    final past = (await missions.findForGoal(goalId))
+        .where((d) => d.schedule.scheduledDate.compareTo('2026-10-29') < 0)
+        .toList();
+    final zero = await missions.completeHistory(
+      HistoricalCompletion(
+        id: 'zero',
+        goalId: goalId,
+        beforeDate: '2026-10-29',
+        statement: '这些课程我都完成了',
+        originals: const [],
+        excluded: past,
+      ),
+    );
+    final summary = jsonDecode(zero.resultJson) as Map<String, dynamic>;
+    expect(summary['counts'], {
+      'matched': 3,
+      'eligible': 0,
+      'changed': 0,
+      'skipped': 3,
+    });
+    expect((summary['issues'] as List).map((issue) => issue['code']).toSet(), {
+      'cancelled',
+      'required_evidence',
+      'already_ended',
+    });
+  });
+
+  test('历史补记预览后范围新增任务，整批不写入', () async {
+    final goalId = await seedHistory();
+    final originals = (await missions.findForGoal(goalId))
+        .where((d) => d.schedule.scheduledDate.compareTo('2026-10-29') < 0)
+        .toList();
+    final proposal = HistoricalCompletion(
+      id: 'stale-scope',
+      goalId: goalId,
+      beforeDate: '2026-10-29',
+      statement: '已完成',
+      originals: originals,
+      excluded: const [],
+    );
+    await missions.create(
+      title: '后来新增',
+      scheduledDate: '2026-10-23',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 10,
+      ownership: MissionOwnership(goalId: goalId),
+    );
+    await expectLater(missions.completeHistory(proposal), throwsA(anything));
+    expect(await db.select(db.executionEvents).get(), isEmpty);
+  });
+  test('历史补记预览后任务名称变化即使时间戳不变也拒绝', () async {
+    final goalId = await seedHistory();
+    final originals = (await missions.findForGoal(goalId))
+        .where((d) => d.schedule.scheduledDate.compareTo('2026-10-29') < 0)
+        .toList();
+    final proposal = HistoricalCompletion(
+      id: 'stale-title',
+      goalId: goalId,
+      beforeDate: '2026-10-29',
+      statement: '已完成',
+      originals: originals,
+      excluded: const [],
+    );
+    await db.customStatement('UPDATE missions SET title=? WHERE id=?', [
+      '已修改名称',
+      originals.first.mission.id,
+    ]);
+    await expectLater(missions.completeHistory(proposal), throwsA(anything));
+    expect(await db.select(db.executionEvents).get(), isEmpty);
+  });
+
+  test('历史范围按最新排期筛选，并在超过10000项时先拒绝', () async {
+    final goalId = await seedHistory();
+    final initial = await missions.findHistoryScope(goalId, '2026-10-29');
+    expect(initial, hasLength(2));
+    final moved = initial.first;
+    await db
+        .into(db.missionScheduleRevisions)
+        .insert(
+          MissionScheduleRevisionsCompanion.insert(
+            id: 'changed-schedule',
+            missionId: moved.mission.id,
+            revisionNumber: moved.schedule.revisionNumber + 1,
+            scheduledDate: '2026-11-02',
+            timeZone: 'Asia/Shanghai',
+            plannedDurationMinutes: 45,
+            changedAt: now.millisecondsSinceEpoch,
+          ),
+        );
+    final scope = await missions.findHistoryScope(goalId, '2026-10-29');
+    expect(scope, hasLength(1));
+    expect(scope.single.mission.id, isNot(moved.mission.id));
+
+    await db.customStatement(
+      '''WITH RECURSIVE n(i) AS (
+      SELECT 0 UNION ALL SELECT i+1 FROM n WHERE i<9999
+    ) INSERT INTO missions (id,title,goal_id,created_at,updated_at)
+      SELECT 'overflow-' || i,'测试',?,0,0 FROM n''',
+      [goalId],
+    );
+    await expectLater(
+      missions.findHistoryScope(goalId, '2026-10-29'),
+      throwsArgumentError,
+    );
+  });
+
+  test('历史补记跳过明细超过20条时完整保存并分页', () async {
+    final goal = goals.prepareCreation(title: '历史范围');
+    await goals.create(goal);
+    for (var i = 0; i < 25; i++) {
+      final task = missions.prepareCreation(
+        title: '已取消$i',
+        scheduledDate: '2026-10-20',
+        timeZone: 'Asia/Shanghai',
+        plannedDurationMinutes: 10,
+        ownership: MissionOwnership(goalId: goal.id),
+      );
+      await missions.createPrepared(task);
+      await missions.cancel(missionId: task.mission.id);
+    }
+    final ai = await controller('completeHistory', {
+      'goalId': goal.id,
+      'beforeDate': '2026-10-29',
+      'statement': '历史任务已完成',
+    }, full: true);
+    await ai.send('历史任务已完成');
+    final output = ai.transcript.whereType<ToolResultMessage>().single;
+    expect(output.isError, isFalse);
+    final first = Map<String, Object?>.from(jsonDecode(output.text) as Map);
+    expect((first['issues'] as List), hasLength(20));
+    expect(first['page'], {'offset': 0, 'complete': false, 'nextOffset': 20});
+    final receipt = (await missions.findOperationReceipt(
+      first['operationId'] as String,
+    ))!;
+    final full = Map<String, Object?>.from(
+      jsonDecode(receipt.resultJson) as Map,
+    );
+    expect((full['issues'] as List), hasLength(25));
+    final last = historyOperationPage(full, 20);
+    expect(last['issues'], hasLength(5));
+    expect(last['page'], {'offset': 20, 'complete': true});
+    expect(await db.select(db.executionEvents).get(), isEmpty);
+  });
+
   test('补记整批回滚；固定请求重试不重复写入', () async {
     final goalId = await seedHistory();
     final originals = (await missions.findForGoal(goalId))
@@ -150,6 +346,7 @@ void main() {
       beforeDate: '2026-10-29',
       statement: '用户补报已完成',
       originals: originals,
+      excluded: const [],
     );
     await db.customStatement(
       "CREATE TRIGGER reject_history BEFORE INSERT ON execution_events WHEN NEW.mission_id = '${originals.last.mission.id}' BEGIN SELECT RAISE(ABORT, 'rollback'); END",
@@ -175,6 +372,7 @@ void main() {
       beforeDate: '2026-10-29',
       statement: '已完成',
       originals: originals,
+      excluded: const [],
     );
     await missions.execute(
       missions.prepareExecution(
@@ -194,6 +392,7 @@ void main() {
         beforeDate: '2026-10-29',
         statement: '已完成',
         originals: originals,
+        excluded: const [],
       ),
     );
     final finished = await missions.findFinished();

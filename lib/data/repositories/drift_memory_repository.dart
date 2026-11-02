@@ -8,13 +8,295 @@ import 'drift_repository_support.dart';
 class DriftMemoryRepository extends DriftRepositorySupport
     implements MemoryRepository {
   DriftMemoryRepository(super.db, {super.clock});
+
+  static const _versionFields = [
+    'id',
+    'goal_id',
+    'kind',
+    'content',
+    'source',
+    'certainty',
+    'conflict_key',
+    'updated_at',
+    'expires_at',
+    'forgotten',
+    'user_edited',
+  ];
+
+  Map<String, Object?> _version(Map<String, Object?> entry) => {
+    for (final key in _versionFields) key: entry[key],
+  };
+
+  Map<String, Object?> _selectionItem(
+    Map<String, dynamic> raw,
+    bool fullContent,
+  ) {
+    final content = raw['content'] as String;
+    final length = content.runes.length;
+    final truncated = !fullContent && length > 200;
+    return {
+      'itemId': raw['itemId'],
+      'id': raw['id'],
+      'kind': raw['kind'],
+      'content': truncated
+          ? String.fromCharCodes(content.runes.take(200))
+          : content,
+      if (truncated) 'contentTruncated': true,
+      if (truncated) 'contentLength': length,
+      'certainty': raw['certainty'],
+      if (raw['goal_id'] != null) 'goalId': raw['goal_id'],
+      if (raw['expires_at'] != null) 'expiresAt': raw['expires_at'],
+    };
+  }
+
+  @override
+  Future<Map<String, Object?>> selectMemory({
+    required String sessionId,
+    required String selectionId,
+    String? goalId,
+    String? search,
+    int offset = 0,
+    int limit = 20,
+    bool fullContent = false,
+  }) async {
+    if (fullContent && limit != 1) throw ArgumentError('读取完整记忆正文时每页只能读取1条');
+    final saved = await commandResult(
+      selectionId,
+      'memory_selection',
+      sessionId,
+      {
+        'goalId': goalId,
+        'search': search,
+        'offset': offset,
+        'limit': limit,
+        'fullContent': fullContent,
+      },
+      () async {
+        final page = await queryMemory(
+          goalId: goalId,
+          search: search,
+          offset: offset,
+          limit: limit,
+          includeSourceText: false,
+        );
+        final entries = page['items'] as List<Map<String, Object?>>;
+        return {
+          ...page,
+          'selectionId': selectionId,
+          'asOf': clock().toUtc().toIso8601String(),
+          'items': [
+            for (var i = 0; i < entries.length; i++)
+              {
+                ...entries[i],
+                'itemId': '${i + 1}',
+                '_version': _version(entries[i]),
+              },
+          ],
+        };
+      },
+    );
+    return {
+      ...saved,
+      'items': [
+        for (final raw in saved['items'] as List)
+          _selectionItem(Map<String, dynamic>.from(raw as Map), fullContent),
+      ],
+    };
+  }
+
+  Future<Map<String, Object?>> _inspectSelection(
+    String sessionId,
+    String selectionId,
+    List<String> itemIds,
+  ) async {
+    if (itemIds.isEmpty || itemIds.length > 100) {
+      throw ArgumentError('请选择 1 至 100 条记忆');
+    }
+    final receipt = await (db.select(
+      db.operationReceipts,
+    )..where((t) => t.id.equals(selectionId))).getSingleOrNull();
+    if (receipt == null ||
+        receipt.kind != 'memory_selection' ||
+        receipt.entityId != sessionId) {
+      throw ArgumentError('选择清单不存在或不属于当前会话');
+    }
+    final selection = jsonDecode(receipt.resultJson) as Map<String, dynamic>;
+    final available = {
+      for (final item in selection['items'] as List)
+        (item as Map<String, dynamic>)['itemId'] as String: item,
+    };
+    final requested = itemIds.toSet();
+    final issues = <Map<String, Object?>>[];
+    final selected = <Map<String, Object?>>[];
+    if (requested.length != itemIds.length) {
+      issues.add({'code': 'duplicate_item'});
+    }
+    for (final itemId in requested) {
+      final item = available[itemId];
+      if (item == null) {
+        issues.add({'code': 'not_in_selection', 'itemId': itemId});
+      } else {
+        selected.add(_selectionItem(item, false));
+      }
+    }
+    if (selected.isNotEmpty) {
+      final ids = selected.map((item) => item['id'] as String).toList();
+      final actual = await rows(
+        'SELECT * FROM memory_entries WHERE id IN (${List.filled(ids.length, '?').join(',')})',
+        ids,
+      );
+      final byId = {for (final item in actual) item['id']: item};
+      for (final item in selected) {
+        final current = byId[item['id']];
+        final original = available[item['itemId']]!['_version'];
+        if (current == null ||
+            jsonEncode(_version(current)) != jsonEncode(original)) {
+          issues.add({
+            'code': 'changed',
+            'itemId': item['itemId'],
+            'id': item['id'],
+          });
+        }
+      }
+    }
+    return {
+      'status': issues.isEmpty ? 'ready' : 'blocked',
+      'counts': {
+        'requested': itemIds.length,
+        'matched': selected.length,
+        'changed': 0,
+        'rejected': issues.isEmpty ? 0 : itemIds.length,
+      },
+      'items': selected,
+      if (issues.isNotEmpty) 'issues': issues,
+    };
+  }
+
+  @override
+  Future<Map<String, Object?>> previewForget({
+    required String sessionId,
+    required String selectionId,
+    required List<String> itemIds,
+  }) =>
+      db.transaction(() => _inspectSelection(sessionId, selectionId, itemIds));
+
+  @override
+  Future<Map<String, Object?>> forgetSelection({
+    required String sessionId,
+    required String sourceMessageId,
+    required String selectionId,
+    required List<String> itemIds,
+    required String operationId,
+  }) async {
+    final result = await commandResult(
+      operationId,
+      'memory_forget_batch',
+      sessionId,
+      {
+        'selectionId': selectionId,
+        'itemIds': itemIds,
+        'sourceMessageId': sourceMessageId,
+      },
+      () async {
+        final source = await rows(
+          "SELECT data FROM assistant_session_records WHERE session_id=? AND type='message_added' AND json_extract(data, '\$.message.id')=? AND json_extract(data, '\$.message.role')='user'",
+          [sessionId, sourceMessageId],
+        );
+        if (source.length != 1) {
+          throw ArgumentError('找不到当前会话的用户消息来源');
+        }
+        final message =
+            (jsonDecode(source.single['data'] as String) as Map)['message']
+                as Map;
+        final text = (message['content'] as List)
+            .whereType<Map<String, dynamic>>()
+            .where((block) => block['type'] == 'text')
+            .map((block) => block['text'])
+            .join();
+        if (text.trim().isEmpty) {
+          throw ArgumentError('用户消息来源没有文字');
+        }
+        final checked = await _inspectSelection(
+          sessionId,
+          selectionId,
+          itemIds,
+        );
+        if (checked['status'] != 'ready') {
+          return {...checked, 'operationId': operationId};
+        }
+        final selected = (checked['items'] as List)
+            .cast<Map<String, Object?>>();
+        final ids = selected.map((item) => item['id'] as String).toList();
+        await (db.update(db.memoryEntries)..where((t) => t.id.isIn(ids))).write(
+          MemoryEntriesCompanion(
+            forgotten: const Value(true),
+            userEdited: const Value(true),
+            updatedAt: Value(clock().millisecondsSinceEpoch),
+          ),
+        );
+        return {
+          'status': 'success',
+          'operationId': operationId,
+          'sourceMessageId': sourceMessageId,
+          'asOf': clock().toUtc().toIso8601String(),
+          'counts': {'requested': itemIds.length, 'changed': ids.length},
+          'items': [
+            for (final item in selected)
+              {'itemId': item['itemId'], 'id': item['id']},
+          ],
+        };
+      },
+    );
+    return _operationPage(result, 0);
+  }
+
+  Map<String, Object?> _operationPage(Map<String, Object?> result, int offset) {
+    final items = result['items'];
+    if (items is! List) return result;
+    final page = items.skip(offset).take(20).toList();
+    final next = offset + page.length;
+    return {
+      ...result,
+      'items': page,
+      'page': {
+        'offset': offset,
+        'complete': next >= items.length,
+        if (next < items.length) 'nextOffset': next,
+      },
+    };
+  }
+
+  @override
+  Future<Map<String, Object?>> memoryOperation({
+    required String sessionId,
+    required String operationId,
+    int offset = 0,
+  }) async {
+    if (offset < 0) throw ArgumentError('分页位置无效');
+    final receipt = await (db.select(
+      db.operationReceipts,
+    )..where((t) => t.id.equals(operationId))).getSingleOrNull();
+    if (receipt == null ||
+        receipt.kind != 'memory_forget_batch' ||
+        receipt.entityId != sessionId) {
+      throw ArgumentError('没有找到当前会话的记忆操作回执');
+    }
+    return _operationPage(
+      Map<String, Object?>.from(jsonDecode(receipt.resultJson) as Map),
+      offset,
+    );
+  }
+
   @override
   Future<Map<String, Object?>> queryMemory({
     String? goalId,
     String? search,
     int offset = 0,
+    int limit = 20,
+    bool includeSourceText = true,
     bool includeExpired = false,
   }) async {
+    if (offset < 0 || limit < 1 || limit > 100) throw ArgumentError('记忆分页范围无效');
     final where = <String>['forgotten=0'];
     final args = <Object>[];
     if (!includeExpired) {
@@ -38,13 +320,16 @@ class DriftMemoryRepository extends DriftRepositorySupport
             as int;
     final result = DriftRepositorySupport.page(
       await rows(
-        'SELECT *, (SELECT title FROM goals WHERE goals.id=memory_entries.goal_id) AS goalTitle FROM memory_entries WHERE $clause ORDER BY user_edited DESC,updated_at DESC,id LIMIT 20 OFFSET ?',
-        [...args, offset],
+        'SELECT *, (SELECT title FROM goals WHERE goals.id=memory_entries.goal_id) AS goalTitle FROM memory_entries WHERE $clause ORDER BY ${search == null ? '' : 'CASE WHEN id=? THEN 0 ELSE 1 END,'}user_edited DESC,updated_at DESC,id LIMIT ? OFFSET ?',
+        [...args, ?search, limit, offset],
       ),
       count,
       offset,
     );
-    for (final entry in result['items'] as List<Map<String, Object?>>) {
+    for (final entry
+        in includeSourceText
+            ? result['items'] as List<Map<String, Object?>>
+            : const <Map<String, Object?>>[]) {
       final parts = (entry['source'] as String).split(':');
       if (parts.length != 3 ||
           parts.first != 'conversation' ||
@@ -81,20 +366,19 @@ class DriftMemoryRepository extends DriftRepositorySupport
   }
 
   @override
-  Future<void> saveMemory(
+  Future<Map<String, Object?>> saveMemory(
     Map<String, Object?> entry, {
     bool userEdited = false,
     String? operationId,
-  }) => command(operationId, 'memory_save', entry['id'] as String, entry, {
-    'saved': true,
-    'id': entry['id'],
+  }) => commandResult(operationId, 'memory_save', entry['id'] as String, {
+    ...entry,
+    'userEdited': userEdited,
   }, () => _saveMemory(entry, userEdited: userEdited));
 
-  Future<void> _saveMemory(
+  Future<Map<String, Object?>> _saveMemory(
     Map<String, Object?> entry, {
     bool userEdited = false,
-  }) => db.transaction(() async {
-    await lock();
+  }) async {
     final id = entry['id'] as String;
     final content = (entry['content'] as String).trim();
     var source = entry['source'] as String;
@@ -131,12 +415,33 @@ class DriftMemoryRepository extends DriftRepositorySupport
       throw ArgumentError('记忆内容、类型或来源无效');
     }
     final same = await rows(
-      'SELECT * FROM memory_entries WHERE id=? OR source=? OR (conflict_key=? AND goal_id IS ?)',
-      [id, source, key, goal],
+      'SELECT * FROM memory_entries WHERE id=? OR (goal_id IS ? AND (conflict_key=? OR trim(content)=?))',
+      [id, goal, key, content],
     );
-    if (!userEdited &&
-        same.any((e) => e['forgotten'] == 1 || e['user_edited'] == 1)) {
-      return;
+    final expectedVersion = entry['expectedVersion'];
+    if (expectedVersion != null) {
+      final existing = same.where((row) => row['id'] == id).firstOrNull;
+      if (existing == null ||
+          jsonEncode(_version(existing)) != jsonEncode(expectedVersion)) {
+        return {'status': 'blocked', 'id': id, 'reason': 'changed'};
+      }
+    }
+    String normalized(Object? value) =>
+        (value as String).trim().replaceAll(RegExp(r'\s+'), ' ');
+    final protected = same.where(
+      (e) =>
+          !userEdited &&
+          ((e['forgotten'] == 1 &&
+                  (e['id'] == id ||
+                      normalized(e['content']) == normalized(content))) ||
+              (e['user_edited'] == 1 && e['id'] == id)),
+    );
+    if (protected.isNotEmpty) {
+      return {
+        'status': 'blocked',
+        'id': protected.first['id'],
+        'reason': 'protected_memory',
+      };
     }
     final conflict = same.where(
       (e) =>
@@ -150,11 +455,25 @@ class DriftMemoryRepository extends DriftRepositorySupport
       entry = {...entry, 'certainty': 'unverified', 'kind': 'observation'};
     }
     if (!userEdited &&
-        same.any((e) => e['content'] == content && e['forgotten'] == 0)) {
-      return;
+        same.any(
+          (e) =>
+              normalized(e['content']) == normalized(content) &&
+              e['forgotten'] == 0,
+        )) {
+      final existing = same.firstWhere(
+        (e) =>
+            normalized(e['content']) == normalized(content) &&
+            e['forgotten'] == 0,
+      );
+      return {'status': 'unchanged', 'id': existing['id']};
     }
     final existing = same.where((e) => e['id'] == id);
-    if (existing.isNotEmpty && existing.single['forgotten'] == 1) return;
+    if (existing.isNotEmpty && existing.single['forgotten'] == 1) {
+      return {'status': 'blocked', 'id': id, 'reason': 'forgotten_memory'};
+    }
+    if (existing.isNotEmpty && !userEdited) {
+      return {'status': 'blocked', 'id': id, 'reason': 'existing_id'};
+    }
     await db
         .into(db.memoryEntries)
         .insertOnConflictUpdate(
@@ -171,7 +490,15 @@ class DriftMemoryRepository extends DriftRepositorySupport
             userEdited: Value(userEdited),
           ),
         );
-  });
+    return {
+      'status': existing.isNotEmpty
+          ? 'updated'
+          : conflict.isNotEmpty && !userEdited
+          ? 'pending'
+          : 'created',
+      'id': id,
+    };
+  }
 
   @override
   Future<void> forgetMemory(String id, {String? operationId}) => command(

@@ -72,14 +72,30 @@ class _MissionExecution {
       _repository.database.transaction(() async {
         if (request.id.trim().isEmpty ||
             request.statement.trim().isEmpty ||
-            request.originals.isEmpty ||
-            request.originals.length > 10000 ||
-            request.originals.map((d) => d.mission.id).toSet().length !=
-                request.originals.length) {
+            request.originals.length + request.excluded.length > 10000 ||
+            [
+                  ...request.originals,
+                  ...request.excluded,
+                ].map((d) => d.mission.id).toSet().length !=
+                request.originals.length + request.excluded.length) {
           throw ArgumentError('请先预览要补记的任务，并提供完成依据');
         }
         validateScheduledDate(request.beforeDate);
-        await _repository._acquireWrite(request.originals.first.mission.id);
+        await _repository._acquireGlobalWrite();
+        List<Object?> version(MissionDetail d) => [
+          d.mission.id,
+          d.mission.title,
+          d.mission.goalId,
+          d.mission.goalNodeId,
+          d.mission.verificationPolicy.name,
+          d.mission.cancelledAt?.toUtc().millisecondsSinceEpoch,
+          d.mission.updatedAt.toUtc().millisecondsSinceEpoch,
+          d.schedule.id,
+          d.schedule.scheduledDate,
+          d.lastSequence,
+          d.phase.name,
+          historicalCompletionSkipReason(d),
+        ];
         final fingerprint = sha256
             .convert(
               utf8.encode(
@@ -87,10 +103,8 @@ class _MissionExecution {
                   'goalId': request.goalId,
                   'beforeDate': request.beforeDate,
                   'statement': request.statement.trim(),
-                  'missions': [
-                    for (final d in request.originals)
-                      [d.mission.id, d.schedule.id, d.lastSequence],
-                  ],
+                  'missions': [for (final d in request.originals) version(d)],
+                  'excluded': [for (final d in request.excluded) version(d)],
                 }),
               ),
             )
@@ -104,16 +118,50 @@ class _MissionExecution {
           return previous;
         }
         final now = _repository._now();
-        for (final original in request.originals) {
-          final current = await _repository.findDetail(original.mission.id);
-          if (current == null ||
-              current.schedule.id != original.schedule.id ||
-              current.lastSequence != original.lastSequence ||
-              !isHistoricalCompletionCandidate(
-                current,
+        final goal = await (_repository.database.select(
+          _repository.database.goals,
+        )..where((row) => row.id.equals(request.goalId))).getSingleOrNull();
+        if (goal == null) throw ArgumentError('目标不存在');
+        final scope = await _repository.findHistoryScope(
+          request.goalId,
+          request.beforeDate,
+        );
+        final originals = {
+          for (final d in [...request.originals, ...request.excluded])
+            d.mission.id: d,
+        };
+        if (scope.length != originals.length) {
+          throw const ExecutionConflict('日期范围内任务已变化，本批未保存，请重新预览');
+        }
+        for (final current in scope) {
+          final original = originals[current.mission.id];
+          if (original == null ||
+              jsonEncode(version(current)) != jsonEncode(version(original))) {
+            throw const ExecutionConflict('预览中的任务已变化，本批未保存，请重新预览');
+          }
+        }
+        if (request.originals.any(
+              (d) => !isHistoricalCompletionCandidate(
+                d,
                 beforeDate: request.beforeDate,
                 goalId: request.goalId,
-              )) {
+              ),
+            ) ||
+            request.excluded.any(
+              (d) => isHistoricalCompletionCandidate(
+                d,
+                beforeDate: request.beforeDate,
+                goalId: request.goalId,
+              ),
+            )) {
+          throw ArgumentError('预览中的候选与跳过任务不一致');
+        }
+        final scopeById = {
+          for (final detail in scope) detail.mission.id: detail,
+        };
+        for (final original in request.originals) {
+          final current = scopeById[original.mission.id];
+          if (current == null) {
             throw const ExecutionConflict('预览中的任务已变化，本批未保存，请重新预览');
           }
           await _execute(
@@ -133,6 +181,24 @@ class _MissionExecution {
           );
         }
         final result = jsonEncode({
+          'status': 'success',
+          'operationId': request.id,
+          'asOf': now.toIso8601String(),
+          'counts': {
+            'matched': scope.length,
+            'eligible': request.originals.length,
+            'changed': request.originals.length,
+            'skipped': request.excluded.length,
+          },
+          'issues': [
+            for (final d in request.excluded)
+              {
+                'code': historicalCompletionSkipReason(d),
+                'id': d.mission.id,
+                'title': d.mission.title,
+                'scheduledDate': d.schedule.scheduledDate,
+              },
+          ],
           'ok': true,
           'operation': 'completeHistory',
           'goalId': request.goalId,

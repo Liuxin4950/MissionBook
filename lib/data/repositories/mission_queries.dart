@@ -266,6 +266,47 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
                 .get();
         return _detailsForRows(rows);
       });
+  Future<List<MissionDetail>> findDetailsByIds(List<String> ids) =>
+      _repository.database.transaction(() async {
+        if (ids.length > 10000 || ids.toSet().length != ids.length) {
+          throw ArgumentError('任务编号重复或超过查询上限');
+        }
+        final database = _repository.database;
+        final rows = <MissionRow>[];
+        for (var offset = 0; offset < ids.length; offset += 200) {
+          final page = ids.sublist(offset, (offset + 200).clamp(0, ids.length));
+          rows.addAll(
+            await (database.select(
+              database.missions,
+            )..where((row) => row.id.isIn(page))).get(),
+          );
+        }
+        return _detailsForRows(rows);
+      });
+  Future<List<MissionDetail>> findHistoryScope(
+    String goalId,
+    String beforeDate,
+  ) => _repository.database.transaction(() async {
+    validateScheduledDate(beforeDate);
+    final database = _repository.database;
+    final rows = await database
+        .customSelect(
+          '''SELECT m.* FROM missions m WHERE m.goal_id=? AND COALESCE(
+            (SELECT scheduled_date FROM mission_schedule_revisions r
+             WHERE r.mission_id=m.id ORDER BY r.revision_number DESC LIMIT 1), ''
+          ) < ? ORDER BY m.id LIMIT 10001''',
+          variables: [
+            Variable.withString(goalId),
+            Variable.withString(beforeDate),
+          ],
+          readsFrom: {database.missions, database.missionScheduleRevisions},
+        )
+        .get();
+    if (rows.length > 10000) throw ArgumentError('请缩小日期范围，每批最多10000项');
+    return _detailsForRows(
+      rows.map((row) => database.missions.map(row.data)).toList(),
+    );
+  });
   Future<List<MissionDetail>> findActive() => _findByExecution(ended: false);
   Future<List<MissionDetail>> findFinished() => _findByExecution(ended: true);
   Future<List<MissionDetail>> findCancelled() =>

@@ -404,9 +404,12 @@ class DriftAnalysisStore implements AnalysisStore {
       for (final raw in entries.take(5)) {
         final e = Map<String, Object?>.from(raw as Map<String, dynamic>);
         final quote = e['quote'] as String?;
-        if (e['certainty'] == 'stated' &&
-            (quote == null || quote.isEmpty || !userText.contains(quote))) {
-          e['certainty'] = 'unverified';
+        if (e['certainty'] != 'stated' ||
+            quote == null ||
+            quote.trim().isEmpty ||
+            !userText.contains(quote) ||
+            !['preference', 'fact', 'constraint'].contains(e['kind'])) {
+          continue;
         }
         final key = e['conflictKey'] as String? ?? e['content'] as String;
         e['id'] = const Uuid().v5(Namespace.url.value, 'memory:${w.id}:$key');
