@@ -2,7 +2,9 @@ import '../../../domain/entities/analysis_scope.dart';
 import '../../records/records_page.dart';
 import '../../records/analysis_panel.dart';
 import '../../records/record_scope.dart';
+
 import 'dart:async';
+
 import '../../assistant/assistant_launcher.dart';
 
 import 'package:flutter/material.dart';
@@ -19,7 +21,7 @@ import 'goal_missions_section.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/app_motion.dart';
 
-const _nodeRowPadding = 4.0;
+const _nodeRowPadding = AppLayout.spaceXs;
 
 /// 目标卡和详情共用的节点工作区，独立管理查询、展开与节点编辑交互。
 class GoalOutlineSection extends StatefulWidget {
@@ -61,8 +63,8 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
 
   final _collapsed = <String>{}; // 只保存界面折叠选择，不写入节点表。
   final _treeScroll = ScrollController();
-  double _horizontalDrag = 0;
-  String? _swipedNodeId; // 一次只展开一个节点的归档快捷操作。
+  final _searchController = TextEditingController();
+  String _query = '';
   bool _showArchived = false;
   bool _busy = false;
   String? _operationError;
@@ -121,6 +123,8 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
       unawaited(_subscription?.cancel());
       unawaited(_missionSubscription?.cancel());
       _collapsed.clear();
+      _query = '';
+      _searchController.clear();
       _lastNodes = null;
       _taskSections.clear();
       _listen();
@@ -208,6 +212,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     unawaited(_subscription?.cancel());
     unawaited(_missionSubscription?.cancel());
     _treeScroll.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -266,7 +271,32 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
             node,
           ); // 这个父节点还没有孩子列表时先创建，再把当前节点加入。
         }
-        final entries = _visibleEntries(roots, children);
+        Set<String>? included;
+        final query = _query.trim().toLowerCase();
+        if (query.isNotEmpty) {
+          included = <String>{};
+          for (final node in shown) {
+            if (!node.title.toLowerCase().contains(query) &&
+                !(node.description?.toLowerCase().contains(query) ?? false)) {
+              continue;
+            }
+            // 命中节点带上真实祖先，搜索时仍能看清它属于哪个分支。
+            GoalNode? ancestor = node;
+            while (ancestor != null && included.add(ancestor.id)) {
+              ancestor = byId[ancestor.parentNodeId];
+            }
+          }
+        }
+        final entries = _visibleEntries(roots, children, included: included);
+        final matchingIds = included;
+        final visibleChildren = matchingIds == null
+            ? children
+            : {
+                for (final group in children.entries)
+                  group.key: group.value
+                      .where((node) => matchingIds.contains(node.id))
+                      .toList(),
+              };
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -288,7 +318,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                   Expanded(
                     child: widget.embedded
                         ? const SizedBox.shrink()
-                        : Text('目标路径', style: theme.textTheme.titleMedium),
+                        : Text('目标路径', style: theme.textTheme.titleSmall),
                   ),
                   TextButton.icon(
                     key: Key('node-add-root-${widget.goalId}'),
@@ -300,6 +330,39 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                     label: Text(widget.embedded ? '添加节点' : '新增节点'),
                   ),
                 ],
+              ),
+            if (shown.length > 6 || _query.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+                child: TextField(
+                  key: const Key('goal-node-search'),
+                  controller: _searchController,
+                  style: theme.textTheme.bodySmall,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                  onChanged: (value) => setState(() => _query = value),
+                  decoration: InputDecoration(
+                    hintText: '搜索节点',
+                    hintStyle: theme.textTheme.bodySmall,
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      size: AppLayout.iconSm,
+                    ),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: '清除节点搜索',
+                            onPressed: () => setState(() {
+                              _searchController.clear();
+                              _query = '';
+                            }),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              size: AppLayout.iconSm,
+                            ),
+                          ),
+                  ),
+                ),
               ),
             if (_operationError != null)
               Padding(
@@ -314,7 +377,12 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                   ),
                 ),
               ),
-            if (entries.isEmpty)
+            if (entries.isEmpty && query.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(AppLayout.spaceLg),
+                child: Text('没有匹配的节点', style: theme.textTheme.bodySmall),
+              ),
+            if (shown.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(
                   vertical: AppLayout.spaceXxl,
@@ -378,7 +446,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                                 entry,
                                 nodes,
                                 byId,
-                                children,
+                                visibleChildren,
                                 entry.node.archivedAt != null,
                                 step,
                               ),
@@ -431,7 +499,8 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   ) {
     final node = entry.node;
     final hasChildren = (children[node.id] ?? []).isNotEmpty;
-    final collapsed = _collapsed.contains(node.id);
+    final searching = _query.trim().isNotEmpty;
+    final collapsed = !searching && _collapsed.contains(node.id);
     final siblings = all
         .where((item) => item.parentNodeId == node.parentNodeId)
         .toList();
@@ -619,8 +688,10 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     final treeToggle = hasChildren
         ? IconButton(
             key: Key('node-expand-${node.id}'),
-            tooltip: '${collapsed ? '展开' : '收起'} ${node.title}',
-            onPressed: toggleChildren,
+            tooltip: searching
+                ? '搜索中显示匹配分支'
+                : '${collapsed ? '展开' : '收起'}子节点：${node.title}',
+            onPressed: searching ? null : toggleChildren,
             icon: AnimatedRotation(
               turns: collapsed ? 0 : .25,
               duration: AppMotion.resolve(context, AppMotion.quick),
@@ -639,7 +710,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     ].join(' · ');
     return Padding(
       key: Key('node-row-${node.id}'),
-      padding: EdgeInsets.only(top: entry.depth == 0 ? AppLayout.spaceSm : 0),
+      padding: EdgeInsets.only(top: entry.depth == 0 ? AppLayout.spaceXs : 0),
       child: CustomPaint(
         foregroundPainter: _TreeGuidePainter(
           entry.guides,
@@ -653,22 +724,6 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
             onLongPress: archived || _busy
                 ? null
                 : () => _edit(node: node, parent: byId[node.parentNodeId]),
-            onHorizontalDragStart: archived || _busy
-                ? null
-                : (_) => _horizontalDrag = 0,
-            onHorizontalDragUpdate: archived || _busy
-                ? null
-                : (details) => _horizontalDrag += details.delta.dx,
-            onHorizontalDragEnd: archived || _busy
-                ? null
-                : (details) {
-                    if (_horizontalDrag < -40) {
-                      setState(() => _swipedNodeId = node.id);
-                    } else if (_horizontalDrag > 40 &&
-                        _swipedNodeId == node.id) {
-                      setState(() => _swipedNodeId = null);
-                    }
-                  },
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -690,7 +745,6 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                             leading: treeToggle,
                             trailing: menu,
                             annotation: annotation,
-                            onNodeTap: hasChildren ? toggleChildren : null,
                           )
                         : Semantics(
                             button: hasChildren,
@@ -724,9 +778,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                                           ),
                                           child: Text(
                                             node.title,
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.titleMedium,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelLarge,
                                           ),
                                         ),
                                       ),
@@ -740,9 +794,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                                       ),
                                       child: Text(
                                         annotation,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium,
                                       ),
                                     ),
                                 ],
@@ -754,41 +808,6 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                 if (widget.missionService == null &&
                     RecordScope.maybeOf(context) != null)
                   _nodeRecords(node),
-                if (_swipedNodeId == node.id && !archived)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppLayout.spaceXs),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        key: Key('node-swipe-archive-${node.id}'),
-                        onPressed: _busy
-                            ? null
-                            : () {
-                                setState(() => _swipedNodeId = null);
-                                unawaited(
-                                  _run(
-                                    () => widget.service.archiveNode(node.id),
-                                    archive: node,
-                                  ),
-                                );
-                              },
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.error,
-                          backgroundColor: AppColors.errorSoft,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppLayout.radiusMd,
-                            ),
-                          ),
-                        ),
-                        icon: const Icon(
-                          Icons.archive_outlined,
-                          size: AppLayout.iconSm,
-                        ),
-                        label: const Text('归档'),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -805,9 +824,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     Widget? leading,
     Widget? trailing,
     String? annotation,
-    VoidCallback? onNodeTap,
   }) => GoalMissionsSection(
-    onNodeTap: onNodeTap,
     leading: leading,
     trailing: trailing,
     annotation: annotation,
@@ -831,14 +848,19 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
 
   Future<void> _switchArchive(bool show) async {
     if (!await prepareToCollapse() || !mounted) return;
-    setState(() => _showArchived = show);
+    setState(() {
+      _showArchived = show;
+      _query = '';
+      _searchController.clear();
+    });
   }
 
   /// 按父子关系生成一维展示列表，折叠只影响后代是否进入列表。
   List<_OutlineEntry> _visibleEntries(
     List<GoalNode> roots,
-    Map<String?, List<GoalNode>> children,
-  ) {
+    Map<String?, List<GoalNode>> children, {
+    Set<String>? included,
+  }) {
     final pending = <_OutlineEntry>[];
     for (var index = roots.length - 1; index >= 0; index--) {
       pending.add(_OutlineEntry(roots[index], const []));
@@ -846,9 +868,12 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     final result = <_OutlineEntry>[];
     while (pending.isNotEmpty) {
       final entry = pending.removeLast();
+      if (included != null && !included.contains(entry.node.id)) continue;
       result.add(entry);
-      if (_collapsed.contains(entry.node.id)) continue;
-      final group = children[entry.node.id] ?? const <GoalNode>[];
+      if (included == null && _collapsed.contains(entry.node.id)) continue;
+      final group = (children[entry.node.id] ?? const <GoalNode>[])
+          .where((node) => included == null || included.contains(node.id))
+          .toList();
       for (var index = group.length - 1; index >= 0; index--) {
         pending.add(
           _OutlineEntry(group[index], [

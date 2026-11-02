@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mission_book/core/theme/app_theme.dart';
+import 'package:mission_book/domain/entities/execution_event.dart';
+import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/today/schedule_section.dart';
 import 'package:mission_book/presentation/today/today_display.dart' as display;
 
 import 'today_page_test.dart' show ControlledQueryRepository, example, testApp;
 
 void main() {
+  setUpAll(tzdata.initializeTimeZones);
   testWidgets('日程在失去输入焦点但仍可见时跨越计划边界继续刷新', (tester) async {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     addTearDown(() async {
@@ -145,6 +150,77 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  for (final (width, scale) in [(320.0, 2.0), (386.0, 1.0), (768.0, 1.0)]) {
+    testWidgets('执行中日程在 $width 宽、$scale 字号信息可换行且整项可打开', (tester) async {
+      tester.view.physicalSize = Size(width, 836);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final now = DateTime.utc(2026, 11, 2, 6, 29);
+      final start = now.subtract(const Duration(minutes: 29));
+      const title = 'Python程序设计基础与课堂实践';
+      final item = display
+          .groupMissionsForDisplay([
+            example(
+              title,
+              fixed: true,
+              start: start,
+              plannedDurationMinutes: 100,
+              phase: MissionPhase.running,
+              events: [
+                ExecutionEvent(
+                  id: 'start',
+                  missionId: title,
+                  sequence: 1,
+                  type: ExecutionEventType.start,
+                  occurredAt: now.subtract(const Duration(seconds: 81)),
+                  scheduleRevisionId: '$title-schedule',
+                ),
+              ],
+            ),
+          ])
+          .fixed
+          .single;
+      var opened = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(scale)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ScheduleMissionRow(
+                item: item,
+                now: now,
+                clock: () => now,
+                onTap: () => opened = true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('执行中'), findsOneWidget);
+      expect(find.text('专注 01:21'), findsOneWidget);
+      expect(find.textContaining('时段剩余 71 分钟'), findsOneWidget);
+      expect(find.text('查看'), findsNothing);
+      final titleRect = tester.getRect(find.text(title));
+      final metaRect = tester.getRect(find.textContaining('100 分钟'));
+      expect(metaRect.top, greaterThan(titleRect.bottom));
+      expect(titleRect.left, closeTo(metaRect.left, 1));
+      expect(titleRect.width, greaterThan(width - 112));
+      await tester.tap(find.text(title));
+      expect(opened, isTrue);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
 
   test('窗口覆盖开始前、空档、全部结束和空列表', () {
     // MissionService in helper prepares timezone data.

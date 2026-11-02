@@ -679,7 +679,7 @@ void main() {
     ]);
     await tester.pumpAndSettle();
     final activeNode = tester.getSemantics(
-      find.bySemanticsLabel('09:00，$longTitle，计划 20 分钟，当前时段'),
+      find.bySemanticsLabel('09:00，$longTitle，计划 20 分钟，当前时段，计划时段剩余 20 分钟'),
     );
     expect(
       activeNode.getSemanticsData().hasAction(SemanticsAction.tap),
@@ -723,7 +723,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('固定任务状态与计划时长成组，专注保持在说明行右端', (tester) async {
+  testWidgets('固定任务时间与时长成组，状态和专注按空间换行', (tester) async {
     tester.view.physicalSize = const Size(600, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -764,26 +764,25 @@ void main() {
     ]);
     await tester.pumpAndSettle();
     expect(find.text('已结束'), findsOneWidget);
-    expect(find.text('100 分钟'), findsOneWidget);
+    expect(find.text('09:00 · 100 分钟'), findsOneWidget);
     expect(find.text('专注 00:00'), findsOneWidget);
     expect(find.text('计划 100 分钟'), findsNothing);
     expect(find.textContaining('已结束 ·'), findsNothing);
     expect(find.bySemanticsLabel('09:00，已结束任务，计划 100 分钟，已结束'), findsOneWidget);
     final title = tester.getRect(find.text('已结束任务'));
     final status = tester.getRect(find.text('已结束'));
-    final duration = tester.getRect(find.text('100 分钟'));
+    final duration = tester.getRect(find.text('09:00 · 100 分钟'));
     final focus = tester.getRect(find.text('专注 00:00'));
-    expect(status.left, closeTo(title.left, 0.5));
-    expect(duration.left, greaterThan(status.right));
-    expect(duration.top, closeTo(status.top, 0.5));
+    expect(duration.left, closeTo(title.left, 0.5));
     expect(duration.top, greaterThan(title.bottom));
-    expect(focus.left, greaterThan(duration.right));
+    expect(status.top, greaterThanOrEqualTo(duration.top));
+    expect(focus.top, greaterThanOrEqualTo(duration.top));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     semantics.dispose();
   });
 
-  testWidgets('未来固定任务状态与计划时长同一行，不再重复“计划”', (tester) async {
+  testWidgets('未来固定任务辅助信息紧凑成组，不再重复“计划”', (tester) async {
     tester.view.physicalSize = const Size(412, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -804,7 +803,7 @@ void main() {
     ]);
     await tester.pumpAndSettle();
     expect(find.text('待到时'), findsOneWidget);
-    expect(find.text('210 分钟'), findsOneWidget);
+    expect(find.text('19:00 · 210 分钟'), findsOneWidget);
     expect(find.text('计划 210 分钟'), findsNothing);
     expect(find.textContaining('专注'), findsNothing);
     expect(
@@ -813,11 +812,10 @@ void main() {
     );
     final title = tester.getRect(find.text('品牌与营销管理实务'));
     final status = tester.getRect(find.text('待到时'));
-    final duration = tester.getRect(find.text('210 分钟'));
-    expect(status.left, closeTo(title.left, 0.5));
-    expect(status.top, greaterThan(title.bottom));
-    expect(duration.top, closeTo(status.top, 0.5));
-    expect(duration.left, greaterThan(status.right));
+    final duration = tester.getRect(find.text('19:00 · 210 分钟'));
+    expect(duration.left, closeTo(title.left, 0.5));
+    expect(duration.top, greaterThan(title.bottom));
+    expect(status.top, greaterThanOrEqualTo(duration.top));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     semantics.dispose();

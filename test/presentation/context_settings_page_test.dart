@@ -14,6 +14,7 @@ import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/records/record_service.dart';
 import 'package:mission_book/application/web/web_service.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
+import 'package:mission_book/core/theme/app_layout.dart';
 import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
@@ -103,8 +104,10 @@ void main() {
     WidgetTester tester,
     Widget page, {
     double width = 390,
+    double height = 844,
+    double textScale = 1,
   }) async {
-    tester.view.physicalSize = Size(width, 844);
+    tester.view.physicalSize = Size(width, height);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -119,7 +122,12 @@ void main() {
           memory: memory,
           analysis: analysis,
           web: web,
-          child: child!,
+          child: MediaQuery(
+            data: MediaQuery.of(
+              c,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
         ),
         home: page,
       ),
@@ -140,7 +148,13 @@ void main() {
     expect(find.text('上一页'), findsNothing);
     expect(find.text('等待记忆提取：0 条'), findsNothing);
     expect(find.byType(TextButton), findsNothing);
-    await tester.tap(find.byTooltip('添加记忆'));
+    expect(find.byTooltip('添加记忆'), findsNothing);
+    expect(find.text('共 0 条记忆'), findsNothing);
+    expect(
+      tester.getSize(find.widgetWithText(FilledButton, '添加第一条记忆')).height,
+      greaterThanOrEqualTo(AppLayout.actionMinHeight),
+    );
+    await tester.tap(find.text('添加第一条记忆'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('memory-content')), '喜欢分步骤学习');
     await tester.ensureVisible(find.byKey(const Key('memory-save')));
@@ -148,6 +162,63 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('喜欢分步骤学习'), findsOneWidget);
     expect(await memory.core(), contains('喜欢分步骤学习'));
+    await close(tester);
+  });
+
+  testWidgets('日记空态在窄屏双倍字号可滚动到添加按钮', (tester) async {
+    await open(
+      tester,
+      const MemoryPage(),
+      width: 320,
+      height: 480,
+      textScale: 2,
+    );
+    await tester.ensureVisible(find.text('添加第一条记忆'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('添加第一条记忆'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('memory-content')), findsOneWidget);
+    await close(tester);
+  });
+
+  for (final width in [413.0, 768.0, 1440.0]) {
+    testWidgets('日记在 $width 宽度按内容空间切换工具栏和空态', (tester) async {
+      await open(tester, const MemoryPage(), width: width);
+      final search = tester.getRect(find.byType(TextField));
+      final filter = tester.getRect(find.byType(FilterChip));
+      final picture = tester.getRect(find.byType(Image));
+      final title = tester.getRect(find.text('还没有记忆'));
+      if (width < 600) {
+        expect(filter.top, greaterThanOrEqualTo(search.bottom));
+        expect(title.top, greaterThan(picture.bottom));
+      } else {
+        expect(filter.left, greaterThan(search.right));
+        expect(filter.center.dy, closeTo(search.center.dy, 1));
+        expect(title.left, greaterThan(picture.right));
+      }
+      expect(tester.getRect(find.text('添加第一条记忆')).bottom, lessThan(844));
+      expect(search.width, lessThanOrEqualTo(744));
+      await close(tester);
+    });
+  }
+
+  testWidgets('日记搜索无结果可清除并恢复已有记忆', (tester) async {
+    await memory.save({
+      'id': 'preference',
+      'content': '喜欢分步骤学习',
+      'kind': 'preference',
+      'source': '用户手动记录',
+      'certainty': 'stated',
+    }, userEdited: true);
+    await open(tester, const MemoryPage());
+    await tester.enterText(find.byType(TextField), '不存在的关键词');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(find.text('没有找到相关记忆'), findsOneWidget);
+    await tester.tap(find.text('清除搜索'));
+    await tester.pumpAndSettle();
+    expect(find.text('喜欢分步骤学习'), findsOneWidget);
+    expect(find.byTooltip('添加记忆'), findsOneWidget);
     await close(tester);
   });
 

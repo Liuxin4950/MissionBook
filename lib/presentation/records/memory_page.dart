@@ -194,13 +194,22 @@ class _MemoryPageState extends State<MemoryPage> {
             '这里保存助手记住的偏好、事实、约束和待验证观察。你可以检查来源、更正或忘记。过期内容不再自动载入；任务进度仍从任务事实与目标摘要读取。',
           ),
         ),
-        IconButton.filled(
-          onPressed: edit,
-          tooltip: '添加记忆',
-          style: IconButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-          ),
-          icon: const Icon(Icons.add_rounded),
+        FutureBuilder<Map<String, Object?>>(
+          future: _data,
+          builder: (context, snapshot) {
+            // 空日记本的主要操作在插画下；已有内容时放到顶栏。
+            if ((snapshot.data?['total'] as int? ?? 0) == 0) {
+              return const SizedBox.shrink();
+            }
+            return IconButton.filled(
+              onPressed: edit,
+              tooltip: '添加记忆',
+              style: IconButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              ),
+              icon: const Icon(Icons.add_rounded),
+            );
+          },
         ),
       ],
     ),
@@ -232,110 +241,153 @@ class _MemoryPageState extends State<MemoryPage> {
                   (extraction?['retriable'] as List<dynamic>? ?? const [])
                       .whereType<Map<String, Object?>>()
                       .toList();
-              return ListView(
-                padding: AppLayout.pagePadding(context),
-                children: [
-                  TextField(
-                    controller: _search,
-                    textInputAction: TextInputAction.search,
-                    decoration: InputDecoration(
-                      hintText: '搜索助手记住的内容',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      suffixIcon: IconButton(
-                        tooltip: '搜索记忆',
-                        onPressed: () => load(reset: true),
-                        icon: const Icon(Icons.arrow_forward),
-                      ),
-                    ),
-                    onSubmitted: (_) => load(reset: true),
-                  ),
-                  const SizedBox(height: AppLayout.spaceMd),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '共 ${data['total']} 条记忆',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                      FilterChip(
-                        label: const Text('包含过期'),
-                        selected: _showExpired,
-                        onSelected: (v) {
-                          _showExpired = v;
-                          load(reset: true);
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppLayout.spaceLg),
-                  if ((extraction?['pending'] as int? ?? 0) > 0 ||
-                      jobs.isNotEmpty) ...[
-                    AppSectionCard(
-                      padding: EdgeInsets.zero,
-                      child: AppSettingsRow(
-                        icon: Icons.auto_awesome_outlined,
-                        title: jobs.isEmpty ? '正在整理新的记忆' : '部分记忆尚未整理完成',
-                        subtitle: jobs.isEmpty
-                            ? '${extraction?['pending']} 项等待整理'
-                            : '点击重试整理',
-                        enabled: !_retrying,
-                        onTap: jobs.isEmpty ? null : () => retry(jobs),
-                      ),
-                    ),
-                    const SizedBox(height: AppLayout.spaceMd),
-                  ],
-                  if (_error != null)
-                    Text(_error!, style: TextStyle(color: AppColors.error)),
-                  if (items.isEmpty)
-                    AppEmptyState(
-                      title: _offset > 0
-                          ? '这一页没有记忆'
-                          : _search.text.trim().isNotEmpty
-                          ? '没有找到相关记忆'
-                          : '还没有记忆',
-                      details: Text(
-                        _offset > 0
-                            ? '可以返回上一页查看其他记忆。'
-                            : '告诉助手你的偏好，或添加一条希望它记住的事。',
-                      ),
-                      actions: OutlinedButton.icon(
-                        onPressed: edit,
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('添加记忆'),
-                      ),
-                    ),
-                  for (final entry in items) memoryCard(entry),
-                  if (_offset > 0 || data['nextOffset'] != null)
-                    Row(
+              final padding = AppLayout.pagePadding(context);
+              return CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: padding.copyWith(bottom: 0),
+                    sliver: SliverList.list(
                       children: [
-                        IconButton(
-                          tooltip: '上一页',
-                          onPressed: _offset == 0
-                              ? null
-                              : () {
-                                  _offset -= 20;
-                                  load();
-                                },
-                          icon: const Icon(Icons.chevron_left),
+                        _MemoryToolbar(
+                          search: _search,
+                          total: data['total'] as int,
+                          showExpired: _showExpired,
+                          onSearch: () => load(reset: true),
+                          onShowExpired: (value) {
+                            _showExpired = value;
+                            load(reset: true);
+                          },
                         ),
-                        Expanded(
-                          child: Text(
-                            '第 ${_offset ~/ 20 + 1} 页',
-                            textAlign: TextAlign.center,
+                        const SizedBox(height: AppLayout.spaceLg),
+                        if ((extraction?['pending'] as int? ?? 0) > 0 ||
+                            jobs.isNotEmpty) ...[
+                          AppSectionCard(
+                            padding: EdgeInsets.zero,
+                            child: AppSettingsRow(
+                              icon: Icons.auto_awesome_outlined,
+                              title: jobs.isEmpty ? '正在整理新的记忆' : '部分记忆尚未整理完成',
+                              subtitle: jobs.isEmpty
+                                  ? '${extraction?['pending']} 项等待整理'
+                                  : '点击重试整理',
+                              enabled: !_retrying,
+                              onTap: jobs.isEmpty ? null : () => retry(jobs),
+                            ),
+                          ),
+                          const SizedBox(height: AppLayout.spaceMd),
+                        ],
+                        if (_error != null)
+                          Text(
+                            _error!,
+                            style: TextStyle(color: AppColors.error),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (items.isEmpty)
+                    SliverLayoutBuilder(
+                      builder: (context, constraints) => SliverToBoxAdapter(
+                        child: ConstrainedBox(
+                          // 扣掉搜索区的实际高度；内容超出剩余空间时自然滚动。
+                          constraints: BoxConstraints(
+                            minHeight:
+                                (constraints.viewportMainAxisExtent -
+                                        constraints.precedingScrollExtent)
+                                    .clamp(0.0, double.infinity),
+                          ),
+                          child: Center(
+                            child: Padding(
+                              padding: padding.copyWith(top: 0),
+                              child: AppEmptyState(
+                                asset:
+                                    _offset == 0 && _search.text.trim().isEmpty
+                                    ? 'assets/illustrations/memory-notebook.png'
+                                    : null,
+                                horizontalWhenWide: true,
+                                title: _offset > 0
+                                    ? '这一页没有记忆'
+                                    : _search.text.trim().isNotEmpty
+                                    ? '没有找到相关记忆'
+                                    : '还没有记忆',
+                                details: Text(
+                                  _offset > 0
+                                      ? '返回上一页，继续查看。'
+                                      : _search.text.trim().isNotEmpty
+                                      ? '换个关键词，或查看全部记忆。'
+                                      : '偏好、小事，都可以记在这里。',
+                                ),
+                                actions: _offset > 0
+                                    ? OutlinedButton.icon(
+                                        onPressed: () {
+                                          _offset -= 20;
+                                          load();
+                                        },
+                                        icon: const Icon(Icons.chevron_left),
+                                        label: const Text('上一页'),
+                                      )
+                                    : _search.text.trim().isNotEmpty
+                                    ? OutlinedButton.icon(
+                                        onPressed: () {
+                                          _search.clear();
+                                          load(reset: true);
+                                        },
+                                        icon: const Icon(Icons.close_rounded),
+                                        label: const Text('清除搜索'),
+                                      )
+                                    : ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          minHeight: AppLayout.actionMinHeight,
+                                        ),
+                                        child: FilledButton.icon(
+                                          onPressed: edit,
+                                          icon: const Icon(Icons.add_rounded),
+                                          label: const Text('添加第一条记忆'),
+                                        ),
+                                      ),
+                              ),
+                            ),
                           ),
                         ),
-                        IconButton(
-                          tooltip: '下一页',
-                          onPressed: data['nextOffset'] == null
-                              ? null
-                              : () {
-                                  _offset = data['nextOffset'] as int;
-                                  load();
-                                },
-                          icon: const Icon(Icons.chevron_right),
-                        ),
-                      ],
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: padding.copyWith(top: 0),
+                      sliver: SliverList.list(
+                        children: [
+                          for (final entry in items) memoryCard(entry),
+                          if (_offset > 0 || data['nextOffset'] != null)
+                            Row(
+                              children: [
+                                IconButton(
+                                  tooltip: '上一页',
+                                  onPressed: _offset == 0
+                                      ? null
+                                      : () {
+                                          _offset -= 20;
+                                          load();
+                                        },
+                                  icon: const Icon(Icons.chevron_left),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    '第 ${_offset ~/ 20 + 1} 页',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: '下一页',
+                                  onPressed: data['nextOffset'] == null
+                                      ? null
+                                      : () {
+                                          _offset = data['nextOffset'] as int;
+                                          load();
+                                        },
+                                  icon: const Icon(Icons.chevron_right),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
                     ),
                 ],
               );
@@ -344,6 +396,84 @@ class _MemoryPageState extends State<MemoryPage> {
         ),
       ),
     ),
+  );
+}
+
+/// 根据正文可用宽度与字号切换工具栏；不按整个窗口猜测面板宽度。
+class _MemoryToolbar extends StatelessWidget {
+  const _MemoryToolbar({
+    required this.search,
+    required this.total,
+    required this.showExpired,
+    required this.onSearch,
+    required this.onShowExpired,
+  });
+
+  final TextEditingController search;
+  final int total;
+  final bool showExpired;
+  final VoidCallback onSearch;
+  final ValueChanged<bool> onShowExpired;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final inline =
+          constraints.maxWidth >=
+          AppLayout.mediumBreakpoint *
+              MediaQuery.textScalerOf(context).scale(1);
+      final field = TextField(
+        controller: search,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: '搜索记忆',
+          prefixIcon: const Icon(Icons.search_rounded),
+          suffixIcon: IconButton(
+            tooltip: '搜索记忆',
+            onPressed: onSearch,
+            icon: const Icon(Icons.arrow_forward),
+          ),
+        ),
+        onSubmitted: (_) => onSearch(),
+      );
+      final filter = FilterChip(
+        label: const Text('包含过期'),
+        selected: showExpired,
+        onSelected: onShowExpired,
+      );
+      final count = Text(
+        '$total 条记忆',
+        style: Theme.of(context).textTheme.bodyMedium,
+      );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (inline) ...[
+            Row(
+              children: [
+                Expanded(child: field),
+                const SizedBox(width: AppLayout.spaceLg),
+                filter,
+              ],
+            ),
+            if (total > 0) ...[
+              const SizedBox(height: AppLayout.spaceMd),
+              count,
+            ],
+          ] else ...[
+            field,
+            const SizedBox(height: AppLayout.spaceMd),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: AppLayout.spaceMd,
+              runSpacing: AppLayout.spaceSm,
+              children: [if (total > 0) count, filter],
+            ),
+          ],
+        ],
+      );
+    },
   );
 }
 

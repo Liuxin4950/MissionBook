@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/colors.dart';
@@ -12,12 +14,10 @@ class GoalRecordSummary extends StatefulWidget {
     required this.goalId,
     required this.goals,
     required this.missions,
-    this.highlighted = false,
   });
   final String goalId;
   final GoalService goals;
   final MissionService missions;
-  final bool highlighted;
   @override
   State<GoalRecordSummary> createState() => _GoalRecordSummaryState();
 }
@@ -70,114 +70,53 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) => FutureBuilder<({int total, int completed})>(
-    future: _summary,
-    builder: (context, snapshot) {
-      final color = widget.highlighted
-          ? AppColors.onPrimary
-          : AppColors.textSecondary;
-      if (snapshot.hasError) {
-        return TextButton(
-          onPressed: () => setState(_read),
-          child: const Text('重新读取节点记录'),
-        );
-      }
-      if (!snapshot.hasData) {
-        return Text(
-          '正在读取节点记录…',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: color),
-        );
-      }
-      final value = snapshot.data!;
-      if (value.total == 0) {
-        return Text(
-          '暂无节点',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: color),
-        );
-      }
-      return Semantics(
-        key: Key('goal-record-summary-${widget.goalId}'),
-        container: true,
-        label: '有效节点${value.total}项，其中${value.completed}项有直接完成记录，不表示掌握程度',
-        child: ExcludeSemantics(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
+  Widget build(BuildContext context) =>
+      FutureBuilder<({int total, int completed})>(
+        future: _summary,
+        builder: (context, snapshot) {
+          final textStyle = Theme.of(context).textTheme.bodySmall;
+          if (snapshot.hasError) {
+            return TextButton(
+              onPressed: () => setState(_read),
+              child: const Text('重新读取节点记录'),
+            );
+          }
+          if (!snapshot.hasData) {
+            return Text('正在读取节点记录…', style: textStyle);
+          }
+          final value = snapshot.data!;
+          if (value.total == 0) {
+            return Text('暂无节点', style: textStyle);
+          }
+          return Semantics(
+            key: Key('goal-record-summary-${widget.goalId}'),
+            container: true,
+            label: '有效节点${value.total}项，其中${value.completed}项有直接完成记录，不表示掌握程度',
+            child: ExcludeSemantics(
+              child: Row(
                 children: [
                   Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppLayout.radiusXs),
+                      child: LinearProgressIndicator(
+                        value: value.completed / value.total,
+                        minHeight: AppLayout.spaceXs,
+                        color: AppColors.primary,
+                        backgroundColor: AppColors.primarySoft,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppLayout.spaceSm),
+                  Flexible(
                     child: Text(
-                      '节点完成情况',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: color),
+                      '节点完成 ${value.completed}/${value.total}',
+                      style: textStyle,
                     ),
-                  ),
-                  Text(
-                    '${value.completed}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: widget.highlighted
-                          ? AppColors.accent
-                          : AppColors.primary,
-                    ),
-                  ),
-                  Text(
-                    ' / ${value.total}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: color),
                   ),
                 ],
               ),
-              const SizedBox(height: AppLayout.spaceMd),
-              if (value.total <= 12)
-                Row(
-                  children: [
-                    for (var i = 0; i < value.total; i++)
-                      Expanded(
-                        child: Container(
-                          height: 7,
-                          margin: EdgeInsets.only(
-                            right: i == value.total - 1 ? 0 : AppLayout.spaceXs,
-                          ),
-                          decoration: BoxDecoration(
-                            color: i < value.completed
-                                ? widget.highlighted
-                                      ? AppColors.accent
-                                      : AppColors.primary
-                                : (widget.highlighted
-                                      ? AppColors.onPrimary.withValues(
-                                          alpha: .24,
-                                        )
-                                      : AppColors.primarySoft),
-                            borderRadius: BorderRadius.circular(
-                              AppLayout.radiusSm,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                )
-              else
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppLayout.radiusSm),
-                  child: LinearProgressIndicator(
-                    value: value.completed / value.total,
-                    minHeight: 7,
-                    color: widget.highlighted
-                        ? AppColors.accent
-                        : AppColors.primary,
-                    backgroundColor: widget.highlighted
-                        ? AppColors.onPrimary.withValues(alpha: .24)
-                        : AppColors.primarySoft,
-                  ),
-                ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       );
-    },
-  );
 }

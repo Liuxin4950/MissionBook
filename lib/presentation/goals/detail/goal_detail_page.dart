@@ -2,9 +2,13 @@ import '../../../domain/entities/analysis_scope.dart';
 import '../../records/analysis_panel.dart';
 import '../../records/records_page.dart';
 import '../../records/record_scope.dart';
+
 import 'dart:async';
+
 import '../../assistant/assistant_launcher.dart';
+
 import 'package:flutter/material.dart';
+
 import '../../widgets/detail_pane.dart';
 
 import '../../../application/goals/goal_service.dart';
@@ -174,123 +178,112 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
               _lastGoal = goal;
               final theme = Theme.of(context);
               return SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: AppLayout.pagePadding(context),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    LayoutBuilder(
-                      builder: (context, box) {
-                        final title = SelectableText(
-                          goal.title,
-                          style: theme.textTheme.headlineSmall,
-                        );
-                        final badge = Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppLayout.spaceMd,
-                            vertical: AppLayout.spaceSm,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primarySoft,
-                            borderRadius: BorderRadius.circular(
-                              AppLayout.radiusSm,
-                            ),
-                          ),
-                          child: Text(
-                            goalStatusLabel(goal.status),
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        );
-                        if (box.maxWidth <
-                            480 * MediaQuery.textScalerOf(context).scale(1)) {
-                          return Column(
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              title,
-                              const SizedBox(height: AppLayout.spaceMd),
-                              badge,
+                              SelectableText(
+                                goal.title,
+                                style: theme.textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: AppLayout.spaceXs),
+                              Text(
+                                goalStatusLabel(goal.status),
+                                style: theme.textTheme.bodySmall,
+                              ),
                             ],
-                          );
-                        }
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: title),
-                            const SizedBox(width: AppLayout.spaceLg),
-                            badge,
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: AppLayout.spaceMd),
-                    Wrap(
-                      spacing: AppLayout.spaceMd,
-                      runSpacing: AppLayout.spaceSm,
-                      children: [
-                        OutlinedButton.icon(
-                          key: const Key('goal-edit'),
-                          onPressed: _busy ? null : () => _edit(goal),
-                          icon: const Icon(
-                            Icons.edit_outlined,
-                            size: AppLayout.iconSm,
                           ),
-                          label: const Text('编辑目标'),
                         ),
-                        PopupMenuButton<GoalStatus>(
+                        PopupMenuButton<_GoalDetailAction>(
                           key: const Key('goal-status-menu'),
-                          tooltip: '更改目标状态',
+                          tooltip: '目标操作',
                           enabled: !_busy,
-                          onSelected: (status) => _changeStatus(goal, status),
+                          icon: const Icon(
+                            Icons.more_horiz,
+                            size: AppLayout.iconMd,
+                          ),
+                          onSelected: (action) {
+                            switch (action) {
+                              case _GoalDetailAction.edit:
+                                _edit(goal);
+                              case _GoalDetailAction.active:
+                                _changeStatus(goal, GoalStatus.active);
+                              case _GoalDetailAction.paused:
+                                _changeStatus(goal, GoalStatus.paused);
+                              case _GoalDetailAction.achieved:
+                                _changeStatus(goal, GoalStatus.achieved);
+                              case _GoalDetailAction.dropped:
+                                _changeStatus(goal, GoalStatus.dropped);
+                            }
+                          },
                           itemBuilder: (_) => [
+                            const PopupMenuItem(
+                              key: Key('goal-edit'),
+                              value: _GoalDetailAction.edit,
+                              child: Text('编辑目标'),
+                            ),
                             if (goal.status != GoalStatus.active)
                               const PopupMenuItem(
-                                value: GoalStatus.active,
+                                value: _GoalDetailAction.active,
                                 child: Text('恢复推进'),
                               ),
                             if (goal.status != GoalStatus.dropped) ...[
                               if (goal.status != GoalStatus.paused)
                                 const PopupMenuItem(
-                                  value: GoalStatus.paused,
+                                  value: _GoalDetailAction.paused,
                                   child: Text('暂时搁置'),
                                 ),
                               if (goal.status != GoalStatus.achieved)
                                 const PopupMenuItem(
-                                  value: GoalStatus.achieved,
+                                  value: _GoalDetailAction.achieved,
                                   child: Text('标为已达成'),
                                 ),
                               const PopupMenuItem(
-                                value: GoalStatus.dropped,
+                                value: _GoalDetailAction.dropped,
                                 child: Text('放弃目标'),
                               ),
                             ],
                           ],
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: AppLayout.spaceMd,
-                              vertical: AppLayout.spaceMd,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.more_horiz, size: AppLayout.iconMd),
-                                SizedBox(width: AppLayout.spaceSm),
-                                Text('更改状态'),
-                              ],
-                            ),
-                          ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: AppLayout.spaceMd),
+                    if (widget.missionService != null) ...[
+                      GoalRecordSummary(
+                        goalId: goal.id,
+                        goals: widget.service,
+                        missions: widget.missionService!,
+                      ),
+                      const SizedBox(height: AppLayout.spaceLg),
+                    ],
+                    GoalOutlineSection(
+                      service: widget.service,
+                      missionService: widget.missionService,
+                      goal: goal,
+                      goalId: goal.id,
+                      goalTitle: goal.title,
+                    ),
+                    const SizedBox(height: AppLayout.spaceLg),
                     if (goal.description != null || goal.why != null)
                       AppExpansionTile(
                         key: const Key('goal-description-toggle'),
-                        childrenPadding: const EdgeInsets.only(
-                          top: AppLayout.spaceSm,
-                          bottom: AppLayout.spaceXl,
+                        insetHeader: false,
+                        headerPadding: const EdgeInsets.symmetric(
+                          vertical: AppLayout.spaceSm,
                         ),
-                        expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-                        title: Text('目标说明', style: theme.textTheme.bodyMedium),
+                        childrenPadding: const EdgeInsets.only(
+                          bottom: AppLayout.spaceLg,
+                        ),
+                        title: Text('目标说明', style: theme.textTheme.titleSmall),
                         children: [
                           if (goal.description != null)
                             SelectableText(
@@ -309,7 +302,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                         ],
                       ),
                     if (RecordScope.maybeOf(context) != null) ...[
-                      const SizedBox(height: AppLayout.spaceLg),
+                      const SizedBox(height: AppLayout.spaceMd),
                       AppSectionCard(
                         padding: const EdgeInsets.symmetric(
                           vertical: AppLayout.spaceSm,
@@ -326,23 +319,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: AppLayout.spaceXxl),
-                    if (widget.missionService != null) ...[
-                      GoalRecordSummary(
-                        goalId: goal.id,
-                        goals: widget.service,
-                        missions: widget.missionService!,
-                      ),
-                      const SizedBox(height: AppLayout.spaceXxl),
-                    ],
-                    GoalOutlineSection(
-                      service: widget.service,
-                      missionService: widget.missionService,
-                      goal: goal,
-                      goalId: goal.id,
-                      goalTitle: goal.title,
-                    ),
-                    const SizedBox(height: AppLayout.spaceXxl),
+                    const SizedBox(height: AppLayout.spaceLg),
                     Text(
                       '创建于 ${_date(goal.createdAt.toLocal())}',
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -361,3 +338,5 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
 
   String _date(DateTime value) => '${value.year}年${value.month}月${value.day}日';
 }
+
+enum _GoalDetailAction { edit, active, paused, achieved, dropped }

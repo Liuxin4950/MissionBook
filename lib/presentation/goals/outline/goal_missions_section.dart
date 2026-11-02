@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../widgets/detail_pane.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/colors.dart';
@@ -18,7 +19,7 @@ import '../../../core/theme/app_layout.dart';
 /// 目标或节点下的直接关联任务，操作转入独立任务页面。
 class GoalMissionsSection extends StatefulWidget {
   // 节点标记与树线共用定位尺寸，文字换行只增加行高，不移动标记。
-  static const markerExtent = 48.0;
+  static const markerExtent = AppLayout.touchTargetMin;
 
   const GoalMissionsSection({
     super.key,
@@ -30,7 +31,6 @@ class GoalMissionsSection extends StatefulWidget {
     this.leading,
     this.trailing,
     this.annotation,
-    this.onNodeTap,
     this.relatedContent,
     this.directOnly = false,
   });
@@ -42,7 +42,6 @@ class GoalMissionsSection extends StatefulWidget {
   final Widget? leading; // 节点树传入展开箭头；任务区负责把它与节点标题放在同一行。
   final Widget? trailing; // 节点维护菜单，由原来的树组件提供，操作逻辑不搬到这里。
   final String? annotation;
-  final VoidCallback? onNodeTap; // 点击节点标题区域时展开或收起子节点。
   final Widget? relatedContent; // 节点自身的记录入口，与任务并列，由目标工作区组装。
   final bool directOnly;
   @override
@@ -52,6 +51,7 @@ class GoalMissionsSection extends StatefulWidget {
 class GoalMissionsSectionState extends State<GoalMissionsSection> {
   bool _expanded = false;
   bool _opening = false;
+  static const _pageSize = 10;
   int _pageIndex = 0;
   List<MissionDetail>? _lastMissions;
   Future<void> createMission() => _open(); // 节点菜单与行内按钮共用同一个建任务入口。
@@ -105,7 +105,13 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
       );
     } finally {
       if (mounted) {
-        setState(() => _opening = false);
+        setState(() {
+          _opening = false;
+          if (detail == null) {
+            _expanded = true;
+            _pageIndex = 0;
+          }
+        });
         widget.onRefresh();
       }
     }
@@ -142,11 +148,26 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
         direct.sort((a, b) {
           final group = priority(a).compareTo(priority(b));
           if (group != 0) return group;
-          final created = b.mission.createdAt.compareTo(a.mission.createdAt);
-          return created != 0 ? created : a.mission.id.compareTo(b.mission.id);
+          final byDate = a.schedule.scheduledDate.compareTo(
+            b.schedule.scheduledDate,
+          );
+          if (byDate != 0) {
+            return priority(a) >= 4 ? -byDate : byDate;
+          }
+          final aStart = a.schedule.fixedStartAt;
+          final bStart = b.schedule.fixedStartAt;
+          if (aStart != null && bStart != null) {
+            final byTime = aStart.compareTo(bStart);
+            if (byTime != 0) return byTime;
+          }
+          return a.mission.id.compareTo(b.mission.id);
         });
         // 完成记录与记录标签的口径集中在 domain/rules/goal_node_record_rules.dart，
         // 这里只负责展示；“完成”只是 END 报告已完成，不表示掌握程度。
+        final pageCount = direct.isEmpty
+            ? 1
+            : (direct.length + _pageSize - 1) ~/ _pageSize;
+        final pageIndex = _pageIndex.clamp(0, pageCount - 1);
         final completed = hasCompletionRecord(direct);
         var label = nodeRecordLabel(direct);
         if (widget.node == null) label = '关联任务';
@@ -162,84 +183,25 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                   'node-create-mission-${widget.node?.id ?? widget.goal.id}',
                 ),
                 onPressed: _opening ? null : () => _open(),
-                style:
-                    TextButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      minimumSize: const Size(0, 40),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppLayout.spaceSm,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
-                      ),
-                      textStyle: theme.textTheme.labelMedium,
-                    ).copyWith(
-                      splashFactory: NoSplash.splashFactory,
-                      overlayColor: theme.textButtonTheme.style?.overlayColor,
-                    ),
-                icon: const Icon(Icons.add_rounded, size: AppLayout.iconSm),
-                label: Text(
-                  widget.node == null && direct.isEmpty ? '直接为目标建任务' : '建任务',
+                style: TextButton.styleFrom(
+                  textStyle: theme.textTheme.labelSmall,
+                  minimumSize: const Size(0, AppLayout.touchTargetMin),
                 ),
+                icon: const Icon(Icons.add_rounded, size: AppLayout.iconSm),
+                label: Text(widget.node == null ? '为目标建任务' : '新建任务'),
               )
             : null;
-        final canExpand = direct.isNotEmpty || widget.node?.description != null;
+        // 目标直属任务为空时保留真实创建入口；节点使用标题行的加号和菜单。
         if (widget.node == null && direct.isEmpty && !snapshot.hasError) {
           return createButton == null
               ? const SizedBox.shrink()
-              : Padding(
-                  padding: const EdgeInsets.only(top: AppLayout.spaceMd),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: createButton,
-                  ),
-                );
+              : Align(alignment: Alignment.centerLeft, child: createButton);
         }
-        final status = !canExpand && !snapshot.hasError
-            ? Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Text(label, style: theme.textTheme.bodyMedium),
-              )
-            : TextButton(
-                key: Key('node-tasks-${widget.node?.id ?? widget.goal.id}'),
-                onPressed: snapshot.hasError ? widget.onRefresh : _toggle,
-                style:
-                    TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      padding: EdgeInsets.zero,
-                      minimumSize: const Size(0, AppLayout.touchTargetMin),
-                      alignment: Alignment.centerLeft,
-                      textStyle: theme.textTheme.bodyMedium,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
-                      ),
-                    ).copyWith(
-                      splashFactory: NoSplash.splashFactory,
-                      overlayColor: theme.textButtonTheme.style?.overlayColor,
-                    ),
-                // 子树箭头管理后代，这个按钮只管理当前节点的内容。
-                child: Semantics(
-                  expanded: _expanded,
-                  label: widget.node == null ? '关联任务' : '节点内容',
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          direct.isEmpty
-                              ? '未建任务 · 查看内容'
-                              : '$label · ${direct.length}',
-                        ),
-                      ),
-                      const SizedBox(width: AppLayout.spaceXs),
-                      Icon(
-                        _expanded ? Icons.expand_less : Icons.expand_more,
-                        size: AppLayout.iconSm,
-                      ),
-                    ],
-                  ),
-                ),
-              );
+        final statusText = snapshot.hasError || _lastMissions == null
+            ? label
+            : direct.isEmpty
+            ? '未建任务'
+            : '$label · ${direct.length} 项任务';
         final leading = SizedBox.square(
           key: Key('node-marker-${widget.node?.id ?? widget.goal.id}'),
           dimension: GoalMissionsSection.markerExtent,
@@ -262,89 +224,86 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Semantics(
-                button: widget.onNodeTap != null,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(AppLayout.radiusMd),
-                  key: Key('node-header-${widget.node?.id ?? widget.goal.id}'),
-                  onTap: widget.onNodeTap,
-                  child: LayoutBuilder(
-                    builder: (context, box) {
-                      final compact =
-                          box.maxWidth <
-                          360 * MediaQuery.textScalerOf(context).scale(1);
-                      final name = Text(
-                        title,
-                        style: theme.textTheme.titleMedium,
-                      );
-                      if (compact) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                leading,
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: AppLayout.spaceMd,
-                                    ),
-                                    child: name,
-                                  ),
-                                ),
-                                if (widget.trailing != null) widget.trailing!,
-                              ],
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: AppLayout.touchTargetMin,
-                              ),
-                              child: Wrap(
-                                spacing: AppLayout.spaceMd,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [status, ?createButton],
-                              ),
-                            ),
-                          ],
-                        );
-                      }
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          leading,
-                          Expanded(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: AppLayout.spaceXs,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [name, status],
-                                    ),
-                                  ),
-                                ),
-                                Row(
-                                  key: Key(
-                                    'node-actions-${widget.node?.id ?? widget.goal.id}',
-                                  ),
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [?createButton, ?widget.trailing],
-                                ),
-                              ],
-                            ),
+              Row(
+                key: Key('node-header-${widget.node?.id ?? widget.goal.id}'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  leading,
+                  Expanded(
+                    child: Semantics(
+                      button: true,
+                      expanded: _expanded,
+                      hint: _expanded ? '收起任务与说明' : '展开任务与说明',
+                      child: InkWell(
+                        key: Key(
+                          'node-tasks-${widget.node?.id ?? widget.goal.id}',
+                        ),
+                        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+                        onTap: _toggle,
+                        child: Padding(
+                          padding: const EdgeInsets.only(
+                            top: AppLayout.spaceSm,
                           ),
-                        ],
-                      );
-                    },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                title,
+                                maxLines: _expanded ? null : 1,
+                                overflow: _expanded
+                                    ? null
+                                    : TextOverflow.ellipsis,
+                                style: theme.textTheme.labelLarge,
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            statusText,
+                                            style: theme.textTheme.bodySmall,
+                                          ),
+                                        ),
+                                        const SizedBox(
+                                          width: AppLayout.spaceXs,
+                                        ),
+                                        Icon(
+                                          _expanded
+                                              ? Icons.expand_less
+                                              : Icons.expand_more,
+                                          size: AppLayout.iconSm,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (available)
+                                    IconButton(
+                                      key: Key(
+                                        'node-create-mission-${widget.node?.id ?? widget.goal.id}',
+                                      ),
+                                      tooltip: '为“$title”新建任务',
+                                      onPressed: _opening
+                                          ? null
+                                          : () => _open(),
+                                      icon: const Icon(
+                                        Icons.add_rounded,
+                                        size: AppLayout.iconSm,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  if (widget.trailing != null) widget.trailing!,
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
               if (widget.annotation?.isNotEmpty == true)
                 Padding(
@@ -357,9 +316,10 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
-              if (direct.any(
-                (detail) => detail.phase == MissionPhase.evidencePending,
-              ))
+              if (!_expanded &&
+                  direct.any(
+                    (detail) => detail.phase == MissionPhase.evidencePending,
+                  ))
                 Padding(
                   padding: const EdgeInsets.only(
                     left: AppLayout.touchTargetMin,
@@ -367,12 +327,12 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                   ),
                   child: Text(
                     '待补材料',
-                    style: theme.textTheme.bodyMedium?.copyWith(
+                    style: theme.textTheme.bodySmall?.copyWith(
                       color: AppColors.primary,
                     ),
                   ),
                 ),
-              if (!available)
+              if (_expanded && !available)
                 Padding(
                   padding: const EdgeInsets.only(
                     left: AppLayout.touchTargetMin,
@@ -382,10 +342,15 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     widget.node?.archivedAt != null
                         ? '已归档 · 恢复后可建任务，原任务仍可办理'
                         : '目标未推进 · 原任务仍可办理',
-                    style: theme.textTheme.bodyMedium,
+                    style: theme.textTheme.bodySmall,
                   ),
                 ),
               if (_expanded) ...[
+                if (snapshot.hasError)
+                  TextButton(
+                    onPressed: widget.onRefresh,
+                    child: const Text('重试读取任务'),
+                  ),
                 if (widget.node?.description != null)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
@@ -399,20 +364,8 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                       style: theme.textTheme.bodyMedium,
                     ),
                   ),
-                if (snapshot.hasError)
-                  TextButton(
-                    onPressed: widget.onRefresh,
-                    child: const Text('重试读取任务'),
-                  ),
                 for (final detail
-                    in direct
-                        .skip(
-                          (_pageIndex * 50).clamp(
-                            0,
-                            direct.isEmpty ? 0 : (direct.length - 1) ~/ 50 * 50,
-                          ),
-                        )
-                        .take(50))
+                    in direct.skip(pageIndex * _pageSize).take(_pageSize))
                   _taskTile(
                     context,
                     detail,
@@ -421,28 +374,31 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                         (detail.phase == MissionPhase.paused ||
                             detail.phase == MissionPhase.reportPending),
                   ),
-                if (direct.length > 50)
+                if (direct.length > _pageSize)
                   Wrap(
                     spacing: AppLayout.spaceSm,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       TextButton(
-                        onPressed: _pageIndex == 0
+                        onPressed: pageIndex == 0
                             ? null
-                            : () => setState(() => _pageIndex--),
+                            : () => setState(() => _pageIndex = pageIndex - 1),
                         child: const Text('上一页任务'),
                       ),
-                      Text('每页 50 项，共 ${direct.length} 项'),
+                      Text(
+                        '${pageIndex + 1}/$pageCount 页 · 共 ${direct.length} 项',
+                        style: theme.textTheme.bodySmall,
+                      ),
                       TextButton(
-                        onPressed: (_pageIndex + 1) * 50 >= direct.length
+                        onPressed: (pageIndex + 1) * _pageSize >= direct.length
                             ? null
-                            : () => setState(() => _pageIndex++),
+                            : () => setState(() => _pageIndex = pageIndex + 1),
                         child: const Text('下一页任务'),
                       ),
                     ],
                   ),
+                if (widget.relatedContent != null) widget.relatedContent!,
               ],
-              if (widget.relatedContent != null) widget.relatedContent!,
             ],
           ),
         );
@@ -456,120 +412,54 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
     required bool emphasized,
   }) {
     final theme = Theme.of(context);
-    final color = emphasized ? AppColors.primary : AppColors.textSecondary;
-    final date = detail.schedule.scheduledDate;
-    return Container(
-      key: ValueKey('goal-task-${detail.mission.id}'),
-      margin: const EdgeInsets.only(
-        top: AppLayout.spaceMd,
-        bottom: AppLayout.spaceXs,
-      ),
-      padding: const EdgeInsets.all(AppLayout.spaceMd),
-      decoration: BoxDecoration(
-        border: emphasized ? Border.all(color: AppColors.primary) : null,
-        borderRadius: BorderRadius.circular(AppLayout.radiusXl),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          LayoutBuilder(
-            builder: (context, box) {
-              final compact =
-                  box.maxWidth <
-                  260 * MediaQuery.textScalerOf(context).scale(1);
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!compact)
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        top: 3,
-                        right: AppLayout.spaceMd,
+    final phase = phaseLabel(detail.phase, schedule: detail.schedule);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppLayout.spaceXs),
+      child: Material(
+        key: ValueKey('goal-task-${detail.mission.id}'),
+        color: emphasized ? AppColors.primarySoft : AppColors.card,
+        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _opening ? null : () => _open(detail: detail),
+          child: Padding(
+            padding: const EdgeInsets.all(AppLayout.spaceMd),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        detail.mission.title,
+                        style: theme.textTheme.titleSmall,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            date.substring(5).replaceFirst('-', '/'),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: color,
-                            ),
-                          ),
-                          Text(
-                            date.substring(0, 4),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: color,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: AppLayout.spaceXs),
+                      Text(
+                        '${detail.schedule.scheduledDate} · $phase · ${detail.schedule.plannedDurationMinutes} 分钟',
+                        style: theme.textTheme.bodySmall,
                       ),
-                    ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (compact) ...[
-                          Text(
-                            date,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: color,
-                            ),
-                          ),
-                          const SizedBox(height: AppLayout.spaceXs),
-                        ],
-                        Text(
-                          detail.mission.title,
-                          style: theme.textTheme.titleMedium,
+                      if (detail.events.isNotEmpty)
+                        MissionLiveStatus(
+                          phase: detail.phase,
+                          events: detail.events,
+                          includePhase: false,
                         ),
-                        const SizedBox(height: AppLayout.spaceSm),
-                        Text(
-                          '${phaseLabel(detail.phase, schedule: detail.schedule)} · 计划 ${detail.schedule.plannedDurationMinutes} 分钟',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: color,
-                          ),
-                        ),
-                        if (detail.events.isNotEmpty)
-                          MissionLiveStatus(
-                            phase: detail.phase,
-                            events: detail.events,
-                            includePhase: false,
-                          ),
-                      ],
-                    ),
+                    ],
                   ),
-                  IconButton(
-                    onPressed: _opening ? null : () => _open(detail: detail),
-                    tooltip:
-                        detail.phase == MissionPhase.running ||
-                            (detail.phase == MissionPhase.paused ||
-                                detail.phase == MissionPhase.reportPending)
-                        ? '返回执行'
-                        : detail.phase == MissionPhase.closed
-                        ? '查看执行记录'
-                        : detail.phase == MissionPhase.evidencePending
-                        ? '提交材料'
-                        : '任务详情',
-                    icon: Icon(
-                      detail.phase == MissionPhase.closed
-                          ? Icons.history_rounded
-                          : Icons.open_in_new_rounded,
-                      size: AppLayout.iconSm,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-          if (detail.phase == MissionPhase.evidencePending)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: _opening ? null : () => _open(detail: detail),
-                child: const Text('提交材料'),
-              ),
+                ),
+                const SizedBox(width: AppLayout.spaceSm),
+                Icon(
+                  detail.phase == MissionPhase.closed
+                      ? Icons.history_rounded
+                      : Icons.chevron_right_rounded,
+                  size: AppLayout.iconSm,
+                  color: AppColors.primary,
+                ),
+              ],
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
