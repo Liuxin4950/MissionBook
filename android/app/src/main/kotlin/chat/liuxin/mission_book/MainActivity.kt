@@ -132,7 +132,11 @@ class MainActivity : FlutterActivity() {
         }
 
         val mimeTypes = extractMimeTypes(call)
-        pendingFileLimit = if (mimeTypes.contains("application/json")) MAX_GOAL_JSON_BYTES else MAX_ATTACHMENT_BYTES
+        pendingFileLimit = when {
+            mimeTypes.contains("application/zip") -> MAX_BACKUP_BYTES
+            mimeTypes.contains("application/json") -> MAX_GOAL_JSON_BYTES
+            else -> MAX_ATTACHMENT_BYTES
+        }
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = if (mimeTypes.size == 1) mimeTypes.single() else "*/*"
@@ -253,7 +257,11 @@ class MainActivity : FlutterActivity() {
                         if (count < 0) break
                         totalBytes += count
                         check(totalBytes <= maxBytes) {
-                            if (maxBytes == MAX_GOAL_JSON_BYTES) "目标 JSON 不能超过 32 MiB。" else "每个附件不能超过 20 MiB。"
+                            when (maxBytes) {
+                                MAX_BACKUP_BYTES -> "备份不能超过 256 MiB。"
+                                MAX_GOAL_JSON_BYTES -> "目标 JSON 不能超过 32 MiB。"
+                                else -> "每个附件不能超过 20 MiB。"
+                            }
                         }
                         output.write(buffer, 0, count)
                     }
@@ -299,6 +307,7 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val MAX_ATTACHMENT_BYTES = 20L * 1024L * 1024L
+        const val MAX_BACKUP_BYTES = 256L * 1024L * 1024L
         const val MAX_GOAL_JSON_BYTES = 32L * 1024L * 1024L
         const val FILE_SELECTOR_CHANNEL = "plugins.flutter.io/file_selector"
         const val OPEN_FILE_REQUEST_CODE = 43021

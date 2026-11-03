@@ -81,7 +81,13 @@ class _DataExportCardState extends State<DataExportCard> {
               const SizedBox(height: AppLayout.spaceMd),
               _detail(sheetContext, '不含', 'API Key、未发送草稿、缓存、本机资料和提醒偏好。'),
               const SizedBox(height: AppLayout.spaceMd),
-              _detail(sheetContext, '恢复', '当前只支持导出，应用内暂不支持导入恢复。'),
+              _detail(
+                sheetContext,
+                '恢复',
+                widget.backup is BackupRestorer
+                    ? '在数据备份页选择 ZIP，核对范围后恢复；恢复会替换当前业务数据。'
+                    : '当前只支持导出，应用内暂不支持导入恢复。',
+              ),
               const SizedBox(height: AppLayout.spaceXl),
               FilledButton(
                 key: const Key('backup-info-close'),

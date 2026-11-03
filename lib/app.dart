@@ -46,6 +46,7 @@ import 'data/repositories/drift_goal_repository.dart';
 import 'data/goal_import/goal_file_picker_platform.dart' as goal_file_platform;
 import 'application/backup/backup_service.dart';
 import 'data/backup/database_backup_service.dart';
+import 'data/backup/database_backup_restorer.dart';
 import 'data/settings/app_device_platform.dart';
 import 'application/settings/app_device.dart';
 import 'application/notifications/app_notification_service.dart';
@@ -64,10 +65,45 @@ class App extends StatefulWidget {
   const App({super.key});
 
   @override
-  State<App> createState() => _AppState();
+  State<App> createState() => _AppHostState();
 }
 
-class _AppState extends State<App> with WidgetsBindingObserver {
+/// 恢复后用新身份重新装配整个工作区，旧页面与会话缓存不会跨库沿用。
+class _AppHostState extends State<App> {
+  int _generation = 0;
+  String? _notice;
+  @override
+  Widget build(BuildContext context) => _AppWorkspace(
+    key: ValueKey(_generation),
+    notice: _notice,
+    onRestoreFinished: (notice) {
+      if (mounted) {
+        setState(() {
+          _notice = notice;
+          _generation++;
+        });
+      }
+    },
+  );
+}
+
+class _AppWorkspace extends StatefulWidget {
+  const _AppWorkspace({
+    super.key,
+    this.notice,
+    required this.onRestoreFinished,
+  });
+  final String? notice;
+  final void Function(String) onRestoreFinished;
+  @override
+  State<_AppWorkspace> createState() => _AppState();
+}
+
+class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
+  bool _restoring = false;
+  Future<void>? _notificationInitialization;
+  Future<void>? _restoreShutdown;
+  final _messenger = GlobalKey<ScaffoldMessengerState>();
   bool _launchComplete = false; // 应用启动完成标志
   Timer? _launchTimer;
   // late 表示这些属性稍后初始化。
@@ -105,10 +141,11 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // 页面稍后通过 create / findScheduledOn / findDetail 选择具体操作；
     // 三个方法使用同一个仓储、同一个数据库连接。
     // 平台能力只在 App 装配；业务服务依赖可注入接口，不反向引用 data 实现。
+    final attachmentStore = attachment_platform.createImageStore();
     final attachments = AttachmentCoordinator(
       referencedKeys: repository.referencedAttachmentKeys,
       files: AttachmentFileService(
-        store: attachment_platform.createImageStore(),
+        store: attachmentStore,
         picker: attachment_platform.createImagePicker(),
         filePicker: attachment_platform.createFilePicker(),
       ),
@@ -162,9 +199,17 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       ConfiguredAssistantSpeech(const SecureAssistantSettingsStore()),
       operationTimeout: const Duration(seconds: 60),
     );
-    _backupService = DatabaseBackupService(
-      database: _database,
-      readAttachment: _missionService.readEvidenceImage,
+    _backupService = ManagedBackupService(
+      exporter: DatabaseBackupService(
+        database: _database,
+        readAttachment: _missionService.readEvidenceImage,
+      ),
+      restorer: DatabaseBackupRestorer(
+        database: _database,
+        files: attachmentStore,
+        attachments: attachments,
+      ),
+      runRestore: _runRestore,
     );
     _device = createAppDevice();
     _motionSettings = createMotionSettings();
@@ -192,12 +237,22 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         );
       },
     );
-    unawaited(_initNotifications());
+    _notificationInitialization = _initNotifications();
+    unawaited(_notificationInitialization);
     // 首帧先呈现品牌页；短暂过渡后才装载四个主页面。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _launchTimer = Timer(AppMotion.launch, () {
         if (mounted) setState(() => _launchComplete = true);
+        if (mounted && widget.notice != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _messenger.currentState?.showSnackBar(
+                SnackBar(content: Text(widget.notice!)),
+              );
+            }
+          });
+        }
       });
     });
     WidgetsBinding.instance.addObserver(this);
@@ -211,6 +266,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_restoring) return;
     // 后台保留模型请求；麦克风单独结束，不能把切应用等同于用户停止AI。
     if (state == AppLifecycleState.hidden ||
         state == AppLifecycleState.paused) {
@@ -249,6 +305,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   }
 
   Future<void> _refreshNotifications() async {
+    if (_restoring) return;
     try {
       if (_androidDispatcher != null) {
         _androidDispatcher!.updateExactAlarmPermission(
@@ -266,6 +323,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   Future<void> _handleNotificationResponse(
     NotificationResponse response,
   ) async {
+    if (_restoring) return;
     if (!mounted ||
         response.notificationResponseType ==
             NotificationResponseType.notificationDismissed) {
@@ -345,9 +403,51 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     }
   }
 
+  Future<BackupRestoreResult> _runRestore(
+    Future<BackupRestoreResult> Function() restore,
+  ) async {
+    if (_restoring ||
+        _assistant.isBusy ||
+        _goalService.packages?.busy == true) {
+      throw StateError('请先结束助手或目标导入操作，再恢复备份');
+    }
+    setState(() => _restoring = true);
+    try {
+      _restoreShutdown = _stopForRestore();
+      await _restoreShutdown;
+      final result = await restore();
+      if (mounted) {
+        widget.onRestoreFinished(
+          '备份已恢复：${result.counts['missions'] ?? 0} 项任务，${result.counts['records'] ?? 0} 条记录；API Key 沿用本机设置',
+        );
+      }
+      return result;
+    } catch (_) {
+      if (mounted) widget.onRestoreFinished('恢复未完成，当前数据已保留。请重新打开数据备份页重试。');
+      rethrow;
+    }
+  }
+
+  Future<void> _stopForRestore() async {
+    // 先解绑旧工作区；重建后旧 State.dispose 不能清掉新工作区的通道监听。
+    _plannedBridge?.dispose();
+    await _assistantVoice.cancel();
+    await _assistant.close();
+    await _analysis.dispose();
+    await _notificationInitialization;
+    await _evidenceDeadlines?.dispose();
+    await _plannedMissions?.dispose();
+    await _notifications?.dispose();
+    if (_plannedBridge != null) {
+      await _plannedBridge!.beginSync();
+      await _plannedBridge!.schedule(null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scaffoldMessengerKey: _messenger,
       title: 'MissionBook',
       builder: (context, child) => MotionSettingsHost(
         settings: _motionSettings,
@@ -367,7 +467,26 @@ class _AppState extends State<App> with WidgetsBindingObserver {
             memory: _memory,
             analysis: _analysis,
             web: _web,
-            child: child!,
+            child: Stack(
+              children: [
+                AbsorbPointer(absorbing: _restoring, child: child!),
+                if (_restoring)
+                  const Positioned.fill(
+                    child: Material(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('正在恢复数据，请稍候…'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -398,10 +517,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _launchTimer?.cancel();
-    _plannedBridge?.dispose();
+    if (_restoreShutdown == null) _plannedBridge?.dispose();
     final deadlineClose = _evidenceDeadlines?.dispose();
     final plannedClose = _plannedMissions?.dispose();
-    unawaited(_notifications?.dispose());
+    if (_restoreShutdown == null) unawaited(_notifications?.dispose());
     // Flutter 移除这个 State 时调用 dispose。
     // close 返回 Future，但 dispose 不能等待异步完成；
     // unawaited 明确表示在这里发起关闭，不等待它。

@@ -129,7 +129,7 @@ class DatabaseBackupService implements BackupExporter {
       );
       result['README.txt'] = Uint8List.fromList(
         utf8.encode(
-          'Mission Book 本地备份\n\ndatabase.sql 是一致事务内导出的 SQLite 完整逻辑快照，包含全部应用表、索引、触发器及数据库版本。\n可使用 SQLite 在一个新的空数据库中执行该文件；attachments/ 保留正式材料原始路径。\nassistant-conversations.json 提供同一快照中的会话索引和完整原始日志，可用文本编辑器阅读。包含已发送的消息、引用、附件内容及工具结果；不读取安全存储中的 API Key。\nmanifest.json 记录格式、导出时间与附件清单。\n不含未发送草稿、缓存、本机资料、提醒偏好。当前应用不提供恢复导入入口。\n',
+          'Mission Book 本地备份\n\ndatabase.sql 是一致事务内导出的 SQLite 完整逻辑快照，包含全部应用表、索引、触发器及数据库版本。\nattachments/ 保存记录、任务材料与撤销历史引用的原件。\nassistant-conversations.json 提供同一快照中的会话索引和完整原始日志，包括已发送消息、引用、附件内容及工具结果。\nmanifest.json 记录格式、导出时间与附件清单。\n在应用的数据备份页选择 ZIP，核对范围并确认后可恢复全部业务数据。\n不含 API Key、未发送草稿、缓存、模型/语音设置、本机资料及提醒偏好；恢复会保留目标设备的本机设置，新安装后需重新配置。\n',
         ),
       );
       return result;
