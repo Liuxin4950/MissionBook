@@ -137,7 +137,7 @@ class _DataExportCardState extends State<DataExportCard> {
       child: LayoutBuilder(
         builder: (context, box) {
           final inline =
-              box.maxWidth >= 340 * MediaQuery.textScalerOf(context).scale(1);
+              box.maxWidth >= 300 * MediaQuery.textScalerOf(context).scale(1);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -167,7 +167,7 @@ class _DataExportCardState extends State<DataExportCard> {
                               key: const Key('backup-info'),
                               onPressed: _showDetails,
                               tooltip: '备份说明',
-                              icon: const Icon(Icons.priority_high_rounded),
+                              icon: const Icon(Icons.info_outline_rounded),
                               iconSize: AppLayout.iconSm,
                               style: IconButton.styleFrom(
                                 foregroundColor: AppColors.textSecondary,

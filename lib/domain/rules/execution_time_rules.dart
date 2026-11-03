@@ -1,4 +1,6 @@
 import '../entities/execution_event.dart';
+import '../entities/mission_schedule_revision.dart';
+import 'scheduled_execution_rules.dart';
 
 /// 由已校验的完整时间线计算毫秒统计；不存储，不使用 Timer 累加。
 class ExecutionTimes {
@@ -18,10 +20,14 @@ class ExecutionTimes {
   final bool clockBehind;
 }
 
+/// 固定任务从计划起点累计，并在计划终点（含 EXTEND）封顶。
+/// 旧版本迟到的 START 不改变计时锚点；未开始和纯历史补报不产生计时。
+/// PAUSE 区间仍从专注中扣除，主动 END/STOP 冻结，其他任务沿用 START 时刻。
 ExecutionTimes calculateExecutionTimes(
   List<ExecutionEvent> events,
-  DateTime now,
-) {
+  DateTime now, {
+  MissionScheduleRevision? schedule,
+}) {
   if (events.isEmpty) {
     return const ExecutionTimes(
       focus: Duration.zero,
@@ -37,12 +43,27 @@ ExecutionTimes calculateExecutionTimes(
       .firstOrNull;
   final ended = stopped != null || events.last.type == ExecutionEventType.end;
   final behind = !ended && now.isBefore(events.last.occurredAt);
-  final bound = ended
+  var bound = ended
       ? (stopped ?? events.last).occurredAt
       : (behind ? events.last.occurredAt : now);
+  final fixed =
+      schedule?.timePolicy == TimePolicy.fixed &&
+      events.first.type == ExecutionEventType.start;
+  final start = fixed ? schedule!.fixedStartAt! : events.first.occurredAt;
+  if (fixed) {
+    final end = fixedTimeSlotEnd(
+      start,
+      schedule!.plannedDurationMinutes,
+      events,
+    );
+    if (bound.isAfter(end)) bound = end;
+    if (bound.isBefore(start)) bound = start;
+  }
   var paused = Duration.zero;
   DateTime? pauseAt;
-  var extension = 0;
+  final extension = events
+      .where((event) => event.type == ExecutionEventType.extend)
+      .fold<int>(0, (sum, event) => sum + event.grantedDurationMinutes!);
   var pauseCount = 0;
   for (final event in events) {
     if (event.occurredAt.isAfter(bound)) break;
@@ -56,12 +77,10 @@ ExecutionTimes calculateExecutionTimes(
         pauseAt != null) {
       paused += event.occurredAt.difference(pauseAt);
       pauseAt = null;
-    } else if (event.type == ExecutionEventType.extend) {
-      extension += event.grantedDurationMinutes!;
     }
   }
   if (pauseAt != null) paused += bound.difference(pauseAt);
-  final elapsed = bound.difference(events.first.occurredAt);
+  final elapsed = bound.difference(start);
   return ExecutionTimes(
     focus: elapsed - paused,
     paused: paused,

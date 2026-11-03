@@ -19,6 +19,7 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
   static const _permissionKey = 'assistant_permission_mode';
   static const _speechKey = 'assistant_speech_settings';
   static const _personaKey = 'assistant_persona';
+  static const _reasoningKey = 'assistant_reasoning_efforts';
   final FlutterSecureStorage _storage;
 
   @override
@@ -40,7 +41,15 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
         ? <String, dynamic>{}
         : jsonDecode(speechJson) as Map<String, dynamic>;
     final personaJson = await _storage.read(key: _personaKey);
+    final reasoningJson = await _storage.read(key: _reasoningKey);
+    final reasoning = reasoningJson == null
+        ? <String, Object?>{}
+        : Map<String, Object?>.from(jsonDecode(reasoningJson) as Map);
     return AssistantSettings(
+      reasoningEfforts: {
+        for (final entry in reasoning.entries)
+          entry.key: ReasoningEffort.values.byName(entry.value as String),
+      },
       hasDeepSeekCredential: apiKey != null,
       hasCustomCredential: customKey != null,
       customProfile: custom,
@@ -147,5 +156,21 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
   Future<void> savePersona(AssistantPersona persona) async {
     persona.validate();
     await _storage.write(key: _personaKey, value: jsonEncode(persona.toJson()));
+  }
+
+  @override
+  Future<void> saveReasoningEffort(
+    String profileId,
+    ReasoningEffort effort,
+  ) async {
+    final saved = await load();
+    await _storage.write(
+      key: _reasoningKey,
+      value: jsonEncode({
+        for (final entry in saved.reasoningEfforts.entries)
+          entry.key: entry.value.name,
+        profileId: effort.name,
+      }),
+    );
   }
 }

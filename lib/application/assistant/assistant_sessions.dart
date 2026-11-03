@@ -392,6 +392,7 @@ class _AssistantSessions {
       await session.setSystemPrompt(_effectiveSystemPrompt);
     }
     _controller._session = session;
+    await _controller._config._applyReasoningEffort();
     _controller._preparedCalls.clear();
     _controller._pending.clear();
     _refreshSnapshot();
@@ -433,10 +434,12 @@ class _AssistantSessions {
 
   void _refreshSnapshot() {
     final session = _controller._session;
-    if (session == null || _controller._closed) return;
-    _controller._transcript = session.transcript;
-    _controller._activity = session.activity;
-    _controller._refreshOperations();
+    if (_controller._closed) return;
+    if (session != null) {
+      _controller._transcript = session.transcript;
+      _controller._activity = session.activity;
+      _controller._refreshOperations();
+    }
     _controller._notifyListeners();
   }
 

@@ -24,6 +24,7 @@ import 'empty_schedule.dart';
 import '../missions/all/mission_timetable.dart';
 import '../missions/all/timetable_layout.dart';
 import '../widgets/app_section_card.dart';
+import '../widgets/app_segmented_control.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../missions/shared/mission_live_status.dart';
@@ -105,6 +106,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   bool _isOpeningSchedules = false;
   bool _isOpeningAllMissions = false;
   bool _isOpeningRecord = false;
+  bool _dayTimeline = false;
   StreamSubscription<void>? _changes;
   // 跨日待补与所选排期日期分开；不让昨天结束的任务在今天失去材料入口。
   List<MissionDetail> _pendingEvidence = const [];
@@ -570,6 +572,28 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
           fullList: widget.fullSchedule,
           illustrateEmpty: missions.isEmpty,
         );
+        if (widget.fullSchedule && _dayTimeline && missions.fixed.isNotEmpty) {
+          schedule = MissionTimetable(
+            key: const Key('day-schedule-timeline'),
+            day: selectedDate,
+            clock: widget.clock,
+            onOpen: _openDetail,
+            showViewToggle: false,
+            additionalHeaderExtent:
+                AppLayout.touchTargetMin +
+                AppLayout.spaceXs * 2 +
+                AppLayout.spaceMd,
+            onShowList: () => setState(() => _dayTimeline = false),
+            layoutBuilder: (now) => TimetableDay.fromScheduled(
+              scheduled
+                  .where((item) => item.schedule.fixedStartAt != null)
+                  .toList(),
+              selectedDate,
+              now: now,
+              minimumDisplayMinutes: 13,
+            ),
+          );
+        }
         if (wide) {
           schedule = AppSectionCard(
             key: const Key('today-timetable-panel'),
@@ -623,6 +647,19 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (widget.fullSchedule) ...[
+              AppSegmentedControl<bool>(
+                options: const {false: '日程列表', true: '时间轴'},
+                selected: _dayTimeline,
+                onSelected: (value) => setState(() => _dayTimeline = value),
+                optionKey: (value) => Key(
+                  value
+                      ? 'day-schedule-timeline-mode'
+                      : 'day-schedule-list-mode',
+                ),
+              ),
+              const SizedBox(height: AppLayout.spaceMd),
+            ],
             if (errorText != null)
               Row(
                 children: [
@@ -946,7 +983,11 @@ String _missionSemanticsLabel(
       (item.phase == MissionPhase.running ||
           (item.phase == MissionPhase.paused ||
               item.phase == MissionPhase.reportPending))) {
-    final focus = calculateExecutionTimes(item.events, clock().toUtc()).focus;
+    final focus = calculateExecutionTimes(
+      item.events,
+      clock().toUtc(),
+      schedule: item.schedule,
+    ).focus;
     parts.add('专注 ${focusDuration(focus)}');
   }
   return parts.join('，');
@@ -988,7 +1029,10 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
       color: theme.colorScheme.surfaceContainerLow,
       borderRadius: BorderRadius.circular(AppLayout.radiusXl),
       child: Padding(
-        padding: const EdgeInsets.all(AppLayout.spaceXl),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppLayout.spaceMd,
+          vertical: AppLayout.spaceMd,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -997,13 +1041,16 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                 Expanded(
                   child: Semantics(
                     header: true,
-                    child: Text('自选时间', style: theme.textTheme.titleMedium),
+                    child: Text('自选时间', style: theme.textTheme.labelLarge),
                   ),
                 ),
                 TextButton.icon(
                   onPressed: widget.onCreate,
                   style: TextButton.styleFrom(
-                    textStyle: theme.textTheme.labelMedium,
+                    textStyle: theme.textTheme.labelSmall,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppLayout.spaceSm,
+                    ),
                   ),
                   icon: const Icon(Icons.add_rounded, size: AppLayout.iconSm),
                   label: const Text('添加'),
@@ -1056,7 +1103,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                         key: const Key('flexible-missions-toggle'),
                         onPressed: () => setState(() => _expanded = !_expanded),
                         style: TextButton.styleFrom(
-                          textStyle: theme.textTheme.labelMedium,
+                          textStyle: theme.textTheme.labelSmall,
                           minimumSize: const Size(48, 48),
                         ),
                         icon: Icon(
@@ -1193,6 +1240,7 @@ class _MissionDetails extends StatelessWidget {
           MissionLiveStatus(
             phase: item.phase,
             events: item.events,
+            schedule: item.schedule,
             includePhase: false,
             clock: clock,
           ),
@@ -1225,10 +1273,10 @@ class _SectionEmptyHint extends StatelessWidget {
 
 // 焦点只改变留白和高亮，同级任务使用相同字号；系统字体缩放照常生效。
 TextStyle _todayTitleStyle(BuildContext context) =>
-    Theme.of(context).textTheme.titleMedium!;
+    Theme.of(context).textTheme.labelSmall!;
 
 TextStyle _todayMetadataStyle(BuildContext context) =>
-    Theme.of(context).textTheme.bodyMedium!;
+    Theme.of(context).textTheme.bodySmall!;
 
 /// 当前查询只有排期事实，概览统计真实安排，不推断完成或执行次数。
 class _ScheduleOverview extends StatelessWidget {
@@ -1251,15 +1299,18 @@ class _ScheduleOverview extends StatelessWidget {
       color: theme.colorScheme.surfaceContainerLow,
       borderRadius: BorderRadius.circular(AppLayout.radiusXl),
       child: Padding(
-        padding: const EdgeInsets.all(AppLayout.spaceLg),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppLayout.spaceLg,
+          vertical: AppLayout.spaceMd,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Semantics(
               header: true,
-              child: Text('安排概览', style: theme.textTheme.titleMedium),
+              child: Text('安排概览', style: theme.textTheme.labelLarge),
             ),
-            const SizedBox(height: AppLayout.spaceLg),
+            const SizedBox(height: AppLayout.spaceMd),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1269,15 +1320,15 @@ class _ScheduleOverview extends StatelessWidget {
                       children: [
                         Icon(
                           entry.$1,
-                          size: AppLayout.iconMd,
+                          size: AppLayout.iconSm,
                           color: theme.colorScheme.primary,
                         ),
-                        const SizedBox(height: AppLayout.spaceSm),
-                        Text(entry.$2, style: theme.textTheme.titleLarge),
+                        const SizedBox(height: AppLayout.spaceXs),
+                        Text(entry.$2, style: theme.textTheme.titleMedium),
                         const SizedBox(height: AppLayout.spaceXs),
                         Text(
                           entry.$3,
-                          style: theme.textTheme.bodyMedium,
+                          style: theme.textTheme.bodySmall,
                           textAlign: TextAlign.center,
                         ),
                       ],

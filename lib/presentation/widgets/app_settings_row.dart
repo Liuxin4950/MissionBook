@@ -58,7 +58,7 @@ class AppSettingsRow extends StatelessWidget {
                         title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: text.titleMedium?.copyWith(
+                        style: text.titleSmall?.copyWith(
                           color: enabled
                               ? AppColors.textPrimary
                               : AppColors.onDisabled,

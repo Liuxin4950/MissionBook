@@ -36,7 +36,7 @@ class AppEmptyState extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.titleMedium,
             textAlign: wide ? TextAlign.start : TextAlign.center,
           ),
           if (details != null) ...[

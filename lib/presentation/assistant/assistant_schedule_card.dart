@@ -328,7 +328,7 @@ class AssistantScheduleCard extends StatelessWidget {
       children: [
         Text(
           '${item['title'] ?? before?.mission.title ?? '任务'}',
-          style: Theme.of(context).textTheme.titleMedium,
+          style: Theme.of(context).textTheme.titleSmall,
         ),
         if (objective != null && objective != item['title']) ...[
           const SizedBox(height: AppLayout.spaceXs),

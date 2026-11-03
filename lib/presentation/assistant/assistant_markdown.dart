@@ -6,24 +6,39 @@ import '../../core/theme/app_layout.dart';
 
 /// 模型正文按 Markdown 显示；链接由用户点击后打开，图片链接不自动读取文件。
 class AssistantMarkdown extends StatelessWidget {
-  const AssistantMarkdown({super.key, required this.text});
+  const AssistantMarkdown({
+    super.key,
+    required this.text,
+    this.compact = false,
+  });
   final String text;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final bodyStyle = compact
+        ? theme.textTheme.bodySmall
+        : theme.textTheme.bodyLarge;
+    final headingStyle = compact
+        ? theme.textTheme.titleSmall
+        : theme.textTheme.titleMedium;
     return SelectionArea(
       child: MarkdownBody(
         data: text,
         fitContent: true,
         softLineBreak: true,
         styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-          p: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-          h1: theme.textTheme.titleLarge,
-          h2: theme.textTheme.titleMedium,
-          h3: theme.textTheme.titleSmall,
-          blockSpacing: 8,
+          p: bodyStyle?.copyWith(height: 1.5),
+          h1: compact ? headingStyle : theme.textTheme.titleLarge,
+          h2: headingStyle,
+          h3: headingStyle,
+          h4: headingStyle,
+          h5: headingStyle,
+          h6: headingStyle,
+          listBullet: bodyStyle,
+          blockSpacing: compact ? AppLayout.spaceXs : AppLayout.spaceSm,
           code: theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
           codeblockDecoration: BoxDecoration(
             color: colors.surfaceContainer,

@@ -41,7 +41,7 @@ class ExecutionEvent {
   /// 本条记录表达的动作。
   final ExecutionEventType type;
 
-  /// 动作实际发生的时刻，统一使用UTC。
+  /// 动作生效时刻，统一使用 UTC；固定任务的 START 绑定计划开始时刻。
   final DateTime occurredAt;
 
   /// START或历史补报必填；引用同一任务当时最新的排期版本。

@@ -20,11 +20,13 @@ class AssistantOperationCard extends StatefulWidget {
     required this.controller,
     required this.operation,
     required this.onOpenReference,
+    this.initiallyExpanded = false,
   });
 
   final AssistantController controller;
   final AssistantOperation operation;
   final void Function(String type, String id) onOpenReference;
+  final bool initiallyExpanded;
 
   @override
   State<AssistantOperationCard> createState() => _AssistantOperationCardState();
@@ -100,6 +102,10 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
         onOpenReference: widget.onOpenReference,
       );
     }
+    if (operation.status == AssistantOperationStatus.succeeded ||
+        operation.status == AssistantOperationStatus.cancelled) {
+      return _settledCard(operation, skippedCount);
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: AppLayout.spaceLg),
       child: Material(
@@ -158,54 +164,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                   )
                 else
                   ..._summaryRows(operation),
-                if (operation.toolName == 'completeHistory') ...[
-                  const SizedBox(height: AppLayout.spaceSm),
-                  Wrap(
-                    spacing: AppLayout.spaceSm,
-                    runSpacing: AppLayout.spaceSm,
-                    children: [
-                      Chip(
-                        avatar: const Icon(
-                          Icons.task_alt,
-                          size: AppLayout.iconSm,
-                        ),
-                        label: Text(switch (operation.status) {
-                          AssistantOperationStatus.succeeded =>
-                            '${_ResultDetails._decode(operation.output)?['completedCount'] ?? 0} 项已补记',
-                          AssistantOperationStatus.waitingConfirmation =>
-                            '${operation.historyMissions.length} 项待补记',
-                          AssistantOperationStatus.running =>
-                            '${operation.historyMissions.length} 项正在补记',
-                          AssistantOperationStatus.unknown => '补记结果待核对',
-                          AssistantOperationStatus.failed => '未能补记',
-                          AssistantOperationStatus.cancelled => '已取消补记',
-                        }),
-                      ),
-                      if (skippedCount > 0)
-                        Chip(label: Text('$skippedCount 项保留原记录')),
-                    ],
-                  ),
-                  if (operation.historyMissions.isNotEmpty)
-                    AppExpansionTile(
-                      insetHeader: false,
-                      headerPadding: const EdgeInsets.symmetric(
-                        vertical: AppLayout.spaceXs,
-                      ),
-                      childrenPadding: const EdgeInsets.only(
-                        top: AppLayout.spaceSm,
-                      ),
-                      title: const Text('查看本批任务'),
-                      children: [_historyList(operation.historyMissions)],
-                    ),
-                  if (operation.historyExcluded.isNotEmpty)
-                    AppExpansionTile(
-                      insetHeader: false,
-                      title: const Text('查看跳过原因'),
-                      children: [
-                        _historyList(operation.historyExcluded, skipped: true),
-                      ],
-                    ),
-                ],
+                ..._historySummary(operation, skippedCount),
                 if (operation.status ==
                     AssistantOperationStatus.waitingConfirmation)
                   _WaitingActions(
@@ -247,6 +206,99 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
         ),
       ),
     );
+  }
+
+  Widget _settledCard(AssistantOperation operation, int skippedCount) {
+    final succeeded = operation.status == AssistantOperationStatus.succeeded;
+    return Material(
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        side: const BorderSide(color: AppColors.hairline),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: AppExpansionTile(
+        key: ValueKey('operation-result-${operation.callId}'),
+        initiallyExpanded: widget.initiallyExpanded,
+        insetHeader: false,
+        headerPadding: const EdgeInsets.symmetric(
+          horizontal: AppLayout.spaceMd,
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(
+          AppLayout.spaceMd,
+          0,
+          AppLayout.spaceMd,
+          AppLayout.spaceMd,
+        ),
+        leading: Icon(
+          succeeded ? Icons.check_circle_outline : Icons.close_rounded,
+          size: AppLayout.iconSm,
+          color: succeeded ? AppColors.primary : AppColors.textSecondary,
+        ),
+        title: _Header(operation: operation, compact: true),
+        children: [
+          if (!succeeded)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+              child: Text(
+                '本次操作已取消，未写入数据',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ..._summaryRows(operation),
+          ..._historySummary(operation, skippedCount),
+          if (operation.output != null)
+            _ResultDetails(
+              operation: operation,
+              onOpenReference: widget.onOpenReference,
+            ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _historySummary(AssistantOperation operation, int skippedCount) {
+    if (operation.toolName != 'completeHistory') return const [];
+    return [
+      const SizedBox(height: AppLayout.spaceSm),
+      Wrap(
+        spacing: AppLayout.spaceSm,
+        runSpacing: AppLayout.spaceSm,
+        children: [
+          Chip(
+            avatar: const Icon(Icons.task_alt, size: AppLayout.iconSm),
+            label: Text(switch (operation.status) {
+              AssistantOperationStatus.succeeded =>
+                '${_ResultDetails._decode(operation.output)?['completedCount'] ?? 0} 项已补记',
+              AssistantOperationStatus.waitingConfirmation =>
+                '${operation.historyMissions.length} 项待补记',
+              AssistantOperationStatus.running =>
+                '${operation.historyMissions.length} 项正在补记',
+              AssistantOperationStatus.unknown => '补记结果待核对',
+              AssistantOperationStatus.failed => '未能补记',
+              AssistantOperationStatus.cancelled => '已取消补记',
+            }),
+          ),
+          if (skippedCount > 0) Chip(label: Text('$skippedCount 项保留原记录')),
+        ],
+      ),
+      if (operation.historyMissions.isNotEmpty)
+        AppExpansionTile(
+          insetHeader: false,
+          headerPadding: const EdgeInsets.symmetric(
+            vertical: AppLayout.spaceXs,
+          ),
+          childrenPadding: const EdgeInsets.only(top: AppLayout.spaceSm),
+          title: const Text('查看本批任务'),
+          children: [_historyList(operation.historyMissions)],
+        ),
+      if (operation.historyExcluded.isNotEmpty)
+        AppExpansionTile(
+          insetHeader: false,
+          title: const Text('查看跳过原因'),
+          children: [_historyList(operation.historyExcluded, skipped: true)],
+        ),
+    ];
   }
 
   Widget _historyList(List<MissionDetail> details, {bool skipped = false}) =>
@@ -403,33 +455,48 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.operation});
+  const _Header({required this.operation, this.compact = false});
   final AssistantOperation operation;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final status = switch (operation.status) {
-      AssistantOperationStatus.waitingConfirmation => '待确认',
-      AssistantOperationStatus.running => '正在执行',
-      AssistantOperationStatus.succeeded => '已完成',
-      AssistantOperationStatus.failed => '未能执行',
-      AssistantOperationStatus.cancelled => '已取消 · 零写入',
-      AssistantOperationStatus.unknown => '需要核对',
-    };
+    final status = assistantOperationStatusLabel(
+      operation.status,
+      compact: compact,
+    );
+    final inputTitle = operation.input['title'];
+    final target =
+        operation.missionBefore?.mission.title ??
+        operation.targetTitle ??
+        (inputTitle is String ? inputTitle : null);
+    final label = assistantToolLabel(operation.toolName);
+    final title = compact && target != null && target.trim().isNotEmpty
+        ? '$label · $target'
+        : label;
     return Row(
       children: [
         Expanded(
           child: Text(
-            _toolLabel(operation.toolName),
-            style: Theme.of(context).textTheme.titleMedium,
+            title,
+            maxLines: compact ? 1 : null,
+            overflow: compact ? TextOverflow.ellipsis : null,
+            style: compact
+                ? Theme.of(context).textTheme.titleSmall
+                : Theme.of(context).textTheme.titleMedium,
           ),
         ),
-        const SizedBox(width: AppLayout.spaceMd),
+        const SizedBox(width: AppLayout.spaceSm),
         Text(
           status,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: AppColors.primary),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: switch (operation.status) {
+              AssistantOperationStatus.succeeded => AppColors.primary,
+              AssistantOperationStatus.failed => AppColors.error,
+              AssistantOperationStatus.unknown => AppColors.warning,
+              _ => AppColors.textSecondary,
+            },
+          ),
         ),
       ],
     );
@@ -486,7 +553,7 @@ class _ReadResultCard extends StatelessWidget {
             ? '正在'
             : failed
             ? '未能'
-            : '已'}${_toolLabel(operation.toolName)}';
+            : '已'}${assistantToolLabel(operation.toolName)}';
     return Padding(
       key: ValueKey('assistant-read-${operation.callId}'),
       padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
@@ -959,7 +1026,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
   }
 }
 
-String _toolLabel(String name) => switch (name) {
+String assistantToolLabel(String name) => switch (name) {
   'getGoal' => '读取目标与分层摘要',
   'getRecord' => '读取记录',
   'getMemory' => '读取助手记忆',
@@ -997,4 +1064,16 @@ String _toolLabel(String name) => switch (name) {
   'createGoal' => '创建目标',
   'createGoalNode' => '创建目标节点',
   _ => name,
+};
+
+String assistantOperationStatusLabel(
+  AssistantOperationStatus status, {
+  bool compact = false,
+}) => switch (status) {
+  AssistantOperationStatus.waitingConfirmation => '待确认',
+  AssistantOperationStatus.running => '正在执行',
+  AssistantOperationStatus.succeeded => '已完成',
+  AssistantOperationStatus.failed => '未能执行',
+  AssistantOperationStatus.cancelled => compact ? '已取消' : '已取消 · 零写入',
+  AssistantOperationStatus.unknown => '需要核对',
 };

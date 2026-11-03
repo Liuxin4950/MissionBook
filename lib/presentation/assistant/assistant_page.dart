@@ -14,12 +14,16 @@ import '../widgets/app_illustration.dart';
 import '../widgets/app_section_card.dart';
 import '../widgets/adaptive_columns.dart';
 import '../widgets/app_expansion.dart';
+import '../widgets/app_selection_option.dart';
 import '../widgets/app_top_bar.dart';
 import '../missions/shared/mission_phase_display.dart';
 import 'assistant_history_page.dart';
 import 'assistant_markdown.dart';
 import 'assistant_operation_card.dart';
 import 'assistant_scope.dart';
+import 'assistant_reasoning_display.dart';
+import 'assistant_thinking.dart';
+import 'assistant_turn_display.dart';
 import 'assistant_settings_page.dart';
 import 'assistant_voice_status.dart';
 import '../../core/theme/app_motion.dart';
@@ -27,6 +31,7 @@ part 'assistant_conversation_banners.dart';
 part 'assistant_welcome.dart';
 part 'assistant_message_bubble.dart';
 part 'assistant_composer.dart';
+part 'assistant_turn.dart';
 
 class AssistantPage extends StatefulWidget {
   const AssistantPage({
@@ -34,10 +39,12 @@ class AssistantPage extends StatefulWidget {
     required this.controller,
     this.showBack = false,
     this.initialText,
+    this.initialOperationCallId,
   });
   final AssistantController controller;
   final bool showBack;
   final String? initialText;
+  final String? initialOperationCallId;
   @override
   State<AssistantPage> createState() => _AssistantPageState();
 }
@@ -101,9 +108,9 @@ class _AssistantPageState extends State<AssistantPage> {
   }
 
   void _voiceChanged() {
-    if (!mounted || !_recordingVoice) return;
+    if (!mounted) return;
     final text = _voice!.text;
-    if (text.isNotEmpty) {
+    if (_recordingVoice && text.isNotEmpty) {
       _input.value = TextEditingValue(
         text: '$_voicePrefix$text',
         selection: TextSelection.collapsed(
@@ -343,8 +350,29 @@ class _AssistantPageState extends State<AssistantPage> {
         _LocalScheduleCard(controller: controller, onOpen: _openReference),
       );
     }
+    var messages = <AssistantMessage>[];
+    var turnKey = '${controller.currentSessionId}:initial';
+    void appendTurn({bool running = false}) {
+      final active =
+          running && controller.activity.turnUserMessageId == turnKey;
+      if (messages.isEmpty && !active) return;
+      children.add(
+        _AssistantTurn(
+          key: ValueKey('turn-$turnKey'),
+          messages: List.of(messages),
+          operations: operations,
+          controller: controller,
+          onOpenReference: _openReference,
+          running: active,
+          focusOperationCallId: widget.initialOperationCallId,
+        ),
+      );
+      messages = [];
+    }
+
     for (final message in controller.transcript) {
       if (message is UserMessage) {
+        appendTurn();
         children.add(
           _MessageBubble(
             key: ValueKey(message.id),
@@ -352,82 +380,18 @@ class _AssistantPageState extends State<AssistantPage> {
             isUser: true,
           ),
         );
+        turnKey = message.id;
       } else if (message is AssistantMessage) {
-        if (message.text.trim().isNotEmpty) {
-          children.add(
-            _MessageBubble(
-              key: ValueKey(message.id),
-              message: message,
-              isUser: false,
-            ),
-          );
-        }
-        for (final call in message.toolCalls) {
-          final operation = operations[call.id];
-          if (operation != null) {
-            children.add(
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 860),
-                  child: AssistantOperationCard(
-                    key: ValueKey(call.id),
-                    controller: controller,
-                    operation: operation,
-                    onOpenReference: _openReference,
-                  ),
-                ),
-              ),
-            );
-          }
-        }
+        messages.add(message);
       } else if (message is ContextSummaryMessage) {
+        appendTurn();
         children.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppLayout.spaceMd),
-            child: Text(
-              '较早对话已压缩，原始记录仍保留',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
+          Text('较早对话已压缩，原始记录仍保留', style: Theme.of(context).textTheme.bodySmall),
         );
+        turnKey = message.id;
       }
     }
-    if (controller.isRunning) {
-      if (controller.activity.text.isNotEmpty) {
-        children.add(_StreamingBubble(text: controller.activity.text));
-      }
-      children.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppLayout.spaceLg),
-          child: Row(
-            children: [
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              const SizedBox(width: AppLayout.spaceSm),
-              Expanded(
-                child: Text(
-                  controller.operations.any(
-                        (item) =>
-                            item.status ==
-                            AssistantOperationStatus.waitingConfirmation,
-                      )
-                      ? '等待你确认操作'
-                      : controller.activity.toolName == null
-                      ? '正在组织下一步…'
-                      : '正在处理操作',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-              TextButton(onPressed: controller.stop, child: const Text('停止')),
-            ],
-          ),
-        ),
-      );
-    }
+    appendTurn(running: controller.isRunning);
     return NotificationListener<UserScrollNotification>(
       onNotification: (notification) {
         if (_scroll.hasClients) {

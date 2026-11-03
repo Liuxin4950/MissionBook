@@ -9,6 +9,7 @@ import '../widgets/app_dropdown_form_field.dart';
 import 'package:flutter/material.dart';
 import 'package:agent_core/agent_core.dart';
 import 'assistant_avatar.dart';
+import 'assistant_reasoning_display.dart';
 import 'offline_speech_model_section.dart';
 import 'assistant_scope.dart';
 import '../widgets/data_export_card.dart';
@@ -68,6 +69,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       ModelProtocol.chatCompletions;
   late bool _images = widget.controller.customProfile?.supportsImages ?? false;
   late String _profile = widget.controller.modelProfileId;
+  late ReasoningEffort _reasoning = widget.controller.reasoningEffort;
   late AssistantPermissionMode _permission = widget.controller.permissionMode;
   bool _saving = false;
   bool _testing = false;
@@ -77,6 +79,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   String? _loadError;
   String? _error;
   String? _result;
+  String? _connectionResult;
+  String? _connectionError;
 
   Future<void> _back() async {
     if (_saving || _testing || _leaving) return;
@@ -160,6 +164,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   void _applyLoadedSettings() {
     final controller = widget.controller;
     _profile = controller.modelProfileId;
+    _reasoning = controller.reasoningEffort;
     _permission = controller.permissionMode;
     _personaName.text = controller.persona.name;
     _userAddress.text = controller.persona.userAddress;
@@ -236,6 +241,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
 
   bool get _modelChanged =>
       _profile != widget.controller.modelProfileId ||
+      _reasoning != widget.controller.reasoningEffortFor(_profile) ||
       _customChanged ||
       _credential.text.trim().isNotEmpty;
   bool get _changed =>
@@ -310,6 +316,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       contextWindowTokens: contextWindow,
       maxOutputTokens: output,
       supportsImages: _images,
+      reasoningEffort: _reasoning,
     );
   }
 
@@ -520,9 +527,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
     padding: EdgeInsets.zero,
     child: AppExpansionTile(
       key: const Key('assistant-persona-section'),
-      leading: CircleAvatar(
-        backgroundColor: AppColors.primarySoft,
-        child: Icon(assistantAvatarIcon(_avatar), color: AppColors.primary),
+      leading: Icon(
+        assistantAvatarIcon(_avatar),
+        size: AppLayout.iconMd,
+        color: AppColors.textSecondary,
       ),
       title: const Text('角色与风格'),
       subtitle: Text(
@@ -654,7 +662,35 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
           ],
           onChanged: _saving || _testing || widget.controller.isBusy
               ? null
-              : (value) => setState(() => _profile = value ?? _profile),
+              : (value) => setState(() {
+                  _profile = value ?? _profile;
+                  _reasoning =
+                      _profile == 'custom' &&
+                          widget.controller.customProfile == null
+                      ? ReasoningEffort.off
+                      : widget.controller.reasoningEffortFor(_profile);
+                }),
+        ),
+        const SizedBox(height: AppLayout.spaceMd),
+        AppDropdownFormField<ReasoningEffort>(
+          key: ValueKey('assistant-reasoning-$_profile'),
+          initialValue: _reasoning,
+          decoration: const InputDecoration(labelText: '思考程度'),
+          items: [
+            for (final effort in ReasoningEffort.values)
+              DropdownMenuItem(
+                value: effort,
+                child: Text(assistantReasoningLabel(effort)),
+              ),
+          ],
+          onChanged: _saving || _testing || widget.controller.isBusy
+              ? null
+              : (value) => setState(() => _reasoning = value ?? _reasoning),
+        ),
+        const SizedBox(height: AppLayout.spaceSm),
+        Text(
+          '按模型服务保存；较高程度可能增加等待与用量，实际支持由所用服务决定。',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         if (_profile == 'custom') ..._customFields(),
         const SizedBox(height: AppLayout.spaceMd),
@@ -671,7 +707,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                 : 'DeepSeek API Key',
             hintText: widget.controller.profileHasCredential(_profile)
                 ? '已保存，输入新 Key 可替换'
-                : '输入测试或正式 Key',
+                : '输入 API Key',
           ),
         ),
         if (widget.controller.profileHasCredential(_profile))
@@ -686,39 +722,70 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               label: const Text('清除已保存 Key'),
             ),
           ),
+        const SizedBox(height: AppLayout.spaceSm),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            key: const Key('assistant-test-connection'),
+            onPressed:
+                _saving ||
+                    _testing ||
+                    widget.controller.isBusy ||
+                    _modelChanged ||
+                    !widget.controller.profileHasCredential(_profile)
+                ? null
+                : _testConnection,
+            icon: _testing
+                ? const SizedBox.square(
+                    dimension: AppLayout.iconSm,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(
+                    Icons.network_check_outlined,
+                    size: AppLayout.iconSm,
+                  ),
+            label: Text(_testing ? '正在测试…' : '测试连接'),
+          ),
+        ),
+        if (_modelChanged ||
+            _connectionError != null ||
+            _connectionResult != null)
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              _modelChanged
+                  ? '保存模型配置后可测试连接'
+                  : _connectionError ?? _connectionResult!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: _modelChanged
+                    ? AppColors.textSecondary
+                    : _connectionError != null
+                    ? AppColors.error
+                    : AppColors.primary,
+              ),
+            ),
+          ),
       ],
     ),
   );
 
-  Widget _buildSaveActions() => Wrap(
-    spacing: AppLayout.spaceMd,
-    runSpacing: AppLayout.spaceMd,
-    children: [
-      FilledButton(
-        key: const Key('assistant-save-settings'),
-        onPressed:
-            _saving ||
-                _testing ||
-                widget.controller.isBusy ||
-                !_changed ||
-                !_valid
-            ? null
-            : _save,
-        child: Text(_saving ? '正在保存…' : '保存设置'),
+  Widget _buildSaveActions() => Align(
+    alignment: Alignment.centerRight,
+    child: FilledButton(
+      key: const Key('assistant-save-settings'),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(160, AppLayout.actionMinHeight),
       ),
-      OutlinedButton.icon(
-        key: const Key('assistant-test-connection'),
-        onPressed:
-            _saving ||
-                _testing ||
-                _modelChanged ||
-                !widget.controller.profileHasCredential(_profile)
-            ? null
-            : _testConnection,
-        icon: const Icon(Icons.network_check_outlined),
-        label: Text(_testing ? '正在测试…' : '测试连接'),
-      ),
-    ],
+      onPressed:
+          _saving ||
+              _testing ||
+              widget.controller.isBusy ||
+              !_changed ||
+              !_valid
+          ? null
+          : _save,
+      child: Text(_saving ? '正在保存…' : '保存设置'),
+    ),
   );
 
   List<Widget> _customFields() => [
@@ -807,16 +874,37 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                   horizontal: AppLayout.spaceMd,
                   vertical: 0,
                 ),
+                minLeadingWidth: AppLayout.iconMd,
+                horizontalTitleGap: AppLayout.spaceSm,
+                minVerticalPadding: AppLayout.spaceSm,
                 leading: Icon(
                   _permission == mode
                       ? Icons.radio_button_checked
                       : Icons.radio_button_off,
+                  size: AppLayout.iconMd,
                   color: _permission == mode
                       ? AppColors.primary
                       : AppColors.textSecondary,
                 ),
-                title: Text(mode.label),
-                subtitle: Text(mode.description),
+                title: Text(
+                  mode.label,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: AppLayout.spaceXs),
+                  child: DefaultTextStyle(
+                    style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                    child: mode == AssistantPermissionMode.relaxed
+                        ? const Wrap(
+                            spacing: AppLayout.spaceMd,
+                            runSpacing: AppLayout.spaceXs,
+                            children: [Text('查询直接执行'), Text('创建、修改和执行任务需确认')],
+                          )
+                        : Text(mode.description),
+                  ),
+                ),
                 onTap: _saving || _testing || widget.controller.isBusy
                     ? null
                     : () => setState(() => _permission = mode),
@@ -925,6 +1013,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       _saving = true;
       _error = null;
       _result = null;
+      _connectionError = null;
+      _connectionResult = null;
     });
     try {
       final validation = _validationError;
@@ -937,6 +1027,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       final persona = _readPersona();
       final profile = _profile == 'custom' ? _readCustomProfile() : null;
       final credential = _credential.text.trim();
+      final reasoning = _reasoning;
       final speechCredential = _speechCredential.text.trim();
       if (profile != null) {
         await widget.controller.saveCustomProfile(profile);
@@ -946,6 +1037,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         if (mounted) _credential.clear();
       }
       await widget.controller.selectModelProfile(_profile);
+      await widget.controller.setReasoningEffort(reasoning);
       await widget.controller.setPermissionMode(_permission);
       if (_personaChanged) await widget.controller.savePersona(persona);
       if (_speechChanged) {
@@ -987,15 +1079,18 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   Future<void> _testConnection() async {
     setState(() {
       _testing = true;
-      _error = null;
-      _result = null;
+      _connectionError = null;
+      _connectionResult = null;
     });
     try {
       final result = await widget.controller.testConnection();
-      if (mounted) setState(() => _result = '连接成功：$result');
+      if (mounted) setState(() => _connectionResult = '连接成功：$result');
     } catch (error) {
       if (mounted) {
-        setState(() => _error = userErrorMessage(error, fallback: '连接失败，请重试'));
+        setState(
+          () =>
+              _connectionError = userErrorMessage(error, fallback: '连接失败，请重试'),
+        );
       }
     } finally {
       if (mounted) setState(() => _testing = false);

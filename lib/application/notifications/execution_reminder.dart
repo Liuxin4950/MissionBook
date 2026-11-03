@@ -13,7 +13,11 @@ ReminderRequest executionReminder(
   final sequence = detail.lastSequence;
   final running = detail.phase == MissionPhase.running;
   final projectedAt = (now ?? DateTime.now()).toUtc();
-  final times = calculateExecutionTimes(detail.events, projectedAt);
+  final times = calculateExecutionTimes(
+    detail.events,
+    projectedAt,
+    schedule: detail.schedule,
+  );
   final budget = currentBudget(
     times,
     detail.schedule.plannedDurationMinutes,

@@ -296,6 +296,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
             calculateExecutionTimes(
               detail.events,
               detail.events.last.occurredAt,
+              schedule: detail.schedule,
             ).focus,
           );
     final evidence = _cancelled ? '' : evidenceStatusLabel(detail);
@@ -352,7 +353,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                             detail.mission.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium,
+                            style: theme.textTheme.titleSmall,
                           ),
                         ),
                         const Icon(

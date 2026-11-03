@@ -5,13 +5,16 @@ class _MessageBubble extends StatelessWidget {
     super.key,
     required this.message,
     required this.isUser,
+    this.visibleContent,
   });
   final AgentMessage message;
   final bool isUser;
+  final List<ContentBlock>? visibleContent;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final text = message.content
+    final content = visibleContent ?? message.content;
+    final text = content
         .whereType<TextBlock>()
         .where((block) => AssistantAttachment.textFile(block) == null)
         .map((block) => block.text)
@@ -51,13 +54,13 @@ class _MessageBubble extends StatelessWidget {
                       else
                         SelectableText(
                           text,
-                          style: Theme.of(context).textTheme.bodyMedium
+                          style: Theme.of(context).textTheme.bodyLarge
                               ?.copyWith(
                                 color: colors.onPrimaryContainer,
                                 height: 1.5,
                               ),
                         ),
-                    for (final block in message.content)
+                    for (final block in content)
                       if (AssistantAttachment.textFile(block) case final file?)
                         AppExpansionTile(
                           insetHeader: false,
@@ -70,7 +73,7 @@ class _MessageBubble extends StatelessWidget {
                               : colors.onSurface,
                           title: Text(
                             file.name,
-                            style: Theme.of(context).textTheme.titleMedium
+                            style: Theme.of(context).textTheme.titleSmall
                                 ?.copyWith(
                                   color: isUser
                                       ? colors.onPrimaryContainer
@@ -89,17 +92,18 @@ class _MessageBubble extends StatelessWidget {
                               child: SingleChildScrollView(
                                 child: SelectableText(
                                   file.text,
-                                  style: TextStyle(
-                                    color: isUser
-                                        ? colors.onPrimaryContainer
-                                        : colors.onSurface,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodyLarge
+                                      ?.copyWith(
+                                        color: isUser
+                                            ? colors.onPrimaryContainer
+                                            : colors.onSurface,
+                                      ),
                                 ),
                               ),
                             ),
                           ],
                         ),
-                    for (final block in message.content.whereType<ImageBlock>())
+                    for (final block in content.whereType<ImageBlock>())
                       Padding(
                         padding: const EdgeInsets.only(top: AppLayout.spaceSm),
                         child: _MessageImage(block: block),
@@ -116,7 +120,7 @@ class _MessageBubble extends StatelessWidget {
 }
 
 class _StreamingBubble extends StatelessWidget {
-  const _StreamingBubble({required this.text});
+  const _StreamingBubble({super.key, required this.text});
   final String text;
   @override
   Widget build(BuildContext context) => Align(
@@ -131,7 +135,10 @@ class _StreamingBubble extends StatelessWidget {
             horizontal: AppLayout.spaceMd,
             vertical: AppLayout.spaceMd,
           ),
-          child: AssistantMarkdown(text: text),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [if (text.isNotEmpty) AssistantMarkdown(text: text)],
+          ),
         ),
       ),
     ),

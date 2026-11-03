@@ -128,6 +128,8 @@ CLI 连接官方 DeepSeek 时，先用 `DeepSeekFilesClient` 上传本地图片�
 
 界面订阅 `session.changes` 后读取 `session.activity`，重新进入页面时也先读快照。运行中已经收到的文字和思考不会因重新订阅而丢失；正式消息仍来自 `transcript`。长会话的活跃状态目前仍会重建到内存，分页存储不等于已实现 App 的历史列表虚拟化。
 
+展示层以 `SessionActivity.requestSerial` 区分当前会话实例中的每次正文模型尝试，以 `modelRequestRunning` 区分请求流尾和已经接收的完整消息；工具执行期间不重复呈现上一段流。`turnUserMessageId` 绑定当前用户输入，resume 沿用原编号。编号和标志仅是内存快照，不改变日志格式，也不按思考文字是否相同来消除后续请求。
+
 MissionBook 后续还需实现 Drift 适配、业务工具、权限界面、安全凭据存储和备份接入；本轮不新增业务数据库表。
 
 ## 验证

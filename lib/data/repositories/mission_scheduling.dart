@@ -204,16 +204,22 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
               !startedAt.isBefore(end)) {
             continue;
           }
-          await _repository._execute(
-            ExecutionCommand(
-              id: 'scheduled-start-${detail.schedule.id}',
-              missionId: detail.mission.id,
-              expectedSequence: 0,
-              type: ExecutionEventType.start,
-              scheduleRevisionId: detail.schedule.id,
-            ),
-            occurredAt: startedAt,
-          );
+          try {
+            await _repository._execute(
+              ExecutionCommand(
+                id: 'scheduled-start-${detail.schedule.id}',
+                missionId: detail.mission.id,
+                expectedSequence: 0,
+                type: ExecutionEventType.start,
+                scheduleRevisionId: detail.schedule.id,
+              ),
+              occurredAt: detail.schedule.fixedStartAt,
+            );
+          } on ExecutionConflict {
+            // 异步重读期间可能刚好跨过结束时刻；跳过该候选，保留前面已到期的 STOP。
+            if (!_repository._now().isBefore(end)) continue;
+            rethrow;
+          }
           return [...changed, detail.mission.id];
         }
         return changed;
@@ -226,6 +232,10 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
     for (final detail in await _repository.findActive()) {
       final end = scheduledExecutionEnd(detail.schedule, detail.events);
       if (end == null || end.isAfter(_repository._now())) continue;
+      // 旧版本可能在整个时段之后才写 START；保留日志顺序，计时仍由计划边界封顶。
+      final stopAt = end.isBefore(detail.events.last.occurredAt)
+          ? detail.events.last.occurredAt
+          : end;
       await _repository._execute(
         ExecutionCommand(
           id: 'scheduled-stop-${detail.events.first.id}',
@@ -233,7 +243,7 @@ ORDER BY r.fixed_start_at,m.id LIMIT 1
           expectedSequence: detail.lastSequence,
           type: ExecutionEventType.stop,
         ),
-        occurredAt: end,
+        occurredAt: stopAt,
       );
       changed.add(detail.mission.id);
     }

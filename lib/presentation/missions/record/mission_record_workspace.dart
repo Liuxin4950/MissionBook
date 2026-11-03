@@ -173,6 +173,7 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
     final times = calculateExecutionTimes(
       detail.events,
       detail.events.last.occurredAt,
+      schedule: detail.schedule,
     );
     // “用户报告：已完成”只看 END 的自报结果；判定口径统一走 MissionDetail。
     final completed = detail.endReportedCompleted;
@@ -258,7 +259,7 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
                   const SizedBox(height: AppLayout.spaceSm),
                   Text(
                     report.occurrenceDate,
-                    style: theme.textTheme.titleLarge,
+                    style: theme.textTheme.titleMedium,
                   ),
                   const SizedBox(height: AppLayout.spaceSm),
                   Text(
@@ -278,7 +279,7 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
                   const SizedBox(height: AppLayout.spaceSm),
                   Text(
                     focusDuration(times.focus),
-                    style: theme.textTheme.headlineSmall,
+                    style: theme.textTheme.titleMedium,
                   ),
                   const SizedBox(height: AppLayout.spaceSm),
                   AppExpansionTile(
@@ -374,7 +375,7 @@ class _SummaryValue extends StatelessWidget {
     children: [
       Text(label, style: Theme.of(context).textTheme.bodyMedium),
       const SizedBox(height: AppLayout.spaceXs),
-      Text(value, style: Theme.of(context).textTheme.titleLarge),
+      Text(value, style: Theme.of(context).textTheme.titleMedium),
     ],
   );
 }

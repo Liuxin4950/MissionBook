@@ -1,4 +1,5 @@
 import '../../domain/rules/mission_attention_rules.dart';
+import '../../domain/rules/scheduled_execution_rules.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../domain/entities/mission_schedule_revision.dart';
@@ -103,6 +104,7 @@ TodayMissionItem _missionItem(ScheduledMission item, DateTime? now) {
         '${local.minute.toString().padLeft(2, '0')}';
   }
   return TodayMissionItem(
+    schedule: schedule,
     phase: item.phase,
     events: item.events,
     id: item.mission.id,
@@ -147,6 +149,7 @@ class TodayMissionGroups {
 // id 用于稳定的列表 Key，也在点击任务时传给详情查询入口。
 class TodayMissionItem {
   const TodayMissionItem({
+    this.schedule,
     required this.id,
     required this.title,
     required this.isFixed,
@@ -162,6 +165,7 @@ class TodayMissionItem {
   });
 
   final String id;
+  final MissionScheduleRevision? schedule;
   final String title;
   final bool isFixed;
   final bool isCancelled;
@@ -175,12 +179,19 @@ class TodayMissionItem {
   final List<ExecutionEvent> events;
 }
 
-/// 当前是否处于计划时间段：[开始，开始 + 计划分钟数)。仅用于视觉强调。
+DateTime? plannedTimeSlotEnd(TodayMissionItem item) {
+  final start = item.fixedStartAt;
+  return start == null
+      ? null
+      : fixedTimeSlotEnd(start, item.plannedDurationMinutes, item.events);
+}
+
+/// 当前是否处于固定时间段（含明确加时）。仅用于视觉强调。
 /// 不表示用户已开始执行，也不生成执行、完成或取消事实。
 bool isInPlannedTimeSlot(TodayMissionItem item, DateTime now) {
   final start = item.fixedStartAt;
   if (!item.isFixed || item.isCancelled || start == null) return false;
-  final end = start.add(Duration(minutes: item.plannedDurationMinutes));
+  final end = plannedTimeSlotEnd(item)!;
   return !now.isBefore(start) && now.isBefore(end);
 }
 
@@ -193,11 +204,7 @@ double plannedTimeSlotProgress(TodayMissionItem item, DateTime now) {
       item.plannedDurationMinutes <= 0) {
     return 0;
   }
-  return timelineSegmentProgress(
-    start,
-    start.add(Duration(minutes: item.plannedDurationMinutes)),
-    now,
-  );
+  return timelineSegmentProgress(start, plannedTimeSlotEnd(item)!, now);
 }
 
 /// 将真实时刻投影到两个相邻开始节点之间；节点间距仍沿用紧凑排版。

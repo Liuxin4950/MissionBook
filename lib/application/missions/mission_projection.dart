@@ -7,7 +7,7 @@ import '../../domain/rules/mission_attention_rules.dart';
 Map<String, Object?> missionProjection(MissionDetail d, DateTime now) {
   String? short(String? v) =>
       v == null ? null : String.fromCharCodes(v.runes.take(500));
-  final times = calculateExecutionTimes(d.events, now);
+  final times = calculateExecutionTimes(d.events, now, schedule: d.schedule);
   return {
     'id': d.mission.id,
     'title': short(d.mission.title),

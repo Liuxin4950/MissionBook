@@ -106,7 +106,7 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
               children: [
                 Text(
                   '当前任务',
-                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                  style: Theme.of(sheetContext).textTheme.titleMedium,
                 ),
                 const SizedBox(height: AppLayout.spaceMd),
                 for (final detail in active)
@@ -116,6 +116,7 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
                     subtitle: MissionLiveStatus(
                       phase: detail.phase,
                       events: detail.events,
+                      schedule: detail.schedule,
                       clock: widget.clock,
                     ),
                     onTap: () => Navigator.of(sheetContext).pop(detail),
@@ -202,6 +203,7 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
                                   MissionLiveStatus(
                                     phase: detail.phase,
                                     events: detail.events,
+                                    schedule: detail.schedule,
                                     clock: widget.clock,
                                     maxLines: 1,
                                   ),

@@ -227,7 +227,7 @@ class _MissionExecution {
             );
         return (await _repository.findOperationReceipt(request.id))!;
       });
-  // 自动开始已持有外层事务写锁，可复用其边界校验时刻；普通操作仍在下方捕获。
+  // 调度提供固定时段生效时刻；普通动作从事务时钟取得时刻。
   Future<ExecutionEvent> _execute(
     ExecutionCommand command, {
     DateTime? occurredAt,
@@ -314,8 +314,25 @@ class _MissionExecution {
           }
         }
       }
-      // 已取得写锁、重读事实后才捕获时间，精度与持久化统一到毫秒。
-      final now = occurredAt ?? _repository._now();
+      // 固定 START 在事务中确认当前仍处于计划窗口，生效时刻绑定计划起点。
+      final checkedAt = _repository._now();
+      var now = occurredAt ?? checkedAt;
+      if (command.type == ExecutionEventType.start &&
+          detail.schedule.timePolicy == TimePolicy.fixed) {
+        final start = detail.schedule.fixedStartAt!;
+        final end = fixedTimeSlotEnd(
+          start,
+          detail.schedule.plannedDurationMinutes,
+          const [],
+        );
+        if (checkedAt.isBefore(start)) {
+          throw const ExecutionConflict('计划任务尚未到开始时间，可以先修改排期');
+        }
+        if (!checkedAt.isBefore(end)) {
+          throw const ExecutionConflict('计划时段已结束，请改期或使用现在补做');
+        }
+        now = start;
+      }
       final scheduledEnd = scheduledExecutionEnd(
         detail.schedule,
         detail.events,
@@ -336,11 +353,6 @@ class _MissionExecution {
             detail.schedule.scheduledDate.compareTo(today) > 0) {
           throw const ExecutionConflict('补记不能处理未来排期');
         }
-      }
-      if (command.type == ExecutionEventType.start &&
-          detail.schedule.fixedStartAt != null &&
-          now.isBefore(detail.schedule.fixedStartAt!)) {
-        throw const ExecutionConflict('计划任务尚未到开始时间，可以先修改排期');
       }
       if (detail.events.isNotEmpty &&
           now.isBefore(detail.events.last.occurredAt)) {

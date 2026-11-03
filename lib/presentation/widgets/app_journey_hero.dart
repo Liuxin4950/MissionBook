@@ -55,7 +55,7 @@ class AppJourneyHero extends StatelessWidget {
                   excludeFromSemantics: true,
                 ),
                 const SizedBox(height: AppLayout.spaceMd),
-                Text(title, style: Theme.of(context).textTheme.titleLarge),
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: AppLayout.spaceSm),
                 Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: AppLayout.spaceXl),

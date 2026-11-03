@@ -2,7 +2,18 @@ import '../entities/execution_event.dart';
 import '../entities/mission_schedule_revision.dart';
 
 /// 固定日程按墙上时钟结束；暂停不顺延，已保存的加时才顺延。
-/// 已错过整个时段后手动开始的任务，从实际开始时刻获得完整预算。
+DateTime fixedTimeSlotEnd(
+  DateTime fixedStartAt,
+  int plannedDurationMinutes,
+  List<ExecutionEvent> events,
+) {
+  final extra = events
+      .where((event) => event.type == ExecutionEventType.extend)
+      .fold<int>(0, (sum, event) => sum + event.grantedDurationMinutes!);
+  return fixedStartAt.add(Duration(minutes: plannedDurationMinutes + extra));
+}
+
+/// 正在执行的固定任务应停止的时刻；调度延迟和暂停不改变该边界。
 DateTime? scheduledExecutionEnd(
   MissionScheduleRevision schedule,
   List<ExecutionEvent> events,
@@ -17,17 +28,9 @@ DateTime? scheduledExecutionEnd(
       )) {
     return null;
   }
-  final plannedEnd = schedule.fixedStartAt!.add(
-    Duration(minutes: schedule.plannedDurationMinutes),
+  return fixedTimeSlotEnd(
+    schedule.fixedStartAt!,
+    schedule.plannedDurationMinutes,
+    events,
   );
-  final startedAt = events.first.occurredAt;
-  final baseEnd = startedAt.isBefore(plannedEnd)
-      ? plannedEnd
-      : startedAt.add(Duration(minutes: schedule.plannedDurationMinutes));
-  final extra = events
-      .where((event) => event.type == ExecutionEventType.extend)
-      .fold<int>(0, (sum, event) => sum + event.grantedDurationMinutes!);
-  final end = baseEnd.add(Duration(minutes: extra));
-  // STOP 不能早于已保存的末次动作，保持时间线有序。
-  return end.isBefore(events.last.occurredAt) ? events.last.occurredAt : end;
 }

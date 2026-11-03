@@ -200,6 +200,9 @@ final class AgentSession {
   final _partialText = StringBuffer();
   final _partialThinking = StringBuffer();
   int _attempt = 0;
+  int _requestSerial = 0;
+  bool _modelRequestRunning = false;
+  String? _turnUserMessageId;
   String? _activeTool;
   CancellationToken? _cancellation;
   Timer? _deadline;
@@ -230,6 +233,9 @@ final class AgentSession {
     text: _partialText.toString(),
     thinking: _partialThinking.toString(),
     attempt: _attempt,
+    requestSerial: _requestSerial,
+    modelRequestRunning: _modelRequestRunning,
+    turnUserMessageId: _state.openTurnId == null ? null : _turnUserMessageId,
     toolName: _activeTool,
   ); // 页面重新订阅时先读取此快照，已经到达的增量仍然可见。
   ModelProfile get modelProfile =>
@@ -285,6 +291,9 @@ final class AgentSession {
       }
     }
     final token = _beginWork();
+    _turnUserMessageId =
+        input?.id ??
+        _state.transcript.reversed.whereType<UserMessage>().firstOrNull?.id;
     AgentLoop? loop;
     try {
       await _record('turn_started', {
@@ -511,6 +520,7 @@ final class AgentSession {
           'message': encodeMessage(event.message),
           'usage': event.usage.toJson(),
         });
+        _modelRequestRunning = false;
       case ToolExecutionStarted():
         _activeTool = event.call.name;
         await _record('tool_execution_started', {
@@ -569,8 +579,12 @@ final class AgentSession {
           _partialText.clear();
           _partialThinking.clear();
           _attempt = event.attempt;
+          _requestSerial++;
+          _modelRequestRunning = true;
         }
       case ModelAttemptFailed():
+        // 摘要请求也使用该事件；正文请求开始后才可能置为 true。
+        _modelRequestRunning = false;
         await _record('request_failed', {
           'step': event.step,
           'attempt': event.attempt,
@@ -601,6 +615,7 @@ final class AgentSession {
           'summaryRequests': compaction.summaryRequests,
         });
       case AgentRunFinished():
+        _modelRequestRunning = false;
         await _record('turn_ended', {
           'turnId': _state.openTurnId,
           'reason': event.result.reason.name,
@@ -689,6 +704,8 @@ final class AgentSession {
     _partialText.clear();
     _partialThinking.clear();
     _attempt = 0;
+    _modelRequestRunning = false;
+    _turnUserMessageId = null;
     _activeTool = null;
     _changes.add(null);
     _workDone = Completer<void>();
@@ -712,6 +729,8 @@ final class AgentSession {
   }
 
   void _endWork() {
+    _modelRequestRunning = false;
+    _turnUserMessageId = null;
     _deadline?.cancel();
     _deadline = null;
     _busy = false;
@@ -750,12 +769,24 @@ final class SessionActivity {
     required this.text,
     required this.thinking,
     required this.attempt,
+    this.requestSerial = 0,
+    this.modelRequestRunning = false,
+    this.turnUserMessageId,
     this.toolName,
   });
   final bool isRunning;
   final String text;
   final String thinking;
   final int attempt;
+
+  /// 会话实例内每次正文请求递增，含重试；不是按文本内容判断身份。
+  final int requestSerial;
+
+  /// 正文请求开始至完整消息接收/失败；工具执行期间为 false。
+  final bool modelRequestRunning;
+
+  /// 当前运行所承接的用户消息，恢复同一轮时仍使用原编号。
+  final String? turnUserMessageId;
   final String? toolName;
 }
 

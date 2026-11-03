@@ -144,6 +144,7 @@ class AssistantSettings {
     this.speech = const AssistantSpeechSettings(),
     this.hasTranscriptionCredential = false,
     this.persona = const AssistantPersona(),
+    this.reasoningEfforts = const {},
   });
 
   final bool hasDeepSeekCredential;
@@ -154,6 +155,7 @@ class AssistantSettings {
   final String modelProfileId;
   final AssistantPermissionMode permissionMode;
   final AssistantPersona persona;
+  final Map<String, ReasoningEffort> reasoningEfforts;
   bool get hasCredential =>
       modelProfileId == 'custom' ? hasCustomCredential : hasDeepSeekCredential;
 }
@@ -163,6 +165,7 @@ abstract interface class AssistantSettingsStore {
   Future<String?> resolveCredential(String credentialKey);
   Future<void> saveCredential(String credentialKey, String value);
   Future<void> saveModelProfile(String profileId);
+  Future<void> saveReasoningEffort(String profileId, ReasoningEffort effort);
   Future<void> saveCustomProfile(ModelProfile profile);
   Future<void> savePermissionMode(AssistantPermissionMode mode);
   Future<void> saveSpeechSettings(AssistantSpeechSettings settings);

@@ -9,6 +9,9 @@ import 'package:flutter/services.dart';
 import '../../core/theme/colors.dart';
 import '../../application/assistant/assistant_controller.dart';
 import 'assistant_markdown.dart';
+import 'assistant_thinking.dart';
+import 'assistant_turn_display.dart';
+import 'assistant_operation_card.dart';
 import 'assistant_voice_status.dart';
 import 'assistant_avatar.dart';
 import 'assistant_scope.dart';
@@ -300,7 +303,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     _transitioning = false;
   }
 
-  Future<void> _expand() async {
+  Future<void> _expand({String? operationCallId}) async {
     if (_transitioning) return;
     _transitioning = true;
     _preserveVoiceDraft();
@@ -309,7 +312,10 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     if (!mounted) return;
     _hide();
     _transitioning = false;
-    await showAssistantConversation(context);
+    await showAssistantConversation(
+      context,
+      initialOperationCallId: operationCallId,
+    );
   }
 
   Future<void> _sendVoice() async {
@@ -533,9 +539,61 @@ class AssistantLauncherState extends State<AssistantLauncher> {
         .where((m) => m.text.trim().isNotEmpty)
         .map((m) => m.text)
         .join('\n\n');
-    final streaming = start >= 0 && controller.activity.isRunning
-        ? controller.activity.text
-        : '';
+    final live =
+        start >= 0 &&
+        controller.activity.turnUserMessageId == _sentMessage?.id &&
+        controller.activity.modelRequestRunning;
+    final streaming = live ? controller.activity.text : '';
+    final process = <Widget>[];
+    final replies = <Widget>[];
+    for (final part in assistantTurnParts(messages)) {
+      final block = part.block;
+      if (block is ThinkingBlock && block.text.trim().isNotEmpty) {
+        process.add(
+          AssistantThinking(key: ValueKey(part.key), text: block.text),
+        );
+      } else if (block is ToolCallBlock) {
+        final operation = operations
+            .where((item) => item.callId == block.id)
+            .firstOrNull;
+        if (operation == null) continue;
+        process.add(
+          TextButton.icon(
+            key: ValueKey(block.id),
+            onPressed: () => _expand(operationCallId: block.id),
+            icon: Icon(
+              operation.status == AssistantOperationStatus.succeeded
+                  ? Icons.check_circle_outline
+                  : Icons.receipt_long_outlined,
+              size: AppLayout.iconSm,
+            ),
+            label: Text(
+              '${assistantToolLabel(block.name)} · ${assistantOperationStatusLabel(operation.status, compact: true)}',
+            ),
+          ),
+        );
+      } else if (block is TextBlock && block.text.trim().isNotEmpty) {
+        final content = AssistantMarkdown(
+          text: block.text,
+          compact: !part.isReply,
+        );
+        if (part.isReply) {
+          replies.add(content);
+        } else {
+          process.add(content);
+        }
+      }
+    }
+    if (live && controller.activity.thinking.isNotEmpty) {
+      process.add(
+        AssistantThinking(
+          key: ValueKey('live-thinking-${controller.activity.requestSerial}'),
+          text: controller.activity.thinking,
+          streaming: true,
+        ),
+      );
+    }
+    if (streaming.isNotEmpty) replies.add(AssistantMarkdown(text: streaming));
     final text = Theme.of(context).textTheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -666,27 +724,33 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                       ),
                     ),
                   const SizedBox(height: AppLayout.spaceMd),
-                  if (reply.isNotEmpty) AssistantMarkdown(text: reply),
-                  if (streaming.isNotEmpty && streaming != reply) ...[
-                    if (reply.isNotEmpty)
-                      const SizedBox(height: AppLayout.spaceSm),
-                    AssistantMarkdown(text: streaming),
-                  ],
-                  if (operations.isNotEmpty) ...[
-                    const SizedBox(height: AppLayout.spaceSm),
-                    OutlinedButton.icon(
-                      key: const Key('assistant-bubble-operations'),
-                      onPressed: _expand,
-                      icon: Icon(
-                        waiting
-                            ? Icons.fact_check_outlined
-                            : Icons.receipt_long_outlined,
-                        size: AppLayout.iconSm,
-                      ),
-                      label: Text(waiting ? '查看并确认操作' : '查看操作结果'),
+                  if (process.isNotEmpty || live)
+                    AssistantProcess(
+                      key: ValueKey('process-${_sentMessage?.id}'),
+                      running: controller.isRunning,
+                      needsAttention:
+                          waiting ||
+                          operations.any(
+                            (operation) =>
+                                operation.status ==
+                                    AssistantOperationStatus.failed ||
+                                operation.status ==
+                                    AssistantOperationStatus.unknown,
+                          ),
+                      label: waiting
+                          ? '等待确认操作'
+                          : controller.isRunning
+                          ? '正在处理'
+                          : '处理过程',
+                      operationCount: callIds.length,
+                      children: process,
                     ),
-                  ],
-                  if (controller.isRunning)
+                  for (final content in replies)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppLayout.spaceSm),
+                      child: content,
+                    ),
+                  if (controller.isRunning && process.isEmpty && !live)
                     Padding(
                       padding: const EdgeInsets.only(top: AppLayout.spaceSm),
                       child: Row(

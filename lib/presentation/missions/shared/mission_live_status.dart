@@ -4,25 +4,32 @@ import 'package:flutter/material.dart';
 
 import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/mission_phase.dart';
+import '../../../domain/entities/mission_schedule_revision.dart';
 import '../../../domain/rules/execution_time_rules.dart';
 import '../../widgets/app_visibility.dart';
 import 'mission_execution_display.dart';
 import 'mission_phase_display.dart';
 
 /// 列表与当前任务栏共用的实时时长。只重绘当前标签，不每秒查库或写状态。
-/// 运行从事件时刻推算；暂停和 END 冻结，重新显示时立即读时钟而非补数秒次数。
+/// 固定任务按计划窗口计时，自选任务从 START 推算；后台返回不补 Timer 次数。
 class MissionLiveStatus extends StatefulWidget {
   const MissionLiveStatus({
     super.key,
     required this.phase,
     required this.events,
+    this.schedule,
     this.includePhase = true,
+    this.includeFocusLabel = true,
     this.clock = DateTime.now,
     this.maxLines,
   });
   final MissionPhase phase;
   final List<ExecutionEvent> events;
+  final MissionScheduleRevision? schedule;
   final bool includePhase;
+
+  /// 紧凑日程省略可视前缀，时长仍取自同一执行事件计算。
+  final bool includeFocusLabel;
   final DateTime Function() clock;
   final int? maxLines;
   @override
@@ -87,10 +94,12 @@ class _MissionLiveStatusState extends State<MissionLiveStatus>
     final times = calculateExecutionTimes(
       widget.events,
       widget.clock().toUtc(),
+      schedule: widget.schedule,
     );
     return Text(
       '${widget.includePhase ? '${phaseLabel(widget.phase)} · ' : ''}'
-      '专注 ${focusDuration(times.focus)}${times.clockBehind ? ' · 请校时' : ''}',
+      '${widget.includeFocusLabel ? '专注 ' : ''}'
+      '${focusDuration(times.focus)}${times.clockBehind ? ' · 请校时' : ''}',
       style: Theme.of(context).textTheme.bodySmall,
       maxLines: widget.maxLines,
       overflow: widget.maxLines == null ? null : TextOverflow.ellipsis,

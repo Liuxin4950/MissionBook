@@ -24,6 +24,8 @@ import '../../widgets/app_expansion.dart';
 import 'mission_timetable.dart';
 import 'timetable_layout.dart';
 
+enum _TaskDateScope { today, selected, all, pastUnstarted }
+
 /// 跨日期读取全部任务，筛选只作用于查询结果，不另存一份可变阶段。
 class AllMissionsPage extends StatefulWidget {
   const AllMissionsPage({
@@ -51,10 +53,22 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   String? _goalId; // null 全部；空字符串只看独立任务。
   bool _pastUnstarted = false;
   bool _opening = false;
-  int get _activeFilterCount =>
-      (_phase == null ? 0 : 1) +
-      (_goalId == null ? 0 : 1) +
-      (_pastUnstarted ? 1 : 0);
+  List<String> get _filterLabels {
+    final today = DateUtils.dateOnly(timetableNow(widget.clock()));
+    final labels = <String>[];
+    if (_pastUnstarted) {
+      labels.add('以前未开始');
+    } else if (_day == null) {
+      labels.add('全部日期');
+    } else if (!DateUtils.isSameDay(_day, today)) {
+      labels.add(_dateKey(_day!));
+    }
+    if (_phase != null) labels.add(phaseLabel(_phase!));
+    if (_goalId != null) labels.add(_goalId!.isEmpty ? '独立任务' : '指定目标');
+    return labels;
+  }
+
+  int get _activeFilterCount => _filterLabels.length;
 
   @override
   void initState() {
@@ -190,6 +204,9 @@ class _AllMissionsPageState extends State<AllMissionsPage>
             expanded: _showFilters,
             child: TextButton.icon(
               key: const Key('all-missions-filters'),
+              style: TextButton.styleFrom(
+                textStyle: Theme.of(context).textTheme.labelSmall,
+              ),
               onPressed: () => setState(() => _showFilters = !_showFilters),
               icon: Icon(
                 _showFilters ? Icons.tune_rounded : Icons.tune,
@@ -287,17 +304,16 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                   padding: AppLayout.pagePadding(context),
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
-                    _dateNavigation(context, today),
+                    _dateNavigation(context),
                     if (_showFilters) ...[
                       const SizedBox(height: AppLayout.spaceLg),
-                      _filters(context, all, todayKey),
+                      _filters(context, all, today),
                     ],
-                    if (!_showFilters &&
-                        (_phase != null || _goalId != null || _pastUnstarted))
+                    if (!_showFilters && _activeFilterCount > 0)
                       Padding(
                         padding: const EdgeInsets.only(top: AppLayout.spaceSm),
                         child: Text(
-                          '筛选：${[if (_phase != null) phaseLabel(_phase!), if (_goalId != null) _goalId!.isEmpty ? '独立任务' : '指定目标', if (_pastUnstarted) '以前未开始'].join(' · ')}',
+                          '筛选：${_filterLabels.join(' · ')}',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ),
@@ -471,7 +487,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     );
   }
 
-  Widget _dateNavigation(BuildContext context, DateTime today) {
+  Widget _dateNavigation(BuildContext context) {
     const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
     final day = _day;
     final theme = Theme.of(context);
@@ -479,7 +495,6 @@ class _AllMissionsPageState extends State<AllMissionsPage>
       _day = DateTime(day!.year, day.month, day.day + offset);
       _pastUnstarted = false;
     });
-    final current = DateUtils.isSameDay(today, day);
     final navigation = Row(
       children: [
         IconButton(
@@ -501,7 +516,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 Flexible(
                   child: Text(
                     day == null
-                        ? '全部日期'
+                        ? (_pastUnstarted ? '以前未开始' : '全部日期')
                         : '${day.year}年${day.month}月${day.day}日 · ${weekdays[day.weekday - 1]}',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.titleSmall,
@@ -525,64 +540,32 @@ class _AllMissionsPageState extends State<AllMissionsPage>
         ),
       ],
     );
-    final shortcuts = Wrap(
-      spacing: AppLayout.spaceSm,
-      runSpacing: AppLayout.spaceXs,
-      alignment: WrapAlignment.center,
-      children: [
-        ChoiceChip(
-          key: const Key('all-missions-back-today'),
-          label: const Text('今天'),
-          selected: current,
-          showCheckmark: false,
-          onSelected: (_) => setState(() {
-            _day = today;
-            _pastUnstarted = false;
-          }),
-        ),
-        ChoiceChip(
-          key: const Key('all-missions-date-all-shortcut'),
-          label: const Text('全部日期'),
-          selected: day == null && !_pastUnstarted,
-          showCheckmark: false,
-          onSelected: (_) => setState(() {
-            _day = null;
-            _pastUnstarted = false;
-          }),
-        ),
-      ],
-    );
     return AppSectionCard(
       padding: const EdgeInsets.all(AppLayout.spaceSm),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          if (box.maxWidth >= 640 * MediaQuery.textScalerOf(context).scale(1)) {
-            return Row(
-              children: [
-                Expanded(child: navigation),
-                const SizedBox(width: AppLayout.spaceLg),
-                shortcuts,
-              ],
-            );
-          }
-          return Column(
-            children: [
-              navigation,
-              const SizedBox(height: AppLayout.spaceXs),
-              shortcuts,
-            ],
-          );
-        },
-      ),
+      child: navigation,
     );
   }
 
   Widget _filters(
     BuildContext context,
     List<MissionDetail> all,
-    String todayKey,
+    DateTime today,
   ) {
     final theme = Theme.of(context);
+    final todayKey = _dateKey(today);
+    final selectedDay = _day;
+    final customDay =
+        selectedDay != null && !DateUtils.isSameDay(selectedDay, today);
+    final _TaskDateScope dateScope;
+    if (_pastUnstarted) {
+      dateScope = _TaskDateScope.pastUnstarted;
+    } else if (selectedDay == null) {
+      dateScope = _TaskDateScope.all;
+    } else if (customDay) {
+      dateScope = _TaskDateScope.selected;
+    } else {
+      dateScope = _TaskDateScope.today;
+    }
     final pastCount = all
         .where(
           (item) =>
@@ -594,37 +577,83 @@ class _AllMissionsPageState extends State<AllMissionsPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('筛选任务', style: theme.textTheme.titleMedium),
-          const SizedBox(height: AppLayout.spaceMd),
-          Wrap(
-            spacing: AppLayout.spaceSm,
-            runSpacing: AppLayout.spaceSm,
+          Row(
             children: [
-              if (pastCount > 0)
-                TextButton.icon(
-                  key: const Key('all-missions-past'),
-                  onPressed: () => setState(() {
-                    _pastUnstarted = !_pastUnstarted;
-                    _day = null;
-                    _phase = null;
-                  }),
-                  icon: const Icon(Icons.history, size: AppLayout.iconSm),
-                  label: Text(_pastUnstarted ? '显示全部' : '以前未开始 $pastCount'),
-                ),
-              if (_phase != null || _goalId != null || _pastUnstarted)
+              Expanded(child: Text('筛选任务', style: theme.textTheme.labelLarge)),
+              if (_activeFilterCount > 0)
                 TextButton(onPressed: _resetFilters, child: const Text('重置筛选')),
             ],
           ),
           const SizedBox(height: AppLayout.spaceMd),
-          Text('阶段', style: theme.textTheme.titleSmall),
-          const SizedBox(height: AppLayout.spaceSm),
-          Wrap(
-            spacing: AppLayout.spaceSm,
-            runSpacing: AppLayout.spaceSm,
+          AdaptiveColumns(
+            minColumnWidth: 150,
+            maxColumns: 2,
+            spacing: AppLayout.spaceMd,
             children: [
-              _phaseChip(context, null, '全部'),
-              for (final phase in MissionPhase.values)
-                _phaseChip(context, phase, phaseLabel(phase)),
+              AppDropdownFormField<_TaskDateScope>(
+                key: ValueKey(
+                  'all-missions-date-scope-$selectedDay-$_pastUnstarted',
+                ),
+                initialValue: dateScope,
+                style: theme.textTheme.bodySmall,
+                decoration: const InputDecoration(labelText: '日期范围'),
+                items: [
+                  const DropdownMenuItem(
+                    value: _TaskDateScope.today,
+                    child: Text('今天'),
+                  ),
+                  if (customDay)
+                    DropdownMenuItem(
+                      value: _TaskDateScope.selected,
+                      child: Text(_dateKey(selectedDay)),
+                    ),
+                  const DropdownMenuItem(
+                    value: _TaskDateScope.all,
+                    child: Text('全部日期'),
+                  ),
+                  if (pastCount > 0 || _pastUnstarted)
+                    DropdownMenuItem(
+                      value: _TaskDateScope.pastUnstarted,
+                      child: Text('以前未开始 · $pastCount'),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    if (value == _TaskDateScope.today) {
+                      _day = today;
+                      _pastUnstarted = false;
+                    } else if (value == _TaskDateScope.all) {
+                      _day = null;
+                      _pastUnstarted = false;
+                    } else if (value == _TaskDateScope.pastUnstarted) {
+                      _day = null;
+                      _pastUnstarted = true;
+                      _phase = null;
+                    } else {
+                      _pastUnstarted = false;
+                    }
+                  });
+                },
+              ),
+              AppDropdownFormField<MissionPhase>(
+                key: ValueKey('all-missions-phase-${_phase?.name ?? 'all'}'),
+                initialValue: _phase,
+                style: theme.textTheme.bodySmall,
+                decoration: const InputDecoration(labelText: '任务阶段'),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('全部阶段')),
+                  for (final phase in MissionPhase.values)
+                    DropdownMenuItem(
+                      value: phase,
+                      child: Text(phaseLabel(phase)),
+                    ),
+                ],
+                onChanged: (value) => setState(() {
+                  _phase = value;
+                  _pastUnstarted = false;
+                }),
+              ),
             ],
           ),
           if (widget.goals != null) ...[
@@ -656,11 +685,8 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                       ? _goalId
                       : null,
                   isExpanded: true,
-                  style: theme.textTheme.bodyMedium,
-                  decoration: const InputDecoration(
-                    labelText: '目标归属',
-                    border: OutlineInputBorder(),
-                  ),
+                  style: theme.textTheme.bodySmall,
+                  decoration: const InputDecoration(labelText: '目标归属'),
                   items: [
                     const DropdownMenuItem(
                       value: null,
@@ -686,17 +712,6 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     );
   }
 
-  Widget _phaseChip(BuildContext context, MissionPhase? value, String label) =>
-      ChoiceChip(
-        key: Key('all-missions-phase-${value?.name ?? 'all'}'),
-        label: Text(label),
-        selected: _phase == value,
-        onSelected: (_) => setState(() {
-          _phase = value;
-          _pastUnstarted = false;
-        }),
-      );
-
   Widget _row(
     BuildContext context,
     MissionDetail detail, {
@@ -716,7 +731,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
             vertical: AppLayout.spaceSm,
           ),
           leading: MissionPhaseIcon(phase: detail.phase),
-          title: Text(detail.mission.title, style: theme.textTheme.titleMedium),
+          title: Text(detail.mission.title, style: theme.textTheme.labelSmall),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -730,6 +745,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 MissionLiveStatus(
                   phase: detail.phase,
                   events: detail.events,
+                  schedule: detail.schedule,
                   includePhase: false,
                   clock: widget.clock,
                 ),
@@ -748,12 +764,13 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   Widget _empty(BuildContext context) => AppEmptyState(
     title: '没有符合筛选条件的任务',
     details: const Text('可以调整日期、阶段或目标。'),
-    actions: (_phase != null || _goalId != null || _pastUnstarted)
+    actions: _activeFilterCount > 0
         ? OutlinedButton(onPressed: _resetFilters, child: const Text('重置筛选'))
         : null,
   );
 
   void _resetFilters() => setState(() {
+    _day = DateUtils.dateOnly(timetableNow(widget.clock()));
     _phase = null;
     _goalId = null;
     _pastUnstarted = false;

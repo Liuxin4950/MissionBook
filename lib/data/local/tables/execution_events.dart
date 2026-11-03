@@ -26,7 +26,7 @@ class ExecutionEvents extends Table {
   // 用稳定字符串保存动作，不保存 Dart 枚举的下标。
   TextColumn get type => text()();
 
-  // 实际操作时刻，保存 UTC 毫秒时间戳；不使用页面计时器累计值。
+  // 动作生效时刻，固定 START 为计划起点；保存 UTC 毫秒，不使用页面计时器累计值。
   IntColumn get occurredAt => integer()();
 
   // START或历史补报有值。外键保证排期存在；同任务和最新版本在事务内校验。

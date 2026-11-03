@@ -12,6 +12,7 @@ class MemoryAssistantSettingsStore implements AssistantSettingsStore {
   AssistantSpeechSettings speech = const AssistantSpeechSettings();
   String? transcriptionCredential;
   AssistantPersona persona = const AssistantPersona();
+  final reasoningEfforts = <String, ReasoningEffort>{};
 
   @override
   Future<AssistantSettings> load() async => AssistantSettings(
@@ -23,6 +24,7 @@ class MemoryAssistantSettingsStore implements AssistantSettingsStore {
     speech: speech,
     hasTranscriptionCredential: transcriptionCredential != null,
     persona: persona,
+    reasoningEfforts: Map.unmodifiable(reasoningEfforts),
   );
 
   @override
@@ -65,6 +67,12 @@ class MemoryAssistantSettingsStore implements AssistantSettingsStore {
   @override
   Future<void> saveModelProfile(String profileId) async =>
       this.profileId = profileId;
+
+  @override
+  Future<void> saveReasoningEffort(
+    String profileId,
+    ReasoningEffort effort,
+  ) async => reasoningEfforts[profileId] = effort;
 }
 
 class ScriptedModel implements AgentModel {

@@ -85,6 +85,7 @@ Future<void> openAssistant(
 Future<void> showAssistantConversation(
   BuildContext context, {
   String? initialText,
+  String? initialOperationCallId,
 }) {
   final scope = AssistantScope.of(context);
   return Navigator.of(context, rootNavigator: true).push<void>(
@@ -94,6 +95,7 @@ Future<void> showAssistantConversation(
         controller: scope.controller,
         showBack: true,
         initialText: initialText,
+        initialOperationCallId: initialOperationCallId,
       ),
     ),
   );

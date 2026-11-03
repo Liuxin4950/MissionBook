@@ -6,7 +6,10 @@ class AppSectionCard extends StatelessWidget {
   const AppSectionCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(AppLayout.spaceXl),
+    this.padding = const EdgeInsets.symmetric(
+      horizontal: AppLayout.spaceXl,
+      vertical: AppLayout.spaceMd,
+    ),
     this.paperBackground = false,
   });
   final Widget child;

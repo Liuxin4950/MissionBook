@@ -51,7 +51,17 @@ class _AssistantConfiguration {
         ? selected
         : base.defaultModelProfile;
     return AgentConfiguration(
-      profiles: profiles,
+      profiles: [
+        for (final profile in profiles)
+          if (_controller._settings.reasoningEfforts[profile.id]
+              case final effort?)
+            ModelProfile.fromJson({
+              ...profile.toJson(),
+              'reasoningEffort': effort.name,
+            })
+          else
+            profile,
+      ],
       defaultModelProfile: profileId,
       summaryModelProfile: profileId,
       maxSteps: base.maxSteps,
@@ -144,8 +154,30 @@ class _AssistantConfiguration {
           summary: _controller._settings.modelProfileId,
         );
       }
+      await _applyReasoningEffort();
     },
   );
+
+  Future<void> setReasoningEffort(ReasoningEffort effort) =>
+      _updateConfiguration(() async {
+        await _controller._settingsStore.saveReasoningEffort(
+          modelProfileId,
+          effort,
+        );
+        _controller._settings = await _controller._settingsStore.load();
+        await _applyReasoningEffort();
+      });
+
+  Future<void> _applyReasoningEffort() async {
+    final session = _controller._session;
+    if (session == null) return;
+    final effort =
+        _controller._settings.reasoningEfforts[session.modelProfileId];
+    if (effort == null) return;
+    if (session.reasoningEffort != effort) {
+      await session.configureGeneration(thinking: effort);
+    }
+  }
 
   Future<void> setPermissionMode(AssistantPermissionMode mode) =>
       _updateConfiguration(() async {

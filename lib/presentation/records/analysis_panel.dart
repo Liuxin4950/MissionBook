@@ -210,7 +210,10 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                 if (a?['content'] != null)
                   Padding(
                     padding: const EdgeInsets.all(AppLayout.spaceMd),
-                    child: SelectableText(a!['content'] as String),
+                    child: SelectableText(
+                      a!['content'] as String,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
                   ),
                 if (a?['error'] != null) Text(a!['error'] as String),
                 Text('已覆盖直接子项：${a?['coverage'] ?? 0}'),

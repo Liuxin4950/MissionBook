@@ -119,6 +119,10 @@ class AssistantController extends ChangeNotifier {
 
   void _notifyListeners() {
     _gateway.interruptObsoleteRequests();
+    if (!isRunning) {
+      _resumeWatchdog?.cancel();
+      _resumeWatchdog = null;
+    }
     if (!_closed) notifyListeners();
   }
 
@@ -258,13 +262,13 @@ class AssistantController extends ChangeNotifier {
   Timer? _resumeWatchdog;
 
   String get _progressFingerprint =>
-      '${_transcript.length}:${_transcript.lastOrNull?.id}:${_activity.attempt}:${_activity.toolName}:${_activity.text}:${_activity.thinking}';
+      '${_transcript.length}:${_transcript.lastOrNull?.id}:${_activity.requestSerial}:${_activity.modelRequestRunning}:${_activity.attempt}:${_activity.toolName}:${_activity.text}:${_activity.thinking}';
 
   /// 切后台不取消请求；回前台后若模型连接持续无进展，结束旧等待并开放继续入口。
   void setForeground(bool foreground) {
     if (_closed) return;
-    _resumeWatchdog?.cancel();
     if (!foreground) {
+      _resumeWatchdog?.cancel();
       _backgrounded = true;
       return;
     }
@@ -272,14 +276,19 @@ class AssistantController extends ChangeNotifier {
     _backgrounded = false;
     _refreshSnapshot();
     if (!returning || !isRunning) return;
+    _watchResumedConnection();
+  }
+
+  void _watchResumedConnection() {
+    _resumeWatchdog?.cancel();
     final progress = _progressFingerprint;
     _resumeWatchdog = Timer(resumeGrace, () {
-      if (_closed ||
-          _backgrounded ||
-          !isRunning ||
-          _pending.isNotEmpty ||
+      if (_closed || _backgrounded || !isRunning) return;
+      if (_pending.isNotEmpty ||
           _activity.toolName != null ||
           _progressFingerprint != progress) {
+        // 恢复期间有输出或正在执行工具时继续观察，不能只检查一次后永久失去恢复入口。
+        _watchResumedConnection();
         return;
       }
       _connectionInterrupted = true;
@@ -299,6 +308,7 @@ class AssistantController extends ChangeNotifier {
 
   Future<void> continueInterrupted() async {
     if (!canContinueInterrupted) return;
+    _resumeWatchdog?.cancel();
     _sending = true;
     _sendCancelled = false;
     _connectionInterrupted = false;
@@ -307,7 +317,9 @@ class AssistantController extends ChangeNotifier {
     _notifyListeners();
     try {
       final result = await _requireSession().resume();
-      _errorMessage = result.failure?.message;
+      _errorMessage = _connectionInterrupted
+          ? '连接中断已恢复，可以继续本轮或发送新消息'
+          : result.failure?.message;
       await _refreshConversations();
     } catch (error) {
       _setError(userErrorMessage(error, fallback: '操作未完成，请重试；仍有问题时检查模型设置'));
@@ -403,6 +415,11 @@ class AssistantController extends ChangeNotifier {
       ? _settings.hasCustomCredential
       : _settings.hasDeepSeekCredential;
   ModelProfile? get customProfile => _settings.customProfile;
+  ReasoningEffort reasoningEffortFor(String profileId) =>
+      _settings.reasoningEfforts[profileId] ??
+      _configuration.profile(profileId).reasoningEffort;
+  ReasoningEffort get reasoningEffort =>
+      _session?.reasoningEffort ?? reasoningEffortFor(modelProfileId);
   AssistantPermissionMode get permissionMode => _settings.permissionMode;
   AssistantSpeechSettings get speechSettings => _settings.speech;
   AssistantPersona get persona => _settings.persona;
@@ -498,6 +515,9 @@ class AssistantController extends ChangeNotifier {
 
   Future<void> selectModelProfile(String profileId) =>
       _config.selectModelProfile(profileId);
+
+  Future<void> setReasoningEffort(ReasoningEffort effort) =>
+      _config.setReasoningEffort(effort);
 
   Future<void> setPermissionMode(AssistantPermissionMode mode) =>
       _config.setPermissionMode(mode);

@@ -69,8 +69,9 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
       if (!mounted) return;
       _refresh();
       if (id != null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('已导入目标与计划')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已导入目标与计划')));
       }
     } finally {
       _opening = false;
@@ -157,8 +158,9 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
       }
       _refresh();
       if (id != null) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('目标已创建')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('目标已创建')));
       }
     } finally {
       _opening = false;
@@ -425,7 +427,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
             Expanded(
               child: Text(
                 '行动路径',
-                style: Theme.of(context).textTheme.titleSmall,
+                style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
             IconButton(
@@ -587,7 +589,7 @@ class _GoalCard extends StatelessWidget {
                                   overflow: selected
                                       ? null
                                       : TextOverflow.ellipsis,
-                                  style: theme.textTheme.labelLarge,
+                                  style: theme.textTheme.titleSmall,
                                 ),
                                 const SizedBox(height: AppLayout.spaceXs),
                                 Text(

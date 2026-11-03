@@ -130,60 +130,63 @@ class _ScheduleSectionState extends State<ScheduleSection>
     final items = preview;
     final hidden = widget.fullList ? 0 : widget.items.length - items.length;
     return AppSectionCard(
+      padding: const EdgeInsets.all(AppLayout.spaceMd),
       paperBackground: widget.illustrateEmpty && items.isEmpty,
       child: Padding(
         padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: AppLayout.spaceSm,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Wrap(
-                  spacing: AppLayout.spaceMd,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (!widget.fullList)
-                      Semantics(
-                        header: true,
-                        child: Text('计划日程', style: theme.textTheme.titleMedium),
+                Expanded(
+                  child: Wrap(
+                    spacing: AppLayout.spaceSm,
+                    runSpacing: AppLayout.spaceXs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (!widget.fullList)
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            '计划日程',
+                            style: theme.textTheme.labelLarge,
+                          ),
+                        ),
+                      Text(
+                        '共 ${widget.items.length} 项',
+                        style: theme.textTheme.bodySmall,
                       ),
-                    Text(
-                      '共 ${widget.items.length} 项',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ],
+                      if (widget.items.isNotEmpty &&
+                          DateUtils.isSameDay(local, widget.selectedDate))
+                        Row(
+                          key: const Key('timeline-current-time'),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('现在', style: theme.textTheme.bodySmall),
+                            const SizedBox(width: AppLayout.spaceXs),
+                            Text(
+                              '${local.hour.toString().padLeft(2, '0')}:'
+                              '${local.minute.toString().padLeft(2, '0')}',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
                 if (!widget.fullList && widget.items.isNotEmpty)
                   TextButton(
                     key: const Key('today-all-missions'),
                     onPressed: widget.onOpenAll,
                     style: TextButton.styleFrom(
-                      textStyle: theme.textTheme.labelMedium,
+                      textStyle: theme.textTheme.labelSmall,
                     ),
                     child: const Text('查看全部 ›'),
                   ),
               ],
             ),
-            if (widget.items.isNotEmpty &&
-                DateUtils.isSameDay(local, widget.selectedDate))
-              Padding(
-                key: const Key('timeline-current-time'),
-                padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
-                child: Row(
-                  children: [
-                    Text('现在', style: theme.textTheme.bodyMedium),
-                    const SizedBox(width: AppLayout.spaceSm),
-                    Text(
-                      '${local.hour.toString().padLeft(2, '0')}:'
-                      '${local.minute.toString().padLeft(2, '0')}',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
             if (items.isEmpty)
               EmptySchedule(
                 illustrate: widget.illustrateEmpty,
@@ -241,7 +244,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
                 key: const Key('schedule-more'),
                 onPressed: widget.onOpenAll,
                 style: TextButton.styleFrom(
-                  textStyle: theme.textTheme.labelMedium,
+                  textStyle: theme.textTheme.labelSmall,
                 ),
                 child: Text('另有 $hidden 项 · 查看全部 ›'),
               ),
@@ -285,20 +288,13 @@ class ScheduleMissionRow extends StatelessWidget {
     final current = display.isInPlannedTimeSlot(item, now);
     final progress = display.plannedTimeSlotProgress(item, now);
     final remainingMinutes = current
-        ? (item.fixedStartAt!
-                      .add(Duration(minutes: item.plannedDurationMinutes))
-                      .difference(now)
-                      .inMilliseconds /
+        ? (display.plannedTimeSlotEnd(item)!.difference(now).inMilliseconds /
                   60000)
               .ceil()
         : 0;
     final elapsed =
         item.fixedStartAt != null &&
-        !now.isBefore(
-          item.fixedStartAt!.add(
-            Duration(minutes: item.plannedDurationMinutes),
-          ),
-        );
+        !now.isBefore(display.plannedTimeSlotEnd(item)!);
     final planStatus = item.isCancelled
         ? '已取消'
         : current
@@ -319,11 +315,11 @@ class ScheduleMissionRow extends StatelessWidget {
       if (current) '计划时段剩余 $remainingMinutes 分钟',
     ].join('，');
     // 时间与状态归入正文，不再用固定时间列压缩窄屏标题。
-    final titleStyle = theme.textTheme.titleMedium!;
+    final titleStyle = theme.textTheme.labelSmall!;
     final scaler = MediaQuery.textScalerOf(context);
     final titleLineHeight =
         scaler.scale(titleStyle.fontSize!) * (titleStyle.height ?? 1);
-    final nodeCenterY = AppLayout.spaceLg + titleLineHeight / 2;
+    final nodeCenterY = AppLayout.spaceSm + titleLineHeight / 2;
     const timelineEndInset = 12.0;
     return Semantics(
       container: true,
@@ -381,9 +377,9 @@ class ScheduleMissionRow extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppLayout.spaceXxl,
-                    AppLayout.spaceLg,
                     AppLayout.spaceSm,
-                    AppLayout.spaceLg,
+                    AppLayout.spaceSm,
+                    AppLayout.spaceSm,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -401,6 +397,8 @@ class ScheduleMissionRow extends StatelessWidget {
                               style: titleStyle,
                             ),
                           ),
+                          const SizedBox(width: AppLayout.spaceSm),
+                          Text(status, style: theme.textTheme.bodySmall),
                           const SizedBox(width: AppLayout.spaceXs),
                           Icon(
                             Icons.chevron_right_rounded,
@@ -409,52 +407,69 @@ class ScheduleMissionRow extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppLayout.spaceSm),
-                      Wrap(
-                        spacing: AppLayout.spaceSm,
-                        runSpacing: AppLayout.spaceXs,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                      const SizedBox(height: AppLayout.spaceXs),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '${item.startTime} · ${item.plannedDurationLabel}',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          _StatusLabel(status: status, current: current),
-                          if (item.events.isNotEmpty)
-                            MissionLiveStatus(
-                              phase: item.phase,
-                              events: item.events,
-                              clock: clock,
-                              includePhase: false,
-                            ),
-                          if (item.timeZoneLabel != null)
-                            Text(
-                              item.timeZoneLabel!,
+                          Expanded(
+                            child: Text(
+                              '${item.startTime} · ${item.plannedDurationLabel}',
                               style: theme.textTheme.bodySmall,
                             ),
-                        ],
-                      ),
-                      if (current) ...[
-                        const SizedBox(height: AppLayout.spaceSm),
-                        TweenAnimationBuilder<double>(
-                          tween: Tween(end: progress),
-                          duration: _motionDuration(context),
-                          builder: (context, value, _) =>
-                              LinearProgressIndicator(
-                                value: value,
-                                minHeight: 5,
-                                borderRadius: BorderRadius.circular(
-                                  AppLayout.radiusXs,
-                                ),
-                                backgroundColor: colors.primary.withValues(
-                                  alpha: .08,
+                          ),
+                          if (item.events.isNotEmpty) ...[
+                            const SizedBox(width: AppLayout.spaceSm),
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.topRight,
+                                child: MissionLiveStatus(
+                                  phase: item.phase,
+                                  events: item.events,
+                                  schedule: item.schedule,
+                                  clock: clock,
+                                  includePhase: false,
+                                  includeFocusLabel: false,
                                 ),
                               ),
-                        ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (item.timeZoneLabel != null) ...[
                         const SizedBox(height: AppLayout.spaceXs),
                         Text(
-                          '时段剩余 $remainingMinutes 分钟',
+                          item.timeZoneLabel!,
                           style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                      if (current) ...[
+                        const SizedBox(height: AppLayout.spaceSm),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(end: progress),
+                                duration: _motionDuration(context),
+                                builder: (context, value, _) =>
+                                    LinearProgressIndicator(
+                                      value: value,
+                                      minHeight: AppLayout.spaceXs,
+                                      borderRadius: BorderRadius.circular(
+                                        AppLayout.radiusXs,
+                                      ),
+                                      backgroundColor: colors.primary
+                                          .withValues(alpha: .08),
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(width: AppLayout.spaceSm),
+                            Flexible(
+                              child: Text(
+                                '时段剩余 $remainingMinutes 分钟',
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ],
@@ -464,40 +479,6 @@ class ScheduleMissionRow extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _StatusLabel extends StatelessWidget {
-  const _StatusLabel({required this.status, required this.current});
-  final String status;
-  final bool current;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final label = Text(
-      status,
-      style: theme.textTheme.bodySmall?.copyWith(
-        color: current
-            ? theme.colorScheme.onSurface
-            : theme.colorScheme.onSurfaceVariant,
-      ),
-    );
-    // 非当前任务直接排在说明行里，透明装饰和内边距会把文字推离标题左缘。
-    if (!current) return label;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppLayout.spaceSm,
-          vertical: AppLayout.spaceXs,
-        ),
-        child: label,
       ),
     );
   }

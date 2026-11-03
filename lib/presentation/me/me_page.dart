@@ -105,6 +105,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
           focus += calculateExecutionTimes(
             mission.events,
             mission.events.last.occurredAt,
+            schedule: mission.schedule,
           ).focus;
         }
       }

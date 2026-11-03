@@ -90,6 +90,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
       _reportFocus = calculateExecutionTimes(
         _action.detail.events,
         widget.clock().toUtc(),
+        schedule: _action.detail.schedule,
       ).focus;
     } else {
       _report = false;
@@ -224,6 +225,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
       _reportFocus = calculateExecutionTimes(
         _action.detail.events,
         widget.clock().toUtc(),
+        schedule: _action.detail.schedule,
       ).focus;
       _report = true;
       _extend = false;
@@ -246,6 +248,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
         _reportFocus = calculateExecutionTimes(
           _action.detail.events,
           widget.clock().toUtc(),
+          schedule: _action.detail.schedule,
         ).focus;
       } else if (_action.detail.lastSequence != _reportSequence) {
         // 报告草稿仍保留，但不能用旧报告结束已经恢复的任务。
@@ -300,6 +303,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
       _reportFocus = calculateExecutionTimes(
         _action.detail.events,
         widget.clock().toUtc(),
+        schedule: _action.detail.schedule,
       ).focus;
       _extend = false;
     });
@@ -418,6 +422,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
     final times = calculateExecutionTimes(
       detail.events,
       widget.clock().toUtc(),
+      schedule: detail.schedule,
     );
     final original = detail.schedule.plannedDurationMinutes;
     // 当前预算 = 原计划 + 已增加额度；口径统一走领域时间规则，页面不再手写加法。

@@ -253,7 +253,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                                 overflow: _expanded
                                     ? null
                                     : TextOverflow.ellipsis,
-                                style: theme.textTheme.labelLarge,
+                                style: theme.textTheme.titleSmall,
                               ),
                               Row(
                                 children: [
@@ -443,6 +443,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                         MissionLiveStatus(
                           phase: detail.phase,
                           events: detail.events,
+                          schedule: detail.schedule,
                           includePhase: false,
                         ),
                     ],

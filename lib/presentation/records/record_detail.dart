@@ -232,7 +232,10 @@ class _RecordDetailState extends State<RecordDetail> {
                         width: double.infinity,
                         height: 220,
                       ),
-                    SelectableText(r.content ?? ''),
+                    SelectableText(
+                      r.content ?? '',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
                     Wrap(
                       children: [
                         if (_contentOffset > 0)

@@ -41,6 +41,8 @@ abstract final class AppTheme {
     ),
     // 原生 ListTile/展开头的点击反馈收进圆角，不再出现整条方角激活底。
     listTileTheme: const ListTileThemeData(
+      titleTextStyle: AppTypography.itemTitle,
+      subtitleTextStyle: AppTypography.metadata,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(AppLayout.radiusMd)),
       ),
@@ -158,9 +160,17 @@ abstract final class AppTheme {
       elevation: 2,
       shadowColor: AppColors.shadow,
       menuPadding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
-      textStyle: AppTypography.textTheme.bodyLarge?.copyWith(
+      textStyle: AppTypography.textTheme.bodyMedium?.copyWith(
         color: AppColors.textPrimary,
       ),
+      // Material 3 实际读取 labelTextStyle；仅设置 textStyle 会回退到较粗的 labelLarge。
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        return AppTypography.metadata.copyWith(
+          color: states.contains(WidgetState.disabled)
+              ? AppColors.onDisabled
+              : AppColors.textPrimary,
+        );
+      }),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppLayout.radiusLg),
       ),
@@ -169,6 +179,8 @@ abstract final class AppTheme {
       style:
           FilledButton.styleFrom(
             textStyle: AppTypography.textTheme.labelLarge,
+            disabledBackgroundColor: AppColors.disabled,
+            disabledForegroundColor: AppColors.onDisabled,
             minimumSize: const Size(
               AppLayout.touchTargetMin,
               AppLayout.touchTargetMin,
@@ -184,7 +196,7 @@ abstract final class AppTheme {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style:
           OutlinedButton.styleFrom(
-            textStyle: AppTypography.textTheme.labelLarge,
+            textStyle: AppTypography.textTheme.labelMedium,
             minimumSize: const Size(
               AppLayout.touchTargetMin,
               AppLayout.touchTargetMin,
@@ -198,8 +210,10 @@ abstract final class AppTheme {
           ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(textStyle: AppTypography.textTheme.labelLarge)
-          .copyWith(
+      style:
+          TextButton.styleFrom(
+            textStyle: AppTypography.textTheme.labelMedium,
+          ).copyWith(
             splashFactory: NoSplash.splashFactory,
             overlayColor: _feedback(AppColors.primary),
           ),
@@ -214,6 +228,7 @@ abstract final class AppTheme {
       // 顶部导航栏主题
       backgroundColor: AppColors.background, // 顶栏背景
       foregroundColor: AppColors.textPrimary, // 顶栏文字和图标
+      titleTextStyle: AppTypography.sectionTitle,
       elevation: 0, // 移除阴影
       scrolledUnderElevation: 0, // 滚动时不增加阴影
     ),

@@ -13,6 +13,12 @@ class _AssistantComposer {
     valueListenable: _page._input,
     builder: (context, value, _) {
       final colors = Theme.of(context).colorScheme;
+      final toolStyle = IconButton.styleFrom(
+        minimumSize: const Size.square(AppLayout.touchTargetMin),
+        iconSize: AppLayout.iconMd,
+        foregroundColor: colors.onSurfaceVariant,
+        disabledForegroundColor: AppColors.onDisabled,
+      );
       final canSend =
           (value.text.trim().isNotEmpty || _page._attachments.isNotEmpty) &&
           !controller.isBusy &&
@@ -158,6 +164,7 @@ class _AssistantComposer {
                     PopupMenuButton<String>(
                       key: const Key('assistant-add-attachment'),
                       tooltip: '附件与快捷指令',
+                      style: toolStyle,
                       constraints: const BoxConstraints(
                         minWidth: 188,
                         maxWidth: 240,
@@ -175,7 +182,10 @@ class _AssistantComposer {
                               dimension: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.add_rounded),
+                          : const Icon(
+                              Icons.add_rounded,
+                              size: AppLayout.iconMd,
+                            ),
                       itemBuilder: (_) => [
                         _composerMenuItem(
                           'image',
@@ -218,6 +228,7 @@ class _AssistantComposer {
                       IconButton(
                         key: const Key('assistant-composer-voice'),
                         tooltip: _page._voice!.listening ? '结束录音' : '语音输入',
+                        style: toolStyle,
                         onPressed: controller.isBusy || _page._voice!.busy
                             ? null
                             : _toggleVoice,
@@ -225,6 +236,7 @@ class _AssistantComposer {
                           _page._voice!.listening
                               ? Icons.stop_circle_outlined
                               : Icons.mic_none_rounded,
+                          size: AppLayout.iconMd,
                           color: _page._voice!.listening
                               ? colors.primary
                               : null,
@@ -235,20 +247,25 @@ class _AssistantComposer {
                         _page._attachments.isEmpty
                             ? ''
                             : '${_page._attachments.length}/${AssistantAttachment.maxCount} 个附件',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
+                    _reasoningSelector(controller),
                     _contextIndicator(controller),
                     IconButton.filled(
                       key: const Key('assistant-send'),
                       tooltip: canStop ? '停止本轮' : '发送',
                       onPressed: action,
                       style: IconButton.styleFrom(
-                        minimumSize: const Size(48, 48),
+                        minimumSize: const Size.square(
+                          AppLayout.touchTargetMin,
+                        ),
                         foregroundColor: colors.onPrimary,
                         backgroundColor: colors.primary,
-                        disabledForegroundColor: colors.onSurfaceVariant,
-                        disabledBackgroundColor: colors.surfaceContainerHighest,
+                        disabledForegroundColor: AppColors.onDisabled,
+                        disabledBackgroundColor: AppColors.disabled,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(
                             AppLayout.radiusLg,
@@ -259,8 +276,9 @@ class _AssistantComposer {
                         canStop
                             ? Icons.stop_rounded
                             : Icons.arrow_upward_rounded,
+                        size: AppLayout.iconMd,
                         color: action == null
-                            ? colors.onSurfaceVariant
+                            ? AppColors.onDisabled
                             : colors.onPrimary,
                       ),
                     ),
@@ -273,6 +291,92 @@ class _AssistantComposer {
       );
     },
   );
+  Widget _reasoningSelector(AssistantController controller) {
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    final width = (160 * scale).clamp(
+      0.0,
+      MediaQuery.sizeOf(context).width - AppLayout.space3Xl,
+    );
+    final colors = Theme.of(context).colorScheme;
+    return MenuAnchor(
+      style: const MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(AppColors.card),
+        surfaceTintColor: WidgetStatePropertyAll(Colors.transparent),
+        shadowColor: WidgetStatePropertyAll(AppColors.shadow),
+        elevation: WidgetStatePropertyAll(2),
+        padding: WidgetStatePropertyAll(EdgeInsets.all(AppLayout.spaceXs)),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(AppLayout.radiusLg)),
+          ),
+        ),
+      ),
+      menuChildren: [
+        SizedBox(
+          width: width,
+          child: Wrap(
+            children: [
+              for (final effort in ReasoningEffort.values)
+                SizedBox(
+                  width: width / 2,
+                  child: MenuItemButton(
+                    onPressed: () =>
+                        unawaited(_selectReasoning(controller, effort)),
+                    style: const ButtonStyle(
+                      padding: WidgetStatePropertyAll(EdgeInsets.zero),
+                      minimumSize: WidgetStatePropertyAll(
+                        Size(0, AppLayout.touchTargetMin),
+                      ),
+                      shape: WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(
+                            Radius.circular(AppLayout.radiusMd),
+                          ),
+                        ),
+                      ),
+                    ),
+                    child: AppSelectionOption(
+                      selected: effort == controller.reasoningEffort,
+                      enabled: true,
+                      child: Text(assistantReasoningLabel(effort)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+      builder: (context, menu, _) => IconButton(
+        key: const Key('assistant-reasoning'),
+        tooltip: '思考程度：${assistantReasoningLabel(controller.reasoningEffort)}',
+        onPressed: controller.initialized && !controller.isBusy
+            ? () => menu.isOpen ? menu.close() : menu.open()
+            : null,
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(AppLayout.touchTargetMin),
+          foregroundColor: controller.reasoningEffort == ReasoningEffort.off
+              ? colors.onSurfaceVariant
+              : colors.primary,
+          disabledForegroundColor: AppColors.onDisabled,
+        ),
+        icon: const Icon(Icons.psychology_outlined, size: AppLayout.iconMd),
+      ),
+    );
+  }
+
+  Future<void> _selectReasoning(
+    AssistantController controller,
+    ReasoningEffort effort,
+  ) async {
+    try {
+      await controller.setReasoningEffort(effort);
+    } catch (error) {
+      if (mounted) {
+        _showNotice(userErrorMessage(error, fallback: '思考程度未保存，请重试'));
+      }
+    }
+  }
+
   PopupMenuItem<String> _composerMenuItem(
     String value,
     IconData icon,
@@ -281,7 +385,7 @@ class _AssistantComposer {
   }) => PopupMenuItem(
     value: value,
     enabled: enabled,
-    height: 44,
+    height: AppLayout.touchTargetMin,
     child: Row(
       children: [
         Icon(icon, size: AppLayout.iconMd),
@@ -340,7 +444,7 @@ class _AssistantComposer {
         label: label,
         child: SizedBox.square(
           key: const Key('assistant-context-usage'),
-          dimension: 44,
+          dimension: AppLayout.touchTargetMin,
           child: Center(
             child: SizedBox.square(
               dimension: 20,

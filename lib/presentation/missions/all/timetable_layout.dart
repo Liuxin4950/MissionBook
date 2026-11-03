@@ -114,12 +114,16 @@ class TimetableConflict {
 ) {
   if (detail.events.isEmpty) return null;
   if (detail.events.first.isRetrospective) return null;
-  final from = detail.events.first.occurredAt; // 时间线第一条必为 START。
+  final from = detail.schedule.fixedStartAt ?? detail.events.first.occurredAt;
   if (now == null && detail.events.last.type != ExecutionEventType.end) {
     return null;
   }
-  // 与专注时长复用同一上界：系统回拨时至少显示到最后一条已发生的事件。
-  final times = calculateExecutionTimes(detail.events, now ?? from);
+  // 与专注时长复用同一起点和上界；固定任务不会因迟到 START 延后整个区间。
+  final times = calculateExecutionTimes(
+    detail.events,
+    now ?? from,
+    schedule: detail.schedule,
+  );
   return (from: from, until: from.add(times.elapsed));
 }
 

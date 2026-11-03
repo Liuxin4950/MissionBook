@@ -202,7 +202,7 @@ WHERE m.cancelled_at IS NULL AND r.time_policy='FIXED'
   @override
   Future<OperationReceiptInfo> completeHistory(HistoricalCompletion request) =>
       _execution.completeHistory(request);
-  // 自动开始已持有外层事务写锁，可复用其边界校验时刻；普通操作仍在下方捕获。
+  // 调度在同一事务中提供计划 START/STOP 的生效时刻；普通操作使用事务时钟。
   Future<ExecutionEvent> _execute(
     ExecutionCommand command, {
     DateTime? occurredAt,
