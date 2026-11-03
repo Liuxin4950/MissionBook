@@ -216,7 +216,8 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                     ),
                   ),
                 if (a?['error'] != null) Text(a!['error'] as String),
-                Text('已覆盖直接子项：${a?['coverage'] ?? 0}'),
+                if (widget.scope != AnalysisScope.record)
+                  Text('已覆盖直接子项：${a?['coverage'] ?? 0}'),
                 Wrap(
                   children: [
                     if (!s.hasError)

@@ -4,6 +4,8 @@ import '../../application/assistant/assistant_attachment.dart';
 
 Future<AssistantAttachment?> pickAssistantAttachment({
   required bool image,
+  Future<AssistantAttachment?> Function(String name, Uint8List bytes)?
+  onOversizedImage,
 }) async {
   final file = await FileSelectorPlatform.instance.openFile(
     acceptedTypeGroups: [
@@ -25,11 +27,9 @@ Future<AssistantAttachment?> pickAssistantAttachment({
     confirmButtonText: '添加到对话',
   );
   if (file == null) return null;
-  final limit = image
-      ? AssistantAttachment.maxImageBytes
-      : AssistantAttachment.maxTextBytes;
+  final limit = image ? 20 * 1024 * 1024 : AssistantAttachment.maxTextBytes;
   if (await file.length() > limit) {
-    throw FormatException(image ? '单张图片不能超过 4 MiB' : '文本文件不能超过 256 KiB');
+    throw FormatException(image ? '原图不能超过 20 MiB，请先裁剪' : '文本文件不能超过 256 KiB');
   }
   final data = BytesBuilder(copy: false);
   await for (final chunk in file.openRead()) {
@@ -38,5 +38,11 @@ Future<AssistantAttachment?> pickAssistantAttachment({
     }
     data.add(chunk);
   }
-  return AssistantAttachment.fromBytes(file.name, data.takeBytes());
+  final bytes = data.takeBytes();
+  if (image &&
+      bytes.length > AssistantAttachment.maxImageBytes &&
+      onOversizedImage != null) {
+    return onOversizedImage(file.name, bytes);
+  }
+  return AssistantAttachment.fromBytes(file.name, bytes);
 }

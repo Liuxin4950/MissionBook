@@ -1,4 +1,6 @@
 import '../../domain/rules/content_rules.dart';
+import '../../domain/entities/mission_maintenance.dart';
+import '../../domain/repositories/mission_maintenance_repository.dart';
 import '../../domain/rules/schedule_proposal_rules.dart';
 import 'drift_repository_support.dart';
 import '../../domain/entities/user_execution_report.dart';
@@ -43,6 +45,7 @@ part 'mission_commands.dart';
 part 'mission_scheduling.dart';
 part 'mission_evidence.dart';
 part 'mission_execution.dart';
+part 'mission_maintenance.dart';
 
 /// 使用同一数据库连接完成原子创建、列表查询与详情读取。
 class DriftMissionRepository
@@ -51,7 +54,34 @@ class DriftMissionRepository
         MissionQueryRepository,
         HistoricalCompletionRepository,
         MissionMakeupRepository,
+        MissionMaintenanceRepository,
         ScheduleProposalRepository {
+  late final _maintenance = _MissionMaintenance(this);
+
+  @override
+  Future<MissionMaintenanceProposal> prepareMaintenance({
+    required MissionMaintenanceAction action,
+    List<String>? ids,
+    String? goalId,
+    String? beforeDate,
+    String? phase,
+  }) => _maintenance.prepare(
+    action: action,
+    ids: ids,
+    goalId: goalId,
+    beforeDate: beforeDate,
+    phase: phase,
+  );
+
+  @override
+  Future<Map<String, Object?>> applyMaintenance(
+    MissionMaintenanceProposal proposal,
+    String operationId,
+  ) => _maintenance.apply(proposal, operationId);
+
+  @override
+  Future<List<Map<String, Object?>>> executionArchives(String missionId) =>
+      _maintenance.archives(missionId);
   late final _support = DriftRepositorySupport(database, clock: clock);
   late final _queries = _MissionQueries(this);
   late final _commands = _MissionCommands(this);

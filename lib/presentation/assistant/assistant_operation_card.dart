@@ -1027,6 +1027,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
 }
 
 String assistantToolLabel(String name) => switch (name) {
+  'manageMissions' => '批量维护任务',
   'getGoal' => '读取目标与分层摘要',
   'getRecord' => '读取记录',
   'getMemory' => '读取助手记忆',

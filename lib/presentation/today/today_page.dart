@@ -677,7 +677,18 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                 key: const Key('today-dashboard-columns'),
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 3, child: schedule),
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        schedule,
+                        DailyRecordsStrip(
+                          date: display.scheduleDateKey(_selectedDate),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(width: AppLayout.spaceXl),
                   Expanded(flex: 2, child: side),
                 ],

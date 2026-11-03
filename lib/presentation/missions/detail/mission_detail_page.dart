@@ -1,4 +1,8 @@
+import '../../widgets/adaptive_sheet.dart';
+import '../../attachments/attachment_image_loader.dart';
 import '../../../domain/entities/analysis_scope.dart';
+import '../../../domain/entities/mission_maintenance.dart';
+import '../shared/mission_maintenance_action.dart';
 import '../../records/analysis_panel.dart';
 import '../execution/execution_report_button.dart';
 import '../../records/record_scope.dart';
@@ -420,6 +424,112 @@ class _MissionDetailPageState extends State<MissionDetailPage>
     }
   }
 
+  Future<void> _showArchives(String id) async {
+    try {
+      final archives = await widget.missionService.executionArchives(id);
+      if (!mounted) return;
+      await showAdaptiveSheet<void>(
+        context: context,
+        builder: (sheetContext) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppLayout.spaceLg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '已撤销的执行历史',
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppLayout.spaceMd),
+                if (archives.isEmpty) const Text('没有撤销历史'),
+                for (final archive in archives) ...[
+                  Text(
+                    '撤销于 ${DateTime.fromMillisecondsSinceEpoch(archive['archivedAt'] as int).toLocal()}',
+                    style: Theme.of(sheetContext).textTheme.titleSmall,
+                  ),
+                  for (final raw in archive['execution_events'] as List)
+                    Builder(
+                      builder: (_) {
+                        final event = raw as Map;
+                        final label = switch (event['type']) {
+                          'START' => '开始',
+                          'PAUSE' => '暂停',
+                          'RESUME' => '继续',
+                          'EXTEND' => '延长',
+                          'STOP' => '到点停止',
+                          'END' =>
+                            event['user_reported_result'] == 'COMPLETED'
+                                ? '报告完成'
+                                : '报告未完成',
+                          _ => '执行事件',
+                        };
+                        return Text(
+                          '$label · ${DateTime.fromMillisecondsSinceEpoch(event['occurred_at'] as int).toLocal()}',
+                          style: Theme.of(sheetContext).textTheme.bodySmall,
+                        );
+                      },
+                    ),
+                  for (final raw in archive['user_execution_reports'] as List)
+                    Builder(
+                      builder: (_) {
+                        final report = raw as Map;
+                        return Text(
+                          '原报告：${report['occurrence_date']} · ${report['basis']}',
+                          style: Theme.of(sheetContext).textTheme.bodyLarge,
+                        );
+                      },
+                    ),
+                  for (final raw in archive['evidence_records'] as List)
+                    Builder(
+                      builder: (_) {
+                        final evidence = raw as Map;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppLayout.spaceSm,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (evidence['type'] == 'IMAGE')
+                                AttachmentImageLoader(
+                                  future: widget.missionService
+                                      .readEvidenceImage(
+                                        evidence['attachment_storage_key']
+                                            as String,
+                                      ),
+                                  name:
+                                      evidence['attachment_file_name']
+                                          as String? ??
+                                      '原材料图片',
+                                  height: 180,
+                                ),
+                              if (evidence['content'] != null)
+                                SelectableText(evidence['content'] as String),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  const Divider(),
+                ],
+                TextButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  child: const Text('关闭'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('撤销历史读取失败，请重试')));
+      }
+    }
+  }
+
   Future<void> _submit(ExecutionCommand command) async {
     final action = _action!;
     if (await action.execute(command) &&
@@ -464,10 +574,16 @@ class _MissionDetailPageState extends State<MissionDetailPage>
               enabled: !_isCancelBusy,
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'refresh', child: Text('刷新任务')),
+                const PopupMenuItem(value: 'delete', child: Text('永久删除任务')),
+                const PopupMenuItem(value: 'archives', child: Text('查看撤销历史')),
                 if (_lastDetail?.events.any(
                       (e) => e.type == ExecutionEventType.end,
                     ) ==
                     true) ...[
+                  const PopupMenuItem(
+                    value: 'reset',
+                    child: Text('撤销执行结果并重新安排'),
+                  ),
                   const PopupMenuItem(
                     value: 'time',
                     child: Text('更正实际日期 / 时段'),
@@ -480,6 +596,31 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                 final detail = _lastDetail;
                 if (action == 'refresh') {
                   _retry();
+                } else if (detail != null &&
+                    (action == 'delete' || action == 'reset')) {
+                  unawaited(() async {
+                    setState(() => _isReporting = true);
+                    try {
+                      final done = await maintainMissions(
+                        context,
+                        widget.missionService,
+                        action == 'delete'
+                            ? MissionMaintenanceAction.delete
+                            : MissionMaintenanceAction.reset,
+                        [detail.mission.id],
+                      );
+                      if (!mounted || !context.mounted) return;
+                      if (done && action == 'delete') {
+                        Navigator.of(context).pop();
+                      } else if (done) {
+                        _retry();
+                      }
+                    } finally {
+                      if (mounted) setState(() => _isReporting = false);
+                    }
+                  }());
+                } else if (detail != null && action == 'archives') {
+                  unawaited(_showArchives(detail.mission.id));
                 } else if (detail != null && action == 'time') {
                   unawaited(_requestReport(detail));
                 } else if (detail != null) {

@@ -83,9 +83,8 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
   @override
   void didUpdateWidget(covariant FormalEvidenceSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.detail.evidence.length >= _detail.evidence.length) {
-      _detail = widget.detail;
-    }
+    // 撤销执行后材料会移入历史，最新事实也可能比旧快照少。
+    _detail = widget.detail;
   }
 
   Future<void> _prepareAttachments() async {
@@ -293,7 +292,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
     return AttachmentImageLoader(
       future: future,
       name: name,
-      height: widget.compact ? 120 : 148,
+      height: widget.compact ? 120 : 180,
       onRetry: () => setState(() {
         _images.remove(key);
       }),
@@ -363,7 +362,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                   evidenceTypeLabel(item.type),
                   maxLines: widget.compact ? 1 : null,
                   overflow: widget.compact ? TextOverflow.ellipsis : null,
-                  style: theme.textTheme.labelLarge,
+                  style: theme.textTheme.titleSmall,
                 ),
               ),
               if (widget.compact)
@@ -402,21 +401,11 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
               item.attachmentStorageKey!,
               item.attachmentFileName ?? '图片材料',
             ),
-          if (item.type == ContentType.image &&
-              item.attachmentFileName?.isNotEmpty == true) ...[
-            const SizedBox(height: AppLayout.spaceSm),
-            Text(
-              item.attachmentFileName!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
-            ),
-          ],
           if (item.type == ContentType.file) _file(item),
           if (item.content?.trim().isNotEmpty == true) ...[
             if (item.attachmentStorageKey != null)
               const SizedBox(height: AppLayout.spaceSm),
-            SelectableText(item.content!),
+            SelectableText(item.content!, style: theme.textTheme.bodyLarge),
           ],
           if (item.sourceRecordId != null)
             MaterialRecordSource(
@@ -508,9 +497,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
           side: const BorderSide(color: AppColors.hairline),
         ),
         child: Padding(
-          padding: EdgeInsets.all(
-            widget.compact ? AppLayout.spaceMd : AppLayout.spaceXl,
-          ),
+          padding: EdgeInsets.all(AppLayout.spaceMd),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -519,19 +506,14 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                   const Icon(Icons.perm_media_outlined, size: AppLayout.iconMd),
                   const SizedBox(width: AppLayout.spaceSm),
                   Expanded(
-                    child: Text('任务材料', style: theme.textTheme.titleMedium),
-                  ),
-                  Text(
-                    '${effective.length}',
-                    style: theme.textTheme.labelLarge,
+                    child: Text(
+                      '任务材料 · ${effective.length} 份',
+                      style: theme.textTheme.titleMedium,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: AppLayout.spaceSm),
-              Text(
-                '已提交 ${effective.length} 份材料',
-                style: theme.textTheme.bodySmall,
-              ),
               if (_receipt != null) Text(_receipt!),
               if (_attachmentError != null) ...[
                 Text(
@@ -546,9 +528,13 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
               if (images.isNotEmpty)
                 LayoutBuilder(
                   builder: (context, box) {
-                    final width = widget.compact
-                        ? 152.0.clamp(0.0, box.maxWidth)
-                        : ((box.maxWidth - 12) / 2).clamp(0.0, 240.0);
+                    final twoColumns =
+                        images.length > 1 &&
+                        box.maxWidth >=
+                            560 * MediaQuery.textScalerOf(context).scale(1);
+                    final width = twoColumns
+                        ? (box.maxWidth - AppLayout.spaceMd) / 2
+                        : box.maxWidth;
                     return Wrap(
                       spacing: AppLayout.spaceMd,
                       runSpacing: AppLayout.spaceMd,
@@ -599,7 +585,10 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                               ),
                             if (item.type == ContentType.file) _file(item),
                             if (item.content?.trim().isNotEmpty == true)
-                              SelectableText(item.content!),
+                              SelectableText(
+                                item.content!,
+                                style: theme.textTheme.bodyLarge,
+                              ),
                           ],
                         ),
                       ),

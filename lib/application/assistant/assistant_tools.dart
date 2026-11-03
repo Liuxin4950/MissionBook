@@ -1,4 +1,5 @@
 import '../errors/user_error_message.dart';
+import '../../domain/entities/mission_maintenance.dart';
 import '../memory/memory_service.dart';
 import 'dart:async';
 import 'dart:convert';

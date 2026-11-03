@@ -14,10 +14,11 @@ class _AssistantToolQueries {
       );
     }
     final text = jsonEncode(result);
-    if (_tools._readCharacters + text.length > 64000) {
+    if (result['summaryComplete'] != true &&
+        _tools._readCharacters + text.length > 64000) {
       return ToolOutput.failure(
         'read_budget_exceeded',
-        '本轮已到累计读取预算。请基于已有片段回答并说明未覆盖部分，或让用户另开一轮缩小范围。',
+        '本轮已到累计读取预算，本次结果未返回。此前累计读取 ${_tools._readCharacters} 字符；本次请求 offset=${result['offset'] ?? '无'}，范围总量=${result['total'] ?? '未知'}。必须说明已读页和未覆盖部分，不能推断全量。统计请改用 getMission(summaryOnly:true) 读取完整范围的精确计数。',
       );
     }
     _tools._readCharacters += text.length;
@@ -38,6 +39,10 @@ class _AssistantToolQueries {
           search: input['search'] as String?,
           goalId: input['goalId'] as String?,
           nodeId: input['nodeId'] as String?,
+          date: input['date'] as String?,
+          beforeDate: input['beforeDate'] as String?,
+          phase: input['phase'] as String?,
+          summaryOnly: input['summaryOnly'] == true,
           offset: input['offset'] as int? ?? 0,
         ),
       );

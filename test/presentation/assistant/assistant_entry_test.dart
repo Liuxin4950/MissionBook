@@ -903,6 +903,8 @@ void main() {
       tester.getSize(find.byKey(const Key('assistant-composer'))).width,
       1008,
     );
+    await tester.tap(find.textContaining('处理过程').last);
+    await tester.pumpAndSettle();
     expect(
       tester
           .getSize(find.byKey(const Key('assistant-read-tablet-query')))

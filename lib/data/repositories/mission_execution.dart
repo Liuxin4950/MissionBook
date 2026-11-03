@@ -255,6 +255,12 @@ class _MissionExecution {
     }
     return _repository.database.transaction(() async {
       await _repository._acquireWrite(command.missionId);
+      final revoked = await _repository.findOperationReceipt(
+        'revoked:${command.id}',
+      );
+      if (revoked != null) {
+        throw const ExecutionConflict('这次执行已经撤销，请刷新任务后发起新的操作');
+      }
       // 先查身份，再检查当前序号；成功后丢失响应的重试不会再次执行。
       final existingQuery = _repository.database.select(
         _repository.database.executionEvents,

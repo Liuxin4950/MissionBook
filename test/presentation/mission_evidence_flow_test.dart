@@ -391,7 +391,7 @@ void main() {
       saved.events.where((item) => item.type == ExecutionEventType.end),
       hasLength(1),
     );
-    expect(find.text('已提交 1 份材料'), findsOneWidget);
+    expect(find.text('任务材料 · 1 份'), findsOneWidget);
   });
 
   testWidgets('代码、手动记录与文件可同批提交；结果页单条修正留历史', (tester) async {
@@ -511,7 +511,7 @@ void main() {
       await tester.pumpAndSettle();
       final previews = find.byType(AttachmentImagePreview);
       expect(previews, findsNWidgets(2));
-      expect(tester.getSize(previews.first).height, inHistory ? 88 : 148);
+      expect(tester.getSize(previews.first).height, inHistory ? 88 : 180);
       if (inHistory) {
         expect(tester.getSize(previews.first).width, lessThanOrEqualTo(104));
       }
@@ -523,8 +523,8 @@ void main() {
         );
       } else {
         expect(
-          tester.getTopLeft(previews.first).dy,
           tester.getTopLeft(previews.last).dy,
+          greaterThan(tester.getBottomLeft(previews.first).dy),
         );
       }
       expect(find.text('展开图片，可缩放查看'), findsNothing);
@@ -588,7 +588,7 @@ void main() {
       (await repository.findDetail(detail.mission.id))!.evidence,
       hasLength(1),
     );
-    expect(find.text('已提交 1 份材料'), findsOneWidget);
+    expect(find.text('任务材料 · 1 份'), findsOneWidget);
   });
 
   testWidgets('普通保存失败保留原批次和文字，解除故障后可重试', (tester) async {

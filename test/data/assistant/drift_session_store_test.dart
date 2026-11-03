@@ -82,6 +82,22 @@ void main() {
     await second.close();
   });
 
+  test('后台超过租期后原持有者可直接继续写入并续租', () async {
+    var now = DateTime.utc(2026, 11, 3, 12);
+    final leasedStore = DriftSessionStore(
+      database,
+      clock: () => now,
+      writerLease: const Duration(seconds: 3),
+    );
+    final handle = await leasedStore.create('background');
+    await handle.append('message_added', {'value': 1});
+    now = now.add(const Duration(minutes: 10));
+    await handle.append('message_added', {'value': 2});
+    expect((await handle.readRecords()).map((r) => r.sequence), [0, 1]);
+    await expectLater(leasedStore.open('background'), throwsStateError);
+    await handle.close();
+  });
+
   test('过期租约可接管，旧写入者不能继续追加', () async {
     var now = DateTime.utc(2026, 10, 29, 12);
     final leasedStore = DriftSessionStore(

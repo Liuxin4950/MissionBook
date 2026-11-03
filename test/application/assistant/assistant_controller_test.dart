@@ -102,6 +102,35 @@ void main() {
     throw StateError('等待助手状态超时');
   }
 
+  test('后台超过写租约仍可发送，回前台不需要重启应用', () async {
+    var leaseClock = now;
+    final model = ScriptedModel([
+      (_) => textResponse('正常回答'),
+      (_) => textResponse('正常回答'),
+    ]);
+    final assistant = AssistantController(
+      unifiedReader: DriftUnifiedReader(database),
+      sessionStore: DriftSessionStore(database, clock: () => leaseClock),
+      settingsStore: settings,
+      missions: missions,
+      goals: goals,
+      modelOverrides: {'deepseek-chat': model, 'deepseek': model},
+      clock: () => now,
+    );
+    controller = assistant;
+    await assistant.initialize();
+    await assistant.saveCredential('test-key');
+    await assistant.send('第一条');
+    final sessionId = assistant.currentSessionId;
+    assistant.setForeground(false);
+    leaseClock = leaseClock.add(const Duration(minutes: 10));
+    assistant.setForeground(true);
+    await assistant.send('回到前台继续');
+    expect(assistant.currentSessionId, sessionId);
+    expect(assistant.errorMessage, isNull);
+    expect(assistant.transcript.whereType<UserMessage>().length, 2);
+  });
+
   test('切后台不主动停止健康请求，回前台正常收到结果并可继续发送', () async {
     final model = BackgroundModel();
     final ai = makeController(model);

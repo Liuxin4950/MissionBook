@@ -1,10 +1,14 @@
 import '../../application/errors/user_error_message.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:agent_core/agent_core.dart';
 import 'package:flutter/material.dart';
 import '../../application/assistant/assistant_controller.dart';
 import '../../application/assistant/assistant_attachment.dart';
+import '../../application/assistant/assistant_image.dart';
+import '../attachments/photo_capture_panel.dart';
+import '../widgets/app_confirm_dialog.dart';
 import '../../application/assistant/assistant_speech.dart';
 import '../../data/assistant/assistant_attachment_picker.dart';
 import '../../core/theme/app_layout.dart';

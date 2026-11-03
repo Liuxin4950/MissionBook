@@ -271,7 +271,8 @@ class DriftAnalysisStore implements AnalysisStore {
       'SELECT source_version,status FROM analysis_jobs WHERE scope=? AND target_id=?',
       [w.scope.name, w.id],
     );
-    if (rows.single['source_version'] != w.version ||
+    if (rows.isEmpty ||
+        rows.single['source_version'] != w.version ||
         rows.single['status'] != (w.manual ? 'manual_running' : 'running')) {
       return false;
     }

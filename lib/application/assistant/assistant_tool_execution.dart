@@ -12,6 +12,23 @@ class _AssistantToolExecution {
     required Map<String, Object?> input,
   }) async {
     const uuid = Uuid();
+    if (toolName == 'manageMissions') {
+      final receipt = await _tools._missions.findOperationReceipt(
+        idempotencyKey,
+      );
+      return receipt?.kind == 'missions_${input['action']}'
+          ? ToolOutput.success(
+              jsonEncode(
+                maintenanceOperationPage(
+                  Map<String, Object?>.from(
+                    jsonDecode(receipt!.resultJson) as Map,
+                  ),
+                  0,
+                ),
+              ),
+            )
+          : null;
+    }
     if (toolName == 'startMakeup') {
       final detail = await _tools._missions.findDetail(
         missionId: input['missionId'] as String,

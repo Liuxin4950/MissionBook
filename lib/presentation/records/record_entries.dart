@@ -241,6 +241,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
     final scope = RecordScope.maybeOf(context);
     if (scope == null) return const SizedBox.shrink();
     return FutureBuilder<RecordPage>(
+      key: ValueKey(widget.date),
       future: _data,
       builder: (c, s) {
         if (s.hasError) {
@@ -258,40 +259,83 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
         if (!s.hasData || total == 0) {
           return const SizedBox.shrink();
         }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            RecordsEntry(
-              date: widget.date,
-              label: '当日记录 · ${s.data?.total ?? 0} 条',
-            ),
-            Wrap(
-              spacing: AppLayout.spaceSm,
-              runSpacing: AppLayout.spaceSm,
+        return Padding(
+          padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+          child: AppSectionCard(
+            padding: const EdgeInsets.all(AppLayout.spaceMd),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '当日记录 · $total 条',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => RecordsPage(date: widget.date),
+                        ),
+                      ),
+                      child: const Text('查看全部'),
+                    ),
+                  ],
+                ),
                 for (final r in items.take(3))
                   InkWell(
+                    borderRadius: BorderRadius.circular(AppLayout.radiusMd),
                     onTap: () => Navigator.of(context).push<void>(
                       MaterialPageRoute(builder: (_) => RecordDetail(id: r.id)),
                     ),
-                    child: SizedBox(
-                      width: 120,
-                      child: Column(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppLayout.spaceSm,
+                      ),
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (r.type == ContentType.image)
-                            _RecordImage(
-                              service: scope.service,
-                              storageKey: r.attachmentStorageKey!,
-                              name: r.attachmentFileName ?? '记录图片',
-                              width: 120,
-                              height: 80,
-                              compact: true,
+                          if (r.type == ContentType.image) ...[
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                AppLayout.radiusSm,
+                              ),
+                              child: _RecordImage(
+                                service: scope.service,
+                                storageKey: r.attachmentStorageKey!,
+                                name: r.attachmentFileName ?? '记录图片',
+                                width: 80,
+                                height: 64,
+                                compact: true,
+                              ),
                             ),
-                          Text(
-                            r.content ?? r.attachmentFileName ?? '记录',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            const SizedBox(width: AppLayout.spaceMd),
+                          ],
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  r.content?.trim().isNotEmpty == true
+                                      ? r.content!
+                                      : (r.attachmentFileName ?? '记录'),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                                const SizedBox(height: AppLayout.spaceXs),
+                                Text(
+                                  '${r.occurredAt.toLocal().hour.toString().padLeft(2, '0')}:${r.occurredAt.toLocal().minute.toString().padLeft(2, '0')}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            size: AppLayout.iconSm,
                           ),
                         ],
                       ),
@@ -299,7 +343,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
                   ),
               ],
             ),
-          ],
+          ),
         );
       },
     );

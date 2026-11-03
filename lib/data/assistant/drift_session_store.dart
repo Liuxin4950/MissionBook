@@ -360,13 +360,13 @@ final class _DriftSessionHandle implements SessionHandle {
     final query = _database.select(_database.assistantSessions)
       ..where((table) => table.id.equals(id));
     final session = await query.getSingleOrNull();
-    final now = _clock!().toUtc().millisecondsSinceEpoch;
     if (session == null ||
         session.writerToken != _writerToken ||
-        session.writerLeaseUntil == null ||
-        session.writerLeaseUntil! <= now) {
+        session.writerLeaseUntil == null) {
       throw StateError('会话写租约已失效，请重新打开');
     }
+    // 后台可能暂停续租定时器。仍持有同一 token 时允许在当前写事务内续租；
+    // 已被其他窗口接管则 token 不同，旧会话仍不能写入。
   }
 
   Future<void> _renewLease() async {
@@ -377,8 +377,7 @@ final class _DriftSessionHandle implements SessionHandle {
       update.where(
         (table) =>
             table.id.equals(id) &
-            table.writerToken.equals(_requiredWriterToken) &
-            table.writerLeaseUntil.isBiggerThanValue(now),
+            table.writerToken.equals(_requiredWriterToken),
       );
       await update.write(
         AssistantSessionsCompanion(

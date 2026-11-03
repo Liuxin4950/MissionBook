@@ -240,6 +240,16 @@ class _AssistantSessions {
     _controller._lastUserInput = message.text;
     String? createdSessionId;
     try {
+      final stale = _controller._session;
+      if (stale != null && stale.needsReopen) {
+        final id = stale.id;
+        await _closeSession();
+        await _openSession(id);
+        if (_requireSession().needsOutcomeResolution) {
+          _controller._setError('会话已恢复，请先核对结果未知的操作，再发送；输入已保留');
+          return null;
+        }
+      }
       if (_controller._session == null) {
         await _createSession();
         createdSessionId = _controller._session!.id;

@@ -215,6 +215,8 @@ final class AgentSession {
   String get modelProfileId => _state.modelProfileId;
   String get summaryProfileId => _state.summaryProfileId;
   bool get isRunning => _busy;
+  /// 存储写入失败后必须重新读取持久日志，不能继续使用内存快照。
+  bool get needsReopen => _unhealthy || _closed;
   AgentStopReason? get lastStopReason => _state.lastStopReason;
   bool get needsOutcomeResolution => _state.needsOutcomeResolution;
   Map<String, ToolCallBlock> get executedCalls => _state.executedCalls;

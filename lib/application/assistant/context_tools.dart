@@ -66,11 +66,13 @@ List<AgentTool> contextTools({
   );
   String commandId(ToolContext c) =>
       const Uuid().v5(Namespace.url.value, c.idempotencyKey);
-  void explicitBasis(String basis) {
+  void explicitBasis(String basis, {bool memoryBasis = false}) {
     if (basis.trim().isEmpty || !userStatement().contains(basis.trim())) {
-      throw const ToolRejected(
+      throw ToolRejected(
         'user_basis_required',
-        '完成结果、实际时段和忘记操作需要本轮用户明确原话作为 basis，不可自行推断',
+        memoryBasis
+            ? '记忆未保存：basis 必须逐字引用本轮用户消息中的连续原文，保留原换行和标点；不能拼接、省略或改写。content 可概括，basis 请重新复制对应原话后重试。'
+            : '报告未保存：basis 必须逐字引用本轮用户明确说明完成结果或实际时段的连续原文，不能拼接或改写。',
       );
     }
   }
@@ -334,6 +336,12 @@ List<AgentTool> contextTools({
         final offset = i['offset'] as int? ?? 0;
         if (operationId.startsWith('${c.sessionId}:')) {
           final receipt = await missions.findOperationReceipt(operationId);
+          if (receipt?.kind.startsWith('missions_') == true) {
+            return maintenanceOperationPage(
+              Map<String, Object?>.from(jsonDecode(receipt!.resultJson) as Map),
+              offset,
+            );
+          }
           if (receipt?.kind == 'completeHistory') {
             return historyOperationPage(
               Map<String, Object?>.from(jsonDecode(receipt!.resultJson) as Map),
@@ -392,11 +400,11 @@ List<AgentTool> contextTools({
           'enum': ['stated'],
         },
         'conflictKey': s('稳定主题用于冲突检查'),
-        'basis': s('能核对该记忆的本轮用户原话'),
+        'basis': s('逐字复制本轮用户消息中的连续原文，保留换行标点，不可拼接、改写或加省略号；content 可概括'),
         'expiresAt': s('可选约束期限ISO8601'),
       },
       (i, c) async {
-        explicitBasis(i['basis'] as String? ?? '');
+        explicitBasis(i['basis'] as String? ?? '', memoryBasis: true);
         final id = i['id'] as String? ?? commandId(c);
         final version =
             snapshot?.call(c.callId)['memoryVersion'] as Map<String, Object?>?;

@@ -25,6 +25,10 @@ abstract interface class UnifiedReader {
     String? search,
     String? goalId,
     String? nodeId,
+    String? date,
+    String? beforeDate,
+    String? phase,
+    bool summaryOnly = false,
     int offset = 0,
   });
   Future<Map<String, Object?>> getSchedule({String? date, int offset = 0});

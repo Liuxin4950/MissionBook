@@ -1,5 +1,7 @@
 import '../../widgets/app_dropdown_form_field.dart';
 import '../../widgets/app_date_picker.dart';
+import '../../../domain/entities/mission_maintenance.dart';
+import '../shared/mission_maintenance_action.dart';
 import '../../widgets/app_empty_state.dart';
 import '../../widgets/adaptive_columns.dart';
 import '../../widgets/app_section_card.dart';
@@ -325,6 +327,46 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                           child: const Text('刷新失败，当前保留上次读取的任务，点击重试'),
                         ),
                       ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: PopupMenuButton<MissionMaintenanceAction>(
+                        tooltip: '批量操作当前筛选结果',
+                        onSelected: (action) async {
+                          final ids = all
+                              .where(
+                                (d) =>
+                                    matches(d) &&
+                                    (dayKey == null ||
+                                        timetableDateKeys(
+                                          d,
+                                          widget.clock(),
+                                        ).contains(dayKey)),
+                              )
+                              .map((d) => d.mission.id)
+                              .toList();
+                          await maintainMissions(
+                            context,
+                            widget.missions,
+                            action,
+                            ids,
+                          );
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(
+                            value: MissionMaintenanceAction.cancel,
+                            child: Text('批量取消未开始任务'),
+                          ),
+                          PopupMenuItem(
+                            value: MissionMaintenanceAction.delete,
+                            child: Text('永久删除筛选结果'),
+                          ),
+                        ],
+                        child: const Padding(
+                          padding: EdgeInsets.all(AppLayout.spaceMd),
+                          child: Text('批量操作'),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: AppLayout.spaceXl),
                     if (large)
                       _PagedMissionRows(

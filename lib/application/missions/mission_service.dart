@@ -1,4 +1,6 @@
 import '../../domain/rules/content_rules.dart';
+import '../../domain/entities/mission_maintenance.dart';
+import '../../domain/repositories/mission_maintenance_repository.dart';
 import '../../domain/entities/content_draft.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -39,6 +41,64 @@ import '../attachments/attachment_coordinator.dart';
 /// App 只创建一个 MissionService，页面通过方法名选择要做的事。
 /// 本类负责输入检查与业务对象组织；SQL、行转换和事务保存仍由仓储完成。
 class MissionService {
+  MissionMaintenanceRepository get _maintenance =>
+      repository is MissionMaintenanceRepository
+      ? repository as MissionMaintenanceRepository
+      : throw StateError('当前存储不支持任务维护');
+
+  Future<MissionMaintenanceProposal> prepareMaintenance({
+    required MissionMaintenanceAction action,
+    List<String>? ids,
+    String? goalId,
+    String? beforeDate,
+    String? phase,
+  }) => _maintenance.prepareMaintenance(
+    action: action,
+    ids: ids,
+    goalId: goalId,
+    beforeDate: beforeDate,
+    phase: phase,
+  );
+
+  Future<Map<String, Object?>> applyMaintenance(
+    MissionMaintenanceProposal proposal, {
+    String? operationId,
+  }) async {
+    final result = await attachments.synchronized(() async {
+      final keys = <String>{};
+      if (proposal.action == MissionMaintenanceAction.delete) {
+        for (final d in proposal.items) {
+          keys.addAll(
+            d.evidence.map((e) => e.attachmentStorageKey).whereType<String>(),
+          );
+          for (final archive in await _maintenance.executionArchives(
+            d.mission.id,
+          )) {
+            for (final raw in archive['evidence_records'] as List) {
+              final key = (raw as Map)['attachment_storage_key'];
+              if (key is String) keys.add(key);
+            }
+          }
+        }
+      }
+      final result = await _maintenance.applyMaintenance(
+        proposal,
+        operationId ?? uuid.v4(),
+      );
+      try {
+        await attachments.removeDeletedReferences(keys);
+      } catch (_) {
+        // 数据库已经提交，不把文件清理失败误报为删除失败；下次启动继续清理。
+        return {...result, 'attachmentCleanupPending': true};
+      }
+      return result;
+    });
+    _notify();
+    return result;
+  }
+
+  Future<List<Map<String, Object?>>> executionArchives(String missionId) =>
+      _maintenance.executionArchives(missionId);
   // 调用者传入仓储对象，保存到下面的 repository 属性。
   // clock 提供业务时刻（创建时间、编辑时间）；测试注入可控时钟固定时间断言。
   MissionService(

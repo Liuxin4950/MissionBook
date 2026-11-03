@@ -105,6 +105,17 @@ class AttachmentCoordinator {
 
   Future<Uint8List> read(String key) => _store.read(key);
 
+  /// 调用者持有 synchronized 时，在数据库删除后清理本批无引用附件。
+  Future<void> removeDeletedReferences(Set<String> candidates) async {
+    if (_files == null || candidates.isEmpty) return;
+    final referenced = await _referencedKeys();
+    for (final key in candidates) {
+      if (!referenced.contains(key) && !_preparedKeys.contains(key)) {
+        await _store.delete(key);
+      }
+    }
+  }
+
   /// 在 synchronized 的提交成功后调用，解除对应草稿的清理资格。
   void markCommitted(Iterable<ContentDraft> items) {
     for (final item in items) {

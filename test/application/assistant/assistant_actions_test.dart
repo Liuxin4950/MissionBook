@@ -114,6 +114,40 @@ void main() {
     return goal.id;
   }
 
+  test('AI按日期整批删除先确认，提交后返回真实数量和分页回执', () async {
+    final goalId = await seedHistory();
+    final ai = await controller('manageMissions', {
+      'action': 'delete',
+      'goalId': goalId,
+      'beforeDate': '2026-10-29',
+    });
+    final sending = ai.send('把今天以前的任务全部永久删除');
+    await waiting(ai);
+    expect(await missions.findForGoal(goalId), hasLength(4));
+    expect(ai.operations.single.targetTitle, contains('2 项任务'));
+    expect(ai.confirmProposal('action'), isNull);
+    await sending;
+    expect(await missions.findForGoal(goalId), hasLength(2));
+    final output = ai.transcript.whereType<ToolResultMessage>().single;
+    expect(output.isError, isFalse);
+    final result = jsonDecode(output.text) as Map;
+    expect(result['counts']['changed'], 2);
+    final receipt = await missions.findOperationReceipt(
+      result['operationId'] as String,
+    );
+    expect(receipt!.kind, 'missions_delete');
+  });
+
+  test('AI没有明确维护范围时拒绝整库操作', () async {
+    final goalId = await seedHistory();
+    final ai = await controller('manageMissions', {
+      'action': 'delete',
+    }, full: true);
+    await ai.send('删除任务');
+    expect(await missions.findForGoal(goalId), hasLength(4));
+    expect(ai.transcript.whereType<ToolResultMessage>().single.isError, isTrue);
+  });
+
   test('AI 整批补记历史课表，确认前零写入；保留今天和未来，补记不产生虚构时长', () async {
     final goalId = await seedHistory();
     final ai = await controller('completeHistory', {

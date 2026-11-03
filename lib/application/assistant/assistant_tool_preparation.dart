@@ -11,6 +11,48 @@ class _AssistantToolPreparation {
     Map<String, Object?> input, {
     String? sessionId,
   }) async {
+    if (toolName == 'manageMissions') {
+      if (input['missionIds'] == null &&
+          input['goalId'] == null &&
+          input['beforeDate'] == null &&
+          input['phase'] == null &&
+          input['all'] != true) {
+        throw const ToolRejected(
+          'scope_required',
+          '请明确任务编号或筛选范围；只有用户明确要求所有任务时才可设置 all=true',
+        );
+      }
+      try {
+        final proposal = await _tools._missions.prepareMaintenance(
+          action: MissionMaintenanceAction.values.byName(
+            input['action'] as String,
+          ),
+          ids: (input['missionIds'] as List?)?.cast<String>(),
+          goalId: input['goalId'] as String?,
+          beforeDate: input['beforeDate'] as String?,
+          phase: input['phase'] as String?,
+        );
+        return PreparedToolCall(
+          input,
+          snapshot: {
+            'maintenance': proposal,
+            'targetTitle':
+                '${switch (proposal.action) {
+                  MissionMaintenanceAction.cancel => '取消',
+                  MissionMaintenanceAction.delete => '永久删除',
+                  MissionMaintenanceAction.reset => '撤销执行结果',
+                }} · ${proposal.items.length} 项任务；${proposal.items.take(5).map((d) => d.mission.title).join('、')}${proposal.items.length > 5 ? '等' : ''}${proposal.action == MissionMaintenanceAction.delete ? '；永久删除，不能恢复' : ''}',
+          },
+        );
+      } on ArgumentError catch (error) {
+        throw ToolRejected(
+          'invalid_input',
+          error.message?.toString() ?? '无效范围',
+        );
+      } on MissionEditConflict catch (error) {
+        throw ToolRejected('conflict', error.message);
+      }
+    }
     if (!_tools.isWriteTool(toolName)) {
       return PreparedToolCall(input);
     }

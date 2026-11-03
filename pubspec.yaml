@@ -2,7 +2,7 @@ name: mission_book
 description: "AI-assisted planning, execution, evidence, evaluation, and replanning MVP."
 publish_to: 'none'
 
-version: 0.2.19+2021
+version: 0.2.20+2022
 
 environment:
   sdk: ^3.11.0
@@ -42,6 +42,7 @@ dependencies:
   http_parser: 4.1.2
   sherpa_onnx: 1.13.8
   html: ^0.15.7
+  image: 4.12.0
 
 dev_dependencies:
   camera_platform_interface: 2.15.0 # 相机面板通过官方平台接口验证权限与生命周期。

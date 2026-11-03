@@ -187,6 +187,16 @@ class _AssistantComposer {
                               size: AppLayout.iconMd,
                             ),
                       itemBuilder: (_) => [
+                        if (!kIsWeb &&
+                            defaultTargetPlatform == TargetPlatform.android)
+                          _composerMenuItem(
+                            'camera',
+                            Icons.photo_camera_outlined,
+                            '拍照',
+                            enabled:
+                                _page._attachments.length <
+                                AssistantAttachment.maxCount,
+                          ),
                         _composerMenuItem(
                           'image',
                           Icons.image_outlined,
@@ -398,6 +408,8 @@ class _AssistantComposer {
   );
   Future<void> _composerAction(String action) async {
     switch (action) {
+      case 'camera':
+        await _pickAttachment(true, capture: true);
       case 'image':
         await _pickAttachment(true);
       case 'file':
@@ -515,7 +527,62 @@ class _AssistantComposer {
     await voice.start();
   }
 
-  Future<void> _pickAttachment(bool image) async {
+  Future<AssistantAttachment?> _compressImage(
+    String name,
+    Uint8List bytes,
+  ) async {
+    if (!mounted) return null;
+    final accepted = await AppConfirmDialog.show(
+      context: context,
+      title: '图片超过 4 MiB',
+      message:
+          '原图 ${(bytes.length / 1024 / 1024).toStringAsFixed(1)} MiB。压缩发送副本后加入草稿，原图不变。文字细节可能降低，请发送前预览。',
+      confirmText: '压缩并添加',
+      cancelText: '取消',
+    );
+    if (!accepted || !mounted) return null;
+    return compressAssistantImage(name, bytes);
+  }
+
+  Future<AssistantAttachment?> _captureImage() =>
+      Navigator.of(context).push<AssistantAttachment>(
+        MaterialPageRoute(
+          builder: (cameraContext) => Scaffold(
+            body: SafeArea(
+              child: PhotoCapturePanel(
+                title: '拍照发给助手',
+                fullScreen: true,
+                onBack: () => Navigator.pop(cameraContext),
+                onCancel: () => Navigator.pop(cameraContext),
+                onChooseFile: () async {
+                  try {
+                  final file = await pickAssistantAttachment(
+                    image: true,
+                    onOversizedImage: _compressImage,
+                  );
+                  if (cameraContext.mounted && file != null) {
+                    Navigator.pop(cameraContext, file);
+                  }
+                  } catch (error) {
+                    if (mounted) _showNotice(userErrorMessage(error, fallback: '图片未能加入，请重新选择'));
+                  }
+                },
+                onConfirmed: (bytes, capturedAt) async {
+                  final name = 'photo-${capturedAt.millisecondsSinceEpoch}.jpg';
+                  final file = bytes.length > AssistantAttachment.maxImageBytes
+                      ? await _compressImage(name, bytes)
+                      : AssistantAttachment.fromBytes(name, bytes);
+                  if (cameraContext.mounted && file != null) {
+                    Navigator.pop(cameraContext, file);
+                  }
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+  Future<void> _pickAttachment(bool image, {bool capture = false}) async {
     if (image && !widget.controller.supportsImages) {
       _showNotice('当前模型未开启图片能力，请先在助手设置中切换支持图片的模型。');
       return;
@@ -523,7 +590,12 @@ class _AssistantComposer {
     final draftKey = widget.controller.draftKey;
     _page._update(() => _page._picking = true);
     try {
-      final file = await pickAssistantAttachment(image: image);
+      final file = capture
+          ? await _captureImage()
+          : await pickAssistantAttachment(
+              image: image,
+              onOversizedImage: _compressImage,
+            );
       if (file == null || !mounted || draftKey != widget.controller.draftKey) {
         return;
       }

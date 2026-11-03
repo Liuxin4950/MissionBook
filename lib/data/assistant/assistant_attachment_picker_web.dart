@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:typed_data';
 import 'package:web/web.dart' as web;
 import '../../application/assistant/assistant_attachment.dart';
 
 Future<AssistantAttachment?> pickAssistantAttachment({
   required bool image,
+  Future<AssistantAttachment?> Function(String name, Uint8List bytes)?
+  onOversizedImage,
 }) async {
   final result = Completer<AssistantAttachment?>();
   final input = web.HTMLInputElement()
@@ -25,13 +28,21 @@ Future<AssistantAttachment?> pickAssistantAttachment({
           return;
         }
         final limit = image
-            ? AssistantAttachment.maxImageBytes
+            ? 20 * 1024 * 1024
             : AssistantAttachment.maxTextBytes;
         if (file.size > limit) {
-          throw FormatException(image ? '单张图片不能超过 4 MiB' : '文本文件不能超过 256 KiB');
+          throw FormatException(
+            image ? '原图不能超过 20 MiB，请先裁剪' : '文本文件不能超过 256 KiB',
+          );
         }
         final bytes = (await file.arrayBuffer().toDart).toDart.asUint8List();
-        result.complete(AssistantAttachment.fromBytes(file.name, bytes));
+        if (image &&
+            bytes.length > AssistantAttachment.maxImageBytes &&
+            onOversizedImage != null) {
+          result.complete(await onOversizedImage(file.name, bytes));
+        } else {
+          result.complete(AssistantAttachment.fromBytes(file.name, bytes));
+        }
       } catch (error, stack) {
         if (!result.isCompleted) result.completeError(error, stack);
       }

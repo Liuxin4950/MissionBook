@@ -7,6 +7,55 @@ class _AssistantToolCatalog {
   List<AgentTool> build(List<AgentTool> extraTools) {
     final catalog = [
       AssistantTools._tool(
+        'manageMissions',
+        '按明确编号或目标、截止日期、阶段统一批量取消或物理删除任务，最多10000项。delete 永久删除任务及其执行/材料，独立来源记录和聊天保留，不能恢复；cancel 只处理未开始任务并报告跳过数量；reset 仅撤销误标的已结束任务，把原执行和材料归档，追加自选排期回到未开始，可随后 updateMission/planMissions 改期。必须来自用户明确意图，不能用补记完成替代删除。宿主固定完整范围并原子校验，不需逐条先读。',
+        AssistantTools._schema(
+          {
+            'action': AssistantTools._enum('操作', ['cancel', 'delete', 'reset']),
+            'all': AssistantTools._boolean('仅当用户明确要求全部任务时为 true；否则必须给出编号或筛选条件'),
+            'missionIds': {
+              'type': 'array',
+              'items': {'type': 'string'},
+              'minItems': 1,
+              'maxItems': 10000,
+              'uniqueItems': true,
+            },
+            'goalId': AssistantTools._string('可选目标编号'),
+            'beforeDate': AssistantTools._string(
+              '计划日期早于 YYYY-MM-DD，不含当日；今天以前取宿主今天',
+            ),
+            'phase': AssistantTools._enum(
+              '可选当前完整阶段',
+              MissionPhase.values.map((p) => p.name).toList(),
+            ),
+          },
+          required: ['action'],
+        ),
+        (input, context) async {
+          final prepared = _owner._resolveCall(context.callId);
+          final proposal =
+              prepared.snapshot['maintenance'] as MissionMaintenanceProposal;
+          try {
+            return AssistantTools._success(
+              maintenanceOperationPage(
+                await _owner._missions.applyMaintenance(
+                  proposal,
+                  operationId: context.idempotencyKey,
+                ),
+                0,
+              ),
+            );
+          } on MissionEditConflict catch (error) {
+            throw ToolRejected('conflict', error.message);
+          } on ArgumentError catch (error) {
+            throw ToolRejected(
+              'invalid_input',
+              error.message?.toString() ?? '无效操作',
+            );
+          }
+        },
+      ),
+      AssistantTools._tool(
         'completeHistory',
         '用户明确要求补记历史任务已完成时使用。按目标和截止日期（不含当日）一次预览并提交最多10000项；仅处理历史自报任务；无记录时补记完成，执行中或暂停时正常结束，跳过已结束、已取消及有材料要求的任务。保留原计划，记录本次补报的时间和依据，不伪造过去的开始时间或专注时长。不得因时间已过自行推断完成；不能用 START+END 批量绕过。',
         AssistantTools._schema(
@@ -66,10 +115,17 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'getMission',
-        '按ID或名称读任务事实与材料索引；省略任务则分页搜索。',
+        '按ID或名称读任务事实；省略任务分页搜索。批量操作前统计优先 summaryOnly=true，返回完整范围精确总量与阶段计数，不必逐页读全。支持计划日期、截止日期、阶段筛选。',
         AssistantTools._schema({
           'mission': AssistantTools._string('任务ID或精确名称'),
           'search': AssistantTools._string('标题搜索'),
+          'date': AssistantTools._string('计划日期 YYYY-MM-DD'),
+          'beforeDate': AssistantTools._string('计划日期早于 YYYY-MM-DD，不含当天'),
+          'phase': AssistantTools._enum(
+            '当前完整阶段',
+            MissionPhase.values.map((p) => p.name).toList(),
+          ),
+          'summaryOnly': AssistantTools._boolean('仅返回完整范围精确计数，不读取逐条正文'),
           'goalId': AssistantTools._string('目标ID'),
           'nodeId': AssistantTools._string('节点ID'),
           'offset': AssistantTools._offsetSchema,
@@ -146,10 +202,11 @@ class _AssistantToolCatalog {
         AssistantTools._schema(
           {
             'missionId': AssistantTools._string('任务编号'),
-            'section': AssistantTools._enum('记录范围', [
+            'section': AssistantTools._enum('记录范围；revoked 是已撤销历史，不参与当前结果', [
               'execution',
               'failures',
               'evidence',
+              'revoked',
             ]),
             'offset': AssistantTools._offsetSchema,
           },

@@ -135,6 +135,12 @@ class _MissionEvidence {
     }
     return _repository.database.transaction(() async {
       await _repository._acquireWrite(submission.missionId);
+      if (await _repository.findOperationReceipt(
+            'revoked-evidence:${submission.id}',
+          ) !=
+          null) {
+        throw const EvidenceConflict('这批材料已随执行撤销并归档，请刷新后重新选择材料');
+      }
       final rows = await (_repository.database.select(
         _repository.database.evidenceRecords,
       )..where((table) => table.submissionId.equals(submission.id))).get();
@@ -346,6 +352,17 @@ class _MissionEvidence {
           'UNION SELECT attachment_storage_key FROM evidence_records WHERE attachment_storage_key IS NOT NULL',
         )
         .get();
-    return {for (final row in rows) row.read<String>('k')};
+    final keys = {for (final row in rows) row.read<String>('k')};
+    final archives = await (_repository.database.select(
+      _repository.database.operationReceipts,
+    )..where((t) => t.kind.equals('missionExecutionArchive'))).get();
+    for (final archive in archives) {
+      final data = jsonDecode(archive.resultJson) as Map;
+      for (final evidence in data['evidence_records'] as List) {
+        final key = (evidence as Map)['attachment_storage_key'];
+        if (key is String) keys.add(key);
+      }
+    }
+    return keys;
   }
 }

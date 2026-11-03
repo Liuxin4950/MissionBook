@@ -1,4 +1,6 @@
+import '../../domain/entities/mission_phase.dart';
 import '../repositories/drift_repository_support.dart';
+import 'dart:convert';
 import '../../domain/entities/analysis_scope.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../../domain/entities/mission_schedule_revision.dart';
@@ -23,12 +25,84 @@ class DriftUnifiedReader implements UnifiedReader {
     String missionId,
     String section, {
     int offset = 0,
-  }) => taskReader.records(missionId, section, offset: offset);
+  }) async {
+    if (section != 'revoked') {
+      return taskReader.records(missionId, section, offset: offset);
+    }
+    if (offset < 0) throw ArgumentError('分页位置无效');
+    final archives = await DriftMissionRepository(
+      db,
+    ).executionArchives(missionId);
+    final items = <Map<String, Object?>>[];
+    for (final archive in archives) {
+      for (final table in [
+        'execution_events',
+        'user_execution_reports',
+        'failure_records',
+        'evidence_records',
+      ]) {
+        for (final raw in archive[table] as List) {
+          final item = Map<String, Object?>.from(raw as Map);
+          for (final field in ['content', 'basis', 'user_reason_text']) {
+            final value = item[field];
+            if (value is String && value.length > 500) {
+              item[field] = value.substring(0, 500);
+            }
+          }
+          item.remove('attachment_storage_key');
+          items.add({
+            'kind': table,
+            'archivedAt': archive['archivedAt'],
+            ...item,
+          });
+        }
+      }
+    }
+    return {
+      ...DriftRepositorySupport.page(
+        items.skip(offset).take(20).toList(),
+        items.length,
+        offset,
+      ),
+      'hint': '这些事实已被用户撤销，仅作历史追溯，不参与当前阶段与计时。',
+    };
+  }
+
   @override
   Future<Map<String, Object?>> evidenceContent(
     String evidenceId, {
     int offset = 0,
-  }) => taskReader.evidenceContent(evidenceId, offset: offset);
+  }) async {
+    final current = await taskReader.evidenceContent(
+      evidenceId,
+      offset: offset,
+    );
+    if (current['ok'] != false) return current;
+    final found = await recordRepository.rows(
+      "SELECT e.value payload FROM operation_receipts r, json_each(r.result_json,'\$.evidence_records') e WHERE r.kind='missionExecutionArchive' AND json_extract(e.value,'\$.id')=? LIMIT 1",
+      [evidenceId],
+    );
+    if (found.isEmpty) return current;
+    final material = jsonDecode(found.single['payload'] as String) as Map;
+    final content = (material['content'] as String? ?? '').runes.toList();
+    final text = String.fromCharCodes(content.skip(offset).take(2000));
+    final next = offset + text.runes.length;
+    return {
+      'ok': true,
+      'evidenceId': evidenceId,
+      'missionId': material['mission_id'],
+      'type': material['type'],
+      'source': material['source'],
+      'text': text,
+      'offset': offset,
+      'totalCharacters': content.length,
+      'hasMore': next < content.length,
+      'nextOffset': next < content.length ? next : null,
+      'revoked': true,
+      'hint': '已撤销的历史材料，不参与当前阶段或评价；图片/文件的空正文不表示附件为空。',
+    };
+  }
+
   @override
   Future<Map<String, Object?>> content(
     String missionId,
@@ -211,6 +285,10 @@ class DriftUnifiedReader implements UnifiedReader {
     String? search,
     String? goalId,
     String? nodeId,
+    String? date,
+    String? beforeDate,
+    String? phase,
+    bool summaryOnly = false,
     int offset = 0,
   }) => db.transaction(
     () => _getMission(
@@ -218,6 +296,10 @@ class DriftUnifiedReader implements UnifiedReader {
       search: search,
       goalId: goalId,
       nodeId: nodeId,
+      date: date,
+      beforeDate: beforeDate,
+      phase: phase,
+      summaryOnly: summaryOnly,
       offset: offset,
     ),
   );
@@ -226,8 +308,67 @@ class DriftUnifiedReader implements UnifiedReader {
     String? search,
     String? goalId,
     String? nodeId,
+    String? date,
+    String? beforeDate,
+    String? phase,
+    bool summaryOnly = false,
     int offset = 0,
   }) async {
+    if (offset < 0) throw ArgumentError('分页位置不能为负数');
+    if (date != null) validateScheduledDate(date);
+    if (beforeDate != null) validateScheduledDate(beforeDate);
+    if (phase != null && !MissionPhase.values.any((p) => p.name == phase)) {
+      throw ArgumentError('任务阶段无效');
+    }
+    if (mission == null &&
+        (date != null || beforeDate != null || phase != null || summaryOnly)) {
+      final all = await DriftMissionRepository(db).findAllDetails();
+      final selected =
+          all
+              .where(
+                (d) =>
+                    (search == null || d.mission.title.contains(search)) &&
+                    (goalId == null || d.mission.goalId == goalId) &&
+                    (nodeId == null || d.mission.goalNodeId == nodeId) &&
+                    (date == null || d.schedule.scheduledDate == date) &&
+                    (beforeDate == null ||
+                        d.schedule.scheduledDate.compareTo(beforeDate) < 0) &&
+                    (phase == null || d.phase.name == phase),
+              )
+              .toList()
+            ..sort(
+              (a, b) => '${a.schedule.scheduledDate}:${a.mission.id}'.compareTo(
+                '${b.schedule.scheduledDate}:${b.mission.id}',
+              ),
+            );
+      final counts = <String, int>{};
+      for (final d in selected) {
+        counts.update(d.phase.name, (v) => v + 1, ifAbsent: () => 1);
+      }
+      final items = summaryOnly
+          ? <Map<String, Object?>>[]
+          : [
+              for (final d in selected.skip(offset).take(20))
+                <String, Object?>{
+                  'id': d.mission.id,
+                  'title': d.mission.title,
+                  'phase': d.phase.name,
+                  'scheduledDate': d.schedule.scheduledDate,
+                  'goalId': d.mission.goalId,
+                },
+            ];
+      final next = offset + items.length;
+      return {
+        'total': selected.length,
+        'countsByPhase': counts,
+        'summaryComplete': true,
+        'items': items,
+        'offset': offset,
+        'nextOffset': !summaryOnly && next < selected.length ? next : null,
+        'truncated': !summaryOnly && next < selected.length,
+        'hint': 'total 和 countsByPhase 覆盖完整筛选范围，items 仅为本页；阶段由完整任务事实派生。',
+      };
+    }
     if (mission == null) {
       return enhance(
         await taskReader.missions(
