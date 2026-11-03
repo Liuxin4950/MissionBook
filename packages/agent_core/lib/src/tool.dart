@@ -31,10 +31,18 @@ final class ToolDefinition {
 final class ToolOutput {
   const ToolOutput.success(this.text) : isError = false, errorCode = null;
 
-  ToolOutput.failure(String code, String message)
-    : isError = true,
-      errorCode = code,
-      text = jsonEncode({'ok': false, 'code': code, 'message': message});
+  ToolOutput.failure(
+    String code,
+    String message, {
+    Map<String, Object?> details = const {},
+  }) : isError = true,
+       errorCode = code,
+       text = jsonEncode({
+         ...details,
+         'ok': false,
+         'code': code,
+         'message': message,
+       });
 
   final String text; // 内容本身包含失败标记，不只依赖供应商的 is_error 字段。
   final bool isError;

@@ -273,7 +273,9 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
         (detail.events.isEmpty ? null : detail.events.last.occurredAt);
     final displayTime =
         claimed?.actualStart?.toLocal() ?? measuredInstant?.toLocal() ?? local;
-    final clock = claimed != null && claimed.actualStart == null
+    final retrospective = detail.completionReport?.isRetrospective == true;
+    final clock =
+        retrospective || (claimed != null && claimed.actualStart == null)
         ? '具体时段未知'
         : '${displayTime.hour.toString().padLeft(2, '0')}:${displayTime.minute.toString().padLeft(2, '0')}';
     // 是否报告完成的判定口径统一走 MissionDetail 的派生属性。

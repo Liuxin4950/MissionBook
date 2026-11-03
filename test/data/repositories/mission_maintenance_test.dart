@@ -228,5 +228,13 @@ void main() {
     );
     expect(page['items'] as List, hasLength(20));
     expect(page['nextOffset'], 20);
+    await expectLater(
+      reader.getMission(
+        beforeDate: '2026-11-03',
+        summaryOnly: true,
+        offset: 20,
+      ),
+      throwsArgumentError,
+    );
   });
 }

@@ -168,6 +168,8 @@ void main() {
       expect(detail.endReportedCompleted, isTrue);
       expect(detail.events.single.isRetrospective, isTrue);
       expect(detail.events.single.occurredAt, now);
+      expect(detail.effectiveOccurrenceDate, detail.schedule.scheduledDate);
+      expect(detail.effectiveOccurrenceDate, isNot('2026-10-29'));
       expect(calculateExecutionTimes(detail.events, now).focus, Duration.zero);
     }
     expect(

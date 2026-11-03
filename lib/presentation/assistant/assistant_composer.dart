@@ -445,10 +445,13 @@ class _AssistantComposer {
 
   Widget _contextIndicator(AssistantController controller) {
     final used = controller.estimatedContextTokens;
-    final limit = controller.contextWindowTokens;
-    final ratio = (used / limit).clamp(0.0, 1.0);
+    final limit = controller.contextInputLimit;
+    final ratio = (limit <= 0 ? 1.0 : used / limit).clamp(0.0, 1.0);
     final label =
-        '上下文约 ${(ratio * 100).toStringAsFixed(1)}%\n$used / $limit tokens（估算）';
+        '输入占用约 ${(ratio * 100).toStringAsFixed(1)}%'
+        '\n输入估算 $used / 可用输入 $limit tokens'
+        '\n输出预留 ${controller.reservedOutputTokens} tokens'
+        '\n上下文总窗口 ${controller.contextWindowTokens} tokens';
     return Tooltip(
       message: label,
       triggerMode: TooltipTriggerMode.tap,
@@ -469,7 +472,7 @@ class _AssistantComposer {
                     : ratio >= .75
                     ? AppColors.warning
                     : AppColors.primary,
-                semanticsLabel: '上下文占用',
+                semanticsLabel: '输入预算占用',
                 semanticsValue: '${(ratio * 100).round()}%',
               ),
             ),

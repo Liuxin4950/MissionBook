@@ -380,7 +380,10 @@ class _AssistantToolCatalog {
           readOnly: t.readOnly,
           execute: (i, c) async {
             if (t.readOnly && _owner._readCharacters >= 64000) {
-              return ToolOutput.failure('read_budget', '本轮读取已达上限，请根据现有摘要回答');
+              return _owner._budgetFailure(
+                'read_budget',
+                '本轮读取已达上限，请根据现有摘要回答；已读范围见 read 字段。',
+              );
             }
             final output = _owner._formatOutput(
               await t.execute(i, c),
@@ -388,7 +391,10 @@ class _AssistantToolCatalog {
             );
             if (t.readOnly) {
               if (_owner._readCharacters + output.text.length > 64000) {
-                return ToolOutput.failure('read_budget', '本轮剩余读取额度不足，请缩小范围');
+                return _owner._budgetFailure(
+                  'read_budget',
+                  '本轮剩余读取额度不足，请缩小范围；已读范围见 read 字段。',
+                );
               }
               _owner._readCharacters += output.text.length;
             }
@@ -402,10 +408,14 @@ class _AssistantToolCatalog {
         AgentTool(
           definition: tool.definition,
           readOnly: tool.readOnly,
-          execute: (input, context) async => _owner._formatOutput(
-            await tool.execute(input, context),
-            includeTimeContext: tool.readOnly,
-          ),
+          execute: (input, context) async {
+            final output = await tool.execute(input, context);
+            if (tool.readOnly) _owner._recordRead(tool.definition.name, output);
+            return _owner._formatOutput(
+              output,
+              includeTimeContext: tool.readOnly,
+            );
+          },
         ),
     ];
   }

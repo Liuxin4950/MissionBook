@@ -363,4 +363,37 @@ void main() {
     expect((result['issues'] as List).single['code'], 'existing_overlap');
     expect(await database.select(database.missions).get(), hasLength(1));
   });
+  test('计划回执的固定开始时刻使用排期时区偏移', () async {
+    final model = ScriptedModel([
+      (_) => toolResponse('fixed-plan', 'planMissions', {
+        'title': '固定安排',
+        'items': [createRow('fixed', start: '09:00')],
+      }),
+      (_) => textResponse('固定安排已保存。'),
+    ]);
+    controller = AssistantController(
+      unifiedReader: DriftUnifiedReader(database),
+      sessionStore: DriftSessionStore(database),
+      settingsStore: MemoryAssistantSettingsStore(),
+      missions: missions,
+      goals: goals,
+      clock: () => now,
+      modelOverrides: {'deepseek-chat': model, 'deepseek': model},
+    );
+    final assistant = controller!;
+    await assistant.initialize();
+    final sending = assistant.send('安排今天九点的固定任务');
+    await waitFor(
+      () => assistant.operations.any(
+        (item) => item.status == AssistantOperationStatus.waitingConfirmation,
+      ),
+    );
+    expect(assistant.confirmProposal('fixed-plan'), isNull);
+    await sending;
+    final output = jsonDecode(assistant.operations.single.output!) as Map;
+    expect(
+      (output['items'] as List).single['fixedStartAt'],
+      '2026-10-29T09:00:00.000+08:00',
+    );
+  });
 }

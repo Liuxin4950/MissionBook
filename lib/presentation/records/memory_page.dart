@@ -508,6 +508,10 @@ class _MemoryEditorState extends State<_MemoryEditor> {
 
   Future<void> save() async {
     if (_saving) return;
+    if (_kind == 'constraint' && _expiry == null) {
+      setState(() => _error = '约束记忆必须设置有效期');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -616,12 +620,14 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                         icon: Icons.event_outlined,
                         title: '有效期',
                         subtitle: _expiry == null
-                            ? '长期有效'
+                            ? _kind == 'constraint'
+                                  ? '约束记忆必须设置有效期'
+                                  : '长期有效'
                             : '至 ${_dateLabel(_expiry!)} 当天结束',
                         enabled: !_saving,
                         onTap: chooseExpiry,
                       ),
-                      if (_expiry != null)
+                      if (_expiry != null && _kind != 'constraint')
                         AppSettingsRow(
                           icon: Icons.all_inclusive,
                           title: '设为长期有效',

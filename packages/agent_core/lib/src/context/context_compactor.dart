@@ -52,10 +52,13 @@ final class ContextCompactor {
       conversationProfile.contextWindowTokens -
       conversationProfile.maxOutputTokens -
       policy.headroomTokens;
-  int get triggerLimit => math.min(
-    inputLimit,
-    (conversationProfile.contextWindowTokens * policy.triggerRatio).floor(),
-  );
+  int get triggerLimit => (inputLimit * policy.triggerRatio).floor();
+
+  /// 本次可用输入空间：窗口减去本次输出预留和安全余量。
+  int inputLimitFor(ModelRequest request) =>
+      conversationProfile.contextWindowTokens -
+      (request.maxOutputTokens ?? conversationProfile.maxOutputTokens) -
+      policy.headroomTokens;
 
   Future<ContextCompaction?> prepare(
     ModelRequest request,
@@ -64,6 +67,8 @@ final class ContextCompactor {
     AgentEventSink? onEvent,
   }) async {
     if (!policy.enabled && trigger != CompactionTrigger.manual) return null;
+    final inputLimit = inputLimitFor(request);
+    final triggerLimit = (inputLimit * policy.triggerRatio).floor();
     if (inputLimit <= 0) {
       throw const ModelException(
         'context_budget_invalid',
@@ -110,6 +115,9 @@ final class ContextCompactor {
         systemPrompt: request.systemPrompt,
         messages: retainedAt(cut),
         tools: request.tools,
+        maxOutputTokens: request.maxOutputTokens,
+        reasoningEffort: request.reasoningEffort,
+        jsonOutput: request.jsonOutput,
       );
       if (estimator.estimate(conversationProfile, retainedRequest) +
               (policy.summaryMaxTokens * 1.25).ceil() <
@@ -186,6 +194,9 @@ final class ContextCompactor {
         systemPrompt: request.systemPrompt,
         messages: compacted,
         tools: request.tools,
+        maxOutputTokens: request.maxOutputTokens,
+        reasoningEffort: request.reasoningEffort,
+        jsonOutput: request.jsonOutput,
       ),
     );
     if (after >= before &&

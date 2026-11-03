@@ -6,7 +6,8 @@ import '../model.dart';
 import '../models/configuration.dart';
 import '../models/wire_codec.dart';
 
-/// 请求前的本地估算入口；宿主可以注入对应模型的精确 tokenizer。
+/// 请求输入的本地估算入口；不含未来输出额度或累计用量。
+/// 宿主可以注入对应模型的精确 tokenizer。
 abstract interface class TokenEstimator {
   int estimate(ModelProfile profile, ModelRequest request);
 }
@@ -47,9 +48,13 @@ final class ApproximateTokenEstimator implements TokenEstimator {
       jsonOutput: request.jsonOutput,
       purpose: request.purpose,
     );
-    final text = jsonEncode(
-      encodeModelRequest(profile, textRequest, stream: false),
-    );
+    final body = encodeModelRequest(profile, textRequest, stream: false);
+    // 只估算模型实际接收的输入：系统提示、消息和工具定义。
+    // max_tokens、stream、temperature 等控制参数不占输入 token。
+    final text = jsonEncode({
+      for (final key in ['system', 'messages', 'tools'])
+        if (body.containsKey(key)) key: body[key],
+    });
     var estimated = 0.0;
     for (final rune in text.runes) {
       if (rune < 128) {

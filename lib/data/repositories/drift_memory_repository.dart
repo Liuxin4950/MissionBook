@@ -403,21 +403,32 @@ class DriftMemoryRepository extends DriftRepositorySupport
     ).hasMatch(content)) {
       throw ArgumentError('凭据请保存到安全设置，不放入助手记忆');
     }
+    final kind = entry['kind'] as String?;
+    final expiresAt = entry['expiresAt'];
     if (content.isEmpty ||
         content.length > 1000 ||
         source.trim().isEmpty ||
-        ![
-          'preference',
-          'fact',
-          'constraint',
-          'observation',
-        ].contains(entry['kind'])) {
+        !['preference', 'fact', 'constraint', 'observation'].contains(kind)) {
       throw ArgumentError('记忆内容、类型或来源无效');
     }
+    if (expiresAt != null && expiresAt is! int) {
+      throw ArgumentError('记忆期限格式无效');
+    }
+    final expiresAtMs = expiresAt as int?;
+    final updatedAt = clock().millisecondsSinceEpoch;
+    if (kind == 'constraint' &&
+        (expiresAtMs == null || expiresAtMs <= updatedAt)) {
+      throw ArgumentError('约束记忆必须包含未来的期限');
+    }
     final same = await rows(
-      'SELECT * FROM memory_entries WHERE id=? OR (goal_id IS ? AND (conflict_key=? OR trim(content)=?))',
-      [id, goal, key, content],
+      'SELECT * FROM memory_entries WHERE id=? OR goal_id IS ?',
+      [id, goal],
     );
+    String normalized(Object? value) =>
+        (value as String).trim().replaceAll(RegExp(r'\s+'), ' ');
+    String compact(Object? value) => normalized(
+      value,
+    ).toLowerCase().replaceAll(RegExp(r'[\s\p{P}]', unicode: true), '');
     final expectedVersion = entry['expectedVersion'];
     if (expectedVersion != null) {
       final existing = same.where((row) => row['id'] == id).firstOrNull;
@@ -426,8 +437,6 @@ class DriftMemoryRepository extends DriftRepositorySupport
         return {'status': 'blocked', 'id': id, 'reason': 'changed'};
       }
     }
-    String normalized(Object? value) =>
-        (value as String).trim().replaceAll(RegExp(r'\s+'), ' ');
     final protected = same.where(
       (e) =>
           !userEdited &&
@@ -443,36 +452,74 @@ class DriftMemoryRepository extends DriftRepositorySupport
         'reason': 'protected_memory',
       };
     }
-    final conflict = same.where(
-      (e) =>
-          e['conflict_key'] == key &&
-          e['goal_id'] == goal &&
-          e['content'] != content &&
-          e['forgotten'] == 0,
-    );
-    if (!userEdited && conflict.isNotEmpty) {
-      // 冲突观察保持待验证，不让模型静默替换用户事实。
-      entry = {...entry, 'certainty': 'unverified', 'kind': 'observation'};
-    }
-    if (!userEdited &&
-        same.any(
-          (e) =>
-              normalized(e['content']) == normalized(content) &&
-              e['forgotten'] == 0,
-        )) {
-      final existing = same.firstWhere(
-        (e) =>
-            normalized(e['content']) == normalized(content) &&
-            e['forgotten'] == 0,
-      );
-      return {'status': 'unchanged', 'id': existing['id']};
-    }
-    final existing = same.where((e) => e['id'] == id);
-    if (existing.isNotEmpty && existing.single['forgotten'] == 1) {
+    final existing = same.where((e) => e['id'] == id).firstOrNull;
+    if (existing != null && existing['forgotten'] == 1) {
       return {'status': 'blocked', 'id': id, 'reason': 'forgotten_memory'};
     }
-    if (existing.isNotEmpty && !userEdited) {
+    if (existing != null && !userEdited) {
       return {'status': 'blocked', 'id': id, 'reason': 'existing_id'};
+    }
+    bool longerExtends(String longer, String shorter) {
+      if (!longer.contains(shorter)) return false;
+      final extra = longer.replaceFirst(shorter, '');
+      return extra.length >= 2 && !RegExp(r'^\d+$').hasMatch(extra);
+    }
+
+    if (!userEdited) {
+      final live = same.where((e) => e['forgotten'] == 0).toList();
+      final sameContent = live
+          .where((e) => normalized(e['content']) == normalized(content))
+          .firstOrNull;
+      if (sameContent != null) {
+        return {'status': 'unchanged', 'id': sameContent['id']};
+      }
+      final keyText = normalized(key).toLowerCase();
+      final topicMatches = live.where((e) {
+        final sameKey = normalized(e['conflict_key']).toLowerCase() == keyText;
+        final sameKind = e['kind'] == kind || e['certainty'] == 'unverified';
+        final previous = compact(e['content']);
+        final next = compact(content);
+        final contained =
+            sameKind &&
+            previous.length >= 4 &&
+            next.length >= 4 &&
+            (longerExtends(previous, next) || longerExtends(next, previous));
+        return sameKey || contained;
+      }).toList();
+      if (topicMatches.isNotEmpty) {
+        // 用户手动编辑的事实保持原样；自动提取只更新未编辑的同主题条目。
+        final manual = topicMatches
+            .where((e) => e['user_edited'] == 1)
+            .firstOrNull;
+        if (manual != null) {
+          return {'status': 'unchanged', 'id': manual['id']};
+        }
+        topicMatches.sort((a, b) {
+          final aExact = normalized(a['conflict_key']).toLowerCase() == keyText;
+          final bExact = normalized(b['conflict_key']).toLowerCase() == keyText;
+          if (aExact != bExact) return aExact ? -1 : 1;
+          return (b['updated_at'] as int).compareTo(a['updated_at'] as int);
+        });
+        final target = topicMatches.first;
+        final previous = compact(target['content']);
+        final next = compact(content);
+        if (longerExtends(previous, next) && target['certainty'] == 'stated') {
+          return {'status': 'unchanged', 'id': target['id']};
+        }
+        await (db.update(
+          db.memoryEntries,
+        )..where((t) => t.id.equals(target['id'] as String))).write(
+          MemoryEntriesCompanion(
+            content: Value(content),
+            kind: Value(kind!),
+            source: Value(source),
+            certainty: Value(entry['certainty'] as String? ?? 'unverified'),
+            updatedAt: Value(updatedAt),
+            expiresAt: Value(expiresAtMs),
+          ),
+        );
+        return {'status': 'updated', 'id': target['id']};
+      }
     }
     await db
         .into(db.memoryEntries)
@@ -480,24 +527,17 @@ class DriftMemoryRepository extends DriftRepositorySupport
           MemoryEntriesCompanion.insert(
             id: id,
             goalId: Value(goal),
-            kind: entry['kind'] as String,
+            kind: kind!,
             content: content,
             source: source,
             certainty: entry['certainty'] as String? ?? 'unverified',
             conflictKey: key,
-            updatedAt: clock().toUtc().millisecondsSinceEpoch,
-            expiresAt: Value(entry['expiresAt'] as int?),
+            updatedAt: updatedAt,
+            expiresAt: Value(expiresAtMs),
             userEdited: Value(userEdited),
           ),
         );
-    return {
-      'status': existing.isNotEmpty
-          ? 'updated'
-          : conflict.isNotEmpty && !userEdited
-          ? 'pending'
-          : 'created',
-      'id': id,
-    };
+    return {'status': existing != null ? 'updated' : 'created', 'id': id};
   }
 
   @override

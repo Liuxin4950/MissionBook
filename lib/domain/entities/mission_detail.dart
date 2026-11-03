@@ -51,6 +51,12 @@ class MissionDetail {
         !events.any((e) => e.type == ExecutionEventType.end)) {
       return null;
     }
+    // 补记的 END 记录的是补报时刻，实际发生日期取原计划日期。
+    if (events.any(
+      (e) => e.type == ExecutionEventType.end && e.isRetrospective,
+    )) {
+      return schedule.scheduledDate;
+    }
     final instant =
         events
             .where((e) => e.type == ExecutionEventType.stop)

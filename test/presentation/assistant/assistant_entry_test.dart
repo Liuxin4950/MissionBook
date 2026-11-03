@@ -319,12 +319,16 @@ void main() {
       );
       if (_captureDir.isNotEmpty) {
         await capture(tester, 'assistant-settings-${width.toInt()}');
-        await tester.tap(find.byKey(const Key('assistant-model-settings-entry')));
+        await tester.tap(
+          find.byKey(const Key('assistant-model-settings-entry')),
+        );
         await tester.pumpAndSettle();
         await capture(tester, 'model-settings-${width.toInt()}');
         await tester.tap(find.byTooltip('返回'));
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('assistant-speech-settings-entry')));
+        await tester.tap(
+          find.byKey(const Key('assistant-speech-settings-entry')),
+        );
         await tester.pumpAndSettle();
         await capture(tester, 'speech-settings-${width.toInt()}');
         await tester.tap(find.byTooltip('返回'));
@@ -631,6 +635,53 @@ void main() {
     expect(assistant.persona.avatar, AssistantAvatar.book);
     expect(assistant.persona.userAddress, '小刘');
     expect(tester.takeException(), isNull);
+  });
+
+  assistantTest('上下文提示分别显示输入预算、输出预留和总窗口', (tester) async {
+    await mount(tester, ScriptedModel([]));
+    await tester.longPress(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    final indicator = find.byKey(const Key('assistant-context-usage'));
+    final tooltip = tester.widget<Tooltip>(
+      find.ancestor(of: indicator, matching: find.byType(Tooltip)).first,
+    );
+    expect(
+      assistant.contextInputLimit,
+      assistant.contextWindowTokens - assistant.reservedOutputTokens - 512,
+    );
+    expect(
+      tooltip.message,
+      contains(
+        '输入估算 ${assistant.estimatedContextTokens} / 可用输入 ${assistant.contextInputLimit} tokens',
+      ),
+    );
+    expect(
+      tooltip.message,
+      contains('输出预留 ${assistant.reservedOutputTokens} tokens'),
+    );
+    expect(
+      tooltip.message,
+      contains('上下文总窗口 ${assistant.contextWindowTokens} tokens'),
+    );
+    final progress = tester.widget<CircularProgressIndicator>(
+      find.descendant(
+        of: indicator,
+        matching: find.byType(CircularProgressIndicator),
+      ),
+    );
+    expect(
+      progress.value,
+      (assistant.estimatedContextTokens / assistant.contextInputLimit).clamp(
+        0.0,
+        1.0,
+      ),
+    );
   });
 
   assistantTest('文字在独立二级路由引用当前任务，返回保留原页面草稿和展开', (tester) async {

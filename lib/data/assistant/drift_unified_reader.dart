@@ -315,6 +315,9 @@ class DriftUnifiedReader implements UnifiedReader {
     int offset = 0,
   }) async {
     if (offset < 0) throw ArgumentError('分页位置不能为负数');
+    if (summaryOnly && offset != 0) {
+      throw ArgumentError('summaryOnly 返回完整范围统计，不接受 offset');
+    }
     if (date != null) validateScheduledDate(date);
     if (beforeDate != null) validateScheduledDate(beforeDate);
     if (phase != null && !MissionPhase.values.any((p) => p.name == phase)) {

@@ -32,6 +32,74 @@ void main() {
     ),
   );
 
+  test('输入估算不受输出额度和非输入请求参数影响', () {
+    const estimator = ApproximateTokenEstimator();
+    final profile = testProfile('main', window: 20000);
+    final messages = [UserMessage(text: '相同输入')];
+    int estimate(int output, ReasoningEffort effort) => estimator.estimate(
+      profile,
+      ModelRequest(
+        systemPrompt: '系统说明',
+        messages: messages,
+        tools: [],
+        maxOutputTokens: output,
+        reasoningEffort: effort,
+      ),
+    );
+    expect(
+      estimate(1, ReasoningEffort.off),
+      estimate(10000, ReasoningEffort.high),
+    );
+  });
+
+  test('自动触发比例基于扣除输出预留后的输入预算', () async {
+    final profile = testProfile('main', window: 10000, output: 6000);
+    final engine = ContextCompactor(
+      policy: policy,
+      conversationProfile: profile,
+      summaryProfile: testProfile('summary'),
+      summaryModel: CallbackModel((request, token) => textReply('旧记录摘要')),
+    );
+    // 约 3.4k 输入小于硬输入预算，但已越过其 80% 触发线。
+    final history = [
+      UserMessage(text: '旧' * 4200),
+      textReply('已记录').message,
+      UserMessage(text: '继续'),
+    ];
+    final result = await engine.prepare(request(history), CancellationToken());
+    expect(result, isNotNull);
+  });
+
+  test('压缩校验使用本次请求的输出额度', () async {
+    final engine = ContextCompactor(
+      policy: policy,
+      conversationProfile: testProfile('main', window: 3000),
+      summaryProfile: testProfile('summary'),
+      summaryModel: CallbackModel((request, token) => textReply('摘要')),
+    );
+    await expectLater(
+      engine.prepare(
+        ModelRequest(
+          systemPrompt: '',
+          messages: [
+            UserMessage(text: '旧' * 2000),
+            UserMessage(text: '新' * 900),
+          ],
+          tools: [],
+          maxOutputTokens: 2400,
+        ),
+        CancellationToken(),
+      ),
+      throwsA(
+        isA<ModelException>().having(
+          (error) => error.code,
+          'code',
+          'compaction_insufficient',
+        ),
+      ),
+    );
+  });
+
   test('自动压缩保留当前要求，原列表和原消息不被删除或修改', () async {
     final history = longHistory();
     final ids = history.map((message) => message.id).toList();
@@ -50,6 +118,8 @@ void main() {
     );
     expect(history.map((message) => message.id), ids);
     expect(result.summaryRequests, 1);
+    expect(result.usage.inputTokens, 10);
+    expect(result.usage.outputTokens, 5);
   });
 
   test('预算充足不调用摘要；关闭自动压缩仍可手动调用', () async {

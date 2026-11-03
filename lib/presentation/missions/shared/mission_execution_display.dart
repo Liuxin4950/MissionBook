@@ -252,10 +252,12 @@ class MissionEventTimeline extends StatelessWidget {
                             : '结束执行',
                     }, style: Theme.of(context).textTheme.titleSmall),
                     Text(
-                      missionLocalTime(
-                        event.occurredAt,
-                        detail.schedule.timeZone,
-                      ),
+                      event.isRetrospective
+                          ? '原计划 ${detail.schedule.scheduledDate} · ${missionLocalTime(event.occurredAt, detail.schedule.timeZone)} 补记'
+                          : missionLocalTime(
+                              event.occurredAt,
+                              detail.schedule.timeZone,
+                            ),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     if (event.reason?.trim().isNotEmpty == true)

@@ -1171,14 +1171,19 @@ void main() {
     expect(current.conflictKey, '原主题');
     expect(current.expiresAt, expiry);
   });
-  test('同来源的不同记忆独立保护，同主题矛盾不覆盖原事实', () async {
+  test('同来源的不同记忆独立保存，同主题来自新会话时更新原条目', () async {
     final repository = DriftMemoryRepository(db, clock: () => now);
-    Map<String, Object?> entry(String id, String content, String key) => {
+    Map<String, Object?> entry(
+      String id,
+      String content,
+      String key, {
+      String source = '同一条用户消息',
+    }) => {
       'id': id,
       'content': content,
       'kind': 'preference',
       'certainty': 'stated',
-      'source': '同一条用户消息',
+      'source': source,
       'conflictKey': key,
     };
     await repository.saveMemory(entry('first', '喜欢上午学习', '学习时间'));
@@ -1187,13 +1192,81 @@ void main() {
       'status': 'created',
       'id': 'second',
     });
-    expect(await repository.saveMemory(entry('third', '喜欢热闹的环境', '学习环境')), {
-      'status': 'pending',
-      'id': 'third',
+    expect(
+      await repository.saveMemory(
+        entry('third', '喜欢热闹的环境', '学习环境', source: '另一个会话'),
+      ),
+      {'status': 'updated', 'id': 'second'},
+    );
+    final live = (await repository.queryMemory())['items'] as List;
+    expect(live, hasLength(1));
+    expect((live.single as Map)['content'], '喜欢热闹的环境');
+    expect((live.single as Map)['id'], 'second');
+  });
+  test('同主题命中用户手动编辑的条目时保持原事实', () async {
+    final repository = DriftMemoryRepository(db, clock: () => now);
+    await repository.saveMemory({
+      'id': 'manual',
+      'content': '每天上午学习',
+      'kind': 'preference',
+      'certainty': 'stated',
+      'source': '用户手动记录',
+      'conflictKey': '学习时间',
+    }, userEdited: true);
+    expect(
+      await repository.saveMemory({
+        'id': 'assistant',
+        'content': '每天下午学习',
+        'kind': 'preference',
+        'certainty': 'stated',
+        'source': '另一个会话',
+        'conflictKey': '学习时间',
+      }),
+      {'status': 'unchanged', 'id': 'manual'},
+    );
+    final live = (await repository.queryMemory())['items'] as List;
+    expect(live, hasLength(1));
+    expect((live.single as Map)['content'], '每天上午学习');
+  });
+  test('约束记忆必须带未来期限，非约束仍可长期有效', () async {
+    final repository = DriftMemoryRepository(db, clock: () => now);
+    Map<String, Object?> entry(String id, String kind, {int? expiry}) => {
+      'id': id,
+      'content': '约束内容$id',
+      'kind': kind,
+      'certainty': 'stated',
+      'source': '用户陈述',
+      'conflictKey': '期限主题$id',
+      'expiresAt': expiry,
+    };
+    await expectLater(
+      repository.saveMemory(entry('no-expiry', 'constraint')),
+      throwsArgumentError,
+    );
+    await expectLater(
+      repository.saveMemory(
+        entry(
+          'past',
+          'constraint',
+          expiry: now.subtract(const Duration(days: 1)).millisecondsSinceEpoch,
+        ),
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      await repository.saveMemory(
+        entry(
+          'future',
+          'constraint',
+          expiry: now.add(const Duration(days: 1)).millisecondsSinceEpoch,
+        ),
+      ),
+      {'status': 'created', 'id': 'future'},
+    );
+    expect(await repository.saveMemory(entry('fact', 'fact')), {
+      'status': 'created',
+      'id': 'fact',
     });
-    final core = await repository.coreMemory();
-    expect(core, contains('喜欢安静的环境'));
-    expect(core, isNot(contains('喜欢热闹的环境')));
   });
   test('记忆选择固定编号，批量删除原子校验、按会话隔离并可幂等重试', () async {
     final repository = DriftMemoryRepository(db, clock: () => now);

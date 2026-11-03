@@ -69,7 +69,7 @@ List<AgentTool> contextTools({
   void explicitBasis(String basis, {bool memoryBasis = false}) {
     if (basis.trim().isEmpty || !userStatement().contains(basis.trim())) {
       throw ToolRejected(
-        'user_basis_required',
+        memoryBasis ? 'memory_basis_invalid' : 'user_basis_required',
         memoryBasis
             ? '记忆未保存：basis 必须逐字引用本轮用户消息中的连续原文，保留原换行和标点；不能拼接、省略或改写。content 可概括，basis 请重新复制对应原话后重试。'
             : '报告未保存：basis 必须逐字引用本轮用户明确说明完成结果或实际时段的连续原文，不能拼接或改写。',
@@ -386,22 +386,23 @@ List<AgentTool> contextTools({
     ),
     tool(
       'saveMemory',
-      '保存有用户原话来源的稳定偏好、事实或有期限的约束；不保存推断、闲聊过程和任务进度。',
+      '保存有用户原话来源的稳定偏好、事实或有期限的约束；不保存推断、闲聊过程和任务进度。同 conflictKey 命中时更新原条目而不是新增。',
       {
         'id': s('修改已有条目时使用稳定ID'),
         'content': s('记忆正文'),
         'kind': {
           'type': 'string',
           'enum': ['preference', 'fact', 'constraint'],
+          'description': 'constraint 必须同时提供未来的 expiresAt',
         },
         'goalId': s('可选目标ID'),
         'certainty': {
           'type': 'string',
           'enum': ['stated'],
         },
-        'conflictKey': s('稳定主题用于冲突检查'),
+        'conflictKey': s('稳定主题用于冲突检查；同主题命中时更新原条目'),
         'basis': s('逐字复制本轮用户消息中的连续原文，保留换行标点，不可拼接、改写或加省略号；content 可概括'),
-        'expiresAt': s('可选约束期限ISO8601'),
+        'expiresAt': s('约束期限ISO8601；constraint 必填且必须晚于当前时刻'),
       },
       (i, c) async {
         explicitBasis(i['basis'] as String? ?? '', memoryBasis: true);

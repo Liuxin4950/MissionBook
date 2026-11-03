@@ -344,6 +344,13 @@ class AssistantController extends ChangeNotifier {
   int get contextWindowTokens =>
       (_session?.modelProfile ?? _configuration.profile(modelProfileId))
           .contextWindowTokens;
+  int get reservedOutputTokens =>
+      _session?.outputTokens ??
+      _configuration.profile(modelProfileId).maxOutputTokens;
+  int get contextInputLimit =>
+      contextWindowTokens -
+      reservedOutputTokens -
+      _configuration.context.headroomTokens;
   int get estimatedContextTokens {
     final session = _session;
     final profile =

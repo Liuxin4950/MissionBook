@@ -415,8 +415,18 @@ class DriftAnalysisStore implements AnalysisStore {
         final key = e['conflictKey'] as String? ?? e['content'] as String;
         e['id'] = const Uuid().v5(Namespace.url.value, 'memory:${w.id}:$key');
         e['source'] = 'conversation:${w.id}';
-        if (e['expiresAt'] is! int) e['expiresAt'] = null;
-        await DriftMemoryRepository(db).saveMemory(e);
+        final expiresAt = e['expiresAt'];
+        e['expiresAt'] = expiresAt is int
+            ? expiresAt
+            : expiresAt is String
+            ? DateTime.tryParse(expiresAt)?.millisecondsSinceEpoch
+            : null;
+        try {
+          await DriftMemoryRepository(db).saveMemory(e);
+        } on ArgumentError {
+          // 模型给出的约束缺少有效期限等内容不合规时，跳过该条而不是放弃整批。
+          continue;
+        }
       }
     });
   }

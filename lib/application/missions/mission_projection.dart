@@ -31,6 +31,15 @@ Map<String, Object?> missionProjection(MissionDetail d, DateTime now) {
         ? times.focus.inSeconds
         : null,
     'effectiveOccurrenceDate': d.effectiveOccurrenceDate,
+    'completion': d.completionReport == null
+        ? null
+        : {
+            'occurrenceDate': d.effectiveOccurrenceDate,
+            'reportedAt': d.completionReport!.isRetrospective
+                ? d.completionReport!.occurredAt.toIso8601String()
+                : null,
+            'retrospective': d.completionReport!.isRetrospective,
+          },
     'userReportedTime': d.effectiveUserReport == null
         ? null
         : {
