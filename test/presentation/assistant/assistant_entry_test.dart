@@ -20,6 +20,8 @@ import 'package:mission_book/presentation/assistant/assistant_launcher.dart';
 import 'package:mission_book/presentation/assistant/assistant_scope.dart';
 import 'package:mission_book/presentation/assistant/assistant_page.dart';
 import 'package:mission_book/presentation/assistant/assistant_settings_page.dart';
+import 'package:mission_book/presentation/assistant/assistant_model_settings_page.dart';
+import 'package:mission_book/presentation/assistant/assistant_speech_settings_page.dart';
 
 import '../../support/assistant_fakes.dart';
 import '../../support/me_fakes.dart';
@@ -303,6 +305,7 @@ void main() {
       );
       await tester.tap(find.byTooltip('我的'));
       await tester.pumpAndSettle();
+      await capture(tester, 'me-page-${width.toInt()}');
       await tester.tap(find.byKey(const Key('me-settings')));
       await tester.pumpAndSettle();
       await capture(tester, 'app-settings-${width.toInt()}');
@@ -314,17 +317,24 @@ void main() {
             .controller,
         same(assistant),
       );
+      if (_captureDir.isNotEmpty) {
+        await capture(tester, 'assistant-settings-${width.toInt()}');
+        await tester.tap(find.byKey(const Key('assistant-model-settings-entry')));
+        await tester.pumpAndSettle();
+        await capture(tester, 'model-settings-${width.toInt()}');
+        await tester.tap(find.byTooltip('返回'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('assistant-speech-settings-entry')));
+        await tester.pumpAndSettle();
+        await capture(tester, 'speech-settings-${width.toInt()}');
+        await tester.tap(find.byTooltip('返回'));
+        await tester.pumpAndSettle();
+      }
+      final exportEntry = find.byKey(const Key('assistant-backup-entry'));
+      await tester.ensureVisible(exportEntry);
+      await tester.tap(exportEntry);
+      await tester.pumpAndSettle();
       final export = find.byKey(const Key('backup-export'));
-      await tester.scrollUntilVisible(
-        export,
-        300,
-        scrollable: find
-            .descendant(
-              of: find.byType(AssistantSettingsPage),
-              matching: find.byType(Scrollable),
-            )
-            .first,
-      );
       await tester.ensureVisible(export);
       await tester.pumpAndSettle();
       await tester.tap(export);
@@ -349,19 +359,25 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('settings-assistant-entry')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-model-settings-entry')));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('assistant-credential-input')),
       '未保存的测试输入',
     );
+    await tester.pump();
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
-    expect(find.text('放弃助手设置修改？'), findsOneWidget);
+    expect(find.text('放弃AI 模型修改？'), findsOneWidget);
     await tester.tap(find.text('继续编辑'));
     await tester.pumpAndSettle();
     expect(find.text('未保存的测试输入'), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('放弃修改'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AssistantSettingsPage), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.byType(AssistantSettingsPage), findsNothing);
     expect(find.byKey(const Key('settings-assistant-entry')), findsOneWidget);
@@ -390,7 +406,7 @@ void main() {
     await pumpUntil(tester, () => assistant.initialized);
     await tester.pumpAndSettle();
     expect(find.textContaining('原有角色'), findsOneWidget);
-    expect(find.text('DeepSeek · Messages'), findsWidgets);
+    expect(find.textContaining('deepseek'), findsWidgets);
     await tester.tap(find.byKey(const Key('assistant-persona-section')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -460,6 +476,129 @@ void main() {
       await capture(tester, 'assistant-welcome-${width.toInt()}');
     }
   });
+
+  assistantTest('语音单独校验保存，试用识别不改聊天草稿也不创建会话', (tester) async {
+    final store = MemoryAssistantSettingsStore()
+      ..persona = const AssistantPersona(name: '保留角色');
+    await mount(tester, ScriptedModel([]), settingsStore: store);
+    voice.editText('聊天已有语音草稿');
+    final trial = TestSpeech();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: AssistantSpeechSettingsPage(
+          controller: assistant,
+          createVoiceTest: () => AssistantVoiceController(trial),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-speech-mode')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('录音转写服务').last);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.byKey(const Key('assistant-save-settings')),
+          )
+          .onPressed,
+      isNull,
+    );
+    await tester.enterText(
+      find.byKey(const Key('assistant-speech-endpoint')),
+      'https://example.invalid/v1/audio/transcriptions',
+    );
+    await tester.enterText(
+      find.byKey(const Key('assistant-speech-model')),
+      'transcribe-test',
+    );
+    await tester.enterText(
+      find.byKey(const Key('assistant-speech-credential')),
+      'fake-speech-test-key',
+    );
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-save-settings')));
+    await tester.pumpAndSettle();
+    expect(store.speech.model, 'transcribe-test');
+    expect(store.transcriptionCredential, 'fake-speech-test-key');
+    expect(store.credential, 'test-credential');
+    expect(store.persona.name, '保留角色');
+    expect(store.profileId, 'deepseek-chat');
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('assistant-speech-test')),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const Key('assistant-speech-test')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('speech-test-record')));
+    await tester.pump();
+    trial.emit!('独立识别结果');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('speech-test-record')));
+    await tester.pumpAndSettle();
+    expect(find.text('独立识别结果'), findsOneWidget);
+    expect(voice.text, '聊天已有语音草稿');
+    expect(assistant.currentSessionId, isNull);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(trial.cancels, greaterThan(0));
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final width in [320.0, 768.0]) {
+    assistantTest('独立 AI 与语音页在 $width 宽双倍字号可滚动操作', (tester) async {
+      await mount(
+        tester,
+        ScriptedModel([]),
+        width: width,
+        height: 844,
+        textScale: 2,
+      );
+      Widget wrap(Widget home) => MaterialApp(
+        theme: AppTheme.light,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: home,
+      );
+      await tester.pumpWidget(
+        wrap(AssistantModelSettingsPage(controller: assistant)),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('assistant-credential-input')),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('assistant-credential-input')),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(
+        wrap(AssistantSpeechSettingsPage(controller: assistant)),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('assistant-speech-mode')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('录音转写服务').last);
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('assistant-speech-credential')),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('assistant-speech-credential')),
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   assistantTest('角色名称、回答风格和图标可以在设置里修改并保存', (tester) async {
     await mount(tester, ScriptedModel([]), width: 1106);
@@ -769,6 +908,8 @@ void main() {
     await tester.tap(find.byTooltip('助手设置'));
     await tester.pumpAndSettle();
     expect(find.byType(AssistantSettingsPage), findsOneWidget);
+    await tester.tap(find.byKey(const Key('assistant-model-settings-entry')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButtonFormField<String>).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('自定义服务').last);
@@ -829,6 +970,8 @@ void main() {
     await tester.pump();
     expect(send().onPressed, isNull);
     await tester.tap(find.byTooltip('助手设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-model-settings-entry')));
     await tester.pumpAndSettle();
     expect(
       tester

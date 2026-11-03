@@ -285,6 +285,7 @@ void main() {
     await tester.tap(find.byTooltip('我的'));
     await tester.pumpAndSettle();
     await tapKey(tester, 'profile-goal-${goal.id}');
+    await tapKey(tester, 'goal-status-menu');
     await tapKey(tester, 'goal-edit');
     await tester.enterText(
       find.descendant(

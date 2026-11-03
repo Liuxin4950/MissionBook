@@ -1,6 +1,8 @@
 import 'package:mission_book/application/records/record_service.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
 import 'package:mission_book/domain/entities/record_draft.dart';
+import 'package:mission_book/domain/entities/evidence.dart';
+import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
@@ -108,6 +110,21 @@ void main() {
     expect(material['revoked'], isTrue);
     final history = await reader.records(id, 'revoked');
     expect(history['total'], 3);
+    await expectLater(
+      repo.submitEvidence(
+        EvidenceSubmission(
+          id: before.evidence.single.submissionId,
+          missionId: id,
+          items: before.evidence,
+        ),
+      ),
+      throwsA(isA<EvidenceConflict>()),
+    );
+    await records.useAsMaterial('source', id);
+    final resubmitted = (await repo.findDetail(id))!.evidence.single;
+    expect(resubmitted.id, isNot(materialId));
+    expect(resubmitted.content, '原始独立记录');
+    expect((await reader.evidenceContent(materialId))['revoked'], isTrue);
     final deletion = await service.prepareMaintenance(
       action: MissionMaintenanceAction.delete,
       ids: [id],
@@ -165,6 +182,18 @@ void main() {
     expect(archives, hasLength(1));
     expect(archives.single['execution_events'], hasLength(1));
     expect(archives.single['user_execution_reports'], hasLength(1));
+    await service.edit(
+      original: d,
+      title: d.mission.title,
+      objective: d.executionPlan.objective,
+      scheduledDate: '2026-11-05',
+      plannedDurationMinutes: 25,
+      timePolicy: TimePolicy.flexible,
+    );
+    final edited = (await repo.findDetail(id))!;
+    expect(edited.schedule.scheduledDate, '2026-11-05');
+    expect(edited.phase, MissionPhase.notStarted);
+    expect(await service.executionArchives(id), hasLength(1));
     await expectLater(
       repo.execute(
         ExecutionCommand(

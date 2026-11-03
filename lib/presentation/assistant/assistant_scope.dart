@@ -21,6 +21,7 @@ class AssistantScope extends InheritedWidget {
     required this.goals,
     this.backup,
     this.device,
+    this.createVoiceTest,
     required super.child,
   });
 
@@ -30,6 +31,7 @@ class AssistantScope extends InheritedWidget {
   final GoalService goals;
   final BackupExporter? backup;
   final AppDevice? device;
+  final AssistantVoiceController Function()? createVoiceTest;
 
   static AssistantScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<AssistantScope>();
@@ -46,6 +48,7 @@ class AssistantScope extends InheritedWidget {
       voice != oldWidget.voice ||
       backup != oldWidget.backup ||
       device != oldWidget.device ||
+      createVoiceTest != oldWidget.createVoiceTest ||
       missions != oldWidget.missions ||
       goals != oldWidget.goals;
 }

@@ -22,6 +22,7 @@ import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
+import 'package:mission_book/domain/entities/mission_maintenance.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
 import 'package:mission_book/presentation/missions/evidence/mission_evidence_section.dart';
 import 'package:mission_book/presentation/attachments/attachment_image_preview.dart';
@@ -951,6 +952,48 @@ void main() {
     expect(find.byKey(const Key('mission-evidence-workspace')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('撤销执行后同一材料组件接受减少的事实，不再显示已归档内容', (tester) async {
+    final detail = await create(pending: true);
+    await service.submitEvidence(
+      EvidenceSubmission(
+        id: 'before-reset',
+        missionId: detail.mission.id,
+        items: [service.createTextEvidence('只应在撤销历史出现的材料')],
+      ),
+    );
+    final key = GlobalKey<FormalEvidenceSectionState>();
+    Widget view(MissionDetail value) => app(
+      Scaffold(
+        body: SingleChildScrollView(
+          child: FormalEvidenceSection(
+            key: key,
+            detail: value,
+            service: service,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      view((await repository.findDetail(detail.mission.id))!),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('只应在撤销历史出现的材料'), findsOneWidget);
+    final state = key.currentState;
+    final proposal = await service.prepareMaintenance(
+      action: MissionMaintenanceAction.reset,
+      ids: [detail.mission.id],
+    );
+    await service.applyMaintenance(proposal);
+    await tester.pumpWidget(
+      view((await repository.findDetail(detail.mission.id))!),
+    );
+    await tester.pumpAndSettle();
+    expect(key.currentState, same(state));
+    expect(find.text('只应在撤销历史出现的材料'), findsNothing);
+    expect(find.text('任务材料 · 0 份'), findsOneWidget);
+    expect(await service.executionArchives(detail.mission.id), hasLength(1));
+  });
+
   testWidgets('正式文件读取失败后可重试，原材料引用保持不变', (tester) async {
     final detail = await create(pending: true);
     final draft = (await service.pickEvidenceFile(detail.mission.id))!;

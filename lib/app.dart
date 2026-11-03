@@ -352,6 +352,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       builder: (context, child) => MotionSettingsHost(
         settings: _motionSettings,
         child: AssistantScope(
+          createVoiceTest: () => AssistantVoiceController(
+            ConfiguredAssistantSpeech(const SecureAssistantSettingsStore()),
+            operationTimeout: const Duration(seconds: 60),
+          ),
           controller: _assistant,
           voice: _assistantVoice,
           missions: _missionService,

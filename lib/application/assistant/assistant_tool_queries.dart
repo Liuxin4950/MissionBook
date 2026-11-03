@@ -13,7 +13,12 @@ class _AssistantToolQueries {
         result['message'] as String? ?? '读取失败',
       );
     }
-    final text = jsonEncode(result);
+    final text = _tools
+        ._formatOutput(
+          ToolOutput.success(jsonEncode(result)),
+          includeTimeContext: true,
+        )
+        .text;
     if (result['summaryComplete'] != true &&
         _tools._readCharacters + text.length > 64000) {
       return ToolOutput.failure(

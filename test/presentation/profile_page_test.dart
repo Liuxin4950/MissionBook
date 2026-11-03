@@ -313,7 +313,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(shortcut);
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('goal-edit')), findsOneWidget);
+    expect(find.byKey(const Key('goal-status-menu')), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     await goals.setGoalStatus(goal, GoalStatus.paused);

@@ -26,6 +26,7 @@ import 'unified_reader.dart';
 import 'assistant_schedule.dart';
 import 'assistant_goal_outline.dart';
 import 'assistant_operation_result.dart';
+import 'assistant_tool_result.dart';
 import '../missions/mission_service.dart';
 
 part 'assistant_tool_catalog.dart';
@@ -70,6 +71,10 @@ class AssistantTools {
       clock: _clock,
       timeZone: timeZone,
     );
+    _resultFormatter = AssistantToolResultFormatter(
+      clock: _clock,
+      timeZone: timeZone,
+    );
     _tools = _AssistantToolCatalog(this).build(extraTools);
     _toolsByName = {for (final tool in _tools) tool.definition.name: tool};
     if (_toolsByName.length != _tools.length) {
@@ -97,6 +102,11 @@ class AssistantTools {
   late final List<AgentTool> _tools;
   late final Map<String, AgentTool> _toolsByName;
   late final AssistantScheduleService _plans;
+  late final AssistantToolResultFormatter _resultFormatter;
+  ToolOutput _formatOutput(
+    ToolOutput output, {
+    bool includeTimeContext = false,
+  }) => _resultFormatter.format(output, includeTimeContext: includeTimeContext);
 
   List<AgentTool> get tools => List.unmodifiable(_tools);
 
@@ -116,11 +126,14 @@ class AssistantTools {
     required String toolName,
     required String idempotencyKey,
     required Map<String, Object?> input,
-  }) => _execution.recoverOutcome(
-    toolName: toolName,
-    idempotencyKey: idempotencyKey,
-    input: input,
-  );
+  }) async {
+    final result = await _execution.recoverOutcome(
+      toolName: toolName,
+      idempotencyKey: idempotencyKey,
+      input: input,
+    );
+    return result == null ? null : _formatOutput(result);
+  }
 
   Future<List<ScheduleConflict>> previewPlan(PreparedToolCall prepared) =>
       _preparation.previewPlan(prepared);

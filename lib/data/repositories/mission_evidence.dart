@@ -77,7 +77,14 @@ class _MissionEvidence {
       throw const EvidenceConflict('预览后记录内容已变化，请刷新后重新提交');
     }
 
-    final id = 'record:$recordId';
+    var id = 'record:$recordId';
+    if (await _repository.findOperationReceipt('revoked-evidence:$id') !=
+        null) {
+      final current = await _repository.findDetail(missionId);
+      if (current == null) throw const EvidenceConflict('任务不存在，请刷新');
+      // 明确重新选用来源记录属于新一轮提交，旧批次重试仍由墓碑拒绝。
+      id = 'record:$recordId:${current.schedule.id}';
+    }
     return _submitEvidence(
       EvidenceSubmission(
         id: id,

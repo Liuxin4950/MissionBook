@@ -10,7 +10,7 @@ import '../widgets/adaptive_sheet.dart';
 import '../widgets/app_section_card.dart';
 import '../widgets/app_section_header.dart';
 import '../widgets/app_settings_row.dart';
-import '../widgets/data_export_card.dart';
+import 'data_backup_page.dart';
 import '../assistant/assistant_scope.dart';
 import '../assistant/assistant_settings_page.dart';
 
@@ -595,8 +595,18 @@ class _SettingsPageState extends State<SettingsPage>
 
   Widget _buildBackupSection(BuildContext context) => _section(
     '数据',
-    card: false,
-    child: DataExportCard(backup: widget.backup, device: widget.device),
+    child: AppSettingsRow(
+      key: const Key('settings-backup-entry'),
+      icon: Icons.archive_outlined,
+      title: '数据备份',
+      subtitle: '导出任务、记录、附件与助手会话',
+      onTap: () => Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) =>
+              DataBackupPage(backup: widget.backup, device: widget.device),
+        ),
+      ),
+    ),
   );
 
   Widget _buildAboutSection(BuildContext context) {

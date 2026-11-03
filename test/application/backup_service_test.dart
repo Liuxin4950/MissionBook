@@ -10,6 +10,9 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
+import 'package:mission_book/domain/entities/mission_maintenance.dart';
+import 'package:mission_book/domain/entities/user_execution_report.dart';
+import 'package:mission_book/domain/entities/execution_event.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -152,6 +155,62 @@ void main() {
           )
           .get();
       expect(targetSchema.map((r) => r.data), sourceSchema.map((r) => r.data));
+    } finally {
+      await restored.close();
+    }
+  });
+
+  test('撤销后仅由执行归档引用的原图仍随完整备份导出并可还原', () async {
+    final detail = (await missions.findAllDetails()).single;
+    final repository = DriftMissionRepository(db);
+    await repository.reportExecution(
+      UserExecutionReport(
+        id: 'report-archive',
+        missionId: detail.mission.id,
+        occurrenceDate: '2026-10-25',
+        timeZoneId: 'Asia/Shanghai',
+        basis: '误标已完成',
+      ),
+      expectedSequence: detail.lastSequence,
+      scheduleId: detail.schedule.id,
+      result: UserReportedResult.completed,
+    );
+    final proposal = await missions.prepareMaintenance(
+      action: MissionMaintenanceAction.reset,
+      ids: [detail.mission.id],
+    );
+    await missions.applyMaintenance(proposal);
+    expect(await db.select(db.evidenceRecords).get(), isEmpty);
+    expect(await db.select(db.records).get(), isEmpty);
+    final zip = ZipDecoder().decodeBytes(
+      await DatabaseBackupService(
+        database: db,
+        readAttachment: (key) async {
+          expect(key, imageKey);
+          return Uint8List.fromList([7, 8, 9]);
+        },
+      ).create(),
+    );
+    expect(zip.findFile(imageKey)!.content, [7, 8, 9]);
+    final sql = utf8.decode(zip.findFile('database.sql')!.content as List<int>);
+    final restored = AppDatabase(
+      executor: NativeDatabase.memory(setup: (raw) => raw.execute(sql)),
+    );
+    try {
+      final keys = await DriftMissionRepository(
+        restored,
+      ).referencedAttachmentKeys();
+      expect(keys, {imageKey});
+      expect(
+        await DriftMissionRepository(
+          restored,
+        ).executionArchives(detail.mission.id),
+        hasLength(1),
+      );
+      expect(
+        await restored.customSelect('PRAGMA foreign_key_check').get(),
+        isEmpty,
+      );
     } finally {
       await restored.close();
     }

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../application/backup/backup_service.dart';
 import '../local/app_database.dart';
+import '../repositories/drift_mission_repository.dart';
 
 /// 在同一只读事务内提取完整数据库与正式附件，生成可独立还原的 SQLite SQL 快照归档。
 class DatabaseBackupService implements BackupExporter {
@@ -98,13 +99,10 @@ class DatabaseBackupService implements BackupExporter {
           }),
         ),
       );
-      final references = await database
-          .customSelect(
-            'SELECT attachment_storage_key k FROM records WHERE attachment_storage_key IS NOT NULL UNION SELECT attachment_storage_key FROM evidence_records WHERE attachment_storage_key IS NOT NULL',
-          )
-          .get();
-      for (final row in references) {
-        final key = row.read<String>('k');
+      final references = await DriftMissionRepository(
+        database,
+      ).referencedAttachmentKeys();
+      for (final key in references) {
         result[key] = await readAttachment(key);
       }
       result['manifest.json'] = Uint8List.fromList(

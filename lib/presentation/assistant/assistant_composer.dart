@@ -556,15 +556,19 @@ class _AssistantComposer {
                 onCancel: () => Navigator.pop(cameraContext),
                 onChooseFile: () async {
                   try {
-                  final file = await pickAssistantAttachment(
-                    image: true,
-                    onOversizedImage: _compressImage,
-                  );
-                  if (cameraContext.mounted && file != null) {
-                    Navigator.pop(cameraContext, file);
-                  }
+                    final file = await pickAssistantAttachment(
+                      image: true,
+                      onOversizedImage: _compressImage,
+                    );
+                    if (cameraContext.mounted && file != null) {
+                      Navigator.pop(cameraContext, file);
+                    }
                   } catch (error) {
-                    if (mounted) _showNotice(userErrorMessage(error, fallback: '图片未能加入，请重新选择'));
+                    if (mounted) {
+                      _showNotice(
+                        userErrorMessage(error, fallback: '图片未能加入，请重新选择'),
+                      );
+                    }
                   }
                 },
                 onConfirmed: (bytes, capturedAt) async {

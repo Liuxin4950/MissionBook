@@ -55,6 +55,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
   bool _confirming = false;
   bool _allowPop = false;
   bool _attachmentsReady = false;
+  bool _preparingAttachments = false;
   String? _attachmentError;
   String? _error;
   String? _receipt;
@@ -85,9 +86,18 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
     super.didUpdateWidget(oldWidget);
     // 撤销执行后材料会移入历史，最新事实也可能比旧快照少。
     _detail = widget.detail;
+    if (!_attachmentsReady &&
+        _attachmentError == null &&
+        _detail.effectiveEvidence.any(
+          (item) => item.attachmentStorageKey != null,
+        )) {
+      unawaited(_prepareAttachments());
+    }
   }
 
   Future<void> _prepareAttachments() async {
+    if (_preparingAttachments) return;
+    _preparingAttachments = true;
     try {
       await widget.service.initializeEvidenceImages();
       if (mounted) setState(() => _attachmentsReady = true);
@@ -100,6 +110,8 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
           ),
         );
       }
+    } finally {
+      _preparingAttachments = false;
     }
   }
 

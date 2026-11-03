@@ -91,6 +91,9 @@ void main() {
   testWidgets('导出等待阻止重复操作，取消不显示成功，失败后可以重试保存', (tester) async {
     backup.pending = Completer<Uint8List>();
     await open(tester);
+    await tester.ensureVisible(find.byKey(const Key('settings-backup-entry')));
+    await tester.tap(find.byKey(const Key('settings-backup-entry')));
+    await tester.pumpAndSettle();
     final export = find.byKey(const Key('backup-export'));
     await tester.ensureVisible(export);
     await tester.pumpAndSettle();
@@ -267,6 +270,9 @@ void main() {
 
     await open(tester, reduceMotion: true);
     expect(find.text('不含 API Key 与未发送草稿；暂不支持恢复。'), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('settings-backup-entry')));
+    await tester.tap(find.byKey(const Key('settings-backup-entry')));
+    await tester.pumpAndSettle();
     final info = find.byKey(const Key('backup-info'));
     await tester.scrollUntilVisible(
       info,
@@ -283,6 +289,8 @@ void main() {
     await tester.tap(find.byKey(const Key('backup-info-close')));
     await tester.pumpAndSettle();
     expect(find.text('本地备份说明'), findsNothing);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
     final about = find.byKey(const Key('about-toggle'));
     await tester.scrollUntilVisible(
       about,

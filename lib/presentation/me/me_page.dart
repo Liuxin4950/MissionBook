@@ -336,7 +336,7 @@ class _ProfileCard extends StatelessWidget {
                 if (profile?.bio.isNotEmpty == true)
                   Padding(
                     padding: const EdgeInsets.only(top: AppLayout.spaceMd),
-                    child: Text(profile!.bio, style: text.bodyMedium),
+                    child: Text(profile!.bio, style: text.bodyLarge),
                   ),
                 if (error != null) ...[
                   Text(
@@ -373,7 +373,7 @@ class _RecentRecords extends StatelessWidget {
             ListTile(
               key: ValueKey('profile-record-${record.mission.id}'),
               contentPadding: EdgeInsets.zero,
-              title: Text(record.mission.title, style: text.bodyLarge),
+              title: Text(record.mission.title, style: text.titleSmall),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => onOpen(record),
             ),
@@ -440,7 +440,10 @@ class _ActivityOverview extends StatelessWidget {
             ],
           ),
 
-          Text('用户自报时长 $reportedMinutes 分钟 · 与应用计时分别统计，不相加'),
+          Text(
+            '用户自报时长 $reportedMinutes 分钟 · 与应用计时分别统计，不相加',
+            style: text.bodyMedium,
+          ),
           if (goals.isNotEmpty) ...[
             const SizedBox(height: AppLayout.spaceXl),
             const Divider(height: 1),
@@ -455,7 +458,7 @@ class _ActivityOverview extends StatelessWidget {
               ListTile(
                 key: ValueKey('profile-goal-${goal.id}'),
                 contentPadding: EdgeInsets.zero,
-                title: Text(goal.title, style: text.bodyLarge),
+                title: Text(goal.title, style: text.titleSmall),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => onOpenGoal(goal),
               ),
@@ -519,7 +522,7 @@ class _ActivityStat extends StatelessWidget {
           Text(
             value == null ? '—' : '$value $unit',
             key: ValueKey('profile-stat-$label'),
-            style: text.titleLarge,
+            style: text.titleMedium,
           ),
         ],
       ),
