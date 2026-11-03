@@ -15,3 +15,4 @@ export 'src/models/deepseek_files.dart';
 export 'src/context/context_compactor.dart';
 export 'src/sessions/agent_runtime.dart';
 export 'src/sessions/session_store.dart' hide validateSessionId;
+export 'src/sessions/session_usage.dart';

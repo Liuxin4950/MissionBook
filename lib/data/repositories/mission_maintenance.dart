@@ -55,7 +55,11 @@ class _MissionMaintenance {
         ? await owner.findAllDetails()
         : await owner.findDetailsByIds(ids);
     if (ids != null && all.length != ids.length) {
-      throw const MissionEditConflict('有任务已删除，请刷新');
+      final found = {for (final d in all) d.mission.id};
+      final missing = ids.where((id) => !found.contains(id)).toList();
+      throw MissionEditConflict(
+        '有任务不存在或已删除：${missing.take(20).join('、')}${missing.length > 20 ? ' 等' : ''}，请刷新',
+      );
     }
     final items =
         all
@@ -69,11 +73,15 @@ class _MissionMaintenance {
             .toList()
           ..sort((a, b) => a.mission.id.compareTo(b.mission.id));
     if (items.length > 10000) throw ArgumentError('单次操作最多 10000 项，请缩小范围');
-    if (action == MissionMaintenanceAction.reset &&
-        items.any(
-          (d) => !d.events.any((e) => e.type == ExecutionEventType.end),
-        )) {
-      throw ArgumentError('只有已结束任务可以撤销执行');
+    if (action == MissionMaintenanceAction.reset) {
+      final unfinished = items
+          .where((d) => !d.events.any((e) => e.type == ExecutionEventType.end))
+          .toList();
+      if (unfinished.isNotEmpty) {
+        throw ArgumentError(
+          '只有已结束任务可以撤销执行；以下任务尚未结束：${unfinished.take(20).map((d) => '${d.mission.id}（${d.mission.title}）').join('、')}${unfinished.length > 20 ? ' 等' : ''}',
+        );
+      }
     }
     final state = [for (final item in items) await snapshot(item.mission.id)];
     final fingerprint = sha256

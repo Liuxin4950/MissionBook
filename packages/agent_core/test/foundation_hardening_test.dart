@@ -43,7 +43,7 @@ void main() {
     expect(switched['messages'], hasLength(1)); // 不把别的模型思考变成空消息。
   });
 
-  test('两协议的输入用量统一为含缓存的总量，缓存不重复计入', () {
+  test('两协议的输入用量统一为含缓存的总量，缓存桶分开保存', () {
     final messages = decodeUsage(ModelProtocol.messages, {
       'input_tokens': 185,
       'cache_read_input_tokens': 4224,
@@ -57,16 +57,43 @@ void main() {
     });
     expect(messages.inputTokens, 4421);
     expect(messages.cachedInputTokens, 4224);
-    expect(chat.toJson(), messages.toJson());
+    expect(messages.cacheWriteTokens, 12);
+    expect(messages.cacheReported, isTrue);
+    expect(chat.inputTokens, 4421);
+    expect(chat.cachedInputTokens, 4224);
+    expect(chat.cacheWriteTokens, 0);
+    expect(chat.cacheReported, isTrue);
+    expect(chat.totalTokens, 4422);
+    expect(messages.totalTokens, 4422);
     expect((chat + messages).inputTokens, 8842);
-    expect(
-      decodeUsage(ModelProtocol.chatCompletions, {
-        'prompt_tokens': 100,
-        'prompt_cache_hit_tokens': 80,
-        'prompt_tokens_details': {'cached_tokens': 80},
-      }).cachedInputTokens,
-      80,
-    );
+    expect((chat + messages).cachedInputTokens, 8448);
+    expect((chat + messages).cacheWriteTokens, 12);
+    final hit = decodeUsage(ModelProtocol.chatCompletions, {
+      'prompt_tokens': 100,
+      'prompt_cache_hit_tokens': 80,
+      'prompt_tokens_details': {'cached_tokens': 80},
+    });
+    expect(hit.cachedInputTokens, 80);
+    expect(hit.cacheReported, isTrue);
+    expect(hit.cacheHitRate, .8);
+  });
+
+  test('缓存未报告与推理 token 不能冒充为零', () {
+    final usage = decodeUsage(ModelProtocol.chatCompletions, {
+      'prompt_tokens': 100,
+      'completion_tokens': 10,
+      'completion_tokens_details': {'reasoning_tokens': 4},
+    });
+    expect(usage.cacheReported, isFalse);
+    expect(usage.cacheHitRate, isNull);
+    expect(usage.reasoningTokens, 4);
+    expect(usage.reasoningReported, isTrue);
+    final unknown = decodeUsage(ModelProtocol.chatCompletions, {
+      'prompt_tokens': 100,
+      'completion_tokens': 10,
+    });
+    expect(unknown.cacheReported, isFalse);
+    expect(unknown.reasoningReported, isFalse);
   });
 
   test('只返回思考时保存原文和用量，重开后可以继续生成正文', () async {

@@ -20,6 +20,7 @@ import '../tool.dart';
 import 'message_codec.dart';
 import 'session_state.dart';
 import 'session_store.dart';
+import 'session_usage.dart';
 
 /// 组合模型、工具和存储，管理多个独立会话；不依赖 Flutter 或业务数据库。
 final class AgentRuntime {
@@ -226,6 +227,7 @@ final class AgentSession {
   Map<String, ToolOutput> get resolvedOutcomes => _state.resolvedOutcomes;
   List<AgentMessage> get transcript => _state.transcript;
   List<AgentMessage> get contextMessages => _state.contextMessages;
+  SessionUsage get sessionUsage => _state.sessionUsage;
   int get recordCount => _handle.recordCount;
   Future<List<SessionRecord>> readRecords({int start = 0, int? limit}) =>
       _handle.readRecords(start: start, limit: limit);

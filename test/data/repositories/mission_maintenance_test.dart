@@ -57,6 +57,36 @@ void main() {
     );
   }
 
+  test('批量维护失败指出具体任务编号', () async {
+    await expectLater(
+      service.prepareMaintenance(
+        action: MissionMaintenanceAction.delete,
+        ids: ['missing-task'],
+      ),
+      throwsA(
+        isA<MissionEditConflict>().having(
+          (error) => error.message,
+          'message',
+          contains('missing-task'),
+        ),
+      ),
+    );
+    final pending = await seed('未结束');
+    await expectLater(
+      service.prepareMaintenance(
+        action: MissionMaintenanceAction.reset,
+        ids: [pending],
+      ),
+      throwsA(
+        isA<ArgumentError>().having(
+          (error) => error.message,
+          'message',
+          contains(pending),
+        ),
+      ),
+    );
+  });
+
   test('物理删除整个历史范围，保留今天任务，重复提交返回同一回执', () async {
     final a = await seed('历史一');
     final b = await seed('历史二');
@@ -222,6 +252,7 @@ void main() {
     expect(summary['countsByPhase'], {'notStarted': 23});
     expect(summary['summaryComplete'], isTrue);
     expect(summary['items'], isEmpty);
+    expect(summary['hint'], contains('items 固定为空'));
     final page = await reader.getMission(
       beforeDate: '2026-11-03',
       phase: 'notStarted',

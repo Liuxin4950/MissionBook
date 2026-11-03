@@ -99,26 +99,27 @@ class AssistantScheduleService {
     final missions = <String>{};
     for (final item in items) {
       final id = item['itemId'] as String;
+      String at(String message) => '条目“$id”：$message';
       if (!RegExp(r'^[a-zA-Z0-9_-]{1,64}$').hasMatch(id) || !ids.add(id)) {
-        return '条目编号必须唯一，使用 1–64 位字母、数字、短横线或下划线';
+        return '条目编号“$id”无效或重复，使用 1–64 位字母、数字、短横线或下划线';
       }
       try {
         validateScheduledDate(item['scheduledDate'] as String);
       } on ArgumentError {
-        return '“${item['title'] ?? id}”的日期无效';
+        return at('日期“${item['scheduledDate']}”无效');
       }
       if (item['kind'] == 'CREATE') {
         if ((item['title'] as String? ?? '').trim().isEmpty ||
             item['plannedMinutes'] == null) {
-          return '新任务需要名称和计划分钟数';
+          return at('新任务需要名称和计划分钟数');
         }
-        if (item['missionId'] != null) return '新任务不能指定已有任务编号';
+        if (item['missionId'] != null) return at('新任务不能指定已有任务编号');
       } else {
         final missionId = item['missionId'] as String?;
         if (missionId == null ||
             missionId.trim().isEmpty ||
             !missions.add(missionId)) {
-          return '改期需要真实任务编号，同一任务不能重复出现';
+          return at('改期需要真实任务编号，同一任务不能重复出现');
         }
         for (final field in [
           'objective',
@@ -129,20 +130,22 @@ class AssistantScheduleService {
           'goalId',
           'goalNodeId',
         ]) {
-          if (item.containsKey(field)) return '批量改期只修改日期、时长和时间方式，请另用任务编辑修改内容';
+          if (item.containsKey(field)) {
+            return at('批量改期只修改日期、时长和时间方式，请另用任务编辑修改内容');
+          }
         }
       }
       if (item['timePolicy'] == 'FIXED' && item['fixedStartLocal'] == null) {
-        return '固定安排需要填写开始时间';
+        return at('固定安排需要填写开始时间');
       }
       final time = item['fixedStartLocal'];
       if (time != null &&
           !RegExp(r'^(?:[01]\d|2[0-3]):[0-5]\d$').hasMatch(time as String)) {
-        return '开始时间请使用 HH:mm，例如 09:30';
+        return at('开始时间请使用 HH:mm，例如 09:30');
       }
       if (item['objective'] is String &&
           (item['objective'] as String).trim().isEmpty) {
-        return '具体目标不能为空';
+        return at('具体目标不能为空');
       }
     }
     return null;
@@ -164,9 +167,15 @@ class AssistantScheduleService {
     for (final item in items) {
       if (item['kind'] == 'RESCHEDULE') {
         final detail = byId[item['missionId']];
-        if (detail == null) throw ArgumentError('计划中的任务已不存在');
+        if (detail == null) {
+          throw ArgumentError(
+            '条目“${item['itemId']}”引用的任务 ${item['missionId']} 已不存在，请重新查询',
+          );
+        }
         if (detail.events.isNotEmpty || detail.mission.cancelledAt != null) {
-          throw ArgumentError('“${detail.mission.title}”已经开始或取消，不能改期');
+          throw ArgumentError(
+            '条目“${item['itemId']}”（${detail.mission.title}）已经开始或取消，不能改期',
+          );
         }
         originals[item['itemId'] as String] = detail;
         item['title'] = detail.mission.title;
@@ -239,35 +248,39 @@ class AssistantScheduleService {
         time[1],
       );
       if (local.hour != time[0] || local.minute != time[1]) {
-        throw ArgumentError('该时区的开始时间不存在，请调整时间');
+        throw ArgumentError('条目“$id”的开始时间在该时区不存在，请调整时间');
       }
       start = local.toUtc();
     }
     if (item['kind'] == 'CREATE') {
-      return ScheduleProposalItem.create(
-        id: id,
-        value: _missions.prepareCreation(
-          title: item['title'] as String,
-          scheduledDate: date,
-          timeZone: zone,
-          plannedDurationMinutes: item['plannedMinutes'] as int,
-          timePolicy: policy,
-          fixedStartAt: start,
-          objective: item['objective'] as String?,
-          steps: (item['steps'] as List?)?.cast<String>(),
-          notes: item['notes'] as String?,
-          ownership: MissionOwnership(
-            goalId: item['goalId'] as String?,
-            goalNodeId: item['goalNodeId'] as String?,
+      try {
+        return ScheduleProposalItem.create(
+          id: id,
+          value: _missions.prepareCreation(
+            title: item['title'] as String,
+            scheduledDate: date,
+            timeZone: zone,
+            plannedDurationMinutes: item['plannedMinutes'] as int,
+            timePolicy: policy,
+            fixedStartAt: start,
+            objective: item['objective'] as String?,
+            steps: (item['steps'] as List?)?.cast<String>(),
+            notes: item['notes'] as String?,
+            ownership: MissionOwnership(
+              goalId: item['goalId'] as String?,
+              goalNodeId: item['goalNodeId'] as String?,
+            ),
+            description: item['description'] as String?,
+            why: item['why'] as String?,
+            requestId: '$operationId:$id',
           ),
-          description: item['description'] as String?,
-          why: item['why'] as String?,
-          requestId: '$operationId:$id',
-        ),
-      );
+        );
+      } on ArgumentError catch (error) {
+        throw ArgumentError('条目“$id”：${error.message}');
+      }
     }
     if (original == null || original.mission.id != item['missionId']) {
-      throw ArgumentError('计划条目与原任务不一致，请重新提出');
+      throw ArgumentError('条目“$id”与原任务不一致，请重新提出');
     }
     return ScheduleProposalItem.reschedule(
       id: id,

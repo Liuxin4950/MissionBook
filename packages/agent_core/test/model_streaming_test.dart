@@ -333,6 +333,122 @@ void main() {
     );
     client.close();
   });
+
+  test('多步与后续轮次保持追加式前缀，工具说明不重排', () async {
+    final requests = <http.Request>[];
+    final client = MockClient((request) async {
+      requests.add(request);
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      final messages = body['messages'] as List<dynamic>;
+      final hasToolResult = messages.any(
+        (message) => (message as Map<String, dynamic>)['role'] == 'tool',
+      );
+      final payload = hasToolResult
+          ? {
+              'model': 'test-model',
+              'choices': [
+                {
+                  'finish_reason': 'stop',
+                  'message': {
+                    'role': 'assistant',
+                    'content': 'azure-falcon-42',
+                  },
+                },
+              ],
+              'usage': {
+                'prompt_tokens': 150,
+                'completion_tokens': 8,
+                'prompt_cache_hit_tokens': 120,
+              },
+            }
+          : {
+              'model': 'test-model',
+              'choices': [
+                {
+                  'finish_reason': 'tool_calls',
+                  'message': {
+                    'role': 'assistant',
+                    'content': null,
+                    'tool_calls': [
+                      {
+                        'id': 'lookup-1',
+                        'type': 'function',
+                        'function': {
+                          'name': 'lookup',
+                          'arguments': '{"key":"deploy-color"}',
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+              'usage': {
+                'prompt_tokens': 100,
+                'completion_tokens': 10,
+                'prompt_cache_hit_tokens': 0,
+              },
+            };
+      return http.Response(
+        jsonEncode(payload),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    });
+    addTearDown(client.close);
+    final model = HttpAgentModel(
+      profile: testProfile(
+        'chat',
+        stream: false,
+        protocol: ModelProtocol.chatCompletions,
+      ),
+      credentials: (_) => 'test-key',
+      client: client,
+    );
+    final lookup = AgentTool(
+      definition: ToolDefinition(
+        name: 'lookup',
+        description: 'Look up a value.',
+        inputSchema: {
+          'type': 'object',
+          'properties': {
+            'key': {'type': 'string'},
+          },
+          'required': ['key'],
+          'additionalProperties': false,
+        },
+      ),
+      execute: (input, context) => ToolOutput.success('azure-falcon-42'),
+    );
+    final loop = AgentLoop(
+      model: model,
+      systemPrompt:
+          'You are a cache test assistant. Follow the instructions exactly and use the lookup tool.',
+      tools: [lookup],
+      retry: RetryPolicy(maxRetries: 0),
+      authorize: (tool, call, token) => const ToolDecision.allow(),
+    );
+    addTearDown(loop.close);
+    final first = await loop.run(input: 'Use lookup with key deploy-color.');
+    expect(first.reason, AgentStopReason.completed);
+    final second = await loop.run(
+      input: 'Repeat the value.',
+      history: first.messages,
+      contextHistory: first.contextMessages,
+    );
+    expect(second.reason, AgentStopReason.completed);
+    expect(requests, hasLength(3));
+    final bodies = [
+      for (final request in requests)
+        jsonDecode(request.body) as Map<String, dynamic>,
+    ];
+    final messages = [
+      for (final body in bodies) body['messages'] as List<dynamic>,
+    ];
+    expect(messages[1].take(messages[0].length).toList(), equals(messages[0]));
+    expect(messages[2].take(messages[1].length).toList(), equals(messages[1]));
+    expect(bodies[1]['tools'], equals(bodies[0]['tools']));
+    expect(bodies[2]['tools'], equals(bodies[0]['tools']));
+  });
 }
 
 HttpAgentModel _httpModel(

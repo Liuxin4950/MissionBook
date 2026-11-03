@@ -1,3 +1,4 @@
+import 'package:agent_core/agent_core.dart';
 import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -682,6 +683,49 @@ void main() {
         1.0,
       ),
     );
+  });
+
+  assistantTest('上下文提示显示会话实际用量与正文缓存命中率', (tester) async {
+    await mount(
+      tester,
+      ScriptedModel([
+        (_) => textResponse(
+          '带用量的回复',
+          usage: const TokenUsage(
+            inputTokens: 100,
+            outputTokens: 20,
+            cachedInputTokens: 60,
+            cacheReported: true,
+          ),
+        ),
+      ]),
+    );
+    await tester.longPress(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('assistant-input')), '记录实际用量');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('assistant-send')));
+    await pumpUntil(
+      tester,
+      () => !assistant.isRunning && assistant.transcript.isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    final indicator = find.byKey(const Key('assistant-context-usage'));
+    final tooltip = tester.widget<Tooltip>(
+      find.ancestor(of: indicator, matching: find.byType(Tooltip)).first,
+    );
+    expect(tooltip.message, contains('会话累计（含摘要与重试）：输入 100 / 输出 20 tokens'));
+    expect(tooltip.message, contains('正文缓存命中率：60.0%（缓存 60 / 输入 100）'));
+    expect(tooltip.message, contains('最近一次正文请求实际输入：100 tokens'));
+    expect(tooltip.message, contains('最近一次正文请求实际输入：100 tokens，其中缓存 60'));
+    expect(assistant.sessionUsage.cacheHitRate, .6);
+    expect(tester.takeException(), isNull);
   });
 
   assistantTest('文字在独立二级路由引用当前任务，返回保留原页面草稿和展开', (tester) async {

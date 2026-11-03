@@ -455,28 +455,73 @@ TokenUsage decodeUsage(ModelProtocol protocol, Object? value) {
     return number;
   }
 
+  int? optionalCount(Object? raw, String name) {
+    if (raw == null) return null;
+    if (raw is! int || raw < 0) {
+      throw FormatException('无效$name token 使用量');
+    }
+    return raw;
+  }
+
+  int reasoningFrom(Object? details, {String key = 'reasoning_tokens'}) {
+    final raw = details is Map<String, Object?> ? details[key] : null;
+    return optionalCount(raw, '推理') ?? 0;
+  }
+
   if (protocol == ModelProtocol.messages) {
+    final input = count('input_tokens');
+    final cacheReadRaw = optionalCount(json['cache_read_input_tokens'], '缓存读取');
+    final cacheWriteRaw = optionalCount(
+      json['cache_creation_input_tokens'],
+      '缓存写入',
+    );
+    final cacheRead = cacheReadRaw ?? 0;
+    final cacheWrite = cacheWriteRaw ?? 0;
+    final output = count('output_tokens');
+    final outputDetails = json['output_tokens_details'];
+    final reasoning = reasoningFrom(outputDetails);
+    if (reasoning > output) throw const FormatException('推理 token 超过输出');
     return TokenUsage(
       // Messages 把普通输入、缓存写入、缓存命中分别报告；三者才是完整输入。
-      inputTokens:
-          count('input_tokens') +
-          count('cache_creation_input_tokens') +
-          count('cache_read_input_tokens'),
-      outputTokens: count('output_tokens'),
-      cachedInputTokens: count('cache_read_input_tokens'),
+      inputTokens: input + cacheRead + cacheWrite,
+      outputTokens: output,
+      cachedInputTokens: cacheRead,
+      cacheWriteTokens: cacheWrite,
+      reasoningTokens: reasoning,
+      cacheReported: cacheReadRaw != null || cacheWriteRaw != null,
+      reasoningReported:
+          outputDetails is Map<String, Object?> &&
+          outputDetails.containsKey('reasoning_tokens'),
     );
   }
-  final details = json['prompt_tokens_details'];
-  final cached =
-      json['prompt_cache_hit_tokens'] ??
-      (details == null ? null : readObject(details)['cached_tokens']) ??
-      0;
-  if (cached is! int || cached < 0) {
-    throw const FormatException('无效缓存 token 使用量');
-  }
+  final prompt = count('prompt_tokens');
+  final promptDetails = json['prompt_tokens_details'];
+  final cachedRaw = optionalCount(
+    json['prompt_cache_hit_tokens'] ??
+        (promptDetails is Map<String, Object?>
+            ? promptDetails['cached_tokens']
+            : null),
+    '缓存命中',
+  );
+  final cached = cachedRaw ?? 0;
+  if (cached > prompt) throw const FormatException('缓存 token 超过输入');
+  final output = count('completion_tokens');
+  final completionDetails = json['completion_tokens_details'];
+  final reasoningRaw = optionalCount(
+    (completionDetails is Map<String, Object?>
+            ? completionDetails['reasoning_tokens']
+            : null) ??
+        json['reasoning_tokens'],
+    '推理',
+  );
+  final reasoning = reasoningRaw ?? 0;
+  if (reasoning > output) throw const FormatException('推理 token 超过输出');
   return TokenUsage(
-    inputTokens: count('prompt_tokens'),
-    outputTokens: count('completion_tokens'),
+    inputTokens: prompt,
+    outputTokens: output,
     cachedInputTokens: cached,
+    reasoningTokens: reasoning,
+    cacheReported: cachedRaw != null,
+    reasoningReported: reasoningRaw != null,
   );
 }

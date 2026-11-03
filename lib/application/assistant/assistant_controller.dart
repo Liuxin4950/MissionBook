@@ -458,6 +458,8 @@ class AssistantController extends ChangeNotifier {
       List.unmodifiable(_conversations);
   List<AgentMessage> get transcript => List.unmodifiable(_transcript);
   SessionActivity get activity => _activity;
+  SessionUsage get sessionUsage =>
+      _session?.sessionUsage ?? const SessionUsage();
   List<AssistantOperation> get operations =>
       List.unmodifiable(_operations.values);
   bool get needsOutcomeResolution => _session?.needsOutcomeResolution ?? false;

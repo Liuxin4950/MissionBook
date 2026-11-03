@@ -93,13 +93,17 @@ class ScriptedModel implements AgentModel {
   }
 }
 
-ModelResponse textResponse(String text) => ModelResponse(
+ModelResponse textResponse(
+  String text, {
+  TokenUsage usage = const TokenUsage(),
+}) => ModelResponse(
   message: AssistantMessage(
     content: [TextBlock(text: text)],
     provider: 'test',
     model: 'scripted',
   ),
   stopReason: ModelStopReason.completed,
+  usage: usage,
 );
 
 ModelResponse toolResponse(

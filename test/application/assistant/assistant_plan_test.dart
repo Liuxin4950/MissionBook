@@ -93,6 +93,47 @@ void main() {
     throw StateError('等待计划预览超时');
   }
 
+  test('计划校验和任务缺失都指出具体条目编号', () async {
+    expect(
+      AssistantScheduleService.validate({
+        'title': '安排',
+        'items': [
+          createRow('ok'),
+          {
+            'itemId': 'bad-time',
+            'kind': 'CREATE',
+            'title': '坏时间',
+            'scheduledDate': '2026-10-29',
+            'plannedMinutes': 30,
+            'fixedStartLocal': '25:00',
+          },
+        ],
+      }),
+      contains('bad-time'),
+    );
+    await expectLater(
+      plans.prepare({
+        'title': '安排',
+        'items': [
+          {
+            'itemId': 'move-missing',
+            'kind': 'RESCHEDULE',
+            'missionId': 'missing-mission',
+            'scheduledDate': '2026-10-30',
+            'plannedMinutes': 30,
+          },
+        ],
+      }),
+      throwsA(
+        isA<ArgumentError>().having(
+          (error) => error.message,
+          'message',
+          allOf(contains('move-missing'), contains('missing-mission')),
+        ),
+      ),
+    );
+  });
+
   test('新建与改期整批保存，固定回执使重复提交不新增任务或版本', () async {
     final original = await seed('原有任务');
     final plan = await build([

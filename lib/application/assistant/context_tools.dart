@@ -68,11 +68,12 @@ List<AgentTool> contextTools({
       const Uuid().v5(Namespace.url.value, c.idempotencyKey);
   void explicitBasis(String basis, {bool memoryBasis = false}) {
     if (basis.trim().isEmpty || !userStatement().contains(basis.trim())) {
+      final shown = basis.length > 200 ? '${basis.substring(0, 200)}…' : basis;
       throw ToolRejected(
         memoryBasis ? 'memory_basis_invalid' : 'user_basis_required',
         memoryBasis
-            ? '记忆未保存：basis 必须逐字引用本轮用户消息中的连续原文，保留原换行和标点；不能拼接、省略或改写。content 可概括，basis 请重新复制对应原话后重试。'
-            : '报告未保存：basis 必须逐字引用本轮用户明确说明完成结果或实际时段的连续原文，不能拼接或改写。',
+            ? '记忆未保存：basis 必须逐字引用当前用户消息（本轮最后一条用户消息，不含此前对话）中的连续原文，保留原换行和标点；不能拼接、省略或改写。收到的 basis 是 ${jsonEncode(shown)}。content 可概括，请重新复制当前用户消息中的原话后重试。'
+            : '报告未保存：basis 必须逐字引用当前用户明确说明完成结果或实际时段的连续原文，不能拼接或改写。收到的 basis 是 ${jsonEncode(shown)}。',
       );
     }
   }
@@ -386,7 +387,7 @@ List<AgentTool> contextTools({
     ),
     tool(
       'saveMemory',
-      '保存有用户原话来源的稳定偏好、事实或有期限的约束；不保存推断、闲聊过程和任务进度。同 conflictKey 命中时更新原条目而不是新增。',
+      '保存有用户原话来源的稳定偏好、事实或有期限的约束；不保存推断、闲聊过程和任务进度。一次只保存一条，多条记录需要逐条调用。同 conflictKey 命中时更新原条目而不是新增。',
       {
         'id': s('修改已有条目时使用稳定ID'),
         'content': s('记忆正文'),

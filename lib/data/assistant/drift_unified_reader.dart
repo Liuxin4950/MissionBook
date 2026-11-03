@@ -369,7 +369,9 @@ class DriftUnifiedReader implements UnifiedReader {
         'offset': offset,
         'nextOffset': !summaryOnly && next < selected.length ? next : null,
         'truncated': !summaryOnly && next < selected.length,
-        'hint': 'total 和 countsByPhase 覆盖完整筛选范围，items 仅为本页；阶段由完整任务事实派生。',
+        'hint': summaryOnly
+            ? 'summaryOnly 只返回完整范围统计，items 固定为空；请用 total 和 countsByPhase 判断数量，不要用 items.length。'
+            : 'total 和 countsByPhase 覆盖完整筛选范围，items 仅为本页；阶段由完整任务事实派生。',
       };
     }
     if (mission == null) {

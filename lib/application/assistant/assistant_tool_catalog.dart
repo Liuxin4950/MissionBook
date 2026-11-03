@@ -8,7 +8,7 @@ class _AssistantToolCatalog {
     final catalog = [
       AssistantTools._tool(
         'manageMissions',
-        '按明确编号或目标、截止日期、阶段统一批量取消或物理删除任务，最多10000项。delete 永久删除任务及其执行/材料，独立来源记录和聊天保留，不能恢复；cancel 只处理未开始任务并报告跳过数量；reset 仅撤销误标的已结束任务，把原执行和材料归档，追加自选排期回到未开始，可随后 updateMission/planMissions 改期。必须来自用户明确意图，不能用补记完成替代删除。宿主固定完整范围并原子校验，不需逐条先读。',
+        '按明确编号或目标、截止日期、阶段统一批量取消或物理删除任务，最多10000项。delete 永久删除任务及其执行/材料，独立来源记录和聊天保留，不能恢复；cancel 只处理未开始任务并报告跳过数量；reset 仅撤销误标的已结束任务，把原执行和材料归档，追加自选排期回到未开始，可随后 updateMission/planMissions 改期。必须来自用户明确意图，不能用补记完成替代删除。宿主固定完整范围并原子校验，不需逐条先读；缺失任务或 reset 遇到未结束任务时会列出具体 missionId，cancel 跳过项在回执 skippedIds 中。',
         AssistantTools._schema(
           {
             'action': AssistantTools._enum('操作', ['cancel', 'delete', 'reset']),
@@ -97,7 +97,7 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'planMissions',
-        '集中安排或改期 1–100 项任务，先查真实任务和相关日期安排。整份计划可编辑、移除条目；冲突时整份零写入，成功后返回真实结果。多个任务优先用本工具。',
+        '集中安排或改期 1–100 项任务，先查真实任务和相关日期安排。整份计划可编辑、移除条目；冲突时整份零写入，成功后返回真实结果；校验错误会指出具体 itemId。多个任务优先用本工具。',
         AssistantScheduleService.schema,
         _owner._applyPlan,
       ),

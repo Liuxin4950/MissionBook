@@ -303,10 +303,9 @@ class _AssistantComposer {
   );
   Widget _reasoningSelector(AssistantController controller) {
     final scale = MediaQuery.textScalerOf(context).scale(1);
-    final width = (160 * scale).clamp(
-      0.0,
-      MediaQuery.sizeOf(context).width - AppLayout.space3Xl,
-    );
+    final available = (MediaQuery.sizeOf(context).width - AppLayout.space3Xl)
+        .clamp(0.0, double.infinity);
+    final width = (160 * scale).clamp(0.0, available);
     final colors = Theme.of(context).colorScheme;
     return MenuAnchor(
       style: const MenuStyle(
@@ -447,11 +446,28 @@ class _AssistantComposer {
     final used = controller.estimatedContextTokens;
     final limit = controller.contextInputLimit;
     final ratio = (limit <= 0 ? 1.0 : used / limit).clamp(0.0, 1.0);
-    final label =
-        '输入占用约 ${(ratio * 100).toStringAsFixed(1)}%'
-        '\n输入估算 $used / 可用输入 $limit tokens'
-        '\n输出预留 ${controller.reservedOutputTokens} tokens'
-        '\n上下文总窗口 ${controller.contextWindowTokens} tokens';
+    final session = controller.sessionUsage;
+    final cacheRate = session.cacheHitRate;
+    final last = session.lastConversationUsage;
+    final label = [
+      '输入占用约 ${(ratio * 100).toStringAsFixed(1)}%',
+      '输入估算 $used / 可用输入 $limit tokens',
+      '输出预留 ${controller.reservedOutputTokens} tokens',
+      '上下文总窗口 ${controller.contextWindowTokens} tokens',
+      if (session.hasUsage) ...[
+        '会话累计（含摘要与重试）：输入 ${session.usage.inputTokens} / 输出 ${session.usage.outputTokens} tokens',
+        if (cacheRate != null)
+          '正文缓存命中率：${(cacheRate * 100).toStringAsFixed(1)}%（缓存 ${session.cacheUsage.cachedInputTokens} / 输入 ${session.cacheUsage.inputTokens}）${session.cacheComplete ? '' : '（仅已报告请求）'}'
+        else if (session.cacheComplete)
+          '正文缓存命中率：暂无输入用量'
+        else
+          '正文缓存命中率：—（没有请求报告缓存）',
+        if (last != null)
+          '最近一次正文请求实际输入：${last.inputTokens} tokens${last.cacheReported == true ? '，其中缓存 ${last.cachedInputTokens}' : ''}',
+        if (session.hasIncompleteUsage)
+          '有 ${session.incompleteReports} 次尝试未完整结束，统计可能偏低',
+      ],
+    ].join('\n');
     return Tooltip(
       message: label,
       triggerMode: TooltipTriggerMode.tap,

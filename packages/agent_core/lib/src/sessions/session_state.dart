@@ -1,10 +1,12 @@
 import '../agent_result.dart';
 import '../content_block.dart';
 import '../message.dart';
+import '../model.dart';
 import '../models/configuration.dart';
 import '../tool.dart';
 import 'message_codec.dart';
 import 'session_store.dart';
+import 'session_usage.dart';
 
 /// 从已提交日志推导会话；原始消息与发给模型的压缩投影分别维护。
 final class SessionState {
@@ -22,6 +24,8 @@ final class SessionState {
   String? openTurnId;
   AgentStopReason? lastStopReason;
   int _nextSequence = 0;
+  SessionUsage _sessionUsage = const SessionUsage();
+  SessionUsage get sessionUsage => _sessionUsage;
   final List<AgentMessage> _transcript = [];
   final List<AgentMessage> _context = [];
   final Map<String, AgentMessage> _knownMessages = {};
@@ -95,6 +99,7 @@ final class SessionState {
         outputTokens = original.outputTokens;
         reasoningEffort = original.reasoningEffort;
         jsonOutput = original.jsonOutput;
+        _sessionUsage = original._sessionUsage;
       case 'session_created':
         if (_id != null) throw const FormatException('会话重复创建');
         _id = readString(data, 'id');
@@ -252,7 +257,9 @@ final class SessionState {
         } else {
           throw const FormatException('未知模型请求用途');
         }
-      case 'request_failed' || 'storage_tail_recovered' || 'usage_reported':
+      case 'usage_reported':
+        _applyUsage(data);
+      case 'request_failed' || 'storage_tail_recovered':
         break;
       default:
         if (!record.ignorable) {
@@ -260,6 +267,22 @@ final class SessionState {
         }
     }
     _nextSequence++;
+  }
+
+  void _applyUsage(Map<String, Object?> data) {
+    final conversation =
+        data['purpose'] == ModelRequestPurpose.conversation.name;
+    try {
+      final usage = TokenUsage.fromJson(readObject(data['usage']));
+      _sessionUsage = _sessionUsage.record(
+        usage,
+        complete: data['complete'] == true,
+        conversation: conversation,
+      );
+    } on FormatException {
+      // 用量是展示信息，坏记录不能阻止会话重新打开。
+      _sessionUsage = _sessionUsage.recordMalformed(conversation: conversation);
+    }
   }
 
   void _addMessage(AgentMessage message) {
@@ -324,6 +347,7 @@ final class SessionState {
     ..openTurnId = openTurnId
     ..lastStopReason = lastStopReason
     .._nextSequence = _nextSequence
+    .._sessionUsage = _sessionUsage
     .._transcript.addAll(_transcript)
     .._context.addAll(_context)
     .._knownMessages.addAll(_knownMessages)
