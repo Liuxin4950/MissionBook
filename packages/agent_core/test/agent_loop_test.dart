@@ -180,6 +180,7 @@ void main() {
               'items': {
                 'type': 'object',
                 'properties': {
+                  'itemId': {'type': 'string'},
                   'plannedMinutes': {
                     'type': 'integer',
                     'minimum': 1,
@@ -223,17 +224,26 @@ void main() {
       tool.validateInput({
         'minutes': 1,
         'items': [
+          {'itemId': 'item-1', 'plannedMinutes': 1441},
+        ],
+      }),
+      '条目“item-1”的 plannedMinutes 不能大于 1440（收到 1441）',
+    );
+    expect(
+      tool.validateInput({
+        'minutes': 1,
+        'items': [
           {'plannedMinutes': 1441},
         ],
       }),
-      '参数 items[0].plannedMinutes 不能大于 1440（收到 1441）',
+      '第 1 项的 plannedMinutes 不能大于 1440（收到 1441）',
     );
     expect(
       tool.validateInput({
         'minutes': 1,
         'items': [<String, Object?>{}],
       }),
-      '缺少必填参数 items[0].plannedMinutes',
+      '缺少必填参数 第 1 项的 plannedMinutes',
     );
   });
 

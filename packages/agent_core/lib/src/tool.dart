@@ -97,6 +97,7 @@ final class AgentTool {
         .map(
           (error) => _describeValidationError(
             definition.inputSchema,
+            input,
             error.instancePath,
             error.message,
           ),
@@ -135,11 +136,11 @@ final class ToolDecision {
 /// JSON Schema 的原始报错是英文；这里按字段路径和关键词给出可执行的中文提示。
 String _describeValidationError(
   Map<String, Object?> schema,
+  Map<String, Object?> input,
   String path,
   String message,
 ) {
-  final field = _fieldPath(path);
-  final prefix = field.isEmpty ? '输入' : '参数 $field';
+  final prefix = _subject(input, path);
   // 上下限类报错用 violated/exceeded 区分，括号里是「收到值 符号 限制值」。
   final limit = RegExp(
     r'^(exclusiveMinimum|exclusiveMaximum|minimum|maximum) (?:violated|exceeded) \((.*) (<=|>=|<|>) (.*)\)$',
@@ -189,32 +190,65 @@ String _describeValidationError(
     r'^required prop missing: (\w+) from ',
   ).firstMatch(message);
   if (missing != null) {
-    final name = missing[1]!;
-    // 同一条缺失会同时落在父路径和属性路径上，统一成属性全名后再去重。
-    if (field == name || field.endsWith('.$name') || field.endsWith('[$name]')) {
-      return '缺少必填参数 $field';
-    }
-    return '缺少必填参数 ${field.isEmpty ? name : '$field.$name'}';
+    return '缺少必填参数 ${_memberName(input, path, missing[1]!)}';
   }
   final additional = RegExp(
     r'^unallowed additional property (\w+)$',
   ).firstMatch(message);
   if (additional != null) {
-    final name = additional[1]!;
-    return '不支持参数 ${field.isEmpty ? name : '$field.$name'}';
+    return '不支持参数 ${_memberName(input, path, additional[1]!)}';
   }
   return '$prefix 校验失败：$message';
 }
 
-String _fieldPath(String path) => path
-    .split('/')
-    .skip(1)
-    .fold<String>(
-      '',
-      (acc, part) => int.tryParse(part) != null
-          ? '$acc[$part]'
-          : (acc.isEmpty ? part : '$acc.$part'),
-    );
+/// 把实例路径拆成“所属条目 + 字段名”，不把内部数组下标直接暴露给用户。
+({String? owner, String leaf}) _splitField(
+  Map<String, Object?> input,
+  String path,
+) {
+  final parts = path.split('/').skip(1).toList();
+  final index = parts.lastIndexWhere((part) => int.tryParse(part) != null);
+  if (index < 0) return (owner: null, leaf: parts.join('.'));
+  Object? current = input;
+  for (var position = 0; position <= index; position++) {
+    final offset = int.tryParse(parts[position]);
+    current = offset != null
+        ? (current is List && offset < current.length
+              ? current[offset]
+              : null)
+        : (current is Map<String, Object?> ? current[parts[position]] : null);
+  }
+  final id = current is Map ? current['itemId'] ?? current['id'] : null;
+  final owner = id is String && id.trim().isNotEmpty
+      ? '条目“$id”'
+      : '第 ${int.parse(parts[index]) + 1} 项';
+  return (owner: owner, leaf: parts.skip(index + 1).join('.'));
+}
+
+String _subject(Map<String, Object?> input, String path) {
+  if (path.isEmpty) return '输入';
+  final field = _splitField(input, path);
+  if (field.owner == null) return '参数 ${field.leaf}';
+  return field.leaf.isEmpty ? field.owner! : '${field.owner}的 ${field.leaf}';
+}
+
+String _memberName(
+  Map<String, Object?> input,
+  String path,
+  String name,
+) {
+  final parts = path.split('/').where((part) => part.isNotEmpty).toList();
+  // 同一条缺失会同时报在父路径和属性路径上；两者都归一到属性自身的名字。
+  if (parts.isNotEmpty && parts.last == name) {
+    final subject = _subject(input, path);
+    return subject.startsWith('参数 ') ? subject.substring(3) : subject;
+  }
+  if (path.isEmpty) return name;
+  final parent = _subject(input, path);
+  return parent.startsWith('参数 ')
+      ? '${parent.substring(3)}.$name'
+      : '$parent的 $name';
+}
 
 /// 按实例路径取子 Schema，用于把校验错误补成可执行的取值说明。
 Map<String, Object?>? _subSchema(Map<String, Object?> schema, String path) {
