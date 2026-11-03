@@ -234,6 +234,25 @@ void main() {
     expect(assistant.localSchedule?.single.mission.title, '阅读第一章');
   });
 
+  test('工具准备阶段的业务拒绝保留分类编号，不冒充权限不足', () async {
+    final assistant = makeController(
+      ScriptedModel([
+        (_) => toolResponse('missing-goal', 'updateGoal', const {
+          'goalId': 'gone',
+          'title': '新名称',
+        }),
+        (_) => textResponse('目标不存在，需要重新查询'),
+      ]),
+    );
+    await assistant.initialize();
+    await assistant.send('把已删除的目标改名');
+    final toolResult = assistant.transcript
+        .whereType<ToolResultMessage>()
+        .single;
+    expect(toolResult.errorCode, 'not_found');
+    expect(toolResult.text, contains('gone'));
+  });
+
   test('默认档读取等待授权，宽松档自动查询且仍拦住写入', () async {
     settings.permissionMode = AssistantPermissionMode.standard;
     final assistant = makeController(

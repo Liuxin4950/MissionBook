@@ -218,7 +218,7 @@ class _AssistantOperations {
         sessionId: _controller.currentSessionId,
       );
     } on ToolRejected catch (error) {
-      return ToolDecision.deny(error.message);
+      return ToolDecision.deny(error.message, code: error.code);
     }
     _controller._preparedCalls[call.id] = prepared;
     final operation = _operationFor(call);

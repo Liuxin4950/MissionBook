@@ -64,7 +64,12 @@ class _AssistantToolPreparation {
       final detail = await _tools._missions.findDetail(
         missionId: input['missionId'] as String,
       );
-      if (detail == null) throw const ToolRejected('not_found', '任务不存在');
+      if (detail == null) {
+        throw ToolRejected(
+          'not_found',
+          '任务 ${jsonEncode(input['missionId'])} 不存在或已删除，请重新查询',
+        );
+      }
       return PreparedToolCall(
         input,
         snapshot: {'detail': detail, 'targetTitle': detail.mission.title},
@@ -112,7 +117,12 @@ class _AssistantToolPreparation {
       final target = (result['items'] as List<Map<String, Object?>>)
           .where((entry) => entry['id'] == input['id'])
           .firstOrNull;
-      if (target == null) throw const ToolRejected('not_found', '记忆不存在或已忘记');
+      if (target == null) {
+        throw ToolRejected(
+          'not_found',
+          '记忆 ${jsonEncode(input['id'])} 不存在或已忘记；如果要新建，请不要传 id',
+        );
+      }
       const fields = [
         'id',
         'goal_id',
@@ -147,7 +157,12 @@ class _AssistantToolPreparation {
         throw const ToolRejected('invalid_history', '只能补记今天以前的任务，且需用户明确提供完成依据');
       }
       final goal = await _tools._goals.findById(input['goalId'] as String);
-      if (goal == null) throw const ToolRejected('not_found', '目标不存在');
+      if (goal == null) {
+        throw ToolRejected(
+          'not_found',
+          '目标 ${jsonEncode(input['goalId'])} 不存在，请重新查询',
+        );
+      }
       final List<MissionDetail> past;
       try {
         past = await _tools._missions.findHistoryScope(goal.id, date);
@@ -212,7 +227,12 @@ class _AssistantToolPreparation {
     }
     if (toolName == 'updateGoal') {
       final goal = await _tools._goals.findById(input['goalId'] as String);
-      if (goal == null) throw const ToolRejected('not_found', '目标不存在');
+      if (goal == null) {
+        throw ToolRejected(
+          'not_found',
+          '目标 ${jsonEncode(input['goalId'])} 不存在，请重新查询',
+        );
+      }
       return PreparedToolCall(
         input,
         snapshot: {'goal': goal, 'targetTitle': goal.title},

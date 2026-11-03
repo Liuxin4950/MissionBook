@@ -364,7 +364,10 @@ final class AgentLoop {
     }
     token.throwIfCancelled();
     if (!decision.allowed) {
-      return ToolOutput.failure('permission_denied', decision.reason);
+      return ToolOutput.failure(
+        decision.code ?? 'permission_denied',
+        decision.reason,
+      );
     }
     final executionCall = decision.input == null
         ? call

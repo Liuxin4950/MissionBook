@@ -143,6 +143,68 @@ void main() {
     await agent.close();
   });
 
+  test('拒绝可带分类编号，未知分类仍按权限不足处理', () async {
+    var step = 0;
+    final agent = _agent(
+      (request, token) {
+        if (++step == 1) return _calls([_call('a', 1)]);
+        expect(_errorCode(request.messages.last), 'not_found');
+        return _reply('目标不存在，需要重新查询');
+      },
+      tools: [
+        _tool((input, context) => const ToolOutput.success('不应执行')),
+      ],
+      authorize: (tool, call, token) =>
+          const ToolDecision.deny('任务 m-1 不存在', code: 'not_found'),
+    );
+    expect((await agent.run(input: '操作')).answer, '目标不存在，需要重新查询');
+    await agent.close();
+  });
+
+  test('Schema 校验失败给出中文可执行提示，并去掉重复项', () {
+    final tool = AgentTool(
+      definition: ToolDefinition(
+        name: 'probe',
+        description: '检查参数',
+        inputSchema: {
+          'type': 'object',
+          'properties': {
+            'minutes': {'type': 'integer', 'minimum': 1},
+            'kind': {
+              'type': 'string',
+              'enum': ['plan', 'record'],
+            },
+            'items': {
+              'type': 'array',
+              'minItems': 1,
+            },
+          },
+          'required': ['minutes'],
+          'additionalProperties': false,
+        },
+      ),
+      execute: (input, context) => const ToolOutput.success(''),
+    );
+    expect(tool.validateInput({'minutes': 0}), '参数 minutes 不能小于 1（收到 0）');
+    expect(tool.validateInput({}), '缺少必填参数 minutes');
+    expect(
+      tool.validateInput({'minutes': 1, 'kind': 'other'}),
+      '参数 kind 只能取 plan、record',
+    );
+    expect(
+      tool.validateInput({'minutes': 'x'}),
+      '参数 minutes 类型应为 integer',
+    );
+    expect(
+      tool.validateInput({'minutes': 1, 'items': <Object?>[]}),
+      '参数 items 至少 1 项（收到 0 项）',
+    );
+    expect(
+      tool.validateInput({'minutes': 1, 'extra': true}),
+      '不支持参数 extra',
+    );
+  });
+
   test('每次调用重新授权，同批第二次可以被撤销', () async {
     var step = 0;
     var checks = 0;
