@@ -426,9 +426,6 @@ class DriftMemoryRepository extends DriftRepositorySupport
     );
     String normalized(Object? value) =>
         (value as String).trim().replaceAll(RegExp(r'\s+'), ' ');
-    String compact(Object? value) => normalized(
-      value,
-    ).toLowerCase().replaceAll(RegExp(r'[\s\p{P}]', unicode: true), '');
     final expectedVersion = entry['expectedVersion'];
     if (expectedVersion != null) {
       final existing = same.where((row) => row['id'] == id).firstOrNull;
@@ -459,32 +456,13 @@ class DriftMemoryRepository extends DriftRepositorySupport
     if (existing != null && !userEdited) {
       return {'status': 'blocked', 'id': id, 'reason': 'existing_id'};
     }
-    bool longerExtends(String longer, String shorter) {
-      if (!longer.contains(shorter)) return false;
-      final extra = longer.replaceFirst(shorter, '');
-      return extra.length >= 2 && !RegExp(r'^\d+$').hasMatch(extra);
-    }
-
     if (!userEdited) {
       final live = same.where((e) => e['forgotten'] == 0).toList();
-      final sameContent = live
-          .where((e) => normalized(e['content']) == normalized(content))
-          .firstOrNull;
-      if (sameContent != null) {
-        return {'status': 'unchanged', 'id': sameContent['id']};
-      }
       final keyText = normalized(key).toLowerCase();
       final topicMatches = live.where((e) {
         final sameKey = normalized(e['conflict_key']).toLowerCase() == keyText;
-        final sameKind = e['kind'] == kind || e['certainty'] == 'unverified';
-        final previous = compact(e['content']);
-        final next = compact(content);
-        final contained =
-            sameKind &&
-            previous.length >= 4 &&
-            next.length >= 4 &&
-            (longerExtends(previous, next) || longerExtends(next, previous));
-        return sameKey || contained;
+        // 文本包含不证明同一事实：目标/动机、肯定/否定必须能独立保留。
+        return sameKey || normalized(e['content']) == normalized(content);
       }).toList();
       if (topicMatches.isNotEmpty) {
         // 用户手动编辑的事实保持原样；自动提取只更新未编辑的同主题条目。
@@ -501,9 +479,10 @@ class DriftMemoryRepository extends DriftRepositorySupport
           return (b['updated_at'] as int).compareTo(a['updated_at'] as int);
         });
         final target = topicMatches.first;
-        final previous = compact(target['content']);
-        final next = compact(content);
-        if (longerExtends(previous, next) && target['certainty'] == 'stated') {
+        if (normalized(target['content']) == normalized(content) &&
+            target['kind'] == kind &&
+            target['certainty'] == (entry['certainty'] ?? 'unverified') &&
+            target['expires_at'] == expiresAtMs) {
           return {'status': 'unchanged', 'id': target['id']};
         }
         await (db.update(

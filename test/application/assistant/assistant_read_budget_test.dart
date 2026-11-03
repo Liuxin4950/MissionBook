@@ -70,7 +70,7 @@ class _PagedReader implements UnifiedReader {
 }
 
 void main() {
-  test('读取预算失败返回机器可读的已读页和本次尝试范围', () async {
+  test('按需继续分页，累计字符量不会阻止正式或扩展查询', () async {
     final db = AppDatabase(executor: NativeDatabase.memory());
     final missions = MissionService(DriftMissionRepository(db));
     final goals = GoalService(DriftGoalRepository(db));
@@ -79,8 +79,18 @@ void main() {
       missions: missions,
       goals: goals,
       resolveCall: (_) => throw StateError('本测试不准备写操作'),
+      extraTools: [
+        AgentTool(
+          definition: ToolDefinition(
+            name: 'extraRead',
+            description: '隔离查询',
+            inputSchema: {'type': 'object'},
+          ),
+          readOnly: true,
+          execute: (_, _) async => ToolOutput.success('{"found":true}'),
+        ),
+      ],
     );
-    tools.beginTurn();
     final query = tools.tools.firstWhere(
       (tool) => tool.definition.name == 'getMission',
     );
@@ -89,28 +99,21 @@ void main() {
       sessionId: 'session',
       cancellation: CancellationToken(),
     );
-    ToolOutput? failure;
-    for (var offset = 0; offset < 1000; offset += 20) {
+    var characters = 0;
+    for (var offset = 0; offset < 60; offset += 20) {
       final output = await query.execute({'offset': offset}, context);
-      if (output.isError) {
-        failure = output;
-        break;
-      }
-      expect(output.text.length, lessThanOrEqualTo(64000));
+      expect(output.isError, false);
+      final page = jsonDecode(output.text) as Map;
+      expect(page['offset'], offset);
+      expect(page['nextOffset'], offset + 20);
+      characters += output.text.length;
     }
-    expect(failure, isNotNull);
-    final result = jsonDecode(failure!.text) as Map<String, dynamic>;
-    expect(result['code'], 'read_budget_exceeded');
-    expect(result['read'], [
-      {
-        'tool': 'getMission',
-        'offset': 0,
-        'limit': 20,
-        'total': 1000,
-        'nextOffset': 20,
-      },
-    ]);
-    expect(result['attempt'], {'offset': 20, 'total': 1000});
+    expect(characters, greaterThan(64000));
+    final extra = await tools.tools
+        .firstWhere((t) => t.definition.name == 'extraRead')
+        .execute({}, context);
+    expect(extra.isError, false);
+    expect(jsonDecode(extra.text)['found'], true);
     await missions.dispose();
     await goals.dispose();
     await db.close();

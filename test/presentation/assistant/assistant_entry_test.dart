@@ -17,6 +17,7 @@ import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
+import 'package:mission_book/domain/entities/goal.dart';
 import 'package:mission_book/presentation/assistant/assistant_launcher.dart';
 import 'package:mission_book/presentation/assistant/assistant_scope.dart';
 import 'package:mission_book/presentation/assistant/assistant_page.dart';
@@ -91,6 +92,15 @@ class TestSpeech implements AssistantSpeech {
   @override
   Future<void> cancel() async {
     cancels++;
+  }
+}
+
+class _UnavailableGoalRepository extends DriftGoalRepository {
+  _UnavailableGoalRepository(super.database);
+
+  @override
+  Future<void> create(Goal goal) async {
+    throw Exception('模拟无法确认结果的存储异常');
   }
 }
 
@@ -683,6 +693,17 @@ void main() {
         1.0,
       ),
     );
+    await tester.tap(indicator);
+    await tester.pumpAndSettle();
+    expect(find.text('上下文与用量'), findsOneWidget);
+    expect(find.text('当前输入估算'), findsOneWidget);
+    currentTextScale = 2;
+    tester.view.physicalSize = const Size(320, 640);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byTooltip('关闭用量面板'));
+    await tester.pumpAndSettle();
+    expect(find.text('上下文与用量'), findsNothing);
   });
 
   assistantTest('上下文提示显示会话实际用量与正文缓存命中率', (tester) async {
@@ -720,7 +741,7 @@ void main() {
     final tooltip = tester.widget<Tooltip>(
       find.ancestor(of: indicator, matching: find.byType(Tooltip)).first,
     );
-    expect(tooltip.message, contains('会话累计（含摘要与重试）：输入 100 / 输出 20 tokens'));
+    expect(tooltip.message, contains('会话累计（含会话压缩与重试）：输入 100 / 输出 20 tokens'));
     expect(tooltip.message, contains('正文缓存命中率：60.0%（缓存 60 / 输入 100）'));
     expect(tooltip.message, contains('最近一次正文请求实际输入：100 tokens'));
     expect(tooltip.message, contains('最近一次正文请求实际输入：100 tokens，其中缓存 60'));
@@ -1043,6 +1064,93 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.runAsync(() => assistant.close());
   });
+  for (final width in [390.0, 320.0]) {
+    assistantTest('待核对会话明确提示并可新建发送，原草稿和未知结果保留 $width', (tester) async {
+      await tester.runAsync(() => goals.dispose());
+      goals = GoalService(_UnavailableGoalRepository(database));
+      final model = ScriptedModel([
+        (_) => toolResponse('unknown-goal', 'createGoal', {'title': '测试目标'}),
+        (_) => textResponse('新会话可以正常发送'),
+      ]);
+      await mount(
+        tester,
+        model,
+        width: width,
+        textScale: width == 320 ? 2 : 1,
+        settingsStore: MemoryAssistantSettingsStore()
+          ..permissionMode = AssistantPermissionMode.full,
+      );
+      await tester.runAsync(
+        () => assistant.send('创建测试目标').timeout(const Duration(seconds: 5)),
+      );
+      expect(assistant.needsOutcomeResolution, true);
+      final originalId = assistant.currentSessionId!;
+      assistant.saveDraft(originalId, '原聊天尚未发送的文字');
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(width == 320 ? 2 : 1)),
+            child: child!,
+          ),
+          home: AssistantPage(controller: assistant, showBack: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('assistant-outcome-pending')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<IconButton>(find.byKey(const Key('assistant-send')))
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('assistant-input')))
+            .controller!
+            .text,
+        '原聊天尚未发送的文字',
+      );
+      await tester.tap(find.text('新会话继续'));
+      await pumpUntil(
+        tester,
+        () => !assistant.isBusy && assistant.currentSessionId == null,
+      );
+      await tester.pumpAndSettle();
+      expect(assistant.needsOutcomeResolution, false);
+      expect(assistant.draftFor(originalId), '原聊天尚未发送的文字');
+      expect(model.requests, hasLength(1));
+      expect(find.byKey(const Key('assistant-outcome-pending')), findsNothing);
+      await tester.enterText(find.byKey(const Key('assistant-input')), '新会话消息');
+      await tester.pump();
+      expect(
+        tester
+            .widget<IconButton>(find.byKey(const Key('assistant-send')))
+            .onPressed,
+        isNotNull,
+      );
+      await tester.tap(find.byKey(const Key('assistant-send')));
+      await pumpUntil(
+        tester,
+        () => !assistant.isRunning && model.requests.length == 2,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('新会话可以正常发送'), findsOneWidget);
+      await tester.runAsync(() => assistant.openConversation(originalId));
+      await tester.pumpAndSettle();
+      expect(assistant.needsOutcomeResolution, true);
+      expect(assistant.draft, '原聊天尚未发送的文字');
+      expect(model.requests, hasLength(2));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   assistantTest('发送按钮随输入激活、清空禁用，启用箭头使用主色上的白色', (tester) async {
     await mount(tester, ScriptedModel([]));
     await tester.tap(find.byKey(const Key('assistant-launcher')));
@@ -1311,7 +1419,32 @@ void main() {
       tester.getTopLeft(answer).dy - tester.getBottomLeft(user).dy,
       greaterThanOrEqualTo(12),
     );
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+    final copy = find.byTooltip('复制回复');
+    expect(copy, findsOneWidget);
+    await tester.ensureVisible(copy);
+    await tester.tap(copy);
+    await tester.pumpAndSettle();
+    expect(copied, '**调整建议**\n\n先查看任务内容，再确认新的安排。\n\n- 保留任务说明\n- 确认后再保存');
+    expect(find.text('已复制回复'), findsOneWidget);
     await capture(tester, '12-phone-message-spacing');
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
     // 同时模拟系统大字号，避免只按固定设备宽度检查。
     currentTextScale = 2;
     tester.view.physicalSize = const Size(320, 640);

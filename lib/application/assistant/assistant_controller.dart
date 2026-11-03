@@ -313,7 +313,6 @@ class AssistantController extends ChangeNotifier {
     _sendCancelled = false;
     _connectionInterrupted = false;
     _errorMessage = null;
-    _tools.beginTurn();
     _notifyListeners();
     try {
       final result = await _requireSession().resume();

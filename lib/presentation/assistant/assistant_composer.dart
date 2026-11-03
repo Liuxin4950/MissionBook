@@ -22,6 +22,7 @@ class _AssistantComposer {
       final canSend =
           (value.text.trim().isNotEmpty || _page._attachments.isNotEmpty) &&
           !controller.isBusy &&
+          !controller.needsOutcomeResolution &&
           !controller.compacting &&
           !controller.initializing &&
           !_page._picking &&
@@ -187,8 +188,9 @@ class _AssistantComposer {
                               size: AppLayout.iconMd,
                             ),
                       itemBuilder: (_) => [
-                        if (!kIsWeb &&
-                            defaultTargetPlatform == TargetPlatform.android)
+                        if (kIsWeb ||
+                            defaultTargetPlatform == TargetPlatform.android ||
+                            defaultTargetPlatform == TargetPlatform.iOS)
                           _composerMenuItem(
                             'camera',
                             Icons.photo_camera_outlined,
@@ -455,7 +457,7 @@ class _AssistantComposer {
       '输出预留 ${controller.reservedOutputTokens} tokens',
       '上下文总窗口 ${controller.contextWindowTokens} tokens',
       if (session.hasUsage) ...[
-        '会话累计（含摘要与重试）：输入 ${session.usage.inputTokens} / 输出 ${session.usage.outputTokens} tokens',
+        '会话累计（含会话压缩与重试）：输入 ${session.usage.inputTokens} / 输出 ${session.usage.outputTokens} tokens',
         if (cacheRate != null)
           '正文缓存命中率：${(cacheRate * 100).toStringAsFixed(1)}%（缓存 ${session.cacheUsage.cachedInputTokens} / 输入 ${session.cacheUsage.inputTokens}）${session.cacheComplete ? '' : '（仅已报告请求）'}'
         else if (session.cacheComplete)
@@ -470,27 +472,30 @@ class _AssistantComposer {
     ].join('\n');
     return Tooltip(
       message: label,
-      triggerMode: TooltipTriggerMode.tap,
+      triggerMode: TooltipTriggerMode.longPress,
       child: Semantics(
         label: label,
-        child: SizedBox.square(
+        child: IconButton(
           key: const Key('assistant-context-usage'),
-          dimension: AppLayout.touchTargetMin,
-          child: Center(
-            child: SizedBox.square(
-              dimension: 20,
-              child: CircularProgressIndicator(
-                value: ratio,
-                strokeWidth: 3,
-                backgroundColor: AppColors.hairline,
-                color: ratio >= .9
-                    ? AppColors.error
-                    : ratio >= .75
-                    ? AppColors.warning
-                    : AppColors.primary,
-                semanticsLabel: '输入预算占用',
-                semanticsValue: '${(ratio * 100).round()}%',
-              ),
+          onPressed: () => showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            useSafeArea: true,
+            builder: (_) => _AssistantContextSheet(controller: controller),
+          ),
+          icon: SizedBox.square(
+            dimension: 20,
+            child: CircularProgressIndicator(
+              value: ratio,
+              strokeWidth: 3,
+              backgroundColor: AppColors.hairline,
+              color: ratio >= .9
+                  ? AppColors.error
+                  : ratio >= .75
+                  ? AppColors.warning
+                  : AppColors.primary,
+              semanticsLabel: '输入预算占用',
+              semanticsValue: '${(ratio * 100).round()}%',
             ),
           ),
         ),
@@ -501,7 +506,8 @@ class _AssistantComposer {
   Future<void> _send() async {
     final text = _page._input.text.trim();
     if ((text.isEmpty && _page._attachments.isEmpty) ||
-        widget.controller.isBusy) {
+        widget.controller.isBusy ||
+        widget.controller.needsOutcomeResolution) {
       return;
     }
     if (!widget.controller.hasCredential) {

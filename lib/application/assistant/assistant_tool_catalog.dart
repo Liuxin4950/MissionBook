@@ -103,7 +103,7 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'getGoal',
-        '默认分页返回全部目标概览；指定 goal 读取目标与节点，node 限定子树，mission 指定任务，* 分页读取范围内任务评价。',
+        '默认分页返回目标概览；指定 goal 读取当前层摘要、直接子节点和直接任务，指定 node 逐层深入。mission 指定任务，* 才分页读取整个子树任务评价。',
         AssistantTools._schema({
           'goal': AssistantTools._string('目标ID或精确名称'),
           'node': AssistantTools._string('节点ID或精确名称'),
@@ -115,7 +115,7 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'getMission',
-        '按ID或名称读任务事实；省略任务分页搜索。批量操作前统计优先 summaryOnly=true，返回完整范围精确总量与阶段计数，不必逐页读全。支持计划日期、截止日期、阶段筛选。',
+        '默认返回任务阶段、时间安排、材料要求和摘要；指定ID或名称另返回方案概览与详情入口。需要方案全文、执行历史或材料时按 details 调用对应工具。省略任务分页搜索，offset 仅用于列表；summaryOnly=true 返回完整范围精确计数。支持计划日期、截止日期、阶段筛选。',
         AssistantTools._schema({
           'mission': AssistantTools._string('任务ID或精确名称'),
           'search': AssistantTools._string('标题搜索'),
@@ -150,7 +150,9 @@ class _AssistantToolCatalog {
           {
             'missionId': AssistantTools._string('任务编号'),
             'field': AssistantTools._enum('正文字段', [
+              'title',
               'objective',
+              'criteria',
               'steps',
               'notes',
               'description',
@@ -373,36 +375,7 @@ class _AssistantToolCatalog {
       ),
     ];
     // 扩展工具不得覆盖正式工具；重复名称由 AgentLoop 明确拒绝。
-    catalog.addAll(
-      extraTools.map(
-        (t) => AgentTool(
-          definition: t.definition,
-          readOnly: t.readOnly,
-          execute: (i, c) async {
-            if (t.readOnly && _owner._readCharacters >= 64000) {
-              return _owner._budgetFailure(
-                'read_budget',
-                '本轮读取已达上限，请根据现有摘要回答；已读范围见 read 字段。',
-              );
-            }
-            final output = _owner._formatOutput(
-              await t.execute(i, c),
-              includeTimeContext: t.readOnly,
-            );
-            if (t.readOnly) {
-              if (_owner._readCharacters + output.text.length > 64000) {
-                return _owner._budgetFailure(
-                  'read_budget',
-                  '本轮剩余读取额度不足，请缩小范围；已读范围见 read 字段。',
-                );
-              }
-              _owner._readCharacters += output.text.length;
-            }
-            return output;
-          },
-        ),
-      ),
-    );
+    catalog.addAll(extraTools);
     return [
       for (final tool in catalog)
         AgentTool(
@@ -410,7 +383,6 @@ class _AssistantToolCatalog {
           readOnly: tool.readOnly,
           execute: (input, context) async {
             final output = await tool.execute(input, context);
-            if (tool.readOnly) _owner._recordRead(tool.definition.name, output);
             return _owner._formatOutput(
               output,
               includeTimeContext: tool.readOnly,

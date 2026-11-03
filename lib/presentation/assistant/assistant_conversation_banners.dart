@@ -1,5 +1,39 @@
 part of 'assistant_page.dart';
 
+class _OutcomePendingBanner extends StatelessWidget {
+  const _OutcomePendingBanner({required this.onNewSession});
+  final VoidCallback? onNewSession;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    key: const Key('assistant-outcome-pending'),
+    color: AppColors.accentSoft,
+    borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+    child: Padding(
+      padding: const EdgeInsets.all(AppLayout.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              '这条聊天有操作结果待核对，暂不能发送新消息。可核对原操作，或开启新会话；当前草稿会保留在原聊天。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: onNewSession,
+              child: const Text('新会话继续'),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _ReferenceBanner extends StatelessWidget {
   const _ReferenceBanner({required this.controller});
   final AssistantController controller;

@@ -8,7 +8,7 @@ import '../../core/theme/colors.dart';
 import '../../core/theme/app_layout.dart';
 import '../../application/errors/user_error_message.dart';
 
-/// Android 草稿区内直接取景、重拍与确认，失败时保留原草稿。
+/// 支持相机的平台在草稿区直接取景，失败时保留草稿并允许选择文件。
 class PhotoCapturePanel extends StatefulWidget {
   const PhotoCapturePanel({
     super.key,

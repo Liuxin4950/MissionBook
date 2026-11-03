@@ -1,10 +1,10 @@
 import '../../domain/entities/mission_phase.dart';
+import '../../domain/entities/mission_detail.dart';
 import '../repositories/drift_repository_support.dart';
 import 'dart:convert';
 import '../../domain/entities/analysis_scope.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../../domain/entities/mission_schedule_revision.dart';
-import '../../domain/rules/mission_attention_rules.dart';
 import '../../application/assistant/unified_reader.dart';
 import '../../application/missions/mission_projection.dart';
 import '../local/app_database.dart';
@@ -237,17 +237,16 @@ class DriftUnifiedReader implements UnifiedReader {
         ...DriftRepositorySupport.page(items, count, offset),
       };
     }
-    final condition =
-        'goal_id=? ${nodeId == null ? '' : 'AND id IN (SELECT id FROM subtree)'}';
+    final condition = 'goal_id=? AND parent_node_id IS ?';
     final total =
         (await recordRepository.rows(
-              '${prefix}SELECT COUNT(*) n FROM goal_nodes WHERE $condition',
-              args,
+              'SELECT COUNT(*) n FROM goal_nodes WHERE $condition',
+              [goalId, nodeId],
             )).single['n']
             as int;
     final nodes = await recordRepository.rows(
-      '${prefix}SELECT id,title,parent_node_id AS parentNodeId,order_index AS orderIndex,archived_at AS archivedAt,created_at AS createdAt FROM goal_nodes WHERE $condition ORDER BY order_index,id LIMIT 20 OFFSET ?',
-      [...args, offset],
+      'SELECT id,title,parent_node_id AS parentNodeId,order_index AS orderIndex,archived_at AS archivedAt,created_at AS createdAt FROM goal_nodes WHERE $condition ORDER BY order_index,id LIMIT 20 OFFSET ?',
+      [goalId, nodeId, offset],
     );
     for (final n in nodes) {
       n['analysis'] = await recordRepository.analysis(
@@ -263,19 +262,16 @@ class DriftUnifiedReader implements UnifiedReader {
       ),
       'nodeId': nodeId,
       'nodes': DriftRepositorySupport.page(nodes, total, offset),
-      'missions':
-          nodeId == null
-                ? await enhance(
-                    await taskReader.missions(goalId: goalId, offset: offset),
-                  )
-                : (await getGoal(
-                    goal: goalId,
-                    node: nodeId,
-                    mission: '*',
-                    offset: offset,
-                  ))
-            ..remove('goal'),
-      'hint': '任务索引不含原图和正文；mission=*分页查询当前范围任务评价，指定稳定ID读取单任务',
+      'missions': await enhance(
+        await taskReader.missions(
+          goalId: goalId,
+          nodeId: nodeId,
+          directOnly: true,
+          offset: offset,
+        ),
+      ),
+      'hint':
+          '默认仅展示当前层的直接子节点、直接任务及摘要。指定 node 逐层深入；mission=* 查询整个范围的任务；指定任务ID读取关键事实与详情入口。',
     };
   }
 
@@ -325,7 +321,32 @@ class DriftUnifiedReader implements UnifiedReader {
     }
     if (mission == null &&
         (date != null || beforeDate != null || phase != null || summaryOnly)) {
-      final all = await DriftMissionRepository(db).findAllDetails();
+      // 先筛选编号，再装配完整事实以派生阶段，避免查一天就读取整个任务库。
+      final clauses = <String>[];
+      final args = <Object?>[];
+      for (final filter in [
+        ('instr(m.title, ?) > 0', search),
+        ('m.goal_id = ?', goalId),
+        ('m.goal_node_id = ?', nodeId),
+        ('s.scheduled_date = ?', date),
+        ('s.scheduled_date < ?', beforeDate),
+      ]) {
+        if (filter.$2 != null) {
+          clauses.add(filter.$1);
+          args.add(filter.$2);
+        }
+      }
+      final candidates = await recordRepository.rows('''
+        SELECT m.id FROM missions m
+        JOIN mission_schedule_revisions s ON s.mission_id=m.id
+          AND s.revision_number=(SELECT MAX(r.revision_number)
+            FROM mission_schedule_revisions r WHERE r.mission_id=m.id)
+        ${clauses.isEmpty ? '' : 'WHERE ${clauses.join(' AND ')}'}
+        ORDER BY s.scheduled_date,m.id
+      ''', args);
+      final all = await DriftMissionRepository(
+        db,
+      ).findDetailsByIds([for (final row in candidates) row['id'] as String]);
       final selected =
           all
               .where(
@@ -352,13 +373,7 @@ class DriftUnifiedReader implements UnifiedReader {
           ? <Map<String, Object?>>[]
           : [
               for (final d in selected.skip(offset).take(20))
-                <String, Object?>{
-                  'id': d.mission.id,
-                  'title': d.mission.title,
-                  'phase': d.phase.name,
-                  'scheduledDate': d.schedule.scheduledDate,
-                  'goalId': d.mission.goalId,
-                },
+                await _missionIndex(d),
             ];
       final next = offset + items.length;
       return {
@@ -371,7 +386,7 @@ class DriftUnifiedReader implements UnifiedReader {
         'truncated': !summaryOnly && next < selected.length,
         'hint': summaryOnly
             ? 'summaryOnly 只返回完整范围统计，items 固定为空；请用 total 和 countsByPhase 判断数量，不要用 items.length。'
-            : 'total 和 countsByPhase 覆盖完整筛选范围，items 仅为本页；阶段由完整任务事实派生。',
+            : 'total 和 countsByPhase 覆盖完整筛选范围，items 仅为本页；指定 mission 稳定ID获取方案概览与详情入口。',
       };
     }
     if (mission == null) {
@@ -387,48 +402,66 @@ class DriftUnifiedReader implements UnifiedReader {
     final r = await resolve('missions', mission, goalId: goalId);
     if (r['id'] == null) return r;
     final d = (await DriftMissionRepository(db).findDetail(r['id'] as String))!;
+    final overview = missionProjection(d, DateTime.now().toUtc())
+      ..remove('materials')
+      ..remove('materialsTruncated');
     return {
-      ...missionProjection(d, DateTime.now().toUtc()),
+      ...overview,
       'analysis': await recordRepository.analysis(
         AnalysisScope.mission,
         d.mission.id,
       ),
-      'execution': await taskReader.records(
-        d.mission.id,
-        'execution',
-        offset: offset,
-      ),
-      'failures': await taskReader.records(
-        d.mission.id,
-        'failures',
-        offset: offset,
-      ),
-      'materialIndex': await taskReader.records(
-        d.mission.id,
-        'evidence',
-        offset: offset,
-      ),
+      'details': {
+        'plan': {
+          'tool': 'getMissionContent',
+          'missionId': d.mission.id,
+          'fields': [
+            'title',
+            'objective',
+            'criteria',
+            'steps',
+            'notes',
+            'description',
+            'why',
+          ],
+        },
+        'records': {
+          'tool': 'getMissionRecords',
+          'missionId': d.mission.id,
+          'sections': {
+            'execution': d.events.length,
+            'failures': d.failures.length,
+            'evidence': d.evidence.length,
+          },
+        },
+      },
+      'hint': '已返回当前关键事实和摘要；details 指向可按需读取的方案全文、执行历史、失败原因和材料索引。',
     };
   }
 
+  Future<Map<String, Object?>> _missionIndex(MissionDetail detail) async => {
+    ...missionIndexProjection(detail, DateTime.now().toUtc()),
+    'analysis': await recordRepository.analysis(
+      AnalysisScope.mission,
+      detail.mission.id,
+    ),
+  };
+
   Future<Map<String, Object?>> enhance(Map<String, Object?> page) async {
     final list = page['items'] as List;
+    final details = await DriftMissionRepository(
+      db,
+    ).findDetailsByIds([for (final raw in list) (raw as Map)['id'] as String]);
+    final byId = {for (final d in details) d.mission.id: d};
     for (final raw in list) {
       final item = raw as Map<String, Object?>;
-      final d = await DriftMissionRepository(
-        db,
-      ).findDetail(item['id'] as String);
+      final d = byId[item['id']];
       if (d != null) {
-        item['phase'] = d.phase.name;
-        item['attention'] = missionAttention(
-          d.phase,
-          d.schedule,
-          DateTime.now(),
-        ).name;
-        item['effectiveOccurrenceDate'] = d.effectiveOccurrenceDate;
-        item['userReportedCompleted'] = d.endReportedCompleted;
+        item.addAll(await _missionIndex(d));
       }
     }
+    page['hint'] =
+        '已返回本页任务关键事实与摘要；指定 getMission(mission:稳定ID) 获取方案概览和详情入口，nextOffset 继续查询下一页。';
     page['phaseIncluded'] = true;
     page['truncated'] = page['nextOffset'] != null;
     return page;

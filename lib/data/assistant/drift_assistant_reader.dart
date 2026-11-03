@@ -14,11 +14,13 @@ class DriftAssistantReader {
     String? goalId,
     String? nodeId,
     String? search,
+    bool directOnly = false,
     int offset = 0,
   }) async {
     _checkOffset(offset);
     final conditions = <String>[];
     final variables = <Variable>[];
+    if (directOnly && nodeId == null) conditions.add('m.goal_node_id IS NULL');
     for (final filter in [
       (date, 's.scheduled_date'),
       (goalId, 'm.goal_id'),
@@ -189,6 +191,8 @@ class DriftAssistantReader {
     // 字段名仅来自这份白名单，编号与偏移始终用 SQL 变量绑定。
     final source = switch (field) {
       'objective' => ('execution_plans', 'objective', 'mission_id'),
+      'criteria' => ('execution_plans', 'verification_criteria', 'mission_id'),
+      'title' => ('missions', 'title', 'id'),
       'steps' => ('execution_plans', 'steps', 'mission_id'),
       'notes' => ('execution_plans', 'notes', 'mission_id'),
       'description' => ('missions', 'description', 'id'),

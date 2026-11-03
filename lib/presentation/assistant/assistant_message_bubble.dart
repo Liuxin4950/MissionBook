@@ -40,76 +40,95 @@ class _MessageBubble extends StatelessWidget {
                     ? BorderSide.none
                     : const BorderSide(color: AppColors.hairline),
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppLayout.spaceLg,
-                  vertical: AppLayout.spaceMd,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (text.isNotEmpty)
-                      if (!isUser)
-                        AssistantMarkdown(text: text)
-                      else
-                        SelectableText(
-                          text,
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(
-                                color: colors.onPrimaryContainer,
-                                height: 1.5,
-                              ),
-                        ),
-                    for (final block in content)
-                      if (AssistantAttachment.textFile(block) case final file?)
-                        AppExpansionTile(
-                          insetHeader: false,
-                          headerPadding: const EdgeInsets.symmetric(
-                            vertical: AppLayout.spaceXs,
-                          ),
-                          childrenPadding: EdgeInsets.zero,
-                          iconColor: isUser
-                              ? colors.onPrimaryContainer
-                              : colors.onSurface,
-                          title: Text(
-                            file.name,
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(
-                                  color: isUser
-                                      ? colors.onPrimaryContainer
-                                      : colors.onSurface,
-                                ),
-                          ),
-                          leading: Icon(
-                            Icons.description_outlined,
-                            color: isUser
-                                ? colors.onPrimaryContainer
-                                : colors.primary,
-                          ),
-                          children: [
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxHeight: 240),
-                              child: SingleChildScrollView(
-                                child: SelectableText(
-                                  file.text,
-                                  style: Theme.of(context).textTheme.bodyLarge
-                                      ?.copyWith(
-                                        color: isUser
-                                            ? colors.onPrimaryContainer
-                                            : colors.onSurface,
-                                      ),
-                                ),
-                              ),
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppLayout.spaceLg,
+                      AppLayout.spaceMd,
+                      AppLayout.spaceLg,
+                      !isUser && text.isNotEmpty ? 68 : AppLayout.spaceMd,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (text.isNotEmpty)
+                          if (!isUser)
+                            AssistantMarkdown(text: text)
+                          else
+                            SelectableText(
+                              text,
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(
+                                    color: colors.onPrimaryContainer,
+                                    height: 1.5,
+                                  ),
                             ),
-                          ],
-                        ),
-                    for (final block in content.whereType<ImageBlock>())
-                      Padding(
-                        padding: const EdgeInsets.only(top: AppLayout.spaceSm),
-                        child: _MessageImage(block: block),
-                      ),
-                  ],
-                ),
+                        for (final block in content)
+                          if (AssistantAttachment.textFile(block)
+                              case final file?)
+                            AppExpansionTile(
+                              insetHeader: false,
+                              headerPadding: const EdgeInsets.symmetric(
+                                vertical: AppLayout.spaceXs,
+                              ),
+                              childrenPadding: EdgeInsets.zero,
+                              iconColor: isUser
+                                  ? colors.onPrimaryContainer
+                                  : colors.onSurface,
+                              title: Text(
+                                file.name,
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(
+                                      color: isUser
+                                          ? colors.onPrimaryContainer
+                                          : colors.onSurface,
+                                    ),
+                              ),
+                              leading: Icon(
+                                Icons.description_outlined,
+                                color: isUser
+                                    ? colors.onPrimaryContainer
+                                    : colors.primary,
+                              ),
+                              children: [
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 240,
+                                  ),
+                                  child: SingleChildScrollView(
+                                    child: SelectableText(
+                                      file.text,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            color: isUser
+                                                ? colors.onPrimaryContainer
+                                                : colors.onSurface,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                        for (final block in content.whereType<ImageBlock>())
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              top: AppLayout.spaceSm,
+                            ),
+                            child: _MessageImage(block: block),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (!isUser && text.isNotEmpty)
+                    Positioned(
+                      right: 10,
+                      bottom: 10,
+                      child: _CopyReplyButton(text: text),
+                    ),
+                ],
               ),
             ),
           ),
@@ -117,6 +136,33 @@ class _MessageBubble extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CopyReplyButton extends StatelessWidget {
+  const _CopyReplyButton({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => IconButton.filledTonal(
+    tooltip: '复制回复',
+    style: IconButton.styleFrom(
+      shape: const CircleBorder(),
+      fixedSize: const Size.square(48),
+    ),
+    icon: const Icon(Icons.copy_rounded, size: 20),
+    onPressed: () async {
+      var feedback = '已复制回复';
+      try {
+        await Clipboard.setData(ClipboardData(text: text));
+      } catch (_) {
+        feedback = '复制失败，请重试';
+      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(feedback)));
+    },
+  );
 }
 
 class _StreamingBubble extends StatelessWidget {

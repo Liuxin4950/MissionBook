@@ -66,6 +66,14 @@ List<AgentTool> contextTools({
   );
   String commandId(ToolContext c) =>
       const Uuid().v5(Namespace.url.value, c.idempotencyKey);
+  DateTime instant(String value, String label) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null || !RegExp(r'(Z|[+-]\d\d:\d\d)$').hasMatch(value)) {
+      throw ArgumentError('$label必须是含时区的 ISO8601 时刻');
+    }
+    return parsed.toUtc();
+  }
+
   void explicitBasis(
     String basis, {
     bool memoryBasis = false,
@@ -259,13 +267,10 @@ List<AgentTool> contextTools({
           if (name == 'correctExecutionTime' && !ended) {
             throw ArgumentError('此任务尚未结束');
           }
-          DateTime? time(String key) {
+          DateTime? time(String key, String label) {
             final v = i[key] as String?;
             if (v == null) return null;
-            if (!RegExp(r'(Z|[+-]\d\d:\d\d)$').hasMatch(v)) {
-              throw ArgumentError('实际时刻须含时区');
-            }
-            return DateTime.parse(v).toUtc();
+            return instant(v, label);
           }
 
           if (!ended && i['completed'] == null) {
@@ -278,8 +283,8 @@ List<AgentTool> contextTools({
               occurrenceDate: i['occurrenceDate'] as String,
               timeZoneId: d.schedule.timeZone,
               basis: basis,
-              actualStart: time('actualStart'),
-              actualEnd: time('actualEnd'),
+              actualStart: time('actualStart', '实际开始时刻'),
+              actualEnd: time('actualEnd', '实际结束时刻'),
               supersedesId: d.userReports.any((r) => r.id == commandId(c))
                   ? d.userReports
                         .firstWhere((r) => r.id == commandId(c))
@@ -382,7 +387,7 @@ List<AgentTool> contextTools({
           commandId(c),
           evidenceDeadlineAt: i['evidenceDeadlineAt'] == null
               ? null
-              : DateTime.parse(i['evidenceDeadlineAt'] as String).toUtc(),
+              : instant(i['evidenceDeadlineAt'] as String, '材料截止时刻'),
         );
         return {'saved': true, 'missionId': d.mission.id};
       },
@@ -405,9 +410,11 @@ List<AgentTool> contextTools({
           'type': 'string',
           'enum': ['stated'],
         },
-        'conflictKey': s('稳定主题用于冲突检查；同主题命中时更新原条目'),
+        'conflictKey': s(
+          '同一范围内单个事实的稳定主题键；先用 getMemory 核对并复用。目标、动机、总空闲时间和专项投入是不同事实，不能共用宽泛主题',
+        ),
         'basis': s('逐字复制本轮用户消息中的连续原文，保留换行标点，不可拼接、改写或加省略号；content 可概括'),
-        'expiresAt': s('约束期限ISO8601；constraint 必填且必须晚于当前时刻'),
+        'expiresAt': s('约束期限ISO8601，必须含时区；constraint 必填且必须晚于当前时刻'),
       },
       (i, c) async {
         final entryId = i['id'] as String?;
@@ -440,8 +447,9 @@ List<AgentTool> contextTools({
             'source': 'conversation:${c.sessionId}:${c.callId}',
             'expiresAt': i['expiresAt'] == null
                 ? (version?['expires_at'])
-                : DateTime.parse(
+                : instant(
                     i['expiresAt'] as String,
+                    '约束期限',
                   ).millisecondsSinceEpoch,
           },
           userEdited: i['id'] != null,

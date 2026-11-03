@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:agent_core/agent_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../application/assistant/assistant_controller.dart';
 import '../../application/assistant/assistant_attachment.dart';
 import '../../application/assistant/assistant_image.dart';
@@ -35,6 +36,7 @@ part 'assistant_conversation_banners.dart';
 part 'assistant_welcome.dart';
 part 'assistant_message_bubble.dart';
 part 'assistant_composer.dart';
+part 'assistant_context_sheet.dart';
 part 'assistant_turn.dart';
 
 class AssistantPage extends StatefulWidget {
@@ -196,6 +198,15 @@ class _AssistantPageState extends State<AssistantPage> {
                           )
                         : _buildConversation(controller),
                   ),
+                  if (controller.needsOutcomeResolution)
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppLayout.horizontalPadding(context),
+                      ),
+                      child: _OutcomePendingBanner(
+                        onNewSession: controller.isBusy ? null : _newSession,
+                      ),
+                    ),
                   _buildComposer(controller),
                 ],
               );

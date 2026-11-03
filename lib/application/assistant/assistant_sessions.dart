@@ -235,7 +235,6 @@ class _AssistantSessions {
     _controller._connectionInterrupted = false;
     _controller._resumeWatchdog?.cancel();
     _controller._notifyListeners();
-    _controller._tools.beginTurn();
     _controller._errorMessage = null;
     _controller._lastUserInput = message.text;
     String? createdSessionId;

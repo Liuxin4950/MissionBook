@@ -210,7 +210,11 @@ class DriftRecordRepository extends DriftRepositorySupport
       await lock();
       final r = await (db.select(
         db.records,
-      )..where((t) => t.id.equals(id))).getSingle();
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
+      if (r == null) {
+        // 在写入前明确拒绝缺失对象，避免查询异常被助手当成结果未知。
+        throw ArgumentError('记录 $id 不存在或已删除，请重新查询');
+      }
       final scope = await _scope(goalId, nodeId);
       await (db.update(db.records)..where((t) => t.id.equals(r.id))).write(
         RecordsCompanion(goalId: Value(scope.$1), goalNodeId: Value(scope.$2)),

@@ -1272,6 +1272,57 @@ void main() {
     expect((live.single as Map)['content'], '喜欢热闹的环境');
     expect((live.single as Map)['id'], 'second');
   });
+  test('更短的新陈述更新同一事实，文本包含关系不吞掉其他事实', () async {
+    final memory = DriftMemoryRepository(db, clock: () => now);
+    Map<String, Object?> entry(String id, String text, String key) => {
+      'id': id,
+      'content': text,
+      'kind': 'preference',
+      'certainty': 'stated',
+      'source': '用户陈述',
+      'conflictKey': key,
+    };
+    await memory.saveMemory(entry('old', '不再喜欢数学', '数学偏好'));
+    expect(await memory.saveMemory(entry('new', '喜欢数学', '数学偏好')), {
+      'status': 'updated',
+      'id': 'old',
+    });
+    expect(await memory.saveMemory(entry('goal', '学习 Java', '学习目标')), {
+      'status': 'created',
+      'id': 'goal',
+    });
+    expect(await memory.saveMemory(entry('reason', '学习 Java 是为了找工作', '学习动机')), {
+      'status': 'created',
+      'id': 'reason',
+    });
+    final contents = ((await memory.queryMemory())['items'] as List).map(
+      (e) => e['content'],
+    );
+    expect(contents, containsAll(['喜欢数学', '学习 Java', '学习 Java 是为了找工作']));
+    expect(contents, isNot(contains('不再喜欢数学')));
+  });
+  test('相同内容的约束可续期，回执和有效查询一致', () async {
+    final memory = DriftMemoryRepository(db, clock: () => now);
+    Map<String, Object?> entry(String id, int days) => {
+      'id': id,
+      'content': '工作日晚上不安排学习',
+      'kind': 'constraint',
+      'certainty': 'stated',
+      'source': '用户陈述',
+      'conflictKey': '晚上安排',
+      'expiresAt': now.add(Duration(days: days)).millisecondsSinceEpoch,
+    };
+    await memory.saveMemory(entry('old', 1));
+    now = now.add(const Duration(days: 2));
+    expect((await memory.queryMemory())['items'], isEmpty);
+    final renewal = entry('renew', 7);
+    final result = await memory.saveMemory(renewal, operationId: 'renew-op');
+    expect(result, {'status': 'updated', 'id': 'old'});
+    expect(await memory.saveMemory(renewal, operationId: 'renew-op'), result);
+    final items = (await memory.queryMemory())['items'] as List;
+    expect(items, hasLength(1));
+    expect(items.single['expires_at'], renewal['expiresAt']);
+  });
   test('同主题命中用户手动编辑的条目时保持原事实', () async {
     final repository = DriftMemoryRepository(db, clock: () => now);
     await repository.saveMemory({
@@ -1679,6 +1730,13 @@ void main() {
     );
     final detail = await reader.getGoal(goal: goal.id, mission: id);
     expect(detail['userReportedCompleted'], true);
+    expect(detail.containsKey('execution'), false);
+    expect(detail.containsKey('materialIndex'), false);
+    expect(
+      (detail['details'] as Map)['records']['sections']['execution'],
+      greaterThan(0),
+    );
+    expect((await reader.records(id, 'execution'))['items'], isNotEmpty);
     expect(jsonEncode(detail), isNot(contains('base64')));
     expect(
       missionAttention(
@@ -1688,6 +1746,63 @@ void main() {
       ),
       MissionAttention.overdue,
     );
+  });
+  test('目标逐层返回直接子项，显式子树查询保留全部任务', () async {
+    final goal = goals.prepareCreation(title: '分层目标');
+    await goals.create(goal);
+    final parent = goals.prepareNodeCreation(goalId: goal.id, title: '基础');
+    await goals.createNode(parent);
+    final child = goals.prepareNodeCreation(
+      goalId: goal.id,
+      title: '语法',
+      parentNodeId: parent.id,
+    );
+    await goals.createNode(child);
+    final rootTask = await seed(goalId: goal.id, title: '根任务');
+    final parentTask = await seed(
+      goalId: goal.id,
+      nodeId: parent.id,
+      title: '基础任务',
+    );
+    final childTask = await seed(
+      goalId: goal.id,
+      nodeId: child.id,
+      title: '语法任务',
+    );
+    final reader = DriftUnifiedReader(db);
+    final root = await reader.getGoal(goal: goal.id);
+    expect(((root['nodes'] as Map)['items'] as List).map((e) => e['id']), [
+      parent.id,
+    ]);
+    expect(((root['missions'] as Map)['items'] as List).map((e) => e['id']), [
+      rootTask,
+    ]);
+    final branch = await reader.getGoal(goal: goal.id, node: parent.id);
+    expect(((branch['nodes'] as Map)['items'] as List).map((e) => e['id']), [
+      child.id,
+    ]);
+    expect(((branch['missions'] as Map)['items'] as List).map((e) => e['id']), [
+      parentTask,
+    ]);
+    final subtree = await reader.getGoal(
+      goal: goal.id,
+      node: parent.id,
+      mission: '*',
+    );
+    expect(
+      (subtree['items'] as List).map((e) => e['id']),
+      unorderedEquals([parentTask, childTask]),
+    );
+    final filtered = await reader.getMission(
+      date: '2026-10-30',
+      goalId: goal.id,
+    );
+    expect(filtered['total'], 3);
+    final index = (filtered['items'] as List).first;
+    expect(index['plannedMinutes'], 30);
+    expect(index.containsKey('verificationPolicy'), true);
+    expect(index.containsKey('analysis'), true);
+    expect((await reader.getMission(date: '2026-10-31'))['total'], 0);
   });
   test('关联既有记录复用材料截止与重试规则，正文只保存一次', () async {
     final id = await seed(policy: VerificationPolicy.requiredEvidence);

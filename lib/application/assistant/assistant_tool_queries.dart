@@ -19,18 +19,6 @@ class _AssistantToolQueries {
           includeTimeContext: true,
         )
         .text;
-    if (result['summaryComplete'] != true &&
-        _tools._readCharacters + text.length > 64000) {
-      return _tools._budgetFailure(
-        'read_budget_exceeded',
-        '本轮已到累计读取预算，本次结果未返回。此前累计读取 ${_tools._readCharacters} 字符；本次请求 offset=${result['offset'] ?? '无'}，范围总量=${result['total'] ?? '未知'}；已成功返回的页见 read 字段。必须说明已读页和未覆盖部分，不能推断全量。统计请改用 getMission(summaryOnly:true) 读取完整范围的精确计数。',
-        attempt: {
-          if (result['offset'] is int) 'offset': result['offset'],
-          if (result['total'] is int) 'total': result['total'],
-        },
-      );
-    }
-    _tools._readCharacters += text.length;
     return ToolOutput.success(text);
   }
 
