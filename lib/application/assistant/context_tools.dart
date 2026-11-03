@@ -66,13 +66,17 @@ List<AgentTool> contextTools({
   );
   String commandId(ToolContext c) =>
       const Uuid().v5(Namespace.url.value, c.idempotencyKey);
-  void explicitBasis(String basis, {bool memoryBasis = false}) {
+  void explicitBasis(
+    String basis, {
+    bool memoryBasis = false,
+    String? entryId,
+  }) {
     if (basis.trim().isEmpty || !userStatement().contains(basis.trim())) {
       final shown = basis.length > 200 ? '${basis.substring(0, 200)}…' : basis;
       throw ToolRejected(
         memoryBasis ? 'memory_basis_invalid' : 'user_basis_required',
         memoryBasis
-            ? '记忆未保存：basis 必须逐字引用当前用户消息（本轮最后一条用户消息，不含此前对话）中的连续原文，保留原换行和标点；不能拼接、省略或改写。收到的 basis 是 ${jsonEncode(shown)}。content 可概括，请重新复制当前用户消息中的原话后重试。'
+            ? '记忆${entryId == null ? '' : '条目 ${jsonEncode(entryId)} '}未保存：basis 必须逐字引用当前用户消息（本轮最后一条用户消息，不含此前对话）中的连续原文，保留原换行和标点；不能拼接、省略或改写。收到的 basis 是 ${jsonEncode(shown)}。content 可概括，请重新复制当前用户消息中的原话后重试。'
             : '报告未保存：basis 必须逐字引用当前用户明确说明完成结果或实际时段的连续原文，不能拼接或改写。收到的 basis 是 ${jsonEncode(shown)}。',
       );
     }
@@ -406,12 +410,20 @@ List<AgentTool> contextTools({
         'expiresAt': s('约束期限ISO8601；constraint 必填且必须晚于当前时刻'),
       },
       (i, c) async {
-        explicitBasis(i['basis'] as String? ?? '', memoryBasis: true);
-        final id = i['id'] as String? ?? commandId(c);
+        final entryId = i['id'] as String?;
+        explicitBasis(
+          i['basis'] as String? ?? '',
+          memoryBasis: true,
+          entryId: entryId,
+        );
+        final id = entryId ?? commandId(c);
         final version =
             snapshot?.call(c.callId)['memoryVersion'] as Map<String, Object?>?;
-        if (i['id'] != null && version == null) {
-          throw const ToolRejected('stale_proposal', '更正前需要重新查询并固定原记忆');
+        if (entryId != null && version == null) {
+          throw ToolRejected(
+            'stale_proposal',
+            '记忆条目 ${jsonEncode(entryId)} 更正前需要重新查询并固定原记忆',
+          );
         }
         return memory.save(
           {

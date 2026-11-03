@@ -1171,6 +1171,75 @@ void main() {
     expect(current.conflictKey, '原主题');
     expect(current.expiresAt, expiry);
   });
+  test('记忆更正的 basis 校验失败时点名目标条目，新建记忆不虚构编号', () async {
+    final repository = DriftMemoryRepository(db, clock: () => now);
+    final tools = contextTools(
+      records: RecordService(records, missions, missions.attachments),
+      missions: missions,
+      memory: MemoryService(repository),
+      analysis: DriftAnalysisStore(db),
+      analyze: (p, {imageKey, mime, json = false}) async => '',
+      web: WebService(
+        settings: const SecureWebSettings(),
+        quota: DriftSearchQuota(db),
+        fetchClient: () => throw StateError('不出网'),
+      ),
+      userStatement: () => '请把旧事实更正为新事实',
+      snapshot: (callId) => callId == 'stale'
+          ? const {}
+          : {
+              'memoryVersion': {'id': callId},
+            },
+    );
+    final save = tools.firstWhere(
+      (tool) => tool.definition.name == 'saveMemory',
+    );
+    Future<ToolRejected> rejected(
+      Map<String, Object?> input,
+      String callId,
+    ) async {
+      try {
+        await save.execute(
+          input,
+          ToolContext(
+            callId: callId,
+            sessionId: 'session',
+            cancellation: CancellationToken(),
+          ),
+        );
+      } on ToolRejected catch (error) {
+        return error;
+      }
+      fail('应当拒绝这次记忆写入');
+    }
+
+    final edit = await rejected({
+      'id': 'scoped-memory',
+      'content': '新事实',
+      'kind': 'fact',
+      'basis': '我改主意了',
+    }, 'edit');
+    expect(edit.code, 'memory_basis_invalid');
+    expect(edit.message, contains('记忆条目 "scoped-memory" 未保存'));
+    expect(edit.message, contains('我改主意了'));
+
+    final created = await rejected({
+      'content': '新事实',
+      'kind': 'fact',
+      'basis': '我改主意了',
+    }, 'create');
+    expect(created.code, 'memory_basis_invalid');
+    expect(created.message, startsWith('记忆未保存：'));
+
+    final stale = await rejected({
+      'id': 'gone',
+      'content': '新事实',
+      'kind': 'fact',
+      'basis': '请把旧事实更正为新事实',
+    }, 'stale');
+    expect(stale.code, 'stale_proposal');
+    expect(stale.message, contains('"gone"'));
+  });
   test('同来源的不同记忆独立保存，同主题来自新会话时更新原条目', () async {
     final repository = DriftMemoryRepository(db, clock: () => now);
     Map<String, Object?> entry(
