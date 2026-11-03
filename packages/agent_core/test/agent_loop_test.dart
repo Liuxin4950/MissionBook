@@ -169,7 +169,7 @@ void main() {
         inputSchema: {
           'type': 'object',
           'properties': {
-            'minutes': {'type': 'integer', 'minimum': 1},
+            'minutes': {'type': 'integer', 'minimum': 1, 'maximum': 1440},
             'kind': {
               'type': 'string',
               'enum': ['plan', 'record'],
@@ -177,6 +177,18 @@ void main() {
             'items': {
               'type': 'array',
               'minItems': 1,
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'plannedMinutes': {
+                    'type': 'integer',
+                    'minimum': 1,
+                    'maximum': 1440,
+                  },
+                },
+                'required': ['plannedMinutes'],
+                'additionalProperties': false,
+              },
             },
           },
           'required': ['minutes'],
@@ -186,6 +198,10 @@ void main() {
       execute: (input, context) => const ToolOutput.success(''),
     );
     expect(tool.validateInput({'minutes': 0}), '参数 minutes 不能小于 1（收到 0）');
+    expect(
+      tool.validateInput({'minutes': 1441}),
+      '参数 minutes 不能大于 1440（收到 1441）',
+    );
     expect(tool.validateInput({}), '缺少必填参数 minutes');
     expect(
       tool.validateInput({'minutes': 1, 'kind': 'other'}),
@@ -202,6 +218,22 @@ void main() {
     expect(
       tool.validateInput({'minutes': 1, 'extra': true}),
       '不支持参数 extra',
+    );
+    expect(
+      tool.validateInput({
+        'minutes': 1,
+        'items': [
+          {'plannedMinutes': 1441},
+        ],
+      }),
+      '参数 items[0].plannedMinutes 不能大于 1440（收到 1441）',
+    );
+    expect(
+      tool.validateInput({
+        'minutes': 1,
+        'items': [<String, Object?>{}],
+      }),
+      '缺少必填参数 items[0].plannedMinutes',
     );
   });
 

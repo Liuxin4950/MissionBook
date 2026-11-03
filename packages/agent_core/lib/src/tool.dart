@@ -140,26 +140,41 @@ String _describeValidationError(
 ) {
   final field = _fieldPath(path);
   final prefix = field.isEmpty ? '输入' : '参数 $field';
-  final minimum = RegExp(
-    r'^minimum violated \(([^)]*) < ([^)]*)\)$',
+  // 上下限类报错用 violated/exceeded 区分，括号里是「收到值 符号 限制值」。
+  final limit = RegExp(
+    r'^(exclusiveMinimum|exclusiveMaximum|minimum|maximum) (?:violated|exceeded) \((.*) (<=|>=|<|>) (.*)\)$',
   ).firstMatch(message);
-  if (minimum != null) {
-    return '$prefix 不能小于 ${minimum[2]}（收到 ${minimum[1]}）';
+  if (limit != null) {
+    final label = switch (limit[1]) {
+      'minimum' => '不能小于',
+      'exclusiveMinimum' => '必须大于',
+      'maximum' => '不能大于',
+      _ => '必须小于',
+    };
+    return '$prefix $label ${limit[4]}（收到 ${limit[2]}）';
   }
-  final maximum = RegExp(
-    r'^maximum violated \(([^)]*) > ([^)]*)\)$',
+  // 长度、条数与格式类报错，括号里是「收到值 vs 限制值」。
+  final ranged = RegExp(
+    r'^(minLength|maxLength|minItems|maxItems|pattern) (?:violated|exceeded) \((.*) vs (.*)\)$',
   ).firstMatch(message);
-  if (maximum != null) {
-    return '$prefix 不能大于 ${maximum[2]}（收到 ${maximum[1]}）';
+  if (ranged != null) {
+    final received = ranged[2]!;
+    final bound = ranged[3]!;
+    return switch (ranged[1]) {
+      'minLength' => '$prefix 至少 $bound 个字符（收到 $received 个字符）',
+      'maxLength' => '$prefix 最多 $bound 个字符（收到 $received 个字符）',
+      'minItems' => '$prefix 至少 $bound 项（收到 $received 项）',
+      'maxItems' => '$prefix 最多 $bound 项（收到 $received 项）',
+      _ => '$prefix 格式不符合 $bound',
+    };
   }
-  final items = RegExp(
-    r'^(minItems|maxItems) violated \(([^)]*) vs ([^)]*)\)$',
+  final multiple = RegExp(
+    r'^multipleOf violated \((.*) % (.*)\)$',
   ).firstMatch(message);
-  if (items != null) {
-    return items[1] == 'minItems'
-        ? '$prefix 至少 ${items[3]} 项（收到 ${items[2]} 项）'
-        : '$prefix 最多 ${items[3]} 项（收到 ${items[2]} 项）';
+  if (multiple != null) {
+    return '$prefix 必须是 ${multiple[2]} 的倍数（收到 ${multiple[1]}）';
   }
+  if (message.startsWith('uniqueItems violated')) return '$prefix 不能有重复项';
   final type = RegExp(r'^type: wanted \[(.+)\] got (.*)$').firstMatch(message);
   if (type != null) return '$prefix 类型应为 ${type[1]}';
   final enumerated = RegExp(r'^enum violated (.+)$').firstMatch(message);
