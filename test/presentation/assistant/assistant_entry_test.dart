@@ -21,6 +21,7 @@ import 'package:mission_book/domain/entities/goal.dart';
 import 'package:mission_book/presentation/assistant/assistant_launcher.dart';
 import 'package:mission_book/presentation/assistant/assistant_scope.dart';
 import 'package:mission_book/presentation/assistant/assistant_page.dart';
+import 'package:mission_book/presentation/assistant/assistant_markdown.dart';
 import 'package:mission_book/presentation/assistant/assistant_settings_page.dart';
 import 'package:mission_book/presentation/assistant/assistant_model_settings_page.dart';
 import 'package:mission_book/presentation/assistant/assistant_speech_settings_page.dart';
@@ -1387,6 +1388,56 @@ void main() {
     expect(find.byType(AssistantPage), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final (width, textScale) in [
+    (320.0, 2.0),
+    (390.0, 1.0),
+    (768.0, 1.0),
+    (1440.0, 1.0),
+  ]) {
+    assistantTest('短回复卡片使用正文可用宽度 $width 字号 $textScale', (tester) async {
+      await mount(
+        tester,
+        ScriptedModel([(_) => textResponse('收到。')]),
+        width: width,
+        textScale: textScale,
+      );
+      await tester.tap(find.byKey(const Key('assistant-launcher')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('文字'));
+      await pumpUntil(
+        tester,
+        () => find.byType(AssistantPage).evaluate().isNotEmpty,
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('assistant-input')), '你好');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('assistant-send')));
+      await pumpUntil(tester, () => !assistant.isRunning);
+      await tester.pumpAndSettle();
+      final list = find.byKey(const Key('assistant-conversation-list'));
+      final padding = tester
+          .widget<ListView>(list)
+          .padding!
+          .resolve(TextDirection.ltr);
+      final available = tester.getSize(list).width - padding.horizontal;
+      final bubble = find
+          .ancestor(
+            of: find.byType(AssistantMarkdown),
+            matching: find.byType(Material),
+          )
+          .first;
+      expect(
+        tester.getSize(bubble).width,
+        closeTo(available.clamp(0.0, 860.0), .01),
+        reason: '短回复也应获得完整阅读宽度，宽屏最多 860；不能只给 maxWidth 后随文字收缩',
+      );
+      final copy = find.byTooltip('复制回复');
+      expect(tester.getSize(copy).shortestSide, greaterThanOrEqualTo(48));
+      expect(tester.takeException(), isNull);
+      await capture(tester, 'reply-width-${width.toInt()}');
+    });
+  }
 
   assistantTest('手机消息间距与超长文本在320宽两倍字号下仍可滚动发送', (tester) async {
     await mount(

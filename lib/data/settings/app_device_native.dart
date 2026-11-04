@@ -65,6 +65,7 @@ class NativeAppDevice implements AppDevice {
       executionNotifications: value['executionNotifications'] as bool?,
       islandSupported: value['islandSupported'] as bool?,
       focusPermission: value['focusPermission'] as bool?,
+      focusConfigured: value['focusConfigured'] as bool?,
     );
   }
 

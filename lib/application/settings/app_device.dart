@@ -14,6 +14,7 @@ class DeviceCapabilities {
     this.executionNotifications,
     this.islandSupported,
     this.focusPermission,
+    this.focusConfigured,
   });
   final String version;
   final bool? notifications;
@@ -22,6 +23,7 @@ class DeviceCapabilities {
   final bool? executionNotifications;
   final bool? islandSupported;
   final bool? focusPermission;
+  final bool? focusConfigured;
 }
 
 abstract interface class AppDevice {

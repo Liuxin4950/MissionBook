@@ -24,7 +24,7 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
             calls.add(call);
-            return null;
+            return call.method == 'prepare' ? 7 : null;
           });
     }
     dispatcher = AndroidNotificationDispatcher(
@@ -62,14 +62,19 @@ void main() {
     test('执行通知 $kind 静默更新且保留动作和身份，自定义内容接收同一摘要', () async {
       final projected = request(kind);
       await dispatcher.show(projected);
-      expect(calls.map((call) => call.method), ['show', 'decorateExecution']);
-      final sent = calls.first.arguments as Map;
+      expect(calls.map((call) => call.method), [
+        'prepare',
+        'show',
+        'decorateExecution',
+      ]);
+      final sent = calls[1].arguments as Map;
       final android = sent['platformSpecifics'] as Map;
       expect(android['channelId'], 'mission_execution_v2');
       expect(android['importance'], Importance.low.value);
       expect(android['silent'], isTrue);
       expect(android['onlyAlertOnce'], isTrue);
       expect(android['autoCancel'], isFalse);
+      expect(android['ongoing'], isTrue);
       expect(android['usesChronometer'], kind == ReminderKind.executionRunning);
       if (kind == ReminderKind.executionRunning) {
         expect(
@@ -96,6 +101,8 @@ void main() {
       expect(custom['focusMilliseconds'], 75000);
       expect(custom['running'], kind == ReminderKind.executionRunning);
       expect(custom['id'], 42);
+      expect(custom['token'], 7);
+      expect(custom['focusParams'], contains('param_island'));
       await dispatcher.cancel(42);
       expect(calls[calls.length - 2].method, 'invalidate');
       expect(calls.last.method, 'cancel');
@@ -121,6 +128,19 @@ void main() {
     expect(android['channelId'], 'mission_reminders');
     expect(android['importance'], Importance.high.value);
     expect(android['icon'], 'ic_stat_mission');
+    expect(android['ongoing'], isTrue);
+    expect(android['autoCancel'], isFalse);
+  });
+
+  test('到点待确认仍常驻且冻结计时，没有继续按钮', () async {
+    await dispatcher.show(request(ReminderKind.executionStopped));
+    final sent = calls[1].arguments as Map;
+    final android = sent['platformSpecifics'] as Map;
+    expect(android['ongoing'], isTrue);
+    expect(android['autoCancel'], isFalse);
+    expect(android['usesChronometer'], isFalse);
+    expect(android['actions'], isEmpty);
+    expect((calls.last.arguments as Map)['stopped'], isTrue);
   });
 
   test('外观失效通道失败仍撤销系统通知，不阻断后续对账', () async {

@@ -126,6 +126,12 @@ class AssistantController extends ChangeNotifier {
     if (!_closed) notifyListeners();
   }
 
+  /// 流式快照不触发整页重建；通知器可只让生成中的区域刷新。
+  void _publishActivity(SessionActivity activity) {
+    _activity = activity;
+    if (!_closed) liveActivity.value = activity;
+  }
+
   AssistantController({
     required AssistantConversationStore sessionStore,
     required AssistantSettingsStore settingsStore,
@@ -206,17 +212,22 @@ class AssistantController extends ChangeNotifier {
   );
   List<AssistantConversationSummary> _conversations = const [];
   List<AgentMessage> _transcript = const [];
-  SessionActivity _activity = const SessionActivity(
-    isRunning: false,
-    text: '',
-    thinking: '',
-    attempt: 0,
-  );
+  SessionActivity _activity = _idleActivity;
   List<ScheduledMission>? _localSchedule;
   String? _localScheduleDate;
   AssistantReference? _reference;
   String? _errorMessage;
   String? _lastUserInput;
+  static const _idleActivity = SessionActivity(
+    isRunning: false,
+    text: '',
+    thinking: '',
+    attempt: 0,
+  );
+
+  /// 模型逐 token 推送的正文/思考只更新这里；正在生成的区域单独订阅，
+  /// 页面其余部分只在结构变化时重建，避免整页按帧重建。
+  final liveActivity = ValueNotifier<SessionActivity>(_idleActivity);
   final _drafts = <String?, String>{};
   final _attachmentDrafts = <String?, List<AssistantAttachment>>{};
   List<AssistantAttachment> attachmentsFor(String? id) =>
@@ -381,7 +392,7 @@ class AssistantController extends ChangeNotifier {
     }
     final prompt = session?.systemPrompt ?? _effectiveSystemPrompt;
     final key =
-        '${session?.id}:${profile.toJson()}:$prompt:${rawMessages.length}:${rawMessages.firstOrNull?.id}:${rawMessages.lastOrNull?.id}';
+        '${session?.id}:${profile.id}:${profile.model}:${profile.contextWindowTokens}:${profile.maxOutputTokens}:${session?.outputTokens}:${profile.reasoningEffort.name}:${profile.supportsImages}:${prompt.hashCode}:${rawMessages.length}:${rawMessages.firstOrNull?.id}:${rawMessages.lastOrNull?.id}';
     if (_contextEstimateKey != key) {
       _contextEstimate = const ApproximateTokenEstimator().estimate(
         profile,
@@ -622,6 +633,7 @@ class AssistantController extends ChangeNotifier {
   @override
   void dispose() {
     unawaited(close());
+    liveActivity.dispose();
     super.dispose();
   }
 }

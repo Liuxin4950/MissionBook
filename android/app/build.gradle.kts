@@ -27,6 +27,10 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // 本地客户端超级岛鉴权；未配置时保留普通通知，不使用示例 App ID。
+        manifestPlaceholders["xiaomiAppId"] = providers.gradleProperty("xiaomiAppId").orElse("").get()
+        // 当前各构建类型均使用 debug 证书；改用正式签名时一并改为 false。
+        manifestPlaceholders["xiaomiBuildTypeDebug"] = providers.gradleProperty("xiaomiBuildTypeDebug").orElse("true").get()
     }
 
     buildTypes {

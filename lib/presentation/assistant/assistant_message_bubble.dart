@@ -26,6 +26,8 @@ class _MessageBubble extends StatelessWidget {
           alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
           child: ConstrainedBox(
             constraints: BoxConstraints(
+              // AI 回答按阅读区铺开；只设上限会让短段落把整块回复收窄。
+              minWidth: isUser ? 0 : constraints.maxWidth.clamp(0, 860),
               maxWidth: isUser
                   ? (constraints.maxWidth * .88).clamp(0, 620)
                   : constraints.maxWidth.clamp(0, 860),
@@ -169,21 +171,35 @@ class _StreamingBubble extends StatelessWidget {
   const _StreamingBubble({super.key, required this.text});
   final String text;
   @override
-  Widget build(BuildContext context) => Align(
-    alignment: Alignment.centerLeft,
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 620),
-      child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppLayout.spaceMd,
-            vertical: AppLayout.spaceMd,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [if (text.isNotEmpty) AssistantMarkdown(text: text)],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Align(
+      alignment: Alignment.centerLeft,
+      child: SizedBox(
+        // 生成中和生成后的回答使用同一阅读宽度，避免结束时横向跳变。
+        width: constraints.maxWidth.clamp(0, 860),
+        child: Material(
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppLayout.spaceMd,
+              vertical: AppLayout.spaceMd,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 逐 token 变化时只排版纯文本；Markdown 解析留给完成后的正式消息。
+                if (text.isNotEmpty)
+                  RepaintBoundary(
+                    child: Text(
+                      text,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(height: 1.5),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

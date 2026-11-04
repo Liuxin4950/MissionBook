@@ -19,6 +19,16 @@ class _AssistantTurn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 已完成的部分只在会话结构变化时重建；流式期间只叠加变化中的尾部。
+    final stable = _stableParts();
+    if (!running) return _buildTurn(context, controller.activity, stable);
+    return ValueListenableBuilder<SessionActivity>(
+      valueListenable: controller.liveActivity,
+      builder: (context, activity, _) => _buildTurn(context, activity, stable),
+    );
+  }
+
+  _TurnParts _stableParts() {
     final process = <Widget>[];
     final replies = <Widget>[];
     final calls = <String>{};
@@ -69,7 +79,23 @@ class _AssistantTurn extends StatelessWidget {
         );
       }
     }
-    final activity = controller.activity;
+    return _TurnParts(
+      process: process,
+      replies: replies,
+      calls: calls,
+      needsAttention: needsAttention,
+    );
+  }
+
+  Widget _buildTurn(
+    BuildContext context,
+    SessionActivity activity,
+    _TurnParts stable,
+  ) {
+    final process = [...stable.process];
+    final replies = [...stable.replies];
+    final calls = stable.calls;
+    final needsAttention = stable.needsAttention;
     final live = running && activity.modelRequestRunning;
     if (live && activity.thinking.isNotEmpty) {
       process.add(
@@ -125,4 +151,18 @@ class _AssistantTurn extends StatelessWidget {
       ],
     );
   }
+}
+
+/// 本轮已完成内容的稳定部分；流式刷新只复制列表，不重建这些子树。
+class _TurnParts {
+  const _TurnParts({
+    required this.process,
+    required this.replies,
+    required this.calls,
+    required this.needsAttention,
+  });
+  final List<Widget> process;
+  final List<Widget> replies;
+  final Set<String> calls;
+  final bool needsAttention;
 }

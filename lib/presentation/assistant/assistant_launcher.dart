@@ -135,7 +135,9 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     final scope = AssistantScope.of(context);
     if (_scope?.controller != scope.controller) {
       _scope?.controller.removeListener(_changed);
+      _scope?.controller.liveActivity.removeListener(_changed);
       scope.controller.addListener(_changed);
+      scope.controller.liveActivity.addListener(_changed);
     }
     if (_scope?.voice != scope.voice) {
       _scope?.voice.removeListener(_changed);
@@ -355,6 +357,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
   @override
   void dispose() {
     _scope?.controller.removeListener(_changed);
+    _scope?.controller.liveActivity.removeListener(_changed);
     _scope?.voice.removeListener(_changed);
     if (_recording) unawaited(_scope?.voice.cancel());
     super.dispose();
@@ -593,7 +596,15 @@ class AssistantLauncherState extends State<AssistantLauncher> {
         ),
       );
     }
-    if (streaming.isNotEmpty) replies.add(AssistantMarkdown(text: streaming));
+    // 流式预览只做纯文本排版，完整 Markdown 留给会话页完成后的消息。
+    if (streaming.isNotEmpty) {
+      replies.add(
+        Text(
+          streaming,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+        ),
+      );
+    }
     final text = Theme.of(context).textTheme;
     return Column(
       mainAxisSize: MainAxisSize.min,

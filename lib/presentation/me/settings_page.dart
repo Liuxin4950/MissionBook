@@ -480,7 +480,7 @@ class _SettingsPageState extends State<SettingsPage>
           icon: Icons.notifications_active_outlined,
           title: platform == DevicePlatform.android ? '执行计时通知' : '执行状态通知',
           subtitle: platform == DevicePlatform.android
-              ? '显示计时与快捷操作'
+              ? '课前和执行通知常驻，清空其他通知后仍保留'
               : '通过 Windows 通知呈现',
           trailing: widget.notifications == null
               ? null
@@ -651,11 +651,14 @@ class _SettingsPageState extends State<SettingsPage>
       return '当前系统未提供小米超级岛，使用普通通知。';
     }
     if (capabilities.islandSupported == true) {
+      if (capabilities.focusConfigured == false) {
+        return '超级岛计时已适配，应用尚未完成小米平台开通，当前使用常驻计时通知。';
+      }
       if (capabilities.focusPermission == false) {
         return '系统支持超级岛，但本应用尚未获准焦点通知。';
       }
       if (capabilities.focusPermission == true) {
-        return '系统支持超级岛，当前版本仍使用普通通知。';
+        return '超级岛计时已适配，执行时由系统显示；暂停和到点后冻结计时。';
       }
       return '系统支持超级岛，焦点权限暂时未知。';
     }

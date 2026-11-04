@@ -29,6 +29,7 @@ class _Device extends TestAppDevice {
   bool? executionNotifications = true;
   bool? islandSupported = false;
   bool? focusPermission;
+  bool? focusConfigured;
   int capabilityQueries = 0;
   Completer<DeviceCapabilities>? pendingCapabilities;
   final settings = <bool>[];
@@ -45,6 +46,7 @@ class _Device extends TestAppDevice {
           executionNotifications: executionNotifications,
           islandSupported: islandSupported,
           focusPermission: focusPermission,
+          focusConfigured: focusConfigured,
         );
   }
 
@@ -215,6 +217,25 @@ void main() {
       find.byKey(const Key('island-capability-status')),
     );
     expect(find.textContaining('本应用尚未获准焦点通知'), findsOneWidget);
+  });
+
+  testWidgets('超级岛已适配时仍区分平台尚未开通和系统权限获准', (tester) async {
+    device.islandSupported = true;
+    device.focusPermission = true;
+    device.focusConfigured = false;
+    await open(tester);
+    await tester.ensureVisible(
+      find.byKey(const Key('island-capability-status')),
+    );
+    expect(find.textContaining('尚未完成小米平台开通'), findsOneWidget);
+    device.focusConfigured = true;
+    await tester.pumpWidget(const SizedBox.shrink());
+    await open(tester);
+    await tester.ensureVisible(
+      find.byKey(const Key('island-capability-status')),
+    );
+    expect(find.textContaining('执行时由系统显示'), findsOneWidget);
+    expect(find.textContaining('当前版本仍使用普通通知'), findsNothing);
   });
 
   testWidgets('Windows 显示系统通知入口及后台限制，不展示 Android 专属能力', (tester) async {

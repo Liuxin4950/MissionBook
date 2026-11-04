@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -6,6 +8,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../../core/theme/colors.dart';
 import '../../domain/notifications/reminder_request.dart';
 import '../../application/notifications/notification_dispatcher.dart';
+import 'xiaomi_execution_payload.dart';
 
 /// Android 分发端：fln 的 zonedSchedule/立即显示/撤销。
 ///
@@ -56,8 +59,9 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
         enableVibration: !executing,
         silent: executing,
         onlyAlertOnce: true,
-        ongoing: running,
-        autoCancel: !executing,
+        // 未处理的课前提醒、暂停和待确认也保留；统一由任务事实撤销。
+        ongoing: true,
+        autoCancel: false,
         // 标准通知也带系统秒表：外观扩展不可用时，退后台仍能显示累计 Focus。
         showWhen: !executing || advancing,
         usesChronometer: advancing,
@@ -140,6 +144,18 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
 
   @override
   Future<void> show(ReminderRequest request) async {
+    int? appearanceToken;
+    if (request.focusMilliseconds != null) {
+      try {
+        appearanceToken = await _appearance.invokeMethod<int>('prepare', {
+          'id': request.notificationId,
+        });
+      } on PlatformException catch (error) {
+        debugPrint('通知外观准备失败，保留标准计时通知：$error');
+      } on MissingPluginException {
+        debugPrint('通知外观通道未注册，保留标准计时通知');
+      }
+    }
     await _plugin.show(
       id: request.notificationId,
       title: request.title,
@@ -147,12 +163,13 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
       notificationDetails: _detailsFor(request),
       payload: request.toPayload(),
     );
-    if (request.focusMilliseconds != null) {
+    if (appearanceToken != null) {
       // 保留插件生成的 PendingIntent、payload 和按钮，只定制系统内容区域。
       // 主引擎与计划任务后台引擎都注册此通道，通知动作仍回到统一业务入口。
       try {
         await _appearance.invokeMethod<void>('decorateExecution', {
           'id': request.notificationId,
+          'token': appearanceToken,
           'title': request.title,
           'body': request.body,
           'running': request.kind == ReminderKind.executionRunning,
@@ -161,6 +178,7 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
           'projectedAt': request.projectedAt?.millisecondsSinceEpoch,
           'budgetMinutes': request.budgetMinutes,
           'clockBehind': request.clockBehind,
+          'focusParams': jsonEncode(xiaomiExecutionPayload(request)),
         });
       } on PlatformException catch (error) {
         debugPrint('通知外观不可用，保留标准计时通知：$error');

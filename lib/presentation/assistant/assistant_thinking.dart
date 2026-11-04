@@ -74,7 +74,15 @@ class _AssistantThinkingState extends State<AssistantThinking> {
               left: AppLayout.iconSm + AppLayout.spaceSm,
               bottom: AppLayout.spaceSm,
             ),
-            child: AssistantMarkdown(text: widget.text, compact: true),
+            child: widget.streaming
+                // 流式思考每几十毫秒变化一次，持续解析 Markdown 会拖垮整轮帧率。
+                ? Text(
+                    widget.text,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(height: 1.5),
+                  )
+                : AssistantMarkdown(text: widget.text, compact: true),
           ),
       ],
     );

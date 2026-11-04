@@ -48,24 +48,15 @@ class MainActivity : FlutterActivity() {
                                     val channelEnabled = if (Build.VERSION.SDK_INT >= 26)
                                         manager.getNotificationChannel("mission_execution_v2")?.let { it.importance != NotificationManager.IMPORTANCE_NONE }
                                         else true
-                                    val protocol = Settings.System.getInt(contentResolver, "notification_focus_protocol", 0)
-                                    val islandSupported: Boolean? = if (protocol < 3) false else try {
-                                        Class.forName("android.os.SystemProperties").getDeclaredMethod("getBoolean", String::class.java, Boolean::class.javaPrimitiveType)
-                                            .invoke(null, "persist.sys.feature.island", false) as Boolean
-                                    } catch (_: Exception) { null }
-                                    // 官方接口是耗时 ContentProvider 调用，不能堵塞 Flutter 主线程。
-                                    val focusPermission: Boolean? = if (protocol == 0) false else try {
-                                        val extras = android.os.Bundle().apply { putString("package", packageName) }
-                                        contentResolver.call(Uri.parse("content://miui.statusbar.notification.public"), "canShowFocus", null, extras)
-                                            ?.getBoolean("canShowFocus", false)
-                                    } catch (_: Exception) { null }
+                                    val focus = XiaomiFocusSupport.read(applicationContext)
                                     val value = mapOf(
                                         "version" to "${info.versionName} ($code)",
                                         "notifications" to manager.areNotificationsEnabled(),
                                         "exactAlarms" to (Build.VERSION.SDK_INT < 31 || getSystemService(AlarmManager::class.java).canScheduleExactAlarms()),
                                         "executionNotifications" to channelEnabled,
-                                        "islandSupported" to islandSupported,
-                                        "focusPermission" to focusPermission,
+                                        "islandSupported" to focus.islandSupported,
+                                        "focusPermission" to focus.focusPermission,
+                                        "focusConfigured" to focus.configured,
                                     )
                                     runOnUiThread { result.success(value) }
                                 } catch (error: Exception) {

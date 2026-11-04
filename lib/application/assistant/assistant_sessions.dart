@@ -4,6 +4,7 @@ part of 'assistant_controller.dart';
 class _AssistantSessions {
   _AssistantSessions(this._controller);
   final AssistantController _controller;
+  Timer? _snapshotNotify;
 
   bool get canContinueInterrupted => _controller.canContinueInterrupted;
   bool get initialized => _controller.initialized;
@@ -418,6 +419,8 @@ class _AssistantSessions {
   Future<void> _closeSession() async {
     await _controller._changes?.cancel();
     await _controller._events?.cancel();
+    _snapshotNotify?.cancel();
+    _snapshotNotify = null;
     _controller._changes = null;
     _controller._events = null;
     for (final pending in _controller._pending.values) {
@@ -432,12 +435,7 @@ class _AssistantSessions {
     _controller._session = null;
     _controller._transcript = const [];
     _controller._operations.clear();
-    _controller._activity = const SessionActivity(
-      isRunning: false,
-      text: '',
-      thinking: '',
-      attempt: 0,
-    );
+    _controller._publishActivity(AssistantController._idleActivity);
     if (session != null) await session.close();
   }
 
@@ -445,10 +443,32 @@ class _AssistantSessions {
     final session = _controller._session;
     if (_controller._closed) return;
     if (session != null) {
-      _controller._transcript = session.transcript;
-      _controller._activity = session.activity;
-      _controller._refreshOperations();
+      final transcript = session.transcript;
+      final previous = _controller._transcript;
+      // transcript 每次都是新的不可变列表，不能按列表身份判断是否变化；
+      // 记录只追加，比较长度和最后一条即可识别纯文本增量。
+      final transcriptChanged =
+          transcript.length != previous.length ||
+          transcript.lastOrNull?.id != previous.lastOrNull?.id;
+      _controller._transcript = transcript;
+      // 纯文本增量不会改变会话记录；逐条重扫 transcript 会随聊天长度拖慢流式输出。
+      if (transcriptChanged) _controller._refreshOperations();
     }
+    // 模型逐 token 推送：只更新正文/思考快照，让生成中的区域单独刷新；
+    // 整页仍按请求边界（开始、结束、工具、会话）重建，避免输入区和会话列表逐帧重绘。
+    if (session != null && session.modelRequestRunning) {
+      _snapshotNotify ??= Timer(const Duration(milliseconds: 66), () {
+        _snapshotNotify = null;
+        if (_controller._closed) return;
+        _controller._publishActivity(session.activity);
+      });
+      return;
+    }
+    _snapshotNotify?.cancel();
+    _snapshotNotify = null;
+    _controller._publishActivity(
+      session?.activity ?? AssistantController._idleActivity,
+    );
     _controller._notifyListeners();
   }
 

@@ -90,11 +90,18 @@ class _AssistantPageState extends State<AssistantPage> {
     if (_followOutput) _scrollToBottom(animate: false);
   }
 
+  /// 流式增量不再触发整页重建，跟随输出需要在这里单独滚动。
+  void _liveActivityChanged() {
+    if (!mounted) return;
+    if (_followOutput) _scrollToBottom(animate: false);
+  }
+
   @override
   void initState() {
     super.initState();
     _draftSession = widget.controller.draftKey;
     widget.controller.addListener(_controllerChanged);
+    widget.controller.liveActivity.addListener(_liveActivityChanged);
     _input.text = widget.initialText ?? widget.controller.draft;
     _attachments.addAll(widget.controller.attachmentsFor(_draftSession));
     unawaited(widget.controller.initialize());
@@ -130,6 +137,7 @@ class _AssistantPageState extends State<AssistantPage> {
   @override
   void dispose() {
     widget.controller.removeListener(_controllerChanged);
+    widget.controller.liveActivity.removeListener(_liveActivityChanged);
     widget.controller.saveDraft(_draftSession, _input.text);
     widget.controller.saveAttachments(_draftSession, _attachments);
     _voice?.removeListener(_voiceChanged);
@@ -232,77 +240,89 @@ class _AssistantPageState extends State<AssistantPage> {
       ),
     ),
   );
-  Widget _buildSidebar(AssistantController controller) => Padding(
-    padding: const EdgeInsets.fromLTRB(
-      AppLayout.spaceXxl,
-      AppLayout.spaceLg,
-      0,
-      AppLayout.spaceXxl,
-    ),
-    child: AppSectionCard(
-      padding: const EdgeInsets.all(AppLayout.spaceLg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '会话',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              IconButton(
-                key: const Key('assistant-sidebar-search'),
-                tooltip: '搜索会话',
-                onPressed: controller.isBusy ? null : _openHistory,
-                icon: const Icon(Icons.search_rounded, size: AppLayout.iconMd),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppLayout.spaceLg),
-          FilledButton.tonalIcon(
-            key: const Key('assistant-sidebar-new'),
-            onPressed: controller.isBusy ? null : _newSession,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('开启新会话'),
-          ),
-          const SizedBox(height: AppLayout.spaceXl),
-          Expanded(
-            child: ListView(
+  Widget _buildSidebar(AssistantController controller) {
+    final conversations = controller.conversations;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppLayout.spaceXxl,
+        AppLayout.spaceLg,
+        0,
+        AppLayout.spaceXxl,
+      ),
+      child: AppSectionCard(
+        padding: const EdgeInsets.all(AppLayout.spaceLg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
               children: [
-                if (controller.conversations.isEmpty)
-                  const Text('对话会自动保存在这台设备上。'),
-                for (final item in controller.conversations)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
-                    child: ListTile(
-                      key: ValueKey('assistant-sidebar-${item.id}'),
-                      selected: item.id == controller.currentSessionId,
-                      selectedTileColor: AppColors.primarySoft,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppLayout.spaceMd,
-                      ),
-                      title: Text(
-                        item.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onTap: controller.isBusy
-                          ? null
-                          : () => _selectConversation(item.id),
-                    ),
+                Expanded(
+                  child: Text(
+                    '会话',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
+                ),
+                IconButton(
+                  key: const Key('assistant-sidebar-search'),
+                  tooltip: '搜索会话',
+                  onPressed: controller.isBusy ? null : _openHistory,
+                  icon: const Icon(
+                    Icons.search_rounded,
+                    size: AppLayout.iconMd,
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: AppLayout.spaceLg),
+            FilledButton.tonalIcon(
+              key: const Key('assistant-sidebar-new'),
+              onPressed: controller.isBusy ? null : _newSession,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('开启新会话'),
+            ),
+            const SizedBox(height: AppLayout.spaceXl),
+            Expanded(
+              child: conversations.isEmpty
+                  ? const Text('对话会自动保存在这台设备上。')
+                  : ListView.builder(
+                      itemCount: conversations.length,
+                      itemBuilder: (context, index) {
+                        final item = conversations[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AppLayout.spaceSm,
+                          ),
+                          child: ListTile(
+                            key: ValueKey('assistant-sidebar-${item.id}'),
+                            selected: item.id == controller.currentSessionId,
+                            selectedTileColor: AppColors.primarySoft,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppLayout.radiusMd,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: AppLayout.spaceMd,
+                            ),
+                            title: Text(
+                              item.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            onTap: controller.isBusy
+                                ? null
+                                : () => _selectConversation(item.id),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
+
   Future<void> _selectConversation(String id) async {
     try {
       await widget.controller.openConversation(id);
@@ -341,6 +361,7 @@ class _AssistantPageState extends State<AssistantPage> {
     ),
   ];
   Widget _buildConversation(AssistantController controller) {
+    final transcript = controller.transcript;
     final operations = {
       for (final operation in controller.operations)
         operation.callId: operation,
@@ -351,7 +372,7 @@ class _AssistantPageState extends State<AssistantPage> {
       if (!controller.hasCredential)
         _CredentialBanner(onPressed: _openSettings),
     ];
-    if (controller.transcript.isEmpty && controller.localSchedule == null) {
+    if (transcript.isEmpty && controller.localSchedule == null) {
       children.add(
         _Welcome(
           persona: controller.persona,
@@ -385,7 +406,7 @@ class _AssistantPageState extends State<AssistantPage> {
       messages = [];
     }
 
-    for (final message in controller.transcript) {
+    for (final message in transcript) {
       if (message is UserMessage) {
         appendTurn();
         children.add(
@@ -417,7 +438,7 @@ class _AssistantPageState extends State<AssistantPage> {
       },
       child: ListView.separated(
         key: const Key('assistant-conversation-list'),
-        reverse: controller.transcript.isNotEmpty,
+        reverse: transcript.isNotEmpty,
         controller: _scroll,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(
@@ -430,7 +451,7 @@ class _AssistantPageState extends State<AssistantPage> {
         separatorBuilder: (_, index) =>
             const SizedBox(height: AppLayout.spaceMd),
         itemBuilder: (_, index) =>
-            children[controller.transcript.isNotEmpty
+            children[transcript.isNotEmpty
                 ? children.length - 1 - index
                 : index],
       ),
@@ -445,11 +466,14 @@ class _AssistantPageState extends State<AssistantPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollScheduled = false;
       if (!mounted || !_scroll.hasClients || !_followOutput) return;
+      final position = _scroll.position;
+      final target = position.minScrollExtent;
+      if ((position.pixels - target).abs() < 0.5) return;
       if (!animate || MediaQuery.disableAnimationsOf(context)) {
-        _scroll.jumpTo(_scroll.position.minScrollExtent);
+        position.jumpTo(target);
       } else {
         _scroll.animateTo(
-          _scroll.position.minScrollExtent,
+          target,
           duration: AppMotion.quick,
           curve: AppMotion.curve,
         );
