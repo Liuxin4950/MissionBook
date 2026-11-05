@@ -211,9 +211,12 @@ class DriftAnalysisStore implements AnalysisStore {
       (directRecords, AnalysisScope.record),
       (nodes, AnalysisScope.node),
     ]) {
-      for (final r in group.$1) {
-        items.add(await child(group.$2, r['id'] as String));
-      }
+      items.addAll(
+        await _children(
+          group.$2,
+          group.$1.map((row) => row['id'] as String).toList(),
+        ),
+      );
     }
     return AnalysisInput(facts, items);
   }
@@ -233,30 +236,100 @@ class DriftAnalysisStore implements AnalysisStore {
     return text.length > 8000 ? text.substring(0, 8000) : text;
   }
 
-  Future<Map<String, Object?>> child(AnalysisScope scope, String id) async {
-    final summary = await records.analysis(scope, id);
-    final index = switch (scope) {
-      AnalysisScope.record => await records.rows(
-        'SELECT id,type,substr(content,1,300) caption,occurred_at FROM records WHERE id=?',
-        [id],
-      ),
-      AnalysisScope.mission => await records.rows(
-        "SELECT m.id,m.title,(SELECT user_reported_result FROM execution_events e WHERE e.mission_id=m.id AND e.type='END') userReportedResult,(SELECT COUNT(*) FROM evidence_records e WHERE e.mission_id=m.id AND NOT EXISTS(SELECT 1 FROM evidence_records n WHERE n.supersedes_evidence_id=e.id)) materialCount FROM missions m WHERE m.id=?",
-        [id],
-      ),
-      AnalysisScope.node => await records.rows(
-        'SELECT id,title,archived_at FROM goal_nodes WHERE id=?',
-        [id],
-      ),
-      _ => <Map<String, Object?>>[],
+  /// 批量读取同一层级的摘要和展示事实，避免每个子项触发三次 SQL。
+  Future<List<Map<String, Object?>>> _children(
+    AnalysisScope scope,
+    List<String> ids,
+  ) async {
+    if (ids.isEmpty) return const [];
+    final table = switch (scope) {
+      AnalysisScope.record => 'records',
+      AnalysisScope.mission => 'missions',
+      AnalysisScope.node => 'goal_nodes',
+      _ => throw ArgumentError.value(scope, 'scope', '不支持的子摘要范围'),
     };
-    return {
-      'id': id,
-      'scope': scope.name,
-      'version': summary['source_version'],
-      if (index.isNotEmpty) 'facts': index.single,
-      ...summary,
+    final facts = switch (scope) {
+      AnalysisScope.record =>
+        ',x.type,x.occurred_at,substr(x.content,1,300) caption',
+      AnalysisScope.mission =>
+        ',x.title,(SELECT user_reported_result FROM execution_events e WHERE e.mission_id=x.id AND e.type=\'END\') userReportedResult,(SELECT COUNT(*) FROM evidence_records e WHERE e.mission_id=x.id AND NOT EXISTS(SELECT 1 FROM evidence_records n WHERE n.supersedes_evidence_id=e.id)) materialCount',
+      AnalysisScope.node => ',x.title,x.archived_at',
+      _ => '',
     };
+    final result = <Map<String, Object?>>[];
+    // 保持低于常见 SQLite 绑定参数上限，也不让单条语句过长。
+    for (var offset = 0; offset < ids.length; offset += 400) {
+      final page = ids.sublist(offset, min(offset + 400, ids.length));
+      final rows = await records.rows(
+        '''SELECT x.id $facts,
+                  j.status AS job_status,j.source_version AS job_source_version,
+                  j.error AS job_error,
+                  v.content AS version_content,
+                  v.source_version AS version_source_version,
+                  v.coverage AS version_coverage,
+                  v.created_at AS version_created_at,
+                  v.closing AS version_closing
+           FROM $table x
+           LEFT JOIN analysis_jobs j
+             ON j.scope=? AND j.target_id=x.id
+           LEFT JOIN analysis_versions v ON v.id=(
+             SELECT av.id FROM analysis_versions av
+             WHERE av.scope=? AND av.target_id=x.id
+             ORDER BY av.source_version DESC,av.created_at DESC,av.id DESC LIMIT 1
+           )
+           WHERE x.id IN (${List.filled(page.length, '?').join(',')})''',
+        [scope.name, scope.name, ...page],
+      );
+      for (final row in rows) {
+        final status = row['job_status'] as String?;
+        final jobVersion = row['job_source_version'] as int?;
+        final version = row['version_source_version'] as int?;
+        final summary = <String, Object?>{
+          'state': status == null
+              ? 'not_requested'
+              : status.replaceFirst('manual_', ''),
+          'manual': status?.startsWith('manual_') ?? false,
+          if (status != null) 'error': row['job_error'],
+          if (version != null) ...{
+            'content': row['version_content'],
+            'source_version': version,
+            'coverage': row['version_coverage'],
+            'created_at': row['version_created_at'],
+            'closing': row['version_closing'],
+          },
+          'stale':
+              version != null && jobVersion != null && version != jobVersion,
+        };
+        final index = switch (scope) {
+          AnalysisScope.record => <String, Object?>{
+            'id': row['id'],
+            'type': row['type'],
+            'caption': row['caption'],
+            'occurred_at': row['occurred_at'],
+          },
+          AnalysisScope.mission => <String, Object?>{
+            'id': row['id'],
+            'title': row['title'],
+            'userReportedResult': row['userReportedResult'],
+            'materialCount': row['materialCount'],
+          },
+          AnalysisScope.node => <String, Object?>{
+            'id': row['id'],
+            'title': row['title'],
+            'archived_at': row['archived_at'],
+          },
+          _ => const <String, Object?>{},
+        };
+        result.add({
+          'id': row['id'],
+          'scope': scope.name,
+          'version': version,
+          'facts': index,
+          ...summary,
+        });
+      }
+    }
+    return result;
   }
 
   @override

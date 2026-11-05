@@ -540,6 +540,7 @@ void main() {
       saved.evidence.single.submittedAt,
       deadline.subtract(const Duration(milliseconds: 1)),
     );
+    expect(await repository.findPendingEvidence(), isEmpty);
   });
 
   test('恰等于截止时保留超时并保存补充材料，重复提交和补算不重复', () async {
@@ -557,6 +558,7 @@ void main() {
     expect(first.failures.single.trigger, 'EVIDENCE_DEADLINE_MISSED');
     expect(first.failures.single.occurredAt, deadline);
     expect(first.failures.single.createdAt, deadline);
+    expect(await repository.findPendingEvidence(), isEmpty);
     now = now.add(const Duration(days: 1));
     expect(
       await repository.submitEvidence(batch('required')),

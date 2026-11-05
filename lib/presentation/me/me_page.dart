@@ -34,12 +34,14 @@ class MePage extends StatefulWidget {
     required this.missions,
     required this.goals,
     this.notifications,
+    this.active = true,
   });
   final AppDevice device;
   final BackupExporter backup;
   final MissionService missions;
   final GoalService goals;
   final AppNotificationService? notifications;
+  final bool active;
 
   @override
   State<MePage> createState() => _MePageState();
@@ -58,20 +60,51 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
   int _reportedMinutes = 0;
   bool _editing = false;
   bool _openingStandalonePage = false;
+  bool _refreshStatsWhenActive = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _listenStatsChanges();
+    unawaited(_loadProfile());
+    if (widget.active) unawaited(_refreshStats());
+  }
+
+  void _listenStatsChanges() {
     _missionChanges = widget.missions.changes.listen((_) => _refreshStats());
     _goalChanges = widget.goals.changes.listen((_) => _refreshStats());
-    unawaited(_loadProfile());
-    unawaited(_refreshStats());
+  }
+
+  @override
+  void didUpdateWidget(covariant MePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final servicesChanged =
+        oldWidget.missions != widget.missions ||
+        oldWidget.goals != widget.goals;
+    if (servicesChanged) {
+      unawaited(_missionChanges?.cancel());
+      unawaited(_goalChanges?.cancel());
+      _listenStatsChanges();
+      _refreshStatsWhenActive = true;
+    }
+    if (oldWidget.active != widget.active) {
+      if (widget.active) {
+        if (_refreshStatsWhenActive || servicesChanged) {
+          unawaited(_refreshStats());
+        }
+      } else {
+        _statsGeneration++;
+        _refreshStatsWhenActive = true;
+      }
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_refreshStats());
+    if (state == AppLifecycleState.resumed && widget.active) {
+      unawaited(_refreshStats());
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -89,6 +122,11 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
   }
 
   Future<void> _refreshStats() async {
+    if (!widget.active) {
+      _refreshStatsWhenActive = true;
+      return;
+    }
+    _refreshStatsWhenActive = false;
     final generation = ++_statsGeneration;
     try {
       // 两种查询都只读取既有服务；数字不作为新的可写统计状态保存。

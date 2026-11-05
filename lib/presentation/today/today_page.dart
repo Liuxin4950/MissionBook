@@ -45,6 +45,7 @@ class TodayPage extends StatefulWidget {
     required this.missionService,
     this.goalService,
     this.clock = DateTime.now,
+    this.active = true,
     this.initialDate,
     this.fullSchedule = false,
   });
@@ -56,6 +57,7 @@ class TodayPage extends StatefulWidget {
 
   /// 默认读取真实时钟；测试可提供可控时刻，不改系统时间或数据库。
   final DateTime Function() clock;
+  final bool active;
 
   @override
   State<TodayPage> createState() => _TodayPageState();
@@ -108,6 +110,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   bool _isOpeningRecord = false;
   bool _dayTimeline = false;
   StreamSubscription<void>? _changes;
+  bool _refreshWhenActive = false;
   // 跨日待补与所选排期日期分开；不让昨天结束的任务在今天失去材料入口。
   List<MissionDetail> _pendingEvidence = const [];
   List<ScheduledMission> _scheduled = const [];
@@ -125,13 +128,17 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
             tz.getLocation(defaultScheduleTimeZone),
           ),
     );
-    _loadMissions();
+    if (widget.active) _loadMissions();
     // listen 在这里“登记回调”，不是立即查询；服务以后 add 一次才调用一次回调。
     // (_) 中的 _ 表示忽略无内容的通知；_changes 保存订阅，以便 dispose 时取消。
     // 与服务共用同一个对象引用，才能收到它发出的通知。
     // 双栏时列表与详情同时可见，子页提交后也要立即重读，不能等返回才刷新。
     _changes = widget.missionService.changes.listen((_) {
-      unawaited(_loadMissions());
+      if (widget.active) {
+        unawaited(_loadMissions());
+      } else {
+        _refreshWhenActive = true;
+      }
     });
   }
 
@@ -145,12 +152,28 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   @override
   void didUpdateWidget(covariant TodayPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.missionService != widget.missionService) {
+    final serviceChanged = oldWidget.missionService != widget.missionService;
+    if (serviceChanged) {
       _loadedDate = null;
       unawaited(_changes?.cancel());
       _changes = widget.missionService.changes.listen((_) {
-        unawaited(_loadMissions());
+        if (widget.active) {
+          unawaited(_loadMissions());
+        } else {
+          _refreshWhenActive = true;
+        }
       });
+    }
+    if (oldWidget.active != widget.active) {
+      if (widget.active) {
+        if (_refreshWhenActive || serviceChanged || _loadedDate == null) {
+          _refreshWhenActive = false;
+          unawaited(_loadMissions());
+        }
+      } else {
+        _refreshWhenActive = true;
+      }
+    } else if (serviceChanged && widget.active) {
       unawaited(_loadMissions());
     }
   }
@@ -158,7 +181,9 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // 从后台回来重读事实；时钟恢复与任务是否暂停是两件不同的事。
-    if (state == AppLifecycleState.resumed) unawaited(_loadMissions());
+    if (state == AppLifecycleState.resumed && widget.active) {
+      unawaited(_loadMissions());
+    }
   }
 
   // 统一加载过程。调用者：initState、下拉刷新、切日期、错误重试、新建/详情页返回。

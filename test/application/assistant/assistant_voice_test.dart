@@ -38,7 +38,29 @@ class ControlledSpeech implements AssistantSpeech {
   Future<void> cancel() async {}
 }
 
+class _DisposableSpeech extends ControlledSpeech
+    implements DisposableAssistantSpeech {
+  int disposeCalls = 0;
+
+  @override
+  Future<void> dispose() async {
+    disposeCalls++;
+  }
+}
+
 void main() {
+  test('关闭语音控制器会等待并且只释放一次后端资源', () async {
+    final speech = _DisposableSpeech();
+    final voice = AssistantVoiceController(speech);
+
+    await voice.close();
+    await voice.close();
+
+    expect(speech.disposeCalls, 1);
+    expect(voice.listening, isFalse);
+    voice.dispose();
+  });
+
   test('录音达到上限后直接进入转写状态，完成前不能重复录音', () async {
     final speech = ControlledSpeech();
     final voice = AssistantVoiceController(speech);

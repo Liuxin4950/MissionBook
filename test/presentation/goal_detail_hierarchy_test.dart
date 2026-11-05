@@ -169,6 +169,8 @@ void main() {
     await save('unrelated');
     await open(tester);
     expect(find.text('目标记录 · 2'), findsOneWidget);
+    // 节点记录入口属于节点展开内容；先展开当前节点，再验证入口范围。
+    await tap(tester, find.byKey(Key('node-tasks-${first.id}')));
     expect(find.text('节点记录 · 1'), findsOneWidget);
     await tap(tester, find.text('节点记录 · 1'));
     final page = tester.widget<RecordsPage>(find.byType(RecordsPage));
@@ -181,6 +183,8 @@ void main() {
     await tester.pumpAndSettle();
     await records.setOwnership('first-note', nodeId: second.id);
     await tester.pumpAndSettle();
+    // 归属变化后，重新展开新的节点即可看到记录入口。
+    await tap(tester, find.byKey(Key('node-tasks-${second.id}')));
     expect(find.text('节点记录 · 1'), findsOneWidget);
     await records.delete('first-note');
     await records.delete('goal-note');
@@ -218,6 +222,7 @@ void main() {
   testWidgets('320窄屏双倍字体，节点展开和摘要动作无溢出', (tester) async {
     await save('first-note', nodeId: first.id);
     await open(tester, width: 320, scale: 2);
+    await tap(tester, find.byKey(Key('node-tasks-${first.id}')));
     await tap(tester, find.byKey(Key('node-menu-${first.id}')));
     await tap(tester, find.text('节点摘要'));
     await tester.ensureVisible(

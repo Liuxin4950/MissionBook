@@ -95,7 +95,7 @@ void main() {
     expect(find.text('目标详情'), findsNothing);
     final created = (await service.findAll()).single;
     expect(find.byKey(Key('goal-${created.id}')), findsOneWidget);
-    await tap(tester, 'goal-${created.id}');
+    await tap(tester, 'goal-details-${created.id}');
     expect(find.text('独立开发 Flutter 应用'), findsOneWidget);
     await tap(tester, 'goal-description-toggle');
     expect(find.text('想做自己的工具'), findsOneWidget);
@@ -105,7 +105,7 @@ void main() {
     expect(find.byKey(Key('goal-${goal.id}')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await open(tester);
-    await tap(tester, 'goal-${goal.id}');
+    await tap(tester, 'goal-details-${goal.id}');
     expect(find.text('目标详情'), findsOneWidget);
   });
 
@@ -113,7 +113,8 @@ void main() {
     final goal = service.prepareCreation(title: '原目标');
     await service.create(goal);
     await open(tester);
-    await tap(tester, 'goal-${goal.id}');
+    await tap(tester, 'goal-details-${goal.id}');
+    await tap(tester, 'goal-status-menu');
     await tap(tester, 'goal-edit');
     await tester.enterText(find.byKey(const Key('goal-title-input')), '修改后的目标');
     await tap(tester, 'goal-save');
@@ -129,7 +130,7 @@ void main() {
     expect(find.text('修改后的目标'), findsNothing);
     await tap(tester, 'goal-filter-paused');
     expect(find.text('修改后的目标'), findsOneWidget);
-    await tap(tester, 'goal-${goal.id}');
+    await tap(tester, 'goal-details-${goal.id}');
     await tap(tester, 'goal-status-menu');
     await tester.tap(find.text('标为已达成').last);
     await tester.pumpAndSettle();
@@ -137,7 +138,7 @@ void main() {
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     await tap(tester, 'goal-filter-achieved');
-    await tap(tester, 'goal-${goal.id}');
+    await tap(tester, 'goal-details-${goal.id}');
     await tap(tester, 'goal-status-menu');
     await tester.tap(find.text('放弃目标').last);
     await tester.pumpAndSettle();
@@ -151,7 +152,7 @@ void main() {
     await tap(tester, 'goal-more-filters');
     await tester.tap(find.text('已放弃的目标').last);
     await tester.pumpAndSettle();
-    await tap(tester, 'goal-${goal.id}');
+    await tap(tester, 'goal-details-${goal.id}');
     await tap(tester, 'goal-status-menu');
     await tester.tap(find.text('恢复推进').last);
     await tester.pumpAndSettle();
@@ -192,7 +193,7 @@ void main() {
         final heading = tester.widget<Text>(find.text(title));
         expect(
           heading.style,
-          Theme.of(tester.element(find.text(title))).textTheme.titleLarge,
+          Theme.of(tester.element(find.text(title))).textTheme.titleMedium,
         );
         expect(heading.textAlign, isNull);
         expect(tester.getRect(card).left, original.left);

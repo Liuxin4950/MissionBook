@@ -31,6 +31,7 @@ class GoalOutlineSection extends StatefulWidget {
     required this.goalId,
     required this.goalTitle,
     this.embedded = false,
+    this.active = true,
     this.missionService,
     this.goal,
   });
@@ -39,6 +40,7 @@ class GoalOutlineSection extends StatefulWidget {
   final String goalId;
   final String goalTitle;
   final bool embedded; // 放进列表白卡时为 true，不再叠加一层外卡片。
+  final bool active;
   final MissionService? missionService;
   final Goal? goal;
 
@@ -67,6 +69,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   String _query = '';
   bool _showArchived = false;
   bool _busy = false;
+  bool _refreshWhenActive = false;
   String? _operationError;
   Future<void> addRootNode() => _edit(); // 卡片目录工具栏复用此入口，不再重复画一行“目标路径”。
 
@@ -78,7 +81,8 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   }
 
   void _listen() {
-    _nodes = _load();
+    _nodes = widget.active ? _load() : Future.value(_lastNodes ?? const []);
+    _refreshWhenActive = !widget.active;
     _subscription = widget.service.changes.listen((_) => _refresh());
     _missionSubscription = widget.missionService?.changes.listen(
       (_) => _refresh(),
@@ -87,6 +91,10 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   }
 
   void _loadMissions() {
+    if (!widget.active) {
+      _refreshWhenActive = true;
+      return;
+    }
     _directMissions.clear();
     _missionsByNode = widget.missionService
         ?.findForGoalAndReconcile(widget.goalId)
@@ -108,6 +116,11 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
 
   void _refresh() {
     if (!mounted) return;
+    if (!widget.active) {
+      _refreshWhenActive = true;
+      return;
+    }
+    _refreshWhenActive = false;
     setState(() {
       _nodes = _load(); // 换成最新查询，但保留 _collapsed 中的展开选择。
       _loadMissions();
@@ -128,15 +141,19 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
       _lastNodes = null;
       _taskSections.clear();
       _listen();
-    } else {
-      _nodes = _load(); // 父页面返回列表并重新构建时也重读，补足响应丢失时可能缺少的成功通知。
-      _loadMissions();
+    }
+    if (oldWidget.active != widget.active) {
+      if (widget.active) {
+        if (_refreshWhenActive) _refresh();
+      } else {
+        _refreshWhenActive = true;
+      }
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refresh();
+    if (state == AppLifecycleState.resumed && widget.active) _refresh();
   }
 
   Future<void> _edit({GoalNode? node, GoalNode? parent}) async {
@@ -778,9 +795,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                                           ),
                                           child: Text(
                                             node.title,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelLarge,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.labelLarge,
                                           ),
                                         ),
                                       ),
@@ -794,9 +811,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                                       ),
                                       child: Text(
                                         annotation,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
                                       ),
                                     ),
                                 ],

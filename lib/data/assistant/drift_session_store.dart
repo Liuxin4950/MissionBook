@@ -201,10 +201,13 @@ class DriftSessionStore implements AssistantConversationStore {
   }
 
   Future<int> _recordCount(String id) async {
+    final sequence = _database.assistantSessionRecords.sequence;
     final query = _database.selectOnly(_database.assistantSessionRecords)
-      ..addColumns([_database.assistantSessionRecords.sequence])
+      ..addColumns([sequence.max()])
       ..where(_database.assistantSessionRecords.sessionId.equals(id));
-    return (await query.get()).length;
+    final row = await query.getSingle();
+    // sequence 从 0 连续递增；MAX+1 让打开会话只读取一个聚合值。
+    return (row.read<int>(sequence.max()) ?? -1) + 1;
   }
 
   Future<void> _insertRecord(String sessionId, SessionRecord record) {

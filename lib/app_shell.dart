@@ -53,6 +53,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   // 索引
   int _selectedIndex = 0;
+  final _visitedPages = <int>{0};
 
   // 右栏导航控制器：外壳常驻持有。宽屏并排、窄屏全屏接管都是同一个栈，
   // 窗口缩放只换显示位置，不重建页面（草稿、返回链都留在栈里）。
@@ -152,7 +153,10 @@ class _AppShellState extends State<AppShell> {
       // 切主导航先处理右栏及草稿守卫，否则新页面只会在旧面板下面切换。
       if (!await _detailPane.clear() || !mounted) return;
       _assistantEntry.currentState?.resetContext();
-      setState(() => _selectedIndex = index);
+      setState(() {
+        _selectedIndex = index;
+        _visitedPages.add(index);
+      });
     } finally {
       _selectingPage = false;
     }
@@ -170,23 +174,41 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     // 通过 widget 读取 App 传入的服务引用；重建页面时不重新创建服务。
     final pages = <Widget>[
-      TodayPage(
-        missionService: widget.missionService,
-        goalService: widget.goalService,
-        clock: widget.clock,
-      ),
-      GoalsPage(
-        service: widget.goalService,
-        missionService: widget.missionService,
-      ),
-      MissionHistoryPage(service: widget.missionService),
-      MePage(
-        missions: widget.missionService,
-        goals: widget.goalService,
-        device: widget.device,
-        backup: widget.backupService,
-        notifications: widget.notifications,
-      ),
+      if (_visitedPages.contains(0))
+        TodayPage(
+          missionService: widget.missionService,
+          goalService: widget.goalService,
+          clock: widget.clock,
+          active: _selectedIndex == 0,
+        )
+      else
+        const SizedBox.shrink(key: ValueKey('unvisited-page-0')),
+      if (_visitedPages.contains(1))
+        GoalsPage(
+          service: widget.goalService,
+          missionService: widget.missionService,
+          active: _selectedIndex == 1,
+        )
+      else
+        const SizedBox.shrink(key: ValueKey('unvisited-page-1')),
+      if (_visitedPages.contains(2))
+        MissionHistoryPage(
+          service: widget.missionService,
+          active: _selectedIndex == 2,
+        )
+      else
+        const SizedBox.shrink(key: ValueKey('unvisited-page-2')),
+      if (_visitedPages.contains(3))
+        MePage(
+          missions: widget.missionService,
+          goals: widget.goalService,
+          device: widget.device,
+          backup: widget.backupService,
+          notifications: widget.notifications,
+          active: _selectedIndex == 3,
+        )
+      else
+        const SizedBox.shrink(key: ValueKey('unvisited-page-3')),
     ];
     final pageBody = KeyedSubtree(
       key: _pageStackKey,

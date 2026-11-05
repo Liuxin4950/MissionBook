@@ -12,7 +12,8 @@ import '../../application/assistant/assistant_speech.dart';
 import '../speech/local_speech_backend.dart';
 
 /// 每次录音读取设置：默认使用本地 SenseVoice；配置了录音转写时改走用户的服务。
-class ConfiguredAssistantSpeech implements AssistantSpeech, WarmUpSpeech {
+class ConfiguredAssistantSpeech
+    implements AssistantSpeech, WarmUpSpeech, DisposableAssistantSpeech {
   ConfiguredAssistantSpeech(this.settings, {LocalSpeechBackend? localBackend})
     : _local = localBackend ?? createLocalSpeechBackend();
 
@@ -20,9 +21,11 @@ class ConfiguredAssistantSpeech implements AssistantSpeech, WarmUpSpeech {
   final LocalSpeechBackend _local;
   AssistantSpeech? _current;
   int _generation = 0;
+  bool _disposed = false;
 
   @override
   Future<void> warmUp() async {
+    if (_disposed) throw StateError('语音服务已关闭');
     if ((await settings.load()).speech.useTranscription) return;
     if (!_local.supported || !await _local.hasModel()) return;
     await _local.prepare();
@@ -35,6 +38,7 @@ class ConfiguredAssistantSpeech implements AssistantSpeech, WarmUpSpeech {
     VoidCallback? onProcessing,
     required void Function(String) onError,
   }) async {
+    if (_disposed) throw StateError('语音服务已关闭');
     final generation = ++_generation;
     await _current?.cancel();
     final saved = await settings.load();
@@ -96,6 +100,20 @@ class ConfiguredAssistantSpeech implements AssistantSpeech, WarmUpSpeech {
   Future<void> cancel() async {
     ++_generation;
     await _current?.cancel();
+  }
+
+  @override
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    ++_generation;
+    final current = _current;
+    _current = null;
+    try {
+      await current?.cancel();
+    } finally {
+      await _local.dispose();
+    }
   }
 }
 

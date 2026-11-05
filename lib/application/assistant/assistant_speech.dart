@@ -19,6 +19,11 @@ abstract interface class WarmUpSpeech {
   Future<void> warmUp();
 }
 
+/// 拥有平台资源的语音实现可在控制器关闭时释放模型与 worker。
+abstract interface class DisposableAssistantSpeech {
+  Future<void> dispose();
+}
+
 class AssistantVoiceController extends ChangeNotifier {
   AssistantVoiceController(
     this._speech, {
@@ -43,6 +48,7 @@ class AssistantVoiceController extends ChangeNotifier {
   final _elapsed = Stopwatch();
   int get elapsedSeconds => _elapsed.elapsed.inSeconds;
   Future<void>? _cancellation;
+  Future<void>? _closing;
   bool _cancelling = false;
 
   bool get busy => starting || stopping || _cancelling;
@@ -183,6 +189,26 @@ class AssistantVoiceController extends ChangeNotifier {
 
   Future<void> cancel() => _cancel(clear: true);
 
+  /// 关闭控制器并等待录音、网络客户端及本地模型资源释放。
+  Future<void> close() => _closing ??= _close();
+
+  Future<void> _close() async {
+    if (_closed) return;
+    _closed = true;
+    ++_generation;
+    _watchdog?.cancel();
+    _ticker?.cancel();
+    _elapsed.stop();
+    try {
+      await _cancel(clear: true);
+    } finally {
+      final speech = _speech;
+      if (speech is DisposableAssistantSpeech) {
+        await (speech as DisposableAssistantSpeech).dispose();
+      }
+    }
+  }
+
   Future<void> _cancel({required bool clear}) {
     // 关闭/重试/生命周期可能同时取消；所有调用共享同一次资源释放。
     final pending = _cancellation;
@@ -216,12 +242,7 @@ class AssistantVoiceController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _closed = true;
-    ++_generation;
-    _watchdog?.cancel();
-    _ticker?.cancel();
-    _elapsed.stop();
-    unawaited(cancel());
+    unawaited(close());
     super.dispose();
   }
 }

@@ -23,9 +23,15 @@ import '../form/goal_import_page.dart';
 
 /// 目标导航页：读取正式目标、创建目标并进入详情。
 class GoalsPage extends StatefulWidget {
-  const GoalsPage({super.key, required this.service, this.missionService});
+  const GoalsPage({
+    super.key,
+    required this.service,
+    this.missionService,
+    this.active = true,
+  });
   final GoalService service;
   final MissionService? missionService;
+  final bool active;
   @override
   State<GoalsPage> createState() => _GoalsPageState();
 }
@@ -34,6 +40,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
   late Future<List<Goal>> _goals;
   StreamSubscription<void>? _changes;
   bool _opening = false; // 防止连续点击叠加两个创建或详情页面。
+  bool _refreshWhenActive = false;
   GoalStatus _selectedStatus = GoalStatus.active;
   Goal? _outlineGoal;
   bool _switchingOutline = false;
@@ -87,7 +94,8 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
 
   /// 首次读取列表并登记保存通知；通知到来时重新查询正式记录。
   void _listen() {
-    _goals = _load();
+    _goals = widget.active ? _load() : Future.value(const []);
+    _refreshWhenActive = !widget.active;
     _changes = widget.service.changes.listen((_) => _refresh());
   }
 
@@ -102,6 +110,11 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
 
   /// 更换当前查询；只触发读取，不修改目标或任务。
   void _refresh() {
+    if (!widget.active) {
+      _refreshWhenActive = true;
+      return;
+    }
+    _refreshWhenActive = false;
     if (mounted) {
       setState(() {
         _goals = _load(); // 这里只替换 Future；setState 回调本身不能返回 Future。
@@ -134,11 +147,18 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
       unawaited(_changes?.cancel());
       _listen();
     }
+    if (oldWidget.active != widget.active) {
+      if (widget.active) {
+        if (_refreshWhenActive) _refresh();
+      } else {
+        _refreshWhenActive = true;
+      }
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refresh();
+    if (state == AppLifecycleState.resumed && widget.active) _refresh();
   }
 
   /// 打开表单，保存后用返回的编号进入正式详情。
@@ -446,6 +466,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
           goalId: goal.id,
           goalTitle: goal.title,
           embedded: true,
+          active: widget.active,
         ),
       ],
     ),

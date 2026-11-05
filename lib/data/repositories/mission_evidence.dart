@@ -348,10 +348,8 @@ class _MissionEvidence {
     return [for (final row in rows) row.read<String>('mission_id')];
   }
 
-  Future<List<MissionDetail>> findPendingEvidence() async =>
-      (await _repository.findFinished())
-          .where((detail) => detail.phase == MissionPhase.evidencePending)
-          .toList();
+  Future<List<MissionDetail>> findPendingEvidence() =>
+      _repository._queries.findPendingEvidence();
   Future<Set<String>> referencedAttachmentKeys() async {
     final rows = await _repository.database
         .customSelect(

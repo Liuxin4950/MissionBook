@@ -115,8 +115,7 @@ class _AssistantPageState extends State<AssistantPage> {
       _voice?.removeListener(_voiceChanged);
       _voice = voice;
       _voice?.addListener(_voiceChanged);
-      // 打开助手后再后台部署离线模型，避免拖慢应用首屏。
-      if (voice != null) unawaited(voice.warmUp());
+      // 进入文字聊天不加载语音模型；首次录音时由语音服务按需准备。
     }
   }
 

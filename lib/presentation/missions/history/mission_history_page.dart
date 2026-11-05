@@ -4,7 +4,6 @@ import '../../records/record_scope.dart';
 import '../../records/records_page.dart';
 import '../../widgets/app_page_header.dart';
 import '../../widgets/app_segmented_control.dart';
-import '../../widgets/adaptive_columns.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -28,8 +27,13 @@ import '../../attachments/attachment_image_loader.dart';
 
 /// 执行历史与取消记录分开读取。没有 END 的任务通过“当前任务”恢复执行。
 class MissionHistoryPage extends StatefulWidget {
-  const MissionHistoryPage({super.key, required this.service});
+  const MissionHistoryPage({
+    super.key,
+    required this.service,
+    this.active = true,
+  });
   final MissionService service;
+  final bool active;
   @override
   State<MissionHistoryPage> createState() => _MissionHistoryPageState();
 }
@@ -39,6 +43,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
   late Future<List<MissionDetail>> _records;
   StreamSubscription<void>? _changes;
   bool _cancelled = false;
+  bool _refreshWhenActive = false;
   List<MissionDetail>? _lastRecords;
   final _thumbnails = <String, Future<Uint8List>>{};
 
@@ -59,7 +64,8 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
   }
 
   void _listen() {
-    _records = _load();
+    _records = widget.active ? _load() : Future.value(const []);
+    _refreshWhenActive = !widget.active;
     _changes = widget.service.changes.listen((_) => _refresh());
   }
 
@@ -78,9 +84,21 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
       unawaited(_changes?.cancel());
       _listen();
     }
+    if (oldWidget.active != widget.active) {
+      if (widget.active) {
+        if (_refreshWhenActive) _refresh();
+      } else {
+        _refreshWhenActive = true;
+      }
+    }
   }
 
   void _refresh() {
+    if (!widget.active) {
+      _refreshWhenActive = true;
+      return;
+    }
+    _refreshWhenActive = false;
     if (mounted) {
       setState(() {
         _records = _load();
@@ -90,7 +108,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refresh();
+    if (state == AppLifecycleState.resumed && widget.active) _refresh();
   }
 
   Future<void> _open(MissionDetail detail) async {
@@ -136,6 +154,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
               final records =
                   snapshot.data ?? _lastRecords ?? const <MissionDetail>[];
               if (snapshot.hasData) _lastRecords = snapshot.data;
+              final entries = _historyEntries(records);
               return RefreshIndicator(
                 onRefresh: () async {
                   _refresh();
@@ -145,96 +164,115 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                     // 错误在原页提示；结束下拉动画即可。
                   }
                 },
-                child: ListView(
-                  padding: AppLayout.pagePadding(context),
+                child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    AppPageHeader(
-                      title: '历史',
-                      showTitle: false,
-                      subtitle: Text(
-                        waiting
-                            ? '读取中…'
-                            : failed
-                            ? '读取失败'
-                            : '${records.length} 条记录',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      action: RecordScope.maybeOf(context) == null
-                          ? null
-                          : const RecordsEntry(
-                              key: Key('history-records-entry'),
-                              label: '全部照片与文字记录',
-                              iconOnly: true,
+                  slivers: [
+                    SliverPadding(
+                      padding: AppLayout.pagePadding(context),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          AppPageHeader(
+                            title: '历史',
+                            showTitle: false,
+                            subtitle: Text(
+                              waiting
+                                  ? '读取中…'
+                                  : failed
+                                  ? '读取失败'
+                                  : '${records.length} 条记录',
+                              style: Theme.of(context).textTheme.bodyMedium,
                             ),
-                    ),
-                    const SizedBox(height: AppLayout.spaceLg),
-                    AppSegmentedControl<bool>(
-                      options: const {false: '执行记录', true: '已取消'},
-                      selected: _cancelled,
-                      optionKey: (value) => value
-                          ? const Key('history-cancelled')
-                          : const Key('history-finished'),
-                      onSelected: _selectCancelled,
-                    ),
-                    const SizedBox(height: AppLayout.spaceXl),
-                    if (waiting)
-                      const Padding(
-                        padding: EdgeInsets.all(AppLayout.space3Xl),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    else if (failed)
-                      TextButton(
-                        onPressed: _refresh,
-                        child: const Text('记录读取失败，点击重试'),
-                      )
-                    else ...[
-                      if (snapshot.hasError)
-                        TextButton(
-                          onPressed: _refresh,
-                          child: const Text('刷新失败，当前保留上次读取的记录，点击重试'),
-                        ),
-                      if (records.isEmpty)
-                        AppSectionCard(
-                          key: const Key('history-empty-state'),
-                          paperBackground: true,
-                          child: AppEmptyState(
-                            horizontalWhenWide: true,
-                            title: _cancelled ? '还没有取消的任务' : '还没有执行结束的记录',
-                            asset: 'assets/illustrations/history-pages.png',
-                            details: Text(
-                              _cancelled
-                                  ? '取消的任务会保留在这里，方便回看。'
-                                  : '每次结束后，在这里回看报告、专注与材料。',
-                            ),
+                            action: RecordScope.maybeOf(context) == null
+                                ? null
+                                : const RecordsEntry(
+                                    key: Key('history-records-entry'),
+                                    label: '全部照片与文字记录',
+                                    iconOnly: true,
+                                  ),
                           ),
-                        ),
-                      for (final day in {
-                        for (final record in records) _day(record),
-                      }) ...[
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: AppLayout.spaceMd,
+                          const SizedBox(height: AppLayout.spaceLg),
+                          AppSegmentedControl<bool>(
+                            options: const {false: '执行记录', true: '已取消'},
+                            selected: _cancelled,
+                            optionKey: (value) => value
+                                ? const Key('history-cancelled')
+                                : const Key('history-finished'),
+                            onSelected: _selectCancelled,
                           ),
-                          child: Text(
-                            day,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        AdaptiveColumns(
-                          minColumnWidth: 360,
-                          children: [
-                            for (final record in records.where(
-                              (record) => _day(record) == day,
-                            ))
-                              KeyedSubtree(
-                                key: ValueKey(record.mission.id),
-                                child: _recordCard(record),
+                          const SizedBox(height: AppLayout.spaceXl),
+                          if (waiting)
+                            const Padding(
+                              padding: EdgeInsets.all(AppLayout.space3Xl),
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          else if (failed)
+                            TextButton(
+                              onPressed: _refresh,
+                              child: const Text('记录读取失败，点击重试'),
+                            )
+                          else ...[
+                            if (snapshot.hasError)
+                              TextButton(
+                                onPressed: _refresh,
+                                child: const Text('刷新失败，当前保留上次读取的记录，点击重试'),
+                              ),
+                            if (records.isEmpty)
+                              AppSectionCard(
+                                key: const Key('history-empty-state'),
+                                paperBackground: true,
+                                child: AppEmptyState(
+                                  horizontalWhenWide: true,
+                                  title: _cancelled ? '还没有取消的任务' : '还没有执行结束的记录',
+                                  asset:
+                                      'assets/illustrations/history-pages.png',
+                                  details: Text(
+                                    _cancelled
+                                        ? '取消的任务会保留在这里，方便回看。'
+                                        : '每次结束后，在这里回看报告、专注与材料。',
+                                  ),
+                                ),
                               ),
                           ],
+                        ]),
+                      ),
+                    ),
+                    if (!waiting && !failed && entries.isNotEmpty)
+                      SliverPadding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: AppLayout.horizontalPadding(context),
                         ),
-                      ],
-                    ],
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final entry = entries[index];
+                            if (entry.day case final day?) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: AppLayout.spaceMd,
+                                ),
+                                child: Text(
+                                  day,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                              );
+                            }
+                            final record = entry.record!;
+                            return KeyedSubtree(
+                              key: ValueKey(record.mission.id),
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppLayout.spaceMd,
+                                ),
+                                child: _recordCard(record),
+                              ),
+                            );
+                          }, childCount: entries.length),
+                        ),
+                      ),
                   ],
                 ),
               );
@@ -259,6 +297,20 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
   String _day(MissionDetail detail) {
     final local = _localRecordTime(detail);
     return '${local.year}年${local.month}月${local.day}日';
+  }
+
+  /// 一次遍历形成日期标题和记录项，列表按需构建可见范围内的卡片。
+  List<_HistoryEntry> _historyEntries(List<MissionDetail> records) {
+    final byDay = <String, List<MissionDetail>>{};
+    for (final record in records) {
+      (byDay[_day(record)] ??= []).add(record);
+    }
+    return [
+      for (final entry in byDay.entries) ...[
+        _HistoryEntry.day(entry.key),
+        for (final record in entry.value) _HistoryEntry.record(record),
+      ],
+    ];
   }
 
   Widget _recordCard(MissionDetail detail) {
@@ -432,10 +484,16 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
 
   Widget _thumbnail(Evidence item) {
     final key = item.attachmentStorageKey!;
-    final future = _thumbnails.putIfAbsent(key, () async {
-      await widget.service.initializeEvidenceImages();
-      return widget.service.readEvidenceImage(key);
-    });
+    final future =
+        _thumbnails.remove(key) ??
+        () async {
+          await widget.service.initializeEvidenceImages();
+          return widget.service.readEvidenceImage(key);
+        }();
+    _thumbnails[key] = future;
+    while (_thumbnails.length > 36) {
+      _thumbnails.remove(_thumbnails.keys.first);
+    }
     return AttachmentImageLoader(
       future: future,
       name: item.attachmentFileName ?? '图片材料',
@@ -443,4 +501,12 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
       onRetry: () => setState(() => _thumbnails.remove(key)),
     );
   }
+}
+
+class _HistoryEntry {
+  const _HistoryEntry.day(this.day) : record = null;
+  const _HistoryEntry.record(this.record) : day = null;
+
+  final String? day;
+  final MissionDetail? record;
 }

@@ -309,6 +309,55 @@ WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
   });
   Future<List<MissionDetail>> findActive() => _findByExecution(ended: false);
   Future<List<MissionDetail>> findFinished() => _findByExecution(ended: true);
+
+  /// 先用必要事实缩小候选，再以完整详情和唯一阶段推演确认待补状态。
+  Future<List<MissionDetail>> findPendingEvidence() =>
+      _repository.database.transaction(() async {
+        final database = _repository.database;
+        final rows = await database
+            .customSelect(
+              '''SELECT m.* FROM missions m
+                 JOIN execution_events e
+                   ON e.mission_id = m.id AND e.type = 'END'
+                 JOIN execution_events s
+                   ON s.mission_id = m.id AND s.sequence = 1
+                 JOIN mission_schedule_revisions r
+                   ON r.id = s.schedule_revision_id
+                 WHERE m.cancelled_at IS NULL
+                   AND m.evidence_waived_at IS NULL
+                   AND e.user_reported_result = 'COMPLETED'
+                   AND (m.verification_policy = 'REQUIRED_EVIDENCE'
+                     OR (m.verification_policy = 'OPTIONAL_EVIDENCE'
+                       AND e.submit_optional_evidence = 1))
+                   AND NOT EXISTS (
+                     SELECT 1 FROM failure_records f WHERE f.mission_id = m.id
+                   )
+                   AND NOT EXISTS (
+                     SELECT 1 FROM evidence_records v
+                     WHERE v.mission_id = m.id
+                       AND v.supersedes_evidence_id IS NULL
+                       AND (r.evidence_deadline_at IS NULL
+                         OR v.submitted_at < r.evidence_deadline_at)
+                   )
+                 ORDER BY e.occurred_at DESC, m.id ASC''',
+              readsFrom: {
+                database.missions,
+                database.executionEvents,
+                database.missionScheduleRevisions,
+                database.failureRecords,
+                database.evidenceRecords,
+              },
+            )
+            .get();
+        final candidateRows = rows
+            .map((row) => database.missions.map(row.data))
+            .toList();
+        final candidates = await _detailsForRows(candidateRows);
+        return candidates
+            .where((detail) => detail.phase == MissionPhase.evidencePending)
+            .toList();
+      });
+
   Future<List<MissionDetail>> findCancelled() =>
       _repository.database.transaction(() async {
         final rows =

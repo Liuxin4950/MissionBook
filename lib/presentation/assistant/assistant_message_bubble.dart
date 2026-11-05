@@ -213,7 +213,8 @@ class _MessageImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (block.url.startsWith('data:image')) {
-      final bytes = base64Decode(block.url.split(',').last);
+      final image = _assistantImageProvider(block.url);
+      if (image == null) return const Text('图片无法解码');
       return ClipRRect(
         borderRadius: BorderRadius.circular(AppLayout.radiusMd),
         child: InkWell(
@@ -225,7 +226,7 @@ class _MessageImage extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.all(AppLayout.spaceLg),
                     child: InteractiveViewer(
-                      child: Image.memory(bytes, fit: BoxFit.contain),
+                      child: Image(image: image, fit: BoxFit.contain),
                     ),
                   ),
                   Positioned(
@@ -241,10 +242,9 @@ class _MessageImage extends StatelessWidget {
               ),
             ),
           ),
-          child: Image.memory(
-            bytes,
+          child: Image(
+            image: ResizeImage(image, width: 480),
             width: 240,
-            cacheWidth: 480,
             fit: BoxFit.contain,
             errorBuilder: (_, error, stack) => const Text('图片无法解码'),
           ),
@@ -262,4 +262,38 @@ class _MessageImage extends StatelessWidget {
       style: Theme.of(context).textTheme.bodySmall,
     );
   }
+}
+
+// 会话列表滚动卸载消息卡片后仍复用已解码图片；按条目数与总字节数限制缓存。
+final _assistantImages = <String, MemoryImage>{};
+var _assistantImageBytes = 0;
+const _assistantImageCacheEntries = 24;
+const _assistantImageCacheLimit = 12 * 1024 * 1024;
+
+MemoryImage? _assistantImageProvider(String dataUrl) {
+  final cached = _assistantImages.remove(dataUrl);
+  if (cached != null) {
+    _assistantImages[dataUrl] = cached;
+    return cached;
+  }
+
+  late final Uint8List bytes;
+  try {
+    bytes = base64Decode(dataUrl.substring(dataUrl.indexOf(',') + 1));
+  } on FormatException {
+    return null;
+  }
+  final image = MemoryImage(bytes);
+  if (bytes.lengthInBytes > _assistantImageCacheLimit) return image;
+  while (_assistantImages.isNotEmpty &&
+      (_assistantImages.length >= _assistantImageCacheEntries ||
+          _assistantImageBytes + bytes.lengthInBytes >
+              _assistantImageCacheLimit)) {
+    final oldestKey = _assistantImages.keys.first;
+    final oldest = _assistantImages.remove(oldestKey)!;
+    _assistantImageBytes -= oldest.bytes.lengthInBytes;
+  }
+  _assistantImages[dataUrl] = image;
+  _assistantImageBytes += bytes.lengthInBytes;
+  return image;
 }

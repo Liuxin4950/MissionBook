@@ -41,6 +41,7 @@ void main() {
     );
     elapsed.stop();
     expect(input.items, hasLength(500));
+    expect(fixture.queries.statements.length, lessThanOrEqualTo(10));
     emitPerformanceSample('analysis_fanout', {
       'direct_nodes': input.items.length,
       'selects': fixture.queries.statements.length,
@@ -48,7 +49,7 @@ void main() {
     });
   }, skip: !_enabled);
 
-  test('已安装离线语音预热后控制器关闭没有释放后端', () async {
+  test('语音控制器关闭会释放已加载的离线后端', () async {
     final backend = _AuditLocalSpeech();
     final voice = AssistantVoiceController(
       ConfiguredAssistantSpeech(
@@ -57,14 +58,13 @@ void main() {
       ),
     );
     await voice.warmUp();
-    await voice.cancel();
-    voice.dispose();
-    await Future<void>.delayed(Duration.zero);
+    await voice.close();
     emitPerformanceSample('speech_lifetime', {
       'prepares': backend.prepares,
       'backend_disposals_after_voice_dispose': backend.disposals,
     });
     expect(backend.prepares, 1);
+    expect(backend.disposals, 1);
   }, skip: !_enabled);
 
   for (final turns in [20, 200, 1000]) {
@@ -197,6 +197,7 @@ void main() {
         'parent_rebuild_selects': fixture.queries.statements.length,
       });
       expect(mountedRows, nodes);
+      expect(fixture.queries.statements, isEmpty);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.runAsync(fixture.dispose);
     }, skip: !_enabled);
@@ -228,7 +229,7 @@ void main() {
     }, skip: !_enabled);
   }
 
-  testWidgets('文字聊天仍调用语音预热，重建重新解码图片', (tester) async {
+  testWidgets('文字聊天不预热语音，重建复用图片解码缓存', (tester) async {
     _phoneViewport(tester);
     final fixture = PerformanceAuditFixture();
     const png =
@@ -263,9 +264,18 @@ void main() {
     final second = tester.widget<Image>(find.byType(Image).first).image;
     emitPerformanceSample('text_entry_resources', {
       'speech_warmups': speech.warmups,
-      'thumbnail_cache_key_equal_after_rebuild': first == second,
+      'image_provider_reused_after_rebuild': first == second,
     });
-    expect(speech.warmups, 1);
+    expect(speech.warmups, 0);
+    expect(first, isA<ResizeImage>());
+    expect(second, isA<ResizeImage>());
+    expect(
+      identical(
+        (first as ResizeImage).imageProvider,
+        (second as ResizeImage).imageProvider,
+      ),
+      isTrue,
+    );
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     voice.dispose();
@@ -321,7 +331,7 @@ void main() {
     await tester.runAsync(fixture.dispose);
   }, skip: !_enabled);
 
-  testWidgets('今天页可见时隐藏历史和我的仍完整读取结束任务', (tester) async {
+  testWidgets('未访问的历史和我的不读取，打开后才按需加载', (tester) async {
     _phoneViewport(tester);
     final fixture = PerformanceAuditFixture();
     await tester.runAsync(() => fixture.seedFinishedMissions(100));
@@ -361,7 +371,26 @@ void main() {
       'finished_queries_after_change': finishedQueries(),
       'returned_rows_after_change': fixture.queries.returnedRows,
     });
-    expect(initial, greaterThanOrEqualTo(2));
+    expect(initial, 0);
+    expect(finishedQueries(), 0);
+    fixture.queries.reset();
+    await tester.tap(find.byKey(const ValueKey('navigation-icon-2')));
+    await tester.pumpAndSettle();
+    await _flushDatabase(tester);
+    await tester.pumpAndSettle();
+    expect(finishedQueries(), 1);
+    fixture.queries.reset();
+    fixture.missions.refreshAfterExternalCommit();
+    await tester.pump();
+    await _flushDatabase(tester);
+    await tester.pumpAndSettle();
+    expect(finishedQueries(), 1);
+    fixture.queries.reset();
+    await tester.tap(find.byKey(const ValueKey('navigation-icon-3')));
+    await tester.pumpAndSettle();
+    await _flushDatabase(tester);
+    await tester.pumpAndSettle();
+    expect(finishedQueries(), 1);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(fixture.dispose);

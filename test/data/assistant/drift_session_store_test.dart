@@ -29,6 +29,7 @@ void main() {
     await handle.close();
 
     final reopened = await store.open('session-a');
+    expect(reopened.recordCount, 3);
     final page = await reopened.readRecords(start: 1, limit: 1);
     expect(page, hasLength(1));
     expect(page.single.sequence, 1);
@@ -36,6 +37,12 @@ void main() {
     expect(await store.listSessionIds(), ['session-a']);
     expect((await store.listConversations()).single.title, '今天安排');
     await reopened.close();
+
+    final empty = await store.create('empty');
+    await empty.close();
+    final reopenedEmpty = await store.open('empty');
+    expect(reopenedEmpty.recordCount, 0);
+    await reopenedEmpty.close();
   });
 
   test('初始记录原子导入且序号必须连续', () async {
