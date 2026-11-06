@@ -1,8 +1,14 @@
+import 'dart:math' as math;
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_layout.dart';
+import 'assistant_markdown_cache.dart';
+import 'assistant_markdown_chart.dart';
 
 /// 模型正文按 Markdown 显示；链接由用户点击后打开，图片链接不自动读取文件。
 class AssistantMarkdown extends StatefulWidget {
@@ -18,32 +24,63 @@ class AssistantMarkdown extends StatefulWidget {
   State<AssistantMarkdown> createState() => _AssistantMarkdownState();
 }
 
+final _assistantMarkdownAstCache = AssistantMarkdownAstCache();
+const _longReplyLength = 4000;
+
 class _AssistantMarkdownState extends State<AssistantMarkdown> {
-  Widget? _cached;
-  String? _cachedText;
-  bool? _cachedCompact;
+  List<md.Node>? _nodes;
+  MarkdownStyleSheet? _styleSheet;
+  String? _renderedText;
+  bool? _renderedCompact;
+  final ScrollController _longReplyScroll = ScrollController();
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 主题、字号或方向变化时样式需要重新生成。
-    _cached = null;
+    _resetRenderedContent();
+  }
+
+  @override
+  void didUpdateWidget(covariant AssistantMarkdown oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text || oldWidget.compact != widget.compact) {
+      _resetRenderedContent();
+    }
+  }
+
+  void _resetRenderedContent() {
+    _nodes = null;
+    _styleSheet = null;
+    _renderedText = null;
+    _renderedCompact = null;
+  }
+
+  @override
+  void dispose() {
+    _longReplyScroll.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 已完成的回复不会变化；复用同一棵子树，整页重建时跳过重复的 Markdown 解析。
-    if (_cached == null ||
-        _cachedText != widget.text ||
-        _cachedCompact != widget.compact) {
-      _cached = _buildMarkdown(context);
-      _cachedText = widget.text;
-      _cachedCompact = widget.compact;
+    if (_nodes == null ||
+        _renderedText != widget.text ||
+        _renderedCompact != widget.compact) {
+      _nodes = _assistantMarkdownAstCache.parse(widget.text);
+      _styleSheet = _createStyleSheet(context);
+      _renderedText = widget.text;
+      _renderedCompact = widget.compact;
     }
-    return _cached!;
+
+    final nodes = _nodes!;
+    final styleSheet = _styleSheet!;
+    final markdown = _isLongReply(nodes)
+        ? _buildLongReply(context, nodes, styleSheet)
+        : _buildBody(nodes, styleSheet);
+    return RepaintBoundary(child: SelectionArea(child: markdown));
   }
 
-  Widget _buildMarkdown(BuildContext context) {
+  MarkdownStyleSheet _createStyleSheet(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final bodyStyle = widget.compact
@@ -52,43 +89,75 @@ class _AssistantMarkdownState extends State<AssistantMarkdown> {
     final headingStyle = widget.compact
         ? theme.textTheme.titleSmall
         : theme.textTheme.titleMedium;
-    return RepaintBoundary(
-      child: SelectionArea(
-        child: MarkdownBody(
-          data: widget.text,
-          fitContent: true,
-          softLineBreak: true,
-          styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-            p: bodyStyle?.copyWith(height: 1.5),
-            h1: widget.compact ? headingStyle : theme.textTheme.titleLarge,
-            h2: headingStyle,
-            h3: headingStyle,
-            h4: headingStyle,
-            h5: headingStyle,
-            h6: headingStyle,
-            listBullet: bodyStyle,
-            blockSpacing: widget.compact
-                ? AppLayout.spaceXs
-                : AppLayout.spaceSm,
-            code: theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
-            codeblockDecoration: BoxDecoration(
-              color: colors.surfaceContainer,
-              borderRadius: BorderRadius.circular(AppLayout.radiusMd),
-            ),
-            tableColumnWidth: const FlexColumnWidth(),
-          ),
-          onTapLink: (_, href, _) {
-            if (href != null) _openLink(context, href);
-          },
-          imageBuilder: (uri, title, alt) => TextButton.icon(
-            onPressed: () => _openLink(context, uri.toString()),
-            icon: const Icon(Icons.image_outlined, size: AppLayout.iconSm),
-            label: Text(alt?.isNotEmpty == true ? alt! : title ?? '查看图片链接'),
+    return MarkdownStyleSheet.fromTheme(theme).copyWith(
+      p: bodyStyle?.copyWith(height: 1.5),
+      h1: widget.compact ? headingStyle : theme.textTheme.titleLarge,
+      h2: headingStyle,
+      h3: headingStyle,
+      h4: headingStyle,
+      h5: headingStyle,
+      h6: headingStyle,
+      listBullet: bodyStyle,
+      blockSpacing: widget.compact ? AppLayout.spaceXs : AppLayout.spaceSm,
+      code: theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+      codeblockDecoration: BoxDecoration(
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+      ),
+      tableColumnWidth: const FlexColumnWidth(),
+    );
+  }
+
+  bool _isLongReply(List<md.Node> nodes) =>
+      !widget.compact &&
+      (widget.text.length >= _longReplyLength || nodes.length >= 16);
+
+  Widget _buildBody(List<md.Node> nodes, MarkdownStyleSheet styleSheet) {
+    if (nodes.length == 1) return _block(nodes.single, styleSheet, 0);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < nodes.length; index++)
+          _block(nodes[index], styleSheet, index),
+      ],
+    );
+  }
+
+  Widget _buildLongReply(
+    BuildContext context,
+    List<md.Node> nodes,
+    MarkdownStyleSheet styleSheet,
+  ) {
+    final maxHeight = math.min(
+      560.0,
+      math.max(160.0, MediaQuery.sizeOf(context).height * .62),
+    );
+    return SizedBox(
+      height: maxHeight,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: Scrollbar(
+          controller: _longReplyScroll,
+          thumbVisibility: true,
+          child: ListView.builder(
+            controller: _longReplyScroll,
+            padding: EdgeInsets.zero,
+            itemCount: nodes.length,
+            itemBuilder: (_, index) => _block(nodes[index], styleSheet, index),
           ),
         ),
       ),
     );
   }
+
+  Widget _block(md.Node node, MarkdownStyleSheet styleSheet, int index) =>
+      _AssistantMarkdownBlock(
+        key: ValueKey('markdown-block-$index'),
+        node: node,
+        styleSheet: styleSheet,
+        openLink: _openLink,
+      );
 
   Future<void> _openLink(BuildContext context, String value) async {
     final uri = Uri.tryParse(value);
@@ -114,5 +183,106 @@ class _AssistantMarkdownState extends State<AssistantMarkdown> {
         ),
       ),
     );
+  }
+}
+
+typedef _LinkOpener = Future<void> Function(BuildContext context, String value);
+
+class _AssistantMarkdownBlock extends StatefulWidget {
+  const _AssistantMarkdownBlock({
+    super.key,
+    required this.node,
+    required this.styleSheet,
+    required this.openLink,
+  });
+
+  final md.Node node;
+  final MarkdownStyleSheet styleSheet;
+  final _LinkOpener openLink;
+
+  @override
+  State<_AssistantMarkdownBlock> createState() =>
+      _AssistantMarkdownBlockState();
+}
+
+class _AssistantMarkdownBlockState extends State<_AssistantMarkdownBlock>
+    implements MarkdownBuilderDelegate {
+  List<Widget>? _children;
+  final List<GestureRecognizer> _recognizers = [];
+
+  @override
+  void didUpdateWidget(covariant _AssistantMarkdownBlock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.node, widget.node) ||
+        oldWidget.styleSheet != widget.styleSheet) {
+      _resetRenderedContent();
+    }
+  }
+
+  void _resetRenderedContent() {
+    _disposeRecognizers();
+    _children = null;
+  }
+
+  @override
+  void dispose() {
+    _disposeRecognizers();
+    super.dispose();
+  }
+
+  void _disposeRecognizers() {
+    for (final recognizer in _recognizers) {
+      recognizer.dispose();
+    }
+    _recognizers.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _children ??= _buildBlock(context);
+    if (_children!.length == 1) return _children!.single;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: _children!,
+    );
+  }
+
+  List<Widget> _buildBlock(BuildContext context) {
+    final builder = MarkdownBuilder(
+      delegate: this,
+      selectable: false,
+      styleSheet: widget.styleSheet,
+      imageDirectory: null,
+      imageBuilder: (uri, title, alt) => TextButton.icon(
+        onPressed: () => widget.openLink(context, uri.toString()),
+        icon: const Icon(Icons.image_outlined, size: AppLayout.iconSm),
+        label: Text(alt?.isNotEmpty == true ? alt! : title ?? '查看图片链接'),
+      ),
+      checkboxBuilder: null,
+      bulletBuilder: null,
+      builders: {'missionbook-chart': AssistantChartMarkdownElementBuilder()},
+      paddingBuilders: const {},
+      fitContent: true,
+      listItemCrossAxisAlignment: MarkdownListItemCrossAxisAlignment.baseline,
+      softLineBreak: true,
+    );
+    return builder.build([widget.node]);
+  }
+
+  @override
+  GestureRecognizer createLink(String text, String? href, String title) {
+    final recognizer = TapGestureRecognizer()
+      ..onTap = () {
+        if (href != null) widget.openLink(context, href);
+      };
+    _recognizers.add(recognizer);
+    return recognizer;
+  }
+
+  @override
+  TextSpan formatText(MarkdownStyleSheet styleSheet, String code) {
+    code = code.replaceAll(RegExp(r'\n$'), '');
+    return TextSpan(style: styleSheet.code, text: code);
   }
 }

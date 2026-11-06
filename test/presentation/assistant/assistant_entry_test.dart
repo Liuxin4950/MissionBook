@@ -10,13 +10,17 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/application/assistant/assistant_speech.dart';
+import 'package:mission_book/application/analysis/analysis_service.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/application/records/record_service.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
+import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
+import 'package:mission_book/data/repositories/drift_record_repository.dart';
 import 'package:mission_book/domain/entities/goal.dart';
 import 'package:mission_book/presentation/assistant/assistant_launcher.dart';
 import 'package:mission_book/presentation/assistant/assistant_scope.dart';
@@ -25,6 +29,8 @@ import 'package:mission_book/presentation/assistant/assistant_markdown.dart';
 import 'package:mission_book/presentation/assistant/assistant_settings_page.dart';
 import 'package:mission_book/presentation/assistant/assistant_model_settings_page.dart';
 import 'package:mission_book/presentation/assistant/assistant_speech_settings_page.dart';
+import 'package:mission_book/presentation/records/record_scope.dart';
+import 'package:mission_book/presentation/records/records_page.dart';
 
 import '../../support/assistant_fakes.dart';
 import '../../support/me_fakes.dart';
@@ -137,6 +143,8 @@ void main() {
   late AssistantController assistant;
   late AssistantVoiceController voice;
   late TestSpeech speech;
+  late RecordService records;
+  late AnalysisService analysis;
   late String missionId;
 
   setUp(() async {
@@ -146,6 +154,16 @@ void main() {
       clock: () => DateTime.utc(2026, 10, 29),
     );
     goals = GoalService(DriftGoalRepository(database));
+    records = RecordService(
+      DriftRecordRepository(database),
+      missions,
+      missions.attachments,
+    );
+    analysis = AnalysisService(
+      store: DriftAnalysisStore(database),
+      mainBusy: () => false,
+      model: (profile, {imageKey, mime, json = false}) async => '摘要',
+    );
     await missions.create(
       title: '复习布局',
       scheduledDate: '2026-10-30',
@@ -163,6 +181,7 @@ void main() {
     voice.dispose();
     await missions.dispose();
     await goals.dispose();
+    await analysis.dispose();
     await database.close();
   });
 
@@ -189,6 +208,7 @@ void main() {
     double textScale = 1,
     bool shell = false,
     bool realDetail = false,
+    bool recordsPage = false,
     bool initializeAssistant = true,
     MemoryAssistantSettingsStore? settingsStore,
   }) async {
@@ -258,7 +278,11 @@ void main() {
             goals: goals,
             backup: TestBackup(),
             device: TestAppDevice(),
-            child: RepaintBoundary(key: _screen, child: child!),
+            child: RecordScope(
+              service: records,
+              analysis: analysis,
+              child: RepaintBoundary(key: _screen, child: child!),
+            ),
           ),
         ),
         home: shell
@@ -272,6 +296,8 @@ void main() {
               )
             : realDetail
             ? MissionDetailPage(missionId: missionId, missionService: missions)
+            : recordsPage
+            ? RecordsPage(missionId: missionId)
             : AssistantSurface(
                 missionId: missionId,
                 child: Scaffold(
@@ -784,6 +810,19 @@ void main() {
     expect(speech.starts, 0);
     expect(tester.takeException(), isNull);
     await tester.runAsync(() => assistant.close());
+  });
+
+  assistantTest('任务记录列表可直接打开带任务上下文的助手', (tester) async {
+    await mount(tester, ScriptedModel([]), recordsPage: true);
+    await tester.longPress(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('当前任务 · 复习布局'), findsOneWidget);
   });
 
   assistantTest('长按滑到语音，原页提案展开同一会话，确认后只改一次', (tester) async {

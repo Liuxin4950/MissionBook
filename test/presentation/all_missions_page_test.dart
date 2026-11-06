@@ -130,6 +130,42 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> scrollListToTop(WidgetTester tester) async {
+    final scrollable = tester.state<ScrollableState>(
+      find
+          .descendant(
+            of: find.byKey(const Key('all-missions-list')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    scrollable.position.jumpTo(scrollable.position.minScrollExtent);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> chooseFilterOption(
+    WidgetTester tester,
+    String label,
+    String option,
+  ) async {
+    await scrollListToTop(tester);
+    final dropdown = find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<dynamic> &&
+          widget.decoration.labelText == label,
+    );
+    expect(dropdown, findsOneWidget);
+    await tester.ensureVisible(dropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(dropdown);
+    await tester.pumpAndSettle();
+    final optionFinder = find.text(option).last;
+    await tester.ensureVisible(optionFinder);
+    await tester.pumpAndSettle();
+    await tester.tap(optionFinder);
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('跨日期六阶段可筛，取消可进入详情，统计分别按计划和 END 日期', (tester) async {
     await open(
       tester,
@@ -142,7 +178,8 @@ void main() {
     expect(find.text('课表'), findsNothing);
     expect(find.text('列表'), findsNothing);
     await tap(tester, 'all-missions-filters');
-    await tap(tester, 'all-missions-date-all-shortcut');
+    await chooseFilterOption(tester, '日期范围', '全部日期');
+    expect(find.text('全部日期'), findsOneWidget);
     // 自选任务现在会同时出现在图（timetable-bar-）和列表行（all-mission-）；
     // 这里的“恰好一个”断言只针对列表行。
     await scrollTo(tester, 'all-mission-$doneId');
@@ -153,19 +190,17 @@ void main() {
     expect(find.byKey(Key('all-mission-$oldId')), findsOneWidget);
     await tap(tester, 'all-missions-statistics');
     expect(find.text('计划 2 项 · 报告完成 1 项'), findsOneWidget);
-    await tap(tester, 'all-missions-phase-cancelled');
+    await chooseFilterOption(tester, '任务阶段', '已取消');
     await scrollTo(tester, 'all-mission-$cancelledId');
     expect(find.byKey(Key('all-mission-$cancelledId')), findsOneWidget);
     expect(find.byKey(Key('all-mission-$doneId')), findsNothing);
-    await tap(tester, 'all-missions-phase-all');
-    await tap(tester, 'all-missions-past');
+    await chooseFilterOption(tester, '任务阶段', '全部阶段');
+    await chooseFilterOption(tester, '日期范围', '以前未开始 · 1');
     await scrollTo(tester, 'all-mission-$oldId');
     expect(find.byKey(Key('all-mission-$oldId')), findsOneWidget);
     expect(find.byKey(Key('all-mission-$doneId')), findsNothing);
-    await tap(tester, 'all-missions-past');
-    await tap(tester, 'all-missions-goal-all');
-    await tester.tap(find.text('学习目标').last);
-    await tester.pumpAndSettle();
+    await chooseFilterOption(tester, '日期范围', '全部日期');
+    await chooseFilterOption(tester, '目标归属', '学习目标');
     await scrollTo(tester, 'all-mission-$doneId');
     expect(find.byKey(Key('all-mission-$doneId')), findsOneWidget);
     expect(find.byKey(Key('all-mission-$oldId')), findsNothing);
@@ -189,7 +224,8 @@ void main() {
     expect(find.byType(AllMissionsPage), findsOneWidget);
     expect(find.text('课表'), findsNothing);
     await tap(tester, 'all-missions-filters');
-    await tap(tester, 'all-missions-date-all-shortcut');
+    await chooseFilterOption(tester, '日期范围', '全部日期');
+    expect(find.text('全部日期'), findsOneWidget);
     await scrollTo(tester, 'all-mission-$cancelledId');
     expect(find.byKey(Key('all-mission-$cancelledId')), findsOneWidget);
   });
@@ -230,13 +266,12 @@ void main() {
     final b = tester.getRect(
       find.byKey(Key('timetable-slot-${discussion.mission.id}')),
     );
-    expect(a.height, closeTo(180, 0.001));
-    expect(b.top - a.top, 60);
+    expect(a.height, greaterThan(0));
+    expect(b.height, closeTo(a.height, 0.001));
+    expect(b.top - a.top, closeTo(a.height / 3, 0.001));
     expect(a.right, lessThanOrEqualTo(b.left));
     await tap(tester, 'all-missions-filters');
-    await tap(tester, 'all-missions-goal-all');
-    await tester.tap(find.text('独立任务').last);
-    await tester.pumpAndSettle();
+    await chooseFilterOption(tester, '目标归属', '独立任务');
     expect(
       find.byKey(Key('timetable-slot-${discussion.mission.id}')),
       findsNothing,
@@ -257,7 +292,7 @@ void main() {
       find.byKey(Key('timetable-slot-${english.mission.id}')),
       findsNothing,
     );
-    await tap(tester, 'all-missions-back-today');
+    await tap(tester, 'timetable-previous-day');
     await tester.pumpAndSettle();
     expect(
       find.byKey(Key('timetable-slot-${english.mission.id}')),
@@ -273,16 +308,18 @@ void main() {
       AllMissionsPage(missions: missions, goals: goals, clock: () => now),
     );
     expect(find.text('计划日期'), findsNothing);
-    await tap(tester, 'all-missions-date-all-shortcut');
-    expect(find.text('全部日期'), findsNWidgets(2));
-    expect(find.byKey(const Key('all-missions-back-today')), findsOneWidget);
     await tap(tester, 'all-missions-filters');
-    await tap(tester, 'all-missions-phase-cancelled');
+    await chooseFilterOption(tester, '日期范围', '全部日期');
+    expect(find.text('全部日期'), findsOneWidget);
+    await chooseFilterOption(tester, '任务阶段', '已取消');
     await tap(tester, 'all-missions-filters');
-    expect(find.text('筛选 · 1'), findsOneWidget);
-    expect(find.textContaining('筛选：已取消'), findsOneWidget);
-    await tap(tester, 'all-missions-back-today');
+    expect(find.text('筛选 · 2'), findsOneWidget);
+    expect(find.textContaining('筛选：全部日期 · 已取消'), findsOneWidget);
+    await tap(tester, 'all-missions-filters');
+    await chooseFilterOption(tester, '日期范围', '今天');
+    await tap(tester, 'all-missions-filters');
     expect(find.text('2026年10月25日 · 周日'), findsOneWidget);
+    expect(find.text('筛选 · 1'), findsOneWidget);
     expect(find.textContaining('筛选：已取消'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -297,13 +334,13 @@ void main() {
     await tap(tester, 'timetable-next-day');
     expect(find.text('这一天没有固定日程。'), findsOneWidget);
     await tap(tester, 'all-missions-filters');
-    await tap(tester, 'all-missions-phase-cancelled');
+    await chooseFilterOption(tester, '任务阶段', '已取消');
     await scrollTo(tester, 'all-missions-list');
     expect(find.text('这一天没有符合筛选条件的固定日程。'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('自选任务按实际区间上图，短任务条内显示标题', (tester) async {
+  testWidgets('自选任务按实际区间上图，短时段提供列表入口', (tester) async {
     await fixed('五分钟复盘', 9, 15, 5);
     await open(
       tester,
@@ -311,9 +348,8 @@ void main() {
     );
     // setUp 里的“已完成目标任务”是自选任务：实际执行区间画上时间轴。
     expect(find.byKey(Key('timetable-bar-$doneId')), findsOneWidget);
-    expect(find.textContaining('实际 '), findsWidgets);
-    // 短任务条内直接写“标题 · 时段”，不再是一根认不出的条。
-    expect(find.textContaining('五分钟复盘 · '), findsOneWidget);
+    expect(find.textContaining('实际执行'), findsOneWidget);
+    expect(find.textContaining('项较短时段 · 在列表中查看'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

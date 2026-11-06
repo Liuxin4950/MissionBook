@@ -244,23 +244,28 @@ void main() {
     void expectActionsCentered() {
       for (final id in [parent.id, long.id]) {
         final createButton = find.byKey(Key('node-create-mission-$id'));
-        final label = find.descendant(
-          of: createButton,
-          matching: find.text('建任务'),
-        );
         final menu = find.descendant(
           of: find.byKey(Key('node-menu-$id')),
           matching: find.byIcon(Icons.more_horiz),
         );
-        final header = find.byKey(Key('node-header-$id'));
-        final actions = find.byKey(Key('node-actions-$id'));
         expect(
-          tester.getCenter(label).dy,
+          tester.getCenter(createButton).dy,
           closeTo(tester.getCenter(menu).dy, .01),
+          reason: '创建任务与维护菜单应在同一操作行',
         );
         expect(
-          tester.getCenter(actions).dy,
-          closeTo(tester.getCenter(header).dy, .01),
+          find.descendant(
+            of: find.byKey(Key('node-header-$id')),
+            matching: createButton,
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: createButton,
+            matching: find.byIcon(Icons.add_rounded),
+          ),
+          findsOneWidget,
         );
       }
     }
@@ -291,15 +296,13 @@ void main() {
     }
   });
 
-  testWidgets('点击节点主体展开子项，任务记录和菜单保持独立', (tester) async {
+  testWidgets('节点展开箭头控制子项，任务记录和菜单保持独立', (tester) async {
     await create(title: '父节点任务', nodeId: parent.id);
     await open(tester);
     expect(find.byKey(Key('node-row-${node.id}')), findsOneWidget);
-    await tester.tap(find.text('界面'));
-    await tester.pumpAndSettle();
+    await tap(tester, 'node-expand-${parent.id}');
     expect(find.byKey(Key('node-row-${node.id}')), findsNothing);
-    await tester.tap(find.text('界面'));
-    await tester.pumpAndSettle();
+    await tap(tester, 'node-expand-${parent.id}');
     expect(find.byKey(Key('node-row-${node.id}')), findsOneWidget);
     await tap(tester, 'node-tasks-${parent.id}');
     expect(find.text('父节点任务'), findsOneWidget);
@@ -458,22 +461,19 @@ void main() {
     } finally {
       semantics.dispose();
     }
+    expect(find.text('暂无完成记录'), findsNothing);
     expect(
       find.descendant(
         of: find.byKey(Key('node-row-${parent.id}')),
-        matching: find.text('暂无完成记录'),
+        matching: find.text('未建任务'),
       ),
       findsOneWidget,
     );
-    expect(find.text('有完成记录 · 2'), findsOneWidget);
+    expect(find.textContaining('有完成记录 · 2'), findsOneWidget);
     expect(find.text('待补材料'), findsOneWidget);
     await tap(tester, 'node-tasks-${node.id}');
     expect(find.text('下一次练习'), findsOneWidget);
-    final startEntry = find.descendant(
-      of: find.byKey(Key('goal-task-${pending.mission.id}')),
-      matching: find.byTooltip('任务详情'),
-    );
-    await tester.tap(startEntry);
+    await tester.tap(find.byKey(Key('goal-task-${pending.mission.id}')));
     await tester.pumpAndSettle();
     await tap(tester, 'execution-start');
     expect(find.byKey(const Key('mission-execution-page')), findsOneWidget);
@@ -500,11 +500,7 @@ void main() {
     );
     await open(tester);
     await tap(tester, 'node-tasks-${node.id}');
-    final entry = find.descendant(
-      of: find.byKey(Key('goal-task-${detail.mission.id}')),
-      matching: find.byTooltip('返回执行'),
-    );
-    await tester.tap(entry);
+    await tester.tap(find.byKey(Key('goal-task-${detail.mission.id}')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('mission-execution-page')), findsOneWidget);
     await tap(tester, 'execution-end');

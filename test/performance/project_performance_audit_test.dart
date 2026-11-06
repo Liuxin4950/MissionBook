@@ -282,7 +282,7 @@ void main() {
     await tester.runAsync(fixture.dispose);
   }, skip: !_enabled);
 
-  testWidgets('聊天长回复滚出视口后再回来会重新建立 Markdown 状态', (tester) async {
+  testWidgets('聊天长回复回收后使用惰性块列表并复用有界 AST 缓存', (tester) async {
     _phoneViewport(tester);
     final fixture = PerformanceAuditFixture();
     await tester.runAsync(() async {
@@ -301,6 +301,10 @@ void main() {
     final markdown = find.descendant(
       of: reply,
       matching: find.byType(AssistantMarkdown),
+    );
+    expect(
+      find.descendant(of: reply, matching: find.byType(ListView)),
+      findsOneWidget,
     );
     final original = tester.state(markdown);
     final scroll = tester
@@ -323,9 +327,15 @@ void main() {
     emitPerformanceSample('chat_scroll_cache', {
       'messages': fixture.assistant!.transcript.length,
       'markdown_state_disposed_away': disposedAway,
-      'same_state_after_return': identical(original, tester.state(markdown)),
+      'state_recreated_after_return': !identical(
+        original,
+        tester.state(markdown),
+      ),
+      'mounted_elements_after_return': tester.allElements.length,
       'return_pump_ms': rebuild.elapsedMicroseconds / 1000,
     });
+    expect(disposedAway, isTrue);
+    expect(tester.allElements.length, lessThan(5000));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(fixture.dispose);

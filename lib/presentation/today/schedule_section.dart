@@ -160,12 +160,13 @@ class _ScheduleSectionState extends State<ScheduleSection>
                       ),
                       if (widget.items.isNotEmpty &&
                           DateUtils.isSameDay(local, widget.selectedDate))
-                        Row(
+                        Wrap(
                           key: const Key('timeline-current-time'),
-                          mainAxisSize: MainAxisSize.min,
+                          spacing: AppLayout.spaceXs,
+                          runSpacing: AppLayout.spaceXs,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text('现在', style: theme.textTheme.bodySmall),
-                            const SizedBox(width: AppLayout.spaceXs),
                             Text(
                               '${local.hour.toString().padLeft(2, '0')}:'
                               '${local.minute.toString().padLeft(2, '0')}',

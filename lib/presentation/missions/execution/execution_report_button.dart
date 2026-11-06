@@ -348,7 +348,7 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                       ),
                       if (!ended) ...[
                         const SizedBox(height: AppLayout.spaceSm),
-                        const Text('计划时段已过，请确认实际完成情况。'),
+                        const Text('计划时间已到，计时已停止。请确认实际完成情况。'),
                         const SizedBox(height: AppLayout.spaceLg),
                         Wrap(
                           spacing: AppLayout.spaceMd,

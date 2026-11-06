@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.os.Build
 import android.provider.Settings
 import android.app.Activity
+import android.os.Bundle
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -28,12 +29,38 @@ class MainActivity : FlutterActivity() {
     private var pendingBackupFile: File? = null
     private var pendingFileResult: MethodChannel.Result? = null
     private var pendingFileLimit = MAX_ATTACHMENT_BYTES
+    private var pendingOverlayResult: MethodChannel.Result? = null
+    private var pendingAssistantOpen = false
+    private var pendingCapturePath: String? = null
+    private var assistantOverlayChannel: MethodChannel? = null
     // ContentProvider 读取、能力查询和文件写入交给后台线程，避免阻塞 Flutter 界面。
     private val fileCopyExecutor = Executors.newSingleThreadExecutor()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        pendingAssistantOpen = intent?.getBooleanExtra(EXTRA_OPEN_ASSISTANT, false) == true
+        pendingCapturePath = intent?.getStringExtra(EXTRA_CAPTURE_PATH)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         PlannedAlarm.attach(flutterEngine, applicationContext)
+        assistantOverlayChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            ASSISTANT_OVERLAY_CHANNEL,
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "consumePendingOpen" -> {
+                        val pending = pendingAssistantOpen
+                        pendingAssistantOpen = false
+                        result.success(pending)
+                    }
+                    "consumePendingCapture" -> consumePendingCapture(result)
+                    else -> result.notImplemented()
+                }
+            }
+        }
         fileCopyExecutor.execute { fileSelectorCacheRoot().deleteRecursively() }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mission_book/device")
             .setMethodCallHandler { call, result ->
@@ -77,6 +104,7 @@ class MainActivity : FlutterActivity() {
                             startActivity(intent)
                             result.success(null)
                         }
+                        "toggleAssistantOverlay" -> toggleAssistantOverlay(result)
                         "saveBackup" -> {
                             check(pendingBackupResult == null) { "已有备份保存窗口" }
                             val source = File(requireNotNull(call.argument<String>("path"))).canonicalFile
@@ -108,8 +136,106 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        assistantOverlayChannel?.setMethodCallHandler(null)
+        assistantOverlayChannel = null
         PlannedAlarm.detachPrimary()
         super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_ASSISTANT, false)) {
+            pendingAssistantOpen = true
+            assistantOverlayChannel?.invokeMethod("pendingOpen", null)
+        }
+        intent.getStringExtra(EXTRA_CAPTURE_PATH)?.let { path ->
+            pendingCapturePath = path
+            assistantOverlayChannel?.invokeMethod("pendingCapture", null)
+        }
+    }
+
+    private fun consumePendingCapture(result: MethodChannel.Result) {
+        val path = pendingCapturePath ?: run { result.success(null); return }
+        pendingCapturePath = null
+        fileCopyExecutor.execute {
+            try {
+                val root = File(cacheDir, "assistant_capture").canonicalFile
+                val source = File(path).canonicalFile
+                check(source.path.startsWith(root.path + File.separator) && source.isFile) { "截屏缓存无效" }
+                check(source.length() <= MAX_ASSISTANT_CAPTURE_BYTES) { "截屏文件超出大小限制" }
+                val bytes = source.readBytes()
+                source.delete()
+                runOnUiThread { result.success(bytes) }
+            } catch (error: Exception) {
+                runOnUiThread { result.error("capture_read_failed", error.message, null) }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (overlayEnabled()) sendOverlayAction(AssistantOverlayService.ACTION_HIDE)
+    }
+
+    override fun onPause() {
+        if (overlayEnabled() && !capturePending()) {
+            sendOverlayAction(AssistantOverlayService.ACTION_SHOW)
+        }
+        super.onPause()
+    }
+
+    private fun toggleAssistantOverlay(result: MethodChannel.Result) {
+        if (overlayEnabled()) {
+            getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
+                .edit().putBoolean(AssistantOverlayService.ENABLED_KEY, false).apply()
+            stopService(Intent(this, AssistantOverlayService::class.java))
+            result.success(false)
+            return
+        }
+        if (!Settings.canDrawOverlays(this)) {
+            check(pendingOverlayResult == null) { "已有悬浮窗权限设置正在打开" }
+            pendingOverlayResult = result
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName"),
+            )
+            try {
+                startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
+            } catch (error: Exception) {
+                pendingOverlayResult = null
+                result.error("overlay_settings_failed", error.message, null)
+            }
+            return
+        }
+        enableAssistantOverlay(result)
+    }
+
+    private fun enableAssistantOverlay(result: MethodChannel.Result) {
+        getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
+            .edit().putBoolean(AssistantOverlayService.ENABLED_KEY, true).apply()
+        try {
+            val intent = Intent(this, AssistantOverlayService::class.java)
+                .setAction(AssistantOverlayService.ACTION_SHOW)
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+            result.success(true)
+        } catch (error: Exception) {
+            getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
+                .edit().putBoolean(AssistantOverlayService.ENABLED_KEY, false).apply()
+            result.error("overlay_start_failed", error.message, null)
+        }
+    }
+
+    private fun overlayEnabled(): Boolean =
+        getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
+            .getBoolean(AssistantOverlayService.ENABLED_KEY, false)
+
+    private fun capturePending(): Boolean =
+        getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
+            .getBoolean(AssistantOverlayService.CAPTURE_PENDING_KEY, false)
+
+    private fun sendOverlayAction(action: String) {
+        startService(Intent(this, AssistantOverlayService::class.java).setAction(action))
     }
 
     private fun handleFileSelectorCall(call: MethodCall, result: MethodChannel.Result) {
@@ -145,6 +271,13 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == OVERLAY_PERMISSION_REQUEST_CODE) {
+            val result = pendingOverlayResult ?: return
+            pendingOverlayResult = null
+            if (Settings.canDrawOverlays(this)) enableAssistantOverlay(result)
+            else result.success(false)
+            return
+        }
         if (requestCode == SAVE_BACKUP_REQUEST_CODE) {
             val result = pendingBackupResult ?: return
             val source = pendingBackupFile
@@ -303,5 +436,10 @@ class MainActivity : FlutterActivity() {
         const val FILE_SELECTOR_CHANNEL = "plugins.flutter.io/file_selector"
         const val OPEN_FILE_REQUEST_CODE = 43021
         const val SAVE_BACKUP_REQUEST_CODE = 43022
+        const val OVERLAY_PERMISSION_REQUEST_CODE = 43023
+        const val ASSISTANT_OVERLAY_CHANNEL = "mission_book/assistant_overlay"
+        const val EXTRA_OPEN_ASSISTANT = "assistant_overlay_open"
+        const val EXTRA_CAPTURE_PATH = "assistant_capture_path"
+        const val MAX_ASSISTANT_CAPTURE_BYTES = 4L * 1024L * 1024L
     }
 }

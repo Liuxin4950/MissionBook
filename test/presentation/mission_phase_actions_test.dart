@@ -421,17 +421,11 @@ void main() {
       size: const Size(320, 640),
       scale: 1.4,
     );
-    await tester.scrollUntilVisible(
-      find.text('修改日期、时段或补充说明'),
-      120,
-      scrollable: find
-          .descendant(
-            of: find.byKey(const Key('execution-report-form')),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.tap(find.text('修改日期、时段或补充说明'));
+    final correction = find.text('修改日期、时段或补充说明');
+    await tester.ensureVisible(correction);
+    await tester.pumpAndSettle();
+    expect(correction.hitTestable(), findsOneWidget);
+    await tester.tap(correction);
     await tester.pumpAndSettle();
     tester.view.viewInsets = const FakeViewPadding(bottom: 220);
     addTearDown(tester.view.resetViewInsets);

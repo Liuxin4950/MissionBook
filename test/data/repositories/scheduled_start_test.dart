@@ -7,6 +7,7 @@ import 'package:mission_book/application/missions/planned_mission_scheduler.dart
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
+import 'package:mission_book/domain/entities/execution_command.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
@@ -104,15 +105,25 @@ void main() {
     );
   });
 
-  test('延迟唤醒只从真实开始时刻计时；回拨不会提前写 START', () async {
+  test('延迟唤醒仍按计划起点写 START；回拨不会重复写入', () async {
     final detail = await create();
     now = plannedAt.subtract(const Duration(milliseconds: 1));
     expect(await missions.reconcileScheduledMissions(), isEmpty);
     now = plannedAt.add(const Duration(minutes: 3));
     await missions.reconcileScheduledMissions();
     final started = (await missions.findDetail(missionId: detail.mission.id))!;
-    expect(started.events.single.occurredAt, now);
-    expect(calculateExecutionTimes(started.events, now).focus, Duration.zero);
+    expect(started.events.single.occurredAt, plannedAt);
+    expect(
+      calculateExecutionTimes(started.events, now).focus,
+      const Duration(minutes: 3),
+    );
+    now = plannedAt.subtract(const Duration(milliseconds: 1));
+    expect(await missions.reconcileScheduledMissions(), isEmpty);
+    final afterClockRollback = (await missions.findDetail(
+      missionId: detail.mission.id,
+    ))!;
+    expect(afterClockRollback.events, hasLength(1));
+    expect(afterClockRollback.events.single.occurredAt, plannedAt);
   });
 
   test('错过完整时段、自选时间、已取消的任务不被自动开始', () async {
@@ -128,7 +139,7 @@ void main() {
     );
   });
 
-  test('查询期间跨过计划结束边界，不再自动写START，仍可手动开始', () async {
+  test('查询期间错过计划窗口，不自动开始；改为自选后可显式补做', () async {
     final detail = await create();
     final repository = _SlowScheduledRead(database, clock: () => now);
     now = plannedAt
@@ -139,14 +150,29 @@ void main() {
     expect(await repository.reconcileScheduledMissions(), isEmpty);
     final missed = (await missions.findDetail(missionId: detail.mission.id))!;
     expect(missed.events, isEmpty);
-    await missions.execute(
-      missions.prepareExecution(detail: missed, type: ExecutionEventType.start),
+    await expectLater(
+      missions.execute(
+        missions.prepareExecution(
+          detail: missed,
+          type: ExecutionEventType.start,
+        ),
+      ),
+      throwsA(isA<ExecutionConflict>()),
     );
+    await missions.startMakeup(missed, 'late-window-makeup');
+    final flexible = (await missions.findDetail(missionId: detail.mission.id))!;
+    expect(flexible.schedule.timePolicy, TimePolicy.flexible);
     expect(
       (await missions.findDetail(
         missionId: detail.mission.id,
       ))!.events.single.occurredAt,
       now,
+    );
+    final times = calculateExecutionTimes(flexible.events, now);
+    expect(times.focus, Duration.zero);
+    expect(
+      currentBudget(times, flexible.schedule.plannedDurationMinutes),
+      const Duration(minutes: 30),
     );
   });
 

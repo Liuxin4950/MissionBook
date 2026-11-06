@@ -11,6 +11,7 @@ import '../../core/theme/app_layout.dart';
 import '../../core/theme/colors.dart';
 import '../attachments/photo_capture_panel.dart';
 import '../attachments/attachment_image_loader.dart';
+import '../assistant/assistant_launcher.dart';
 import '../widgets/adaptive_columns.dart';
 import '../widgets/app_confirm_dialog.dart';
 import '../widgets/app_dropdown_form_field.dart';
@@ -125,160 +126,170 @@ class _RecordsPageState extends State<RecordsPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppTopBar(
-      title: widget.missionId != null
-          ? '材料来源记录'
-          : widget.nodeId != null
-          ? '节点记录'
-          : widget.goalId != null
-          ? '目标记录'
-          : '记录',
-      maxContentWidth: AppLayout.formMaxWidth,
-      actions: [
-        IconButton(
-          tooltip: '拍照记录',
-          onPressed: () => _create(capture: true),
-          icon: const Icon(Icons.photo_camera_outlined),
-        ),
-        IconButton(
-          tooltip: '添加记录',
-          onPressed: _create,
-          icon: const Icon(Icons.add_rounded),
-        ),
-      ],
-    ),
-    body: SafeArea(
-      top: false,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
-          child: LayoutBuilder(
-            builder: (context, box) => FutureBuilder<RecordPage>(
-              future: _data,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return SingleChildScrollView(
-                    padding: AppLayout.pagePadding(context),
-                    child: AppEmptyState(
-                      title: '记录读取失败',
-                      details: const Text('请检查设备存储后重试。'),
-                      actions: OutlinedButton.icon(
-                        onPressed: _load,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('重试'),
-                      ),
-                    ),
-                  );
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final data = snapshot.data!;
-                if (data.items.isEmpty) {
-                  return SingleChildScrollView(
-                    padding: AppLayout.pagePadding(context),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: (box.maxHeight - AppLayout.space3Xl).clamp(
-                          0,
-                          double.infinity,
-                        ),
-                      ),
+  Widget build(BuildContext context) => AssistantSurface(
+    missionId: widget.missionId,
+    goalId: widget.goalId,
+    nodeId: widget.nodeId,
+    child: Scaffold(
+      appBar: AppTopBar(
+        title: widget.missionId != null
+            ? '材料来源记录'
+            : widget.nodeId != null
+            ? '节点记录'
+            : widget.goalId != null
+            ? '目标记录'
+            : '记录',
+        maxContentWidth: AppLayout.formMaxWidth,
+        actions: [
+          IconButton(
+            tooltip: '拍照记录',
+            onPressed: () => _create(capture: true),
+            icon: const Icon(Icons.photo_camera_outlined),
+          ),
+          IconButton(
+            tooltip: '添加记录',
+            onPressed: _create,
+            icon: const Icon(Icons.add_rounded),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
+            child: LayoutBuilder(
+              builder: (context, box) => FutureBuilder<RecordPage>(
+                future: _data,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return SingleChildScrollView(
+                      padding: AppLayout.pagePadding(context),
                       child: AppEmptyState(
-                        title: '还没有记录',
-                        details: const Text('拍下值得留下的瞬间，或写下一段想法。'),
-                        actions: FilledButton.icon(
-                          onPressed: _create,
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('添加记录'),
+                        title: '记录读取失败',
+                        details: const Text('请检查设备存储后重试。'),
+                        actions: OutlinedButton.icon(
+                          onPressed: _load,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('重试'),
+                        ),
+                      ),
+                    );
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final data = snapshot.data!;
+                  if (data.items.isEmpty) {
+                    return SingleChildScrollView(
+                      padding: AppLayout.pagePadding(context),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: (box.maxHeight - AppLayout.space3Xl).clamp(
+                            0,
+                            double.infinity,
+                          ),
+                        ),
+                        child: AppEmptyState(
+                          title: '还没有记录',
+                          details: const Text('拍下值得留下的瞬间，或写下一段想法。'),
+                          actions: FilledButton.icon(
+                            onPressed: _create,
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('添加记录'),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  final padding = AppLayout.horizontalPadding(context);
+                  final wide =
+                      box.maxWidth - padding * 2 >=
+                      680 * MediaQuery.textScalerOf(context).scale(1);
+                  Widget tile(SavedRecord item) => _SwipeRecord(
+                    key: ValueKey<String>(item.id),
+                    onDelete: () => _delete(item),
+                    child: _RecordTile(
+                      item: item,
+                      service: service,
+                      onDelete: () => _delete(item),
+                      onOpen: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => RecordDetail(id: item.id),
                         ),
                       ),
                     ),
                   );
-                }
-                final padding = AppLayout.horizontalPadding(context);
-                final wide =
-                    box.maxWidth - padding * 2 >=
-                    680 * MediaQuery.textScalerOf(context).scale(1);
-                Widget tile(SavedRecord item) => _SwipeRecord(
-                  key: ValueKey<String>(item.id),
-                  onDelete: () => _delete(item),
-                  child: _RecordTile(
-                    item: item,
-                    service: service,
-                    onDelete: () => _delete(item),
-                    onOpen: () => Navigator.of(context).push<void>(
-                      MaterialPageRoute(
-                        builder: (_) => RecordDetail(id: item.id),
-                      ),
-                    ),
-                  ),
-                );
-                return ListView(
-                  padding: AppLayout.pagePadding(context),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppLayout.spaceLg),
-                      child: Text(
-                        '共 ${data.total} 条记录',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                    for (
-                      var index = 0;
-                      index < data.items.length;
-                      index += wide ? 2 : 1
-                    )
+                  return ListView(
+                    padding: AppLayout.pagePadding(context),
+                    children: [
                       Padding(
                         padding: const EdgeInsets.only(
-                          bottom: AppLayout.spaceMd,
+                          bottom: AppLayout.spaceLg,
                         ),
-                        child: wide
-                            ? Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(child: tile(data.items[index])),
-                                  const SizedBox(width: AppLayout.spaceLg),
-                                  Expanded(
-                                    child: index + 1 < data.items.length
-                                        ? tile(data.items[index + 1])
-                                        : const SizedBox.shrink(),
-                                  ),
-                                ],
-                              )
-                            : tile(data.items[index]),
+                        child: Text(
+                          '共 ${data.total} 条记录',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
                       ),
-                    if (_offset > 0 || data.nextOffset != null)
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: AppLayout.spaceMd,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          TextButton(
-                            onPressed: _offset == 0
-                                ? null
-                                : () {
-                                    _offset = (_offset - 20).clamp(0, 1 << 30);
-                                    _load();
-                                  },
-                            child: const Text('上一页'),
+                      for (
+                        var index = 0;
+                        index < data.items.length;
+                        index += wide ? 2 : 1
+                      )
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AppLayout.spaceMd,
                           ),
-                          Text('第 ${_offset ~/ 20 + 1} 页'),
-                          TextButton(
-                            onPressed: data.nextOffset == null
-                                ? null
-                                : () {
-                                    _offset = data.nextOffset!;
-                                    _load();
-                                  },
-                            child: const Text('下一页'),
-                          ),
-                        ],
-                      ),
-                  ],
-                );
-              },
+                          child: wide
+                              ? Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(child: tile(data.items[index])),
+                                    const SizedBox(width: AppLayout.spaceLg),
+                                    Expanded(
+                                      child: index + 1 < data.items.length
+                                          ? tile(data.items[index + 1])
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  ],
+                                )
+                              : tile(data.items[index]),
+                        ),
+                      if (_offset > 0 || data.nextOffset != null)
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: AppLayout.spaceMd,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            TextButton(
+                              onPressed: _offset == 0
+                                  ? null
+                                  : () {
+                                      _offset = (_offset - 20).clamp(
+                                        0,
+                                        1 << 30,
+                                      );
+                                      _load();
+                                    },
+                              child: const Text('上一页'),
+                            ),
+                            Text('第 ${_offset ~/ 20 + 1} 页'),
+                            TextButton(
+                              onPressed: data.nextOffset == null
+                                  ? null
+                                  : () {
+                                      _offset = data.nextOffset!;
+                                      _load();
+                                    },
+                              child: const Text('下一页'),
+                            ),
+                          ],
+                        ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),

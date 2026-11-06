@@ -36,7 +36,7 @@ class _AssistantContextSheet extends StatelessWidget {
                     IconButton(
                       tooltip: '关闭用量面板',
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close_rounded),
                     ),
                   ],
                 ),
@@ -89,7 +89,7 @@ class _AssistantContextSheet extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        '输入达到可用预算的 80% 时自动压缩早期对话，原始聊天记录仍保留。输入估算不是实际账单。',
+                        '输入达到可用预算的 80% 时自动压缩早期对话。压缩会额外调用摘要模型，每次最多 3 次请求；超过上限会停止并保留原记录。输入估算不等于账单，摘要用量计入本会话累计。',
                       ),
                       const SizedBox(height: 12),
                       OutlinedButton.icon(

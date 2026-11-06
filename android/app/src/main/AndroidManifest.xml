@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -38,8 +41,17 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <activity android:name=".AssistantCaptureConsentActivity"
+            android:exported="false" android:theme="@style/AssistantCaptureTheme" />
         <service android:name=".PlannedExecutionService" android:exported="false"
             android:foregroundServiceType="shortService" />
+        <service android:name=".AssistantOverlayService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-enabled cross-app assistant bubble" />
+        </service>
+        <service android:name=".AssistantScreenCaptureService" android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
         <service android:name=".PlannedExecutionJob" android:exported="true"
             android:permission="android.permission.BIND_JOB_SERVICE" />
         <receiver android:name=".PlannedAlarmReceiver" android:exported="false">

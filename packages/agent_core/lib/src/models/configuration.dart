@@ -225,7 +225,7 @@ final class ContextPolicy {
     this.headroomTokens = 512,
     this.keepRecentMessages = 6,
     this.summaryMaxTokens = 1024,
-    this.maxSummaryCalls = 8,
+    this.maxSummaryCalls = 3,
   }) {
     if (!triggerRatio.isFinite ||
         !targetRatio.isFinite ||
@@ -275,7 +275,7 @@ final class ContextPolicy {
       headroomTokens: _integer(json, 'headroomTokens', fallback: 512),
       keepRecentMessages: _integer(json, 'keepRecentMessages', fallback: 6),
       summaryMaxTokens: _integer(json, 'summaryMaxTokens', fallback: 1024),
-      maxSummaryCalls: _integer(json, 'maxSummaryCalls', fallback: 8),
+      maxSummaryCalls: _integer(json, 'maxSummaryCalls', fallback: 3),
     );
   }
 }

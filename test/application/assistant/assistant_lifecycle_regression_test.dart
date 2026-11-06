@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/application/attachments/attachment_coordinator.dart';
 import 'package:mission_book/data/assistant/drift_unified_reader.dart';
@@ -131,10 +130,8 @@ void main() {
     fail('等待请求状态超时');
   }
 
-  test('图片记录经真实摘要队列携带原图，单条摘要不再误报子级覆盖为零', () async {
-    final model = _Model(
-      (r, n) => textResponse('笔记展示谓词推理：引入前提、实例化，并推得存在命题；部分下标模糊。'),
-    );
+  test('历史记录级摘要队列不读取图片也不调用模型', () async {
+    final model = _Model((r, n) => textResponse('不应执行'));
     final ai = await create(model);
     await db.customStatement(
       "INSERT INTO records(id,type,source,content,attachment_storage_key,attachment_file_name,attachment_mime_type,occurred_at,created_at) VALUES (?,'IMAGE','CAMERA',?,?,?,?,?,?)",
@@ -154,27 +151,16 @@ void main() {
       mainBusy: () => false,
     );
     try {
+      await db.customStatement(
+        "INSERT INTO analysis_jobs(scope,target_id,status) VALUES('record','photo-record','pending')",
+      );
       await service.drain();
-      final request = model.requests.single;
-      expect(
-        request.messages.single.content.whereType<ImageBlock>().single.url,
-        'data:image/jpeg;base64,AQID',
-      );
-      final prompt = request.messages.single.content
-          .whereType<TextBlock>()
-          .single
-          .text;
-      expect(prompt, contains('单条记录'));
-      expect(prompt, contains('公式和推导步骤'));
-      expect(prompt, isNot(contains('"items":[]')));
-      expect(prompt, isNot(contains('"coverage":0')));
-      final version = (await db.select(db.analysisVersions).get()).single;
-      expect(version.coverage, 1);
-      expect(
-        (jsonDecode(version.sourcesJson) as List).single['id'],
-        'photo-record',
-      );
-      expect(images.reads, 1);
+      expect(model.requests, isEmpty);
+      expect(images.reads, 0);
+      final legacyJob = await (db.select(
+        db.analysisJobs,
+      )..where((row) => row.scope.equals('record'))).getSingle();
+      expect(legacyJob.status, 'pending');
       expect(ai.transcript, isEmpty);
     } finally {
       await service.dispose();

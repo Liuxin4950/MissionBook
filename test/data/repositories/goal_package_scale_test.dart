@@ -129,10 +129,15 @@ void main() {
       final goalIndex = await DriftUnifiedReader(
         db,
       ).getGoal(goal: result.goalId);
-      expect((goalIndex['missions'] as Map)['total'], 10000);
-      expect((goalIndex['missions'] as Map)['items'] as List, hasLength(20));
+      expect((goalIndex['missions'] as Map)['total'], 0);
+      expect((goalIndex['missions'] as Map)['items'] as List, isEmpty);
       expect((goalIndex['nodes'] as Map)['items'] as List, hasLength(20));
       expect(jsonEncode(goalIndex).length, lessThan(18000));
+      final goalSubtree = await DriftUnifiedReader(
+        db,
+      ).getGoal(goal: result.goalId, mission: '*');
+      expect(goalSubtree['total'], 10000);
+      expect(goalSubtree['items'] as List, hasLength(20));
       expect(await count(db, 'import_receipts'), 1);
       expect(await count(db, 'execution_events'), 0);
       expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);
@@ -151,7 +156,7 @@ void main() {
       expect(started.length, 1);
       final running = (await missions.findDetail(started.single))!;
       expect(running.phase, MissionPhase.running);
-      expect(running.events.single.occurredAt, now);
+      expect(running.events.single.occurredAt, DateTime.utc(2030, 1, 1));
       expect(await count(db, 'execution_events'), 1);
       expect(await missions.reconcileScheduledMissions(), isEmpty);
       await db.close();

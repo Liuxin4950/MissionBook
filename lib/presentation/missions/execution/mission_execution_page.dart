@@ -625,7 +625,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           const SizedBox(height: AppLayout.spaceXl),
           Text(
             detail.phase == MissionPhase.reportPending
-                ? '计划时间已到，计时已停。确认完成情况后可补充材料。'
+                ? '计划时间已到，计时已停止。确认完成情况后可补充材料。'
                 : detail.phase == MissionPhase.paused
                 ? '任务仍暂停；确认后保存完成情况。'
                 : '任务状态已变化，本报告未保存。请查看下方提示。',
@@ -732,7 +732,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           ),
           if (detail.phase == MissionPhase.reportPending) ...[
             const SizedBox(height: AppLayout.spaceLg),
-            const Text('计划时间已到，计时停止，待确认。', textAlign: TextAlign.center),
+            const Text('计划时间已到，计时已停止，待确认。', textAlign: TextAlign.center),
           ],
           if (times.extensionMinutes > 0) ...[
             const SizedBox(height: AppLayout.spaceMd),

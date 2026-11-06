@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'presentation/today/today_page.dart';
+import 'package:flutter/services.dart';
 import 'application/assistant/assistant_controller.dart';
 import 'presentation/assistant/assistant_launcher.dart';
+import 'presentation/assistant/assistant_screen_capture.dart';
 import 'application/missions/mission_service.dart';
 import 'application/notifications/app_notification_service.dart';
 import 'core/theme/app_layout.dart';
@@ -51,6 +53,9 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  static const _overlayChannel = MethodChannel(
+    'mission_book/assistant_overlay',
+  );
   // 索引
   int _selectedIndex = 0;
   final _visitedPages = <int>{0};
@@ -59,14 +64,66 @@ class _AppShellState extends State<AppShell> {
   // 窗口缩放只换显示位置，不重建页面（草稿、返回链都留在栈里）。
   final _detailPane = DetailPaneController();
   final _pageStackKey = GlobalKey();
+  final _captureBoundary = GlobalKey();
   final _assistantEntry = GlobalKey<AssistantLauncherState>();
   StreamSubscription<NotificationUiAction>? _uiActions;
   bool _selectingPage = false;
 
+  Future<Uint8List?> _captureCurrentPage() => captureAssistantScreen(
+    _captureBoundary,
+    devicePixelRatio: View.of(context).devicePixelRatio,
+  );
+
   @override
   void initState() {
     super.initState();
+    _overlayChannel.setMethodCallHandler(_handleOverlayCall);
     _listenNotifications();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_consumePendingAssistantOpen());
+        unawaited(_consumePendingCapture());
+      }
+    });
+  }
+
+  Future<void> _handleOverlayCall(MethodCall call) async {
+    if (call.method == 'pendingOpen') await _consumePendingAssistantOpen();
+    if (call.method == 'pendingCapture') await _consumePendingCapture();
+  }
+
+  Future<void> _consumePendingAssistantOpen() async {
+    try {
+      final pending = await _overlayChannel.invokeMethod<bool>(
+        'consumePendingOpen',
+      );
+      if (pending == true && mounted) {
+        await _assistantEntry.currentState?.openGlobalAssistant();
+      }
+    } on PlatformException {
+      // 桌面和 Web 没有 Android 悬浮入口。
+    } on MissingPluginException {
+      // 桌面和 Web 没有 Android 悬浮入口。
+    }
+  }
+
+  Future<void> _consumePendingCapture() async {
+    try {
+      final bytes = await _overlayChannel.invokeMethod<Uint8List>(
+        'consumePendingCapture',
+      );
+      if (bytes != null && mounted) {
+        await _assistantEntry.currentState?.openCapturedScreen(bytes);
+      }
+    } on PlatformException {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('截屏未能载入助手，请重新截取')));
+      }
+    } on MissingPluginException {
+      // 桌面和 Web 没有 Android 投屏入口。
+    }
   }
 
   @override
@@ -164,6 +221,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    _overlayChannel.setMethodCallHandler(null);
     unawaited(_uiActions?.cancel());
     _detailPane.dispose();
     super.dispose();
@@ -225,7 +283,7 @@ class _AppShellState extends State<AppShell> {
     );
     final body = AssistantEntryScope(
       openNode: (id) => _assistantEntry.currentState?.openNodeMenu(id),
-      child: pageBody,
+      child: RepaintBoundary(key: _captureBoundary, child: pageBody),
     );
     final compact = AppLayout.windowClassOf(context) == WindowClass.compact;
     // 右栏栈变化（打开/返回）会改变接管状态，这里需要跟着重建。
@@ -425,6 +483,7 @@ class _AppShellState extends State<AppShell> {
                               child: AssistantLauncher(
                                 key: _assistantEntry,
                                 navigationRailWidth: expanded ? 192 : 88,
+                                capturePage: _captureCurrentPage,
                               ),
                             ),
                           ),
@@ -493,7 +552,10 @@ class _AppShellState extends State<AppShell> {
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppLayout.spaceXs,
                         ),
-                        child: AssistantLauncher(key: _assistantEntry),
+                        child: AssistantLauncher(
+                          key: _assistantEntry,
+                          capturePage: _captureCurrentPage,
+                        ),
                       ),
                     _navigationItem(
                       2,

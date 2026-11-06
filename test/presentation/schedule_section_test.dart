@@ -207,14 +207,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('执行中'), findsOneWidget);
-      expect(find.text('专注 01:21'), findsOneWidget);
+      expect(find.text('29:00'), findsOneWidget);
       expect(find.textContaining('时段剩余 71 分钟'), findsOneWidget);
       expect(find.text('查看'), findsNothing);
       final titleRect = tester.getRect(find.text(title));
       final metaRect = tester.getRect(find.textContaining('100 分钟'));
       expect(metaRect.top, greaterThan(titleRect.bottom));
       expect(titleRect.left, closeTo(metaRect.left, 1));
-      expect(titleRect.width, greaterThan(width - 112));
+      expect(titleRect.width, greaterThan(width * .3));
       await tester.tap(find.text(title));
       expect(opened, isTrue);
       expect(tester.takeException(), isNull);

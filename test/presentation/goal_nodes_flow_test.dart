@@ -166,7 +166,7 @@ void main() {
     expect(find.byKey(Key('node-row-${child.id}')), findsOneWidget);
   });
 
-  testWidgets('目录按树序展示，长按编辑及左滑归档保留确认', (tester) async {
+  testWidgets('目录按树序展示，长按编辑及菜单归档保留确认', (tester) async {
     final parent = await seed('父节点');
     final child = await seed('子节点', parent: parent.id);
     final sibling = await seed('另一个根节点');
@@ -197,13 +197,7 @@ void main() {
     expect(find.byKey(const Key('node-title-input')), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    await tester.drag(
-      find.byKey(Key('node-row-${child.id}')),
-      const Offset(-100, 0),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(Key('node-swipe-archive-${child.id}')));
-    await tester.pumpAndSettle();
+    await nodeAction(tester, '${child.id}', '归档节点及子节点');
     expect(find.textContaining('已有任务和执行历史会保留'), findsOneWidget);
     await tester.tap(find.text('保留节点'));
     await tester.pumpAndSettle();
@@ -224,16 +218,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('窄屏左滑后仍可打开归档确认', (tester) async {
+  testWidgets('窄屏节点菜单仍可打开归档确认', (tester) async {
     final node = await seed('移动端节点');
     await open(tester, width: 320, scale: 1.2);
-    await tester.drag(
-      find.byKey(Key('node-row-${node.id}')),
-      const Offset(-100, 0),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(Key('node-swipe-archive-${node.id}')));
-    await tester.pumpAndSettle();
+    await nodeAction(tester, '${node.id}', '归档节点及子节点');
     expect(find.textContaining('已有任务和执行历史会保留'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -312,7 +300,7 @@ void main() {
   testWidgets('详情与卡片共用节点：外部保存后刷新，返回仍保留卡片路径', (tester) async {
     final node = await seed('状态管理');
     await open(tester);
-    await tapKey(tester, 'goal-${goal.id}');
+    await tapKey(tester, 'goal-details-${goal.id}');
     expect(find.text('目标详情'), findsOneWidget);
     await service.updateNode(node, title: '状态管理与事件流');
     await tester.pumpAndSettle();
@@ -325,7 +313,7 @@ void main() {
 
   testWidgets('详情创建响应丢失，查询确认成功后返回，卡片仍重新读到新节点', (tester) async {
     await open(tester);
-    await tapKey(tester, 'goal-${goal.id}');
+    await tapKey(tester, 'goal-details-${goal.id}');
     await tapKey(tester, 'node-add-root-${goal.id}');
     repository.loseReply = true;
     await addFromSheet(tester, '确认后可见');
@@ -334,6 +322,7 @@ void main() {
     expect(find.byKey(const Key('node-title-input')), findsNothing);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
+    await tapKey(tester, 'goal-outline-toggle-${goal.id}');
     expect(find.text('确认后可见'), findsOneWidget);
     expect(await service.findNodes(goal.id), hasLength(1));
   });

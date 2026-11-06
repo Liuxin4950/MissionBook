@@ -223,19 +223,29 @@ void main() {
     expect((await read(second.mission.id)).phase, MissionPhase.running);
   });
 
-  test('延迟开始仍按固定结束点停止，不给延迟唤醒多算时间', () async {
+  test('延迟唤醒按计划起点计时并在固定终点停止', () async {
     final task = await create();
     now = start.add(const Duration(minutes: 7));
     await service.reconcileScheduledMissions();
+    final started = await read(task.mission.id);
+    expect(started.events.single.type, ExecutionEventType.start);
+    expect(started.events.single.occurredAt, start);
     now = start.add(const Duration(hours: 5));
     await service.reconcileScheduledMissions();
+    final stopped = await read(task.mission.id);
+    expect(stopped.phase, MissionPhase.reportPending);
+    expect(stopped.events.last.type, ExecutionEventType.stop);
     expect(
-      calculateExecutionTimes((await read(task.mission.id)).events, now).focus,
-      const Duration(minutes: 23),
+      stopped.events.last.occurredAt,
+      start.add(const Duration(minutes: 30)),
+    );
+    expect(
+      calculateExecutionTimes(stopped.events, now).focus,
+      const Duration(minutes: 30),
     );
   });
 
-  test('自选时间继续沿用手动结束，错过完整时段后手动开始获得完整预算', () async {
+  test('自选任务手动结束；错过的固定任务先改为自选再补做', () async {
     final flexible = await create(flexible: true);
     await act(flexible.mission.id, ExecutionEventType.start);
     now = start.add(const Duration(hours: 5));
@@ -243,10 +253,18 @@ void main() {
     expect((await read(flexible.mission.id)).phase, MissionPhase.running);
     await act(flexible.mission.id, ExecutionEventType.pause);
     final missed = await create(title: '补做');
-    await act(missed.mission.id, ExecutionEventType.start);
+    await expectLater(
+      act(missed.mission.id, ExecutionEventType.start),
+      throwsA(isA<ExecutionConflict>()),
+    );
+    await service.startMakeup(missed, 'late-window-makeup');
+    final started = await read(missed.mission.id);
+    expect(started.events.single.occurredAt, now);
+    final times = calculateExecutionTimes(started.events, now);
+    expect(times.focus, Duration.zero);
     expect(
-      (await service.findPlannedSnapshot()).nextEndAt,
-      now.add(const Duration(minutes: 30)),
+      currentBudget(times, started.schedule.plannedDurationMinutes),
+      const Duration(minutes: 30),
     );
   });
 
