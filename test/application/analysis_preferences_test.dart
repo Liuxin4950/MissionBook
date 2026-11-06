@@ -11,6 +11,7 @@ import 'package:mission_book/application/records/record_service.dart';
 import 'package:mission_book/data/analysis/analysis_preferences_store.dart';
 import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
+import 'package:mission_book/data/local/analysis_triggers.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
@@ -89,94 +90,48 @@ void main() {
     ),
   );
 
-  test('关闭自动总结后事实和待办保留，不调用模型；手动一次仍可生成', () async {
+  test('原始记录不排独立总结，旧记录队列保留但不可领取', () async {
+    await db.customStatement('''
+      CREATE TRIGGER analysis_records_insert AFTER INSERT ON records
+      BEGIN INSERT INTO analysis_jobs(scope,target_id,status)
+        VALUES('record',NEW.id,'pending'); END
+    ''');
+    await installAnalysisTriggers(db);
     await seed();
     await service.drain();
     expect(prompts, isEmpty);
     expect((await db.select(db.records).get()).single.content, '今天完成了阅读');
-    expect((await db.select(db.analysisJobs).get()).single.status, 'pending');
-    await store.retry(AnalysisScope.record, 'record');
-    await service.drain();
-    expect(prompts, hasLength(1));
-    expect(
-      (await records.analysis(AnalysisScope.record, 'record'))['content'],
-      '可核对的总结',
+    expect(await db.select(db.analysisJobs).get(), isEmpty);
+    await db.customStatement(
+      "INSERT INTO analysis_jobs(scope,target_id,status) VALUES('record','old-record-summary','pending')",
     );
-    expect(service.automaticScopes, isEmpty);
-  });
-
-  test('手动记录总结不会绕过节点和目标的关闭开关，重新开启继续待办', () async {
-    final goal = goals.prepareCreation(title: '阅读目标');
-    await goals.create(goal);
-    final node = goals.prepareNodeCreation(goalId: goal.id, title: '第一阶段');
-    await goals.createNode(node);
-    await records.save(
-      const RecordDraft(
-        id: 'record',
-        type: ContentType.text,
-        source: ContentSource.user,
-        content: '阶段笔记',
-      ),
-      goalId: goal.id,
-      nodeId: node.id,
-    );
-    await store.retry(AnalysisScope.record, 'record');
-    await service.drain();
-    expect(prompts, hasLength(1));
-    expect((await db.select(db.analysisVersions).get()).map((e) => e.scope), [
-      'record',
-    ]);
-    await service.saveAutomaticScopes({AnalysisScope.node, AnalysisScope.goal});
-    await service.drain();
-    expect(
-      (await db.select(db.analysisVersions).get()).map((e) => e.scope),
-      containsAll(['record', 'node', 'goal']),
-    );
-  });
-
-  test('手动请求在运行中退出后可恢复，不依赖页面内存标记', () async {
-    await seed();
-    await store.retry(AnalysisScope.record, 'record');
-    final claimed = (await store.claim(automaticScopes: {}))!;
-    expect(claimed.manual, isTrue);
     await store.recover();
-    final recovered = (await store.claim(automaticScopes: {}))!;
-    expect(recovered.manual, isTrue);
-    expect(recovered.version, claimed.version);
-    expect(await store.publish(recovered, '恢复后的总结', [], 0), isTrue);
+    final legacyJobs = await db
+        .customSelect(
+          "SELECT target_id FROM analysis_jobs WHERE scope='record'",
+        )
+        .get();
+    expect(legacyJobs.single.data['target_id'], 'old-record-summary');
+    expect(await store.claim(), isNull);
+    expect(summaryScopes, {
+      AnalysisScope.mission,
+      AnalysisScope.node,
+      AnalysisScope.goal,
+    });
   });
 
   test('偏好读取失败不采用开启默认值发起模型请求，读取恢复后可以重试', () async {
     preferences.failLoad = true;
-    await seed();
+    final goal = goals.prepareCreation(title: '阅读目标');
+    await goals.create(goal);
     await service.drain();
     expect(prompts, isEmpty);
     expect(service.preferencesError, isNotNull);
     expect(service.automaticScopes, summaryScopes);
     preferences.failLoad = false;
-    preferences.scopes = {AnalysisScope.record};
+    preferences.scopes = {AnalysisScope.goal};
     await service.drain();
     expect(prompts, hasLength(1));
     expect(service.preferencesError, isNull);
-  });
-
-  test('偏好读取失败仍允许用户明确请求的一次总结，自动请求保持暂停', () async {
-    preferences.failLoad = true;
-    await seed();
-    await service.requestManual(AnalysisScope.record, 'record');
-    await service.drain();
-    expect(prompts, hasLength(1));
-    expect(service.preferencesError, isNotNull);
-  });
-
-  test('手动请求来源变更时拒绝旧结果，关闭的自动总结不会继续调用', () async {
-    await seed();
-    await store.retry(AnalysisScope.record, 'record');
-    final claimed = (await store.claim(automaticScopes: {}))!;
-    await records.updateContent('record', '今天完成了阅读', '新增了阅读笔记');
-    expect(await store.publish(claimed, '过期总结', [], 0), isFalse);
-    await service.drain();
-    expect(prompts, isEmpty);
-    expect(await db.select(db.analysisVersions).get(), isEmpty);
   });
 }

@@ -1,7 +1,6 @@
 import '../../domain/entities/saved_record.dart';
 import '../../domain/entities/record_draft.dart';
 import '../../application/errors/user_error_message.dart';
-import '../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -22,7 +21,6 @@ import '../widgets/app_segmented_control.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/app_top_bar.dart';
 import 'record_scope.dart';
-import 'analysis_panel.dart';
 
 part 'record_editor.dart';
 part 'record_association_picker.dart';

@@ -169,8 +169,6 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
               title: Text(
                 widget.scope == AnalysisScope.mission
                     ? '任务评价'
-                    : widget.scope == AnalysisScope.record
-                    ? '记录摘要'
                     : widget.scope == AnalysisScope.node
                     ? '节点摘要'
                     : '目标摘要',
@@ -216,8 +214,7 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                     ),
                   ),
                 if (a?['error'] != null) Text(a!['error'] as String),
-                if (widget.scope != AnalysisScope.record)
-                  Text('已覆盖直接子项：${a?['coverage'] ?? 0}'),
+                Text('已覆盖直接子项：${a?['coverage'] ?? 0}'),
                 Wrap(
                   children: [
                     if (!s.hasError)

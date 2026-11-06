@@ -259,14 +259,6 @@ class _RecordDetailState extends State<RecordDetail> {
                           ),
                       ],
                     ),
-                    const Divider(),
-                    AppSectionCard(
-                      padding: EdgeInsets.zero,
-                      child: AnalysisPanel(
-                        scope: AnalysisScope.record,
-                        id: widget.id,
-                      ),
-                    ),
                   ],
                 );
               },

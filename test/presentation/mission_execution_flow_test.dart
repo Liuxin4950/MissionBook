@@ -4,13 +4,18 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/application/analysis/analysis_service.dart';
+import 'package:mission_book/application/records/record_service.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
+import 'package:mission_book/data/repositories/drift_record_repository.dart';
+import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/domain/entities/execution_command.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
+import 'package:mission_book/presentation/records/record_scope.dart';
 import '../data/repositories/mission_cancellation_test.dart' show seedMission;
 
 class LostResponseRepository extends DriftMissionRepository {
@@ -34,15 +39,28 @@ void main() {
   late AppDatabase database;
   late DriftMissionRepository repository;
   late MissionService service;
+  late RecordService recordService;
+  late AnalysisService analysis;
   late DateTime now;
   setUp(() async {
     now = DateTime.utc(2026, 10, 23, 6);
     database = AppDatabase(executor: NativeDatabase.memory());
     repository = DriftMissionRepository(database, clock: () => now);
     service = MissionService(repository, clock: () => now);
+    recordService = RecordService(
+      DriftRecordRepository(database),
+      service,
+      service.attachments,
+    );
+    analysis = AnalysisService(
+      store: DriftAnalysisStore(database),
+      mainBusy: () => false,
+      model: (prompt, {imageKey, mime, json = false}) async => '测试摘要',
+    );
     await seedMission(repository, 'a');
   });
   tearDown(() async {
+    await analysis.dispose();
     await service.dispose();
     await database.close();
   });
@@ -58,11 +76,15 @@ void main() {
         locale: const Locale('zh', 'CN'),
         supportedLocales: const [Locale('zh', 'CN')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: TextScaler.linear(scale)),
-          child: child!,
+        builder: (context, child) => RecordScope(
+          service: recordService,
+          analysis: analysis,
+          child: MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(scale)),
+            child: child!,
+          ),
         ),
         home: MissionDetailPage(missionId: 'a', missionService: service),
       ),
@@ -148,6 +170,39 @@ void main() {
     expect(find.text('用户报告：已完成'), findsOneWidget);
     expect(find.byKey(const Key('execution-toggle')), findsNothing);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('任务执行中可保存当前任务的记录和附件', (tester) async {
+    await open(tester);
+    await tap(tester, 'execution-start');
+    await tester.scrollUntilVisible(
+      find.text('添加记录或附件'),
+      160,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('mission-execution-list')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(find.text('添加记录或附件'));
+    await tester.pumpAndSettle();
+    expect(find.text('材料来源记录'), findsOneWidget);
+    await tester.tap(find.byTooltip('添加记录'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('record-content-input')),
+      '执行中拍下的现场记录',
+    );
+    await tester.tap(find.text('保存记录'));
+    await tester.pumpAndSettle();
+    final saved = (await repository.findDetail('a'))!;
+    expect(saved.evidence.single.content, '执行中拍下的现场记录');
+    expect(
+      saved.events.where((event) => event.type == ExecutionEventType.end),
+      isEmpty,
+    );
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

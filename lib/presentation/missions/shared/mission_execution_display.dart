@@ -106,10 +106,12 @@ class MissionPageBody extends StatelessWidget {
     required this.children,
     this.footer,
     this.listKey,
+    this.centerWhenShort = false,
   });
   final List<Widget> children;
   final Widget? footer;
   final Key? listKey;
+  final bool centerWhenShort;
 
   @override
   Widget build(BuildContext context) {
@@ -122,10 +124,33 @@ class MissionPageBody extends StatelessWidget {
             builder: (context, available) => Column(
               children: [
                 Expanded(
-                  child: ListView(
-                    key: listKey,
-                    padding: AppLayout.pagePadding(context),
-                    children: children,
+                  child: LayoutBuilder(
+                    builder: (context, bodyConstraints) {
+                      final padding = AppLayout.pagePadding(context);
+                      final content = centerWhenShort
+                          ? [
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight:
+                                      (bodyConstraints.maxHeight -
+                                              padding.vertical)
+                                          .clamp(0.0, double.infinity),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: children,
+                                ),
+                              ),
+                            ]
+                          : children;
+                      return ListView(
+                        key: listKey,
+                        padding: padding,
+                        children: content,
+                      );
+                    },
                   ),
                 ),
                 if (footer != null)

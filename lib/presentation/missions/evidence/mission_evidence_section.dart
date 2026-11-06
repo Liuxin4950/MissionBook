@@ -475,7 +475,9 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (timedOut) const Text('材料超时'),
+          if (timedOut) const SizedBox(height: AppLayout.spaceMd),
           if (hasFormal) _formalMaterials(context),
+          if (hasFormal) const SizedBox(height: AppLayout.spaceMd),
           AppSectionCard(
             padding: EdgeInsets.zero,
             child: AppSettingsRow(
@@ -513,7 +515,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                   ? '执行已结束 · 待提交材料'
                   : timedOut
                   ? '材料超时'
-                  : '任务材料 · 补充不改变原结果',
+                  : '任务材料',
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: AppLayout.spaceSm),
@@ -523,7 +525,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                     ? '按要求提交文字、代码、手动记录、文件或图片，可组合提交。'
                     : _isPending
                     ? '材料可选；可以提交适合的记录，也可以放弃提交并结束。'
-                    : '保存相关材料；任务的执行、完成报告和既有超时结果保持原样。',
+                    : '补充材料不会更改任务结果。',
               ),
             if (deadline != null && requiredEvidence)
               Text(
@@ -549,7 +551,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
               ),
             if (_expanded && (_canSubmit || hasDraft)) ...[
               const SizedBox(height: AppLayout.spaceLg),
-              const Text('草稿 · 尚未进入正式记录'),
+              const Text('草稿（未提交）'),
               const SizedBox(height: AppLayout.spaceMd),
               for (final draft in _drafts) ...[
                 Row(
@@ -661,6 +663,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
               ],
               if (_imageError != null) ...[
                 Text(_imageError!, style: TextStyle(color: AppColors.error)),
+                const SizedBox(height: AppLayout.spaceSm),
                 OutlinedButton(
                   onPressed: _prepareImages,
                   child: const Text('重试图片准备'),

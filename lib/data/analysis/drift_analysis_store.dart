@@ -36,11 +36,11 @@ class DriftAnalysisStore implements AnalysisStore {
     await records.lock();
     final now = DateTime.now().millisecondsSinceEpoch;
     final rows = await records.rows(
-      "SELECT * FROM analysis_jobs WHERE ((status IN ('pending','failed') AND ${automaticScopes == null
+      "SELECT * FROM analysis_jobs WHERE scope!='record' AND ((status IN ('pending','failed') AND ${automaticScopes == null
           ? '1=1'
           : automaticScopes.isEmpty
           ? '0=1'
-          : 'scope IN (${List.filled(automaticScopes.length, '?').join(',')})'}) OR status IN ('manual_pending','manual_failed')) AND attempts<5 AND available_at<=? ORDER BY CASE scope WHEN 'record' THEN 0 WHEN 'mission' THEN 1 WHEN 'node' THEN 2 WHEN 'goal' THEN 3 ELSE 4 END, available_at LIMIT 1",
+          : 'scope IN (${List.filled(automaticScopes.length, '?').join(',')})'}) OR status IN ('manual_pending','manual_failed')) AND attempts<5 AND available_at<=? AND (scope!='mission' OR EXISTS(SELECT 1 FROM execution_events e WHERE e.mission_id=analysis_jobs.target_id AND e.type='END')) ORDER BY CASE scope WHEN 'mission' THEN 0 WHEN 'node' THEN 1 WHEN 'goal' THEN 2 ELSE 3 END, available_at LIMIT 1",
       [...?automaticScopes?.map((scope) => scope.name), now],
     );
     if (rows.isEmpty) return null;
@@ -79,24 +79,6 @@ class DriftAnalysisStore implements AnalysisStore {
             ? ''
             : _userText(payload.single['data'] as String),
       }, const []);
-    }
-    if (w.scope == AnalysisScope.record) {
-      final r = (await records.rows('SELECT * FROM records WHERE id=?', [
-        w.id,
-      ])).single;
-      final body = r['content'] as String?;
-      if (body != null && body.length > 8000) {
-        r['content'] = body.substring(0, 8000);
-        r['contentTruncated'] = true;
-      }
-      return AnalysisInput(
-        r,
-        const [],
-        imageKey: r['type'] == 'IMAGE'
-            ? r['attachment_storage_key'] as String?
-            : null,
-        mime: r['attachment_mime_type'] as String?,
-      );
     }
     if (w.scope == AnalysisScope.mission) {
       final d = (await DriftMissionRepository(db).findDetail(w.id))!;
@@ -190,15 +172,11 @@ class DriftAnalysisStore implements AnalysisStore {
             ])).single['n']
             as int;
     final meaningful = await records.rows(
-      "SELECT m.id FROM missions m WHERE $scope AND (EXISTS(SELECT 1 FROM execution_events e WHERE e.mission_id=m.id AND e.type='END') OR EXISTS(SELECT 1 FROM evidence_records e WHERE e.mission_id=m.id) OR EXISTS(SELECT 1 FROM analysis_versions v WHERE v.scope='mission' AND v.target_id=m.id))",
+      "SELECT m.id FROM missions m WHERE $scope AND (EXISTS(SELECT 1 FROM execution_events e WHERE e.mission_id=m.id AND e.type='END') OR EXISTS(SELECT 1 FROM analysis_versions v WHERE v.scope='mission' AND v.target_id=m.id))",
       [w.id],
     );
     facts['directMissionCount'] = allMissionCount;
     facts['missionsWithoutReviewFacts'] = allMissionCount - meaningful.length;
-    final directRecords = await records.rows(
-      'SELECT r.id FROM records r WHERE ${node ? 'r.goal_node_id=?' : 'r.goal_id=? AND r.goal_node_id IS NULL'}',
-      [w.id],
-    );
     final nodes = await records.rows(
       node
           ? 'SELECT id FROM goal_nodes WHERE parent_node_id=?'
@@ -208,7 +186,6 @@ class DriftAnalysisStore implements AnalysisStore {
     final items = <Map<String, Object?>>[];
     for (final group in [
       (meaningful, AnalysisScope.mission),
-      (directRecords, AnalysisScope.record),
       (nodes, AnalysisScope.node),
     ]) {
       items.addAll(
@@ -243,14 +220,11 @@ class DriftAnalysisStore implements AnalysisStore {
   ) async {
     if (ids.isEmpty) return const [];
     final table = switch (scope) {
-      AnalysisScope.record => 'records',
       AnalysisScope.mission => 'missions',
       AnalysisScope.node => 'goal_nodes',
       _ => throw ArgumentError.value(scope, 'scope', '不支持的子摘要范围'),
     };
     final facts = switch (scope) {
-      AnalysisScope.record =>
-        ',x.type,x.occurred_at,substr(x.content,1,300) caption',
       AnalysisScope.mission =>
         ',x.title,(SELECT user_reported_result FROM execution_events e WHERE e.mission_id=x.id AND e.type=\'END\') userReportedResult,(SELECT COUNT(*) FROM evidence_records e WHERE e.mission_id=x.id AND NOT EXISTS(SELECT 1 FROM evidence_records n WHERE n.supersedes_evidence_id=e.id)) materialCount',
       AnalysisScope.node => ',x.title,x.archived_at',
@@ -301,12 +275,6 @@ class DriftAnalysisStore implements AnalysisStore {
               version != null && jobVersion != null && version != jobVersion,
         };
         final index = switch (scope) {
-          AnalysisScope.record => <String, Object?>{
-            'id': row['id'],
-            'type': row['type'],
-            'caption': row['caption'],
-            'occurred_at': row['occurred_at'],
-          },
           AnalysisScope.mission => <String, Object?>{
             'id': row['id'],
             'title': row['title'],
@@ -373,12 +341,7 @@ class DriftAnalysisStore implements AnalysisStore {
   });
   Future<void> parents(AnalysisScope scope, String id) async {
     List<Map<String, Object?>> targets = [];
-    if (scope == AnalysisScope.record) {
-      targets = await records.rows(
-        "SELECT 'node' scope,goal_node_id id FROM records WHERE id=? AND goal_node_id IS NOT NULL UNION SELECT 'goal',goal_id FROM records WHERE id=? AND goal_id IS NOT NULL",
-        [id, id],
-      );
-    } else if (scope == AnalysisScope.mission) {
+    if (scope == AnalysisScope.mission) {
       targets = await records.rows(
         "SELECT 'node' scope,goal_node_id id FROM missions WHERE id=? AND goal_node_id IS NOT NULL UNION SELECT 'goal',goal_id FROM missions WHERE id=? AND goal_id IS NOT NULL",
         [id, id],

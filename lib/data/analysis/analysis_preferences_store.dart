@@ -20,6 +20,7 @@ class SecureAnalysisPreferences implements AnalysisPreferencesStore {
     if (decoded is! List) throw const FormatException('自动总结设置无效');
     return decoded
         .cast<String>()
+        .where((scope) => scope != 'record')
         .map(AnalysisScope.parse)
         .where(summaryScopes.contains)
         .toSet();

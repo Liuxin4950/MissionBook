@@ -130,7 +130,7 @@ class RecordsEntry extends StatelessWidget {
       child: AppSettingsRow(
         onTap: open,
         icon: Icons.photo_library_outlined,
-        title: missionId == null ? label : '查看材料来源记录',
+        title: missionId == null || label != '查看记录' ? label : '查看材料来源记录',
       ),
     );
   }

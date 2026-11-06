@@ -2,9 +2,9 @@ import 'content_mapping.dart';
 import '../../domain/entities/saved_record.dart';
 import 'evidence_mapping.dart';
 import '../../domain/entities/record_draft.dart';
+import '../../domain/entities/analysis_scope.dart';
 import 'package:drift/drift.dart';
 import 'package:timezone/timezone.dart' as tz;
-import '../../domain/entities/analysis_scope.dart';
 import '../../domain/entities/evidence.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/repositories/record_repository.dart';
@@ -34,32 +34,6 @@ class DriftRecordRepository extends DriftRepositorySupport
       db.records,
     )..where((r) => r.id.equals(id))).getSingleOrNull();
     if (record == null) return;
-    if (record.goalNodeId != null) {
-      await db.customStatement(
-        '''INSERT INTO analysis_jobs(scope,target_id,source_version,status,attempts,available_at)
-        SELECT 'node',id,1,'pending',0,0 FROM (
-          WITH RECURSIVE parents(id) AS (SELECT ? UNION SELECT n.parent_node_id FROM goal_nodes n JOIN parents p ON n.id=p.id WHERE n.parent_node_id IS NOT NULL)
-          SELECT id FROM parents) WHERE id IS NOT NULL
-        ON CONFLICT(scope,target_id) DO UPDATE SET source_version=source_version+1,status='pending',attempts=0,available_at=0,error=NULL''',
-        [record.goalNodeId],
-      );
-    }
-    if (record.goalId != null) {
-      await db.customStatement(
-        '''INSERT INTO analysis_jobs(scope,target_id,source_version,status,attempts,available_at)
-        VALUES('goal',?,1,'pending',0,0) ON CONFLICT(scope,target_id) DO UPDATE SET
-        source_version=source_version+1,status='pending',attempts=0,available_at=0,error=NULL''',
-        [record.goalId],
-      );
-    }
-    await db.customStatement(
-      "DELETE FROM analysis_jobs WHERE scope='record' AND target_id=?",
-      [id],
-    );
-    await db.customStatement(
-      "DELETE FROM analysis_versions WHERE scope='record' AND target_id=?",
-      [id],
-    );
     await (db.delete(db.records)..where((r) => r.id.equals(id))).go();
   });
 
@@ -293,28 +267,10 @@ class DriftRecordRepository extends DriftRepositorySupport
             materialMissionTitle: r['mission_title'] as String?,
             nextContentOffset: r['nextContentOffset'] as int?,
             contentTruncated: r['contentTruncated'] == true,
-            analysis: _recordAnalysis(r['analysis'] as Map<String, Object?>),
           ),
       ],
     );
   }
-
-  RecordAnalysis _recordAnalysis(Map<String, Object?> value) => RecordAnalysis(
-    state: value['state'] as String,
-    manual: value['manual'] == true,
-    stale: value['stale'] == true,
-    error: value['error'] as String?,
-    content: value['content'] as String?,
-    sourceVersion: value['source_version'] as int?,
-    coverage: value['coverage'] as int?,
-    createdAt: value['created_at'] == null
-        ? null
-        : DateTime.fromMillisecondsSinceEpoch(
-            value['created_at'] as int,
-            isUtc: true,
-          ),
-    closing: value['closing'] == null ? null : value['closing'] == 1,
-  );
 
   Future<Map<String, Object?>> _queryRecords({
     String? id,
@@ -376,10 +332,6 @@ class DriftRecordRepository extends DriftRepositorySupport
         item['nextContentOffset'] = end < text.length ? end : null;
         item['contentTruncated'] = end < text.length;
       }
-      item['analysis'] = await analysis(
-        AnalysisScope.record,
-        item['id'] as String,
-      );
     }
     return DriftRepositorySupport.page(items, total, offset);
   }

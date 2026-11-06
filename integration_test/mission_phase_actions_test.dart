@@ -1,6 +1,7 @@
 import 'package:mission_book/data/repositories/drift_memory_repository.dart';
 import 'package:mission_book/domain/entities/analysis_scope.dart';
 import 'package:drift/native.dart';
+import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -123,6 +124,58 @@ void main() {
     await mount(
       MissionExecutionPage(detail: running, service: service, clock: () => now),
     );
+    await binding.convertFlutterSurfaceToImage();
+    await tester.pumpAndSettle();
+    await binding.takeScreenshot('01-running-execution');
+    final addRecord = find.text('添加记录或附件');
+    await tester.scrollUntilVisible(
+      addRecord,
+      160,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('mission-execution-list')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    await binding.takeScreenshot('02-running-add-record-entry');
+    await tester.tap(addRecord);
+    await tester.pumpAndSettle();
+    expect(find.text('材料来源记录'), findsOneWidget);
+    await binding.takeScreenshot('03-current-mission-record-list');
+    await tester.tap(find.byTooltip('添加记录'));
+    await tester.pumpAndSettle();
+    expect(find.text('保存后添加到当前任务材料'), findsOneWidget);
+    expect(find.text('保存时同时提交任务材料'), findsNothing);
+    expect(find.text('仅保存记录'), findsNothing);
+    await binding.takeScreenshot('04-record-editor-linked-to-mission');
+    await tester.enterText(
+      find.byKey(const Key('record-content-input')),
+      '执行中拍下的饮食记录',
+    );
+    await tester.pumpAndSettle();
+    await binding.takeScreenshot('05-record-editor-filled');
+    await tester.tap(find.text('保存记录'));
+    await tester.pumpAndSettle();
+    await binding.takeScreenshot('06-record-saved-in-mission-list');
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await binding.takeScreenshot('07-running-with-saved-material');
+    final withRecord = (await service.findDetail(
+      missionId: running.mission.id,
+    ))!;
+    expect(withRecord.phase, MissionPhase.running);
+    expect(withRecord.evidence.single.content, '执行中拍下的饮食记录');
+    expect(
+      await db
+          .customSelect(
+            "SELECT target_id FROM analysis_jobs WHERE scope='mission' AND target_id=?",
+            variables: [Variable.withString(running.mission.id)],
+          )
+          .get(),
+      isEmpty,
+    );
     await tester.tap(find.byTooltip('任务详情'));
     await tester.pumpAndSettle();
     expect(find.byType(AnalysisPanel), findsNothing);
@@ -130,9 +183,7 @@ void main() {
     expect(find.text('添加材料'), findsNothing);
     expect(find.text('确认完成情况'), findsNothing);
     expect(find.text('返回执行任务'), findsOneWidget);
-    await binding.convertFlutterSurfaceToImage();
-    await tester.pumpAndSettle();
-    await binding.takeScreenshot('01-running-detail');
+    await binding.takeScreenshot('08-running-detail');
     await tester.tap(find.byKey(const Key('detail-return-execution')));
     await tester.pumpAndSettle();
     expect(
@@ -153,7 +204,12 @@ void main() {
       ))!.endReportedCompleted,
       isFalse,
     );
-    await binding.takeScreenshot('05-default-end-report');
+    await binding.takeScreenshot('09-end-report');
+    await tester.tap(find.byKey(const Key('report-not-completed')));
+    await tester.pumpAndSettle();
+    await binding.takeScreenshot('09-end-report-not-completed');
+    await tester.tap(find.byKey(const Key('report-completed')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('report-confirm')));
     await tester.pumpAndSettle();
     expect(
@@ -162,6 +218,11 @@ void main() {
       ))!.endReportedCompleted,
       isTrue,
     );
+    await binding.takeScreenshot('10-ended-execution-record-workspace');
+    final retryAttempt = find.text('再次尝试');
+    await tester.ensureVisible(retryAttempt);
+    await tester.pumpAndSettle();
+    await binding.takeScreenshot('11-ended-execution-record-bottom');
 
     final overdue = await seed('上午课程与练习', overdue: true);
     await mount(
@@ -204,13 +265,17 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(addText);
     await tester.pumpAndSettle();
+    await binding.takeScreenshot('supplementary-materials-draft');
     final input = find.byType(TextField);
     await tester.ensureVisible(input);
     await tester.pumpAndSettle();
     await tester.enterText(input, '课后补充：今天完成了阅读和练习。');
+    await tester.pumpAndSettle();
+    await binding.takeScreenshot('supplementary-materials-filled');
     final submit = find.byKey(const Key('evidence-submit'));
     await tester.ensureVisible(submit);
     await tester.pumpAndSettle();
+    await binding.takeScreenshot('supplementary-materials-ready-submit');
     await tester.tap(submit);
     await tester.pumpAndSettle();
     expect(
@@ -225,6 +290,9 @@ void main() {
       ))!.events.single.id,
       completed.events.single.id,
     );
+    await tester.ensureVisible(find.text('任务材料 · 1 份'));
+    await tester.pumpAndSettle();
+    await binding.takeScreenshot('supplementary-materials-saved');
     await mount(const MemoryPage());
     expect(find.text('还没有记忆'), findsOneWidget);
     await binding.takeScreenshot('06-diary-empty');
@@ -241,10 +309,10 @@ void main() {
     expect(find.text('搜索尚未配置'), findsOneWidget);
     await binding.takeScreenshot('08-web-settings');
     await mount(const AnalysisSettingsPage());
-    await tester.tap(find.byKey(const Key('analysis-auto-record')));
+    await tester.tap(find.byKey(const Key('analysis-auto-node')));
     await tester.tap(find.byKey(const Key('analysis-save-settings')));
     await tester.pumpAndSettle();
-    expect(analysis.automaticFor(AnalysisScope.record), isFalse);
+    expect(analysis.automaticFor(AnalysisScope.node), isFalse);
     await binding.takeScreenshot('09-analysis-settings');
     await assistant.initialize();
     await mount(AssistantSettingsPage(controller: assistant));
@@ -266,6 +334,16 @@ void main() {
     await tester.tap(find.byKey(const Key('assistant-save-settings')));
     await tester.pumpAndSettle();
     expect(assistant.persona.userAddress, '小刘');
+    final privacyText = find.text('API Key 仅保存在本机；对话会发送给所选模型供应商。');
+    await tester.ensureVisible(privacyText);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getBottomLeft(privacyText).dy,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('assistant-save-settings'))).dy,
+      ),
+    );
+    await binding.takeScreenshot('11-assistant-settings-bottom');
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

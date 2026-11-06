@@ -11,7 +11,6 @@ import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/data/web/web_settings_store.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
@@ -112,6 +111,22 @@ void main() {
               completed
           ? true
           : null,
+    );
+  }
+
+  Future<void> startAndFinish(String id) async {
+    await missions.execute(
+      missions.prepareExecution(
+        detail: (await repo.findDetail(id))!,
+        type: ExecutionEventType.start,
+      ),
+    );
+    await missions.execute(
+      missions.prepareExecution(
+        detail: (await repo.findDetail(id))!,
+        type: ExecutionEventType.end,
+        report: UserReportedResult.completed,
+      ),
     );
   }
 
@@ -289,6 +304,7 @@ void main() {
 
   test('来源删除后任务评价仍观察提交快照图片并汇总观察结果', () async {
     final id = await seed();
+    await startAndFinish(id);
     await records.saveRecord(
       const RecordDraft(
         id: 'visual-source',
@@ -742,9 +758,6 @@ void main() {
         content: longText,
       ),
     );
-    await db.customStatement(
-      "INSERT INTO analysis_versions(id,scope,target_id,source_version,content,sources_json,coverage,created_at,closing) VALUES('summary-id','record','long-tool',1,'内容摘要','[]',3,1234,1)",
-    );
     final longOutput = await getRecord.execute({
       'record': 'long-tool',
       'content': true,
@@ -757,11 +770,7 @@ void main() {
     expect(longItem['contentLength'], 6200);
     expect(longItem['contentOffset'], 6000);
     expect(longItem['contentTruncated'], false);
-    final analysis = longItem['analysis'] as Map;
-    expect(analysis['state'], isNotNull);
-    expect(analysis['content'], '内容摘要');
-    expect(analysis['coverage'], 3);
-    expect(analysis['closing'], true);
+    expect(longItem.containsKey('analysis'), isFalse);
     await records.saveRecord(
       const RecordDraft(
         id: 'image-tool',
@@ -876,6 +885,7 @@ void main() {
   });
   test('新事实使分析版本失效，旧请求迟到拒绝发布；恢复中断队列', () async {
     final id = await seed();
+    await startAndFinish(id);
     await db.delete(db.analysisJobs).go();
     final store = DriftAnalysisStore(db);
     await store.retry(AnalysisScope.mission, id);
@@ -892,7 +902,52 @@ void main() {
       'ready',
     );
   });
-  test('分层汇总20项分批，任务评价不带全局记忆，主会话优先', () async {
+  test('结束前保存的任务记录不触发AI，END后任务总结读取材料快照', () async {
+    final goal = goals.prepareCreation(title: '饮食记录目标');
+    await goals.create(goal);
+    final node = goals.prepareNodeCreation(goalId: goal.id, title: '本周饮食');
+    await goals.createNode(node);
+    await db.delete(db.analysisJobs).go();
+    final id = await seed(goalId: goal.id, nodeId: node.id);
+    await records.saveRecord(
+      const RecordDraft(
+        id: 'during-execution-note',
+        type: ContentType.text,
+        source: ContentSource.user,
+        content: '午餐照片：有米饭和青菜',
+      ),
+      missionId: id,
+    );
+    expect(
+      await db
+          .customSelect(
+            "SELECT target_id FROM analysis_jobs WHERE scope='mission' AND target_id=?",
+            variables: [Variable.withString(id)],
+          )
+          .get(),
+      isEmpty,
+    );
+    expect(await db.select(db.analysisJobs).get(), isEmpty);
+    await db.customStatement(
+      "INSERT INTO analysis_jobs(scope,target_id,status) VALUES('mission',?,'pending')",
+      [id],
+    );
+    expect(await DriftAnalysisStore(db).claim(), isNull);
+
+    await startAndFinish(id);
+
+    final job =
+        await (db.select(db.analysisJobs)
+              ..where((row) => row.scope.equals(AnalysisScope.mission.name)))
+            .getSingle();
+    expect(job.scope, AnalysisScope.mission.name);
+    final input = await DriftAnalysisStore(
+      db,
+    ).input(AnalysisWork(AnalysisScope.mission, id, job.sourceVersion, false));
+    expect(input.items.single['content'], '午餐照片：有米饭和青菜');
+  });
+
+  test('节点与目标只汇总任务和子节点摘要，不读取直接归属记录', () async {
     final goal = goals.prepareCreation(title: '大目标');
     await goals.create(goal);
     for (var i = 0; i < 45; i++) {
@@ -906,9 +961,6 @@ void main() {
         goalId: goal.id,
       );
     }
-    await db.customStatement(
-      "UPDATE analysis_jobs SET status='ready' WHERE scope='record'",
-    );
     final prompts = <String>[];
     var busy = true;
     final worker = AnalysisService(
@@ -924,10 +976,11 @@ void main() {
     busy = false;
     await worker.drain();
     await worker.dispose();
-    expect(prompts, hasLength(4));
+    expect(prompts, hasLength(1));
+    expect(prompts.single, isNot(contains('笔记0')));
     expect(
       (await records.analysis(AnalysisScope.goal, goal.id))['coverage'],
-      45,
+      0,
     );
   });
   test('记忆去重、过期、更正、忘记与来源墓碑，核心载入有界', () async {

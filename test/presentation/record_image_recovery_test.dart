@@ -100,6 +100,14 @@ void main() {
     await missions.dispose();
     await db.close();
   });
+
+  test('独立照片记录不创建记录级AI摘要', () async {
+    expect(await db.select(db.analysisJobs).get(), isEmpty);
+    await analysis.drain();
+    expect(await db.select(db.analysisVersions).get(), isEmpty);
+    expect(images.reads, 0);
+  });
+
   Widget app(Widget child) => MaterialApp(
     builder: (c, child) =>
         RecordScope(service: records, analysis: analysis, child: child!),

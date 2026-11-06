@@ -21,7 +21,6 @@ class AnalysisSettingsPage extends StatefulWidget {
 
 class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
   static const labels = {
-    AnalysisScope.record: ('记录', '照片、文字与附件内容摘要'),
     AnalysisScope.mission: ('任务', '结束后的评价与完成情况总结'),
     AnalysisScope.node: ('节点', '节点任务与子节点的阶段摘要'),
     AnalysisScope.goal: ('目标', '目标整体进展与分层摘要'),
@@ -148,8 +147,6 @@ class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
                                   for (final entry in labels.entries)
                                     AppSettingsRow(
                                       icon: switch (entry.key) {
-                                        AnalysisScope.record =>
-                                          Icons.notes_outlined,
                                         AnalysisScope.mission => Icons.task_alt,
                                         AnalysisScope.node =>
                                           Icons.account_tree_outlined,

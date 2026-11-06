@@ -7,7 +7,6 @@ abstract interface class AnalysisPreferencesStore {
 }
 
 const summaryScopes = {
-  AnalysisScope.record,
   AnalysisScope.mission,
   AnalysisScope.node,
   AnalysisScope.goal,

@@ -127,7 +127,7 @@ class _RecordEditorState extends State<RecordEditor> {
         draft,
         goalId: _goal,
         nodeId: _node,
-        missionId: _mission,
+        missionId: widget.missionId ?? _mission,
       );
       if (!mounted) return;
       setState(() {
@@ -327,19 +327,21 @@ class _RecordEditorState extends State<RecordEditor> {
   Widget _associationRow(BuildContext context) {
     final theme = Theme.of(context);
     final enabled = !_busy;
-    final label =
-        _association ??
-        (_node != null
-            ? '关联当前节点'
-            : _goal != null
-            ? '关联当前目标'
-            : '独立记录 · 可设置目标或节点');
+    final canChangeOwnership = enabled && widget.missionId == null;
+    final label = widget.missionId != null
+        ? '保存后添加到当前任务材料'
+        : _association ??
+              (_node != null
+                  ? '关联当前节点'
+                  : _goal != null
+                  ? '关联当前目标'
+                  : '独立记录 · 可设置目标或节点');
     return Material(
       color: enabled ? AppColors.surfaceMuted : AppColors.disabled,
       borderRadius: BorderRadius.circular(AppLayout.radiusLg),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: enabled
+        onTap: canChangeOwnership
             ? () async {
                 final result = await chooseRecordOwnership(context);
                 if (result != null && mounted) {
@@ -382,7 +384,7 @@ class _RecordEditorState extends State<RecordEditor> {
                     ),
                   ),
                 ),
-                if (enabled)
+                if (canChangeOwnership)
                   const Icon(
                     Icons.chevron_right,
                     size: AppLayout.iconMd,
@@ -484,24 +486,24 @@ class _RecordEditorState extends State<RecordEditor> {
                         ),
                         const SizedBox(height: AppLayout.spaceXl),
                         _associationRow(context),
-                        TextButton.icon(
-                          onPressed: _busy
-                              ? null
-                              : () async {
-                                  final choice = await chooseRecordMaterialTask(
-                                    context,
-                                  );
-                                  if (choice != null && mounted) {
-                                    setState(() {
-                                      _mission = choice['mission'];
-                                    });
-                                  }
-                                },
-                          icon: const Icon(Icons.attach_file),
-                          label: Text(
-                            _mission == null ? '同时用作任务材料（可选）' : '保存时同时提交任务材料',
+                        if (widget.missionId == null)
+                          TextButton.icon(
+                            onPressed: _busy
+                                ? null
+                                : () async {
+                                    final choice =
+                                        await chooseRecordMaterialTask(context);
+                                    if (choice != null && mounted) {
+                                      setState(() {
+                                        _mission = choice['mission'];
+                                      });
+                                    }
+                                  },
+                            icon: const Icon(Icons.attach_file),
+                            label: Text(
+                              _mission == null ? '同时用作任务材料（可选）' : '保存时同时提交任务材料',
+                            ),
                           ),
-                        ),
                         if (_mission != null && widget.missionId == null)
                           TextButton(
                             onPressed: _busy

@@ -1,7 +1,7 @@
-import 'package:mission_book/domain/entities/record_draft.dart';
 import 'package:mission_book/data/repositories/drift_memory_repository.dart';
 import 'package:mission_book/domain/entities/analysis_scope.dart';
 import 'package:drift/native.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,7 +20,6 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
 import 'package:mission_book/data/web/web_settings_store.dart';
-import 'package:mission_book/presentation/records/analysis_panel.dart';
 import 'package:mission_book/presentation/records/memory_page.dart';
 import 'package:mission_book/presentation/records/web_settings_page.dart';
 import 'package:mission_book/presentation/records/analysis_settings_page.dart';
@@ -56,6 +55,7 @@ class _Preferences implements AnalysisPreferencesStore {
 }
 
 void main() {
+  final testNow = DateTime.utc(2030, 1, 1);
   late AppDatabase db;
   late MissionService missions;
   late RecordService records;
@@ -74,7 +74,7 @@ void main() {
       missions,
       missions.attachments,
     );
-    memory = MemoryService(DriftMemoryRepository(db));
+    memory = MemoryService(DriftMemoryRepository(db, clock: () => testNow));
     preferences = _Preferences();
     analysis = AnalysisService(
       store: DriftAnalysisStore(db),
@@ -223,16 +223,24 @@ void main() {
   });
 
   testWidgets('日记按需展示来源，过期内容默认隐藏但可查看', (tester) async {
-    await memory.save({
-      'id': 'expired',
-      'content': '考试周临时安排',
-      'kind': 'constraint',
-      'source': '用户明确陈述',
-      'certainty': 'stated',
-      'expiresAt': DateTime.now()
-          .subtract(const Duration(days: 1))
-          .millisecondsSinceEpoch,
-    }, userEdited: true);
+    await db
+        .into(db.memoryEntries)
+        .insert(
+          MemoryEntriesCompanion.insert(
+            id: 'expired',
+            content: '考试周临时安排',
+            kind: 'constraint',
+            source: '用户明确陈述',
+            certainty: 'stated',
+            conflictKey: '考试安排',
+            updatedAt: testNow.millisecondsSinceEpoch,
+            expiresAt: Value(
+              DateTime.now()
+                  .subtract(const Duration(days: 1))
+                  .millisecondsSinceEpoch,
+            ),
+          ),
+        );
     await open(tester, const MemoryPage());
     expect(find.text('考试周临时安排'), findsNothing);
     await tester.tap(find.text('包含过期'));
@@ -295,43 +303,16 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('自动总结逐层保存，关闭后展开摘要可手动生成', (tester) async {
+  testWidgets('自动总结只配置任务、节点和目标层级', (tester) async {
     await open(tester, const AnalysisSettingsPage());
-    await tester.tap(find.byKey(const Key('analysis-auto-record')));
+    expect(find.byKey(const Key('analysis-auto-record')), findsNothing);
+    expect(find.byKey(const Key('analysis-auto-mission')), findsOneWidget);
+    expect(find.byKey(const Key('analysis-auto-node')), findsOneWidget);
+    expect(find.byKey(const Key('analysis-auto-goal')), findsOneWidget);
     await tester.tap(find.byKey(const Key('analysis-auto-goal')));
     await tester.tap(find.byKey(const Key('analysis-save-settings')));
     await tester.pumpAndSettle();
     expect(preferences.scopes, {AnalysisScope.mission, AnalysisScope.node});
-    await records.save(
-      const RecordDraft(
-        id: 'manual-record',
-        type: ContentType.text,
-        source: ContentSource.user,
-        content: '新的笔记',
-      ),
-    );
-    await tester.pumpWidget(const SizedBox.shrink());
-    await open(
-      tester,
-      const Scaffold(
-        body: AnalysisPanel(scope: AnalysisScope.record, id: 'manual-record'),
-      ),
-    );
-    expect(find.textContaining('自动总结已关闭'), findsOneWidget);
-    expect(find.text('生成总结'), findsNothing);
-    await tester.tap(find.text('记录摘要'));
-    await tester.pumpAndSettle();
-    expect(find.text('生成总结'), findsOneWidget);
-    await tester.tap(
-      find.byKey(const Key('generate-summary-record-manual-record')),
-    );
-    await tester.pumpAndSettle();
-    expect(
-      (await db.select(db.analysisJobs).get()).single.status,
-      'manual_pending',
-    );
-    expect(find.text('等待总结…'), findsOneWidget);
-    expect(analysis.automaticFor(AnalysisScope.record), isFalse);
     await close(tester);
     await analysis.dispose();
     analysisDisposed = true;

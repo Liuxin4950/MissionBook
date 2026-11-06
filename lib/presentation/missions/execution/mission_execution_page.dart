@@ -25,6 +25,7 @@ import '../shared/mission_execution_display.dart';
 import '../record/mission_record_workspace.dart';
 import '../detail/mission_detail_page.dart';
 import '../evidence/mission_evidence_section.dart';
+import '../../records/records_page.dart';
 
 /// 已 START 任务的独立执行页；离开页面不会停止或暂停真实执行。
 /// 结束报告与材料留在独立工作流中，旧自报独立页沿用原记录路由。
@@ -414,10 +415,10 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
   );
 
   Widget _buildWorkspace(BuildContext context, BoxConstraints viewport) {
-    // 高屏把留白分配到圆环上方和控制区之间；小窗/键盘展开时收回，正文仍可滚动。
+    // 高屏只增加少量呼吸空间；小窗或键盘展开时收回，避免标题、圆环和控制区被拉散。
     final breathingSpace =
         (viewport.maxHeight - MediaQuery.viewInsetsOf(context).bottom - 680)
-            .clamp(0.0, 200.0);
+            .clamp(0.0, 120.0);
     final detail = _action.detail;
     final times = calculateExecutionTimes(
       detail.events,
@@ -577,6 +578,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           );
     final body = MissionPageBody(
       listKey: const Key('mission-execution-list'),
+      centerWhenShort: _report,
       // 结束报告仍固定确认区；执行控制与圆环一起滚动，保持同一视觉中心。
       footer: _report ? footer : null,
       children: [
@@ -600,7 +602,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           ],
         ],
         SizedBox(
-          height: AppLayout.sectionGap + (_report ? 0 : breathingSpace * .35),
+          height: AppLayout.sectionGap + (_report ? 0 : breathingSpace * .25),
         ),
         if (_report) ...[
           Container(
@@ -623,10 +625,10 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           const SizedBox(height: AppLayout.spaceXl),
           Text(
             detail.phase == MissionPhase.reportPending
-                ? '计划时间已到，计时已停止。请选择实际完成情况，确认后可补充材料。'
+                ? '计划时间已到，计时已停。确认完成情况后可补充材料。'
                 : detail.phase == MissionPhase.paused
-                ? '已暂停，取消报告后仍保持暂停。请选择实际完成情况，确认后才保存。'
-                : '执行状态已变化，本次报告尚未保存。请先查看下方说明。',
+                ? '任务仍暂停；确认后保存完成情况。'
+                : '任务状态已变化，本报告未保存。请查看下方提示。',
           ),
           const SizedBox(height: AppLayout.spaceLg),
           Wrap(
@@ -719,7 +721,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
               Text(
                 '提交截止：${missionLocalTime(detail.schedule.evidenceDeadlineAt!, detail.schedule.timeZone)}',
               ),
-            const Text('确认后停止计时，任务项会提示待提交材料。超过截止仍保存完成报告，并记录材料超时。'),
+            const Text('确认后停止计时并等待材料；超时仍保留完成报告。'),
           ],
           feedback,
         ] else ...[
@@ -730,7 +732,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
           ),
           if (detail.phase == MissionPhase.reportPending) ...[
             const SizedBox(height: AppLayout.spaceLg),
-            const Text('计划时间已到，计时已停止，待确认完成情况。', textAlign: TextAlign.center),
+            const Text('计划时间已到，计时停止，待确认。', textAlign: TextAlign.center),
           ],
           if (times.extensionMinutes > 0) ...[
             const SizedBox(height: AppLayout.spaceMd),
@@ -742,7 +744,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
               ),
             ),
           ],
-          SizedBox(height: AppLayout.executionRingGap + breathingSpace * .3),
+          SizedBox(height: AppLayout.executionRingGap + breathingSpace * .2),
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
@@ -760,6 +762,13 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                 icon: const Icon(Icons.add_rounded, size: AppLayout.iconMd),
                 label: const Text('延长时间'),
               ),
+            ),
+          if (detail.phase != MissionPhase.closed &&
+              detail.phase != MissionPhase.cancelled)
+            RecordsEntry(
+              missionId: detail.mission.id,
+              label: '添加记录或附件',
+              onReturn: _refresh,
             ),
           if (_extend) ...[
             const SizedBox(height: AppLayout.spaceLg),
