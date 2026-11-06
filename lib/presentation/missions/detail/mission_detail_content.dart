@@ -50,7 +50,11 @@ class MissionDetailContent extends StatelessWidget {
                 Expanded(
                   child: ListView(
                     key: const Key('mission-detail-list'),
-                    padding: AppLayout.pagePadding(context),
+                    padding: materialSection != null && footer != null
+                        ? AppLayout.pagePadding(
+                            context,
+                          ).copyWith(bottom: AppLayout.spaceXs)
+                        : AppLayout.pagePadding(context),
                     children: [
                       // 路径名称来自详情查询；没有归属时真实显示独立任务。
                       if (detail.ownershipInfo == null)
@@ -198,7 +202,12 @@ class MissionDetailContent extends StatelessWidget {
                       children: [
                         SafeArea(
                           top: false,
-                          child: PageFooterBar(child: footer!),
+                          child: PageFooterBar(
+                            topPadding: materialSection != null
+                                ? AppLayout.spaceXs
+                                : AppLayout.spaceSm,
+                            child: footer!,
+                          ),
                         ),
                       ],
                     ),

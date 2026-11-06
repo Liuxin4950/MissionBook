@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/core/theme/app_layout.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
@@ -18,7 +19,9 @@ import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
+import 'package:mission_book/presentation/missions/detail/mission_detail_content.dart';
 import 'package:mission_book/presentation/widgets/app_confirm_dialog.dart';
+import 'package:mission_book/presentation/widgets/page_footer_bar.dart';
 
 // 由测试决定读取何时完成，才能观察等待、失败、重试、离页和乱序返回。
 class DetailRepository with UnusedMissionWrites implements MissionRepository {
@@ -197,6 +200,35 @@ Future<void> chooseMissionAction(WidgetTester tester, String action) async {
 }
 
 void main() {
+  setUpAll(tzdata.initializeTimeZones);
+
+  testWidgets('材料区与固定页脚相邻时收紧重复底边距', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: MissionDetailContent(
+          detail: exampleDetail(),
+          actionFeedback: const SizedBox.shrink(),
+          materialSection: const SizedBox(key: Key('materials'), height: 80),
+          footer: const SizedBox(key: Key('record-action'), height: 56),
+          isCancelling: false,
+        ),
+      ),
+    );
+
+    final list = tester.widget<ListView>(
+      find.byKey(const Key('mission-detail-list')),
+    );
+    final footer = tester.widget<PageFooterBar>(find.byType(PageFooterBar));
+    expect((list.padding! as EdgeInsets).bottom, AppLayout.spaceXs);
+    expect(footer.topPadding, AppLayout.spaceXs);
+  });
+
   testWidgets('一次读取后显示自选详情，隐藏未填写内容和未实现动作；重建不重复查询', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -286,7 +318,7 @@ void main() {
     final notes = tester.getRect(find.text('补充说明'));
     // 两个分区都是共享内容卡：间距由上方卡内边距、分区间距和下方卡内边距组成。
     // 只校验这三段标准间距，多出分隔线或额外留白都会让间距变大而失败。
-    const cardPadding = AppLayout.spaceXl;
+    const cardPadding = AppLayout.spaceMd;
     expect(
       notes.top - objective.bottom,
       closeTo(cardPadding + AppLayout.sectionGap + cardPadding, 0.5),
