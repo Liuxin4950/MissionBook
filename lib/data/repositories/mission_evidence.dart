@@ -171,6 +171,11 @@ class _MissionEvidence {
       final detail = await _repository.findDetail(submission.missionId);
       if (detail == null) throw const EvidenceConflict('任务不存在，请刷新');
       final now = _repository._now();
+      final latestEvent = detail.events.lastOrNull;
+      // 执行前的补充材料没有事件边界；已存在事件时，系统回拨不能伪造早于该事实的提交时刻。
+      if (latestEvent != null && now.isBefore(latestEvent.occurredAt)) {
+        throw const EvidenceConflict('系统时间早于最新执行记录，请校正后重试');
+      }
       // 超时仍保存补充材料，原失败事实保留；提交时刻不使用拍摄时刻。
       if (detail.phase == MissionPhase.evidencePending &&
           detail.mission.verificationPolicy ==

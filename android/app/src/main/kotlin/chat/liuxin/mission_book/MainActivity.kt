@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.NotificationManager
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import android.app.Activity
 import android.os.Bundle
 import android.content.Intent
@@ -61,7 +62,11 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
-        fileCopyExecutor.execute { fileSelectorCacheRoot().deleteRecursively() }
+        val keepCapturePath = pendingCapturePath
+        fileCopyExecutor.execute {
+            fileSelectorCacheRoot().deleteRecursively()
+            deleteStaleAssistantCaptures(keepCapturePath)
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mission_book/device")
             .setMethodCallHandler { call, result ->
                 try {
@@ -160,16 +165,20 @@ class MainActivity : FlutterActivity() {
         val path = pendingCapturePath ?: run { result.success(null); return }
         pendingCapturePath = null
         fileCopyExecutor.execute {
+            var validatedSource: File? = null
             try {
-                val root = File(cacheDir, "assistant_capture").canonicalFile
+                val root = assistantCaptureRoot().canonicalFile
                 val source = File(path).canonicalFile
                 check(source.path.startsWith(root.path + File.separator) && source.isFile) { "截屏缓存无效" }
                 check(source.length() <= MAX_ASSISTANT_CAPTURE_BYTES) { "截屏文件超出大小限制" }
+                validatedSource = source
                 val bytes = source.readBytes()
-                source.delete()
                 runOnUiThread { result.success(bytes) }
             } catch (error: Exception) {
+                Log.e(TAG, "读取助手截屏失败", error)
                 runOnUiThread { result.error("capture_read_failed", error.message, null) }
+            } finally {
+                validatedSource?.delete()
             }
         }
     }
@@ -422,6 +431,19 @@ class MainActivity : FlutterActivity() {
         }.distinct()
     }
 
+    private fun assistantCaptureRoot(): File = File(cacheDir, ASSISTANT_CAPTURE_DIR)
+
+    private fun deleteStaleAssistantCaptures(keepPath: String?) {
+        val files = assistantCaptureRoot().listFiles() ?: return
+        val cutoff = System.currentTimeMillis() - STALE_ASSISTANT_CAPTURE_MILLIS
+        val keep = runCatching { keepPath?.let { File(it).canonicalFile } }.getOrNull()
+        for (file in files) {
+            if (!file.isFile || file.lastModified() >= cutoff) continue
+            if (keep != null && runCatching { file.canonicalFile }.getOrNull() == keep) continue
+            file.delete()
+        }
+    }
+
     private fun fileSelectorCacheRoot(): File =
         File(cacheDir, "mission_book_file_selector")
 
@@ -441,6 +463,9 @@ class MainActivity : FlutterActivity() {
         const val ASSISTANT_OVERLAY_CHANNEL = "mission_book/assistant_overlay"
         const val EXTRA_OPEN_ASSISTANT = "assistant_overlay_open"
         const val EXTRA_CAPTURE_PATH = "assistant_capture_path"
+        const val ASSISTANT_CAPTURE_DIR = "assistant_capture"
         const val MAX_ASSISTANT_CAPTURE_BYTES = 4L * 1024L * 1024L
+        private const val STALE_ASSISTANT_CAPTURE_MILLIS = 60L * 60L * 1000L
+        private const val TAG = "MainActivity"
     }
 }

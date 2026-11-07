@@ -128,6 +128,7 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
           saved.title == _title.text.trim() &&
           saved.description == (description.isEmpty ? null : description) &&
           (_pending == null || saved.createdAt == _pending!.createdAt)) {
+        widget.service.refreshAfterExternalCommit();
         Navigator.of(context).pop(true); // 查到的内容就是原请求，直接回到正式树。
         return;
       }

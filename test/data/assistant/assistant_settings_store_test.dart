@@ -48,6 +48,11 @@ void main() {
       await store.savePermissionMode(mode);
       expect((await store.load()).permissionMode, mode);
     }
+    FlutterSecureStorage.setMockInitialValues({
+      'assistant_permission_mode': 'corrupted',
+    });
+    await expectLater(store.load(), throwsA(isA<FormatException>()));
+    FlutterSecureStorage.setMockInitialValues({});
     await store.saveSpeechSettings(
       const AssistantSpeechSettings(
         useTranscription: true,

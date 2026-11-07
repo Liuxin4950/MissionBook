@@ -727,4 +727,71 @@ void main() {
       expect(saved.failures, hasLength(1));
     }
   });
+
+  test('系统回拨不能伪造新材料，执行前材料和已成功批次仍可重试', () async {
+    await seed('clock-rollback', VerificationPolicy.requiredEvidence);
+    final beforeStart = batch(
+      'clock-rollback',
+      id: 'batch-before-start',
+      items: [text('before-start')],
+    );
+    now = now.subtract(const Duration(seconds: 1));
+    expect(
+      await repository.submitEvidence(beforeStart),
+      EvidenceSubmissionResult.submitted,
+    );
+
+    final startedAt = (await act(
+      'clock-rollback',
+      ExecutionEventType.start,
+    )).occurredAt;
+    final duringExecution = batch(
+      'clock-rollback',
+      id: 'batch-during-execution',
+      items: [text('during-execution')],
+    );
+    now = startedAt.subtract(const Duration(seconds: 1));
+    await expectLater(
+      repository.submitEvidence(duringExecution),
+      throwsA(isA<EvidenceConflict>()),
+    );
+    expect((await detail('clock-rollback')).evidence, hasLength(1));
+
+    now = startedAt;
+    expect(
+      await repository.submitEvidence(duringExecution),
+      EvidenceSubmissionResult.submitted,
+    );
+    expect(
+      await repository.submitEvidence(duringExecution),
+      EvidenceSubmissionResult.submitted,
+    );
+
+    final endedAt = (await act(
+      'clock-rollback',
+      ExecutionEventType.end,
+      report: UserReportedResult.completed,
+    )).occurredAt;
+    final afterEnd = batch(
+      'clock-rollback',
+      id: 'batch-after-end',
+      items: [text('after-end')],
+    );
+    now = endedAt.subtract(const Duration(seconds: 1));
+    await expectLater(
+      repository.submitEvidence(afterEnd),
+      throwsA(isA<EvidenceConflict>()),
+    );
+    expect((await detail('clock-rollback')).evidence, hasLength(2));
+
+    now = endedAt;
+    expect(
+      await repository.submitEvidence(afterEnd),
+      EvidenceSubmissionResult.submitted,
+    );
+    final saved = await detail('clock-rollback');
+    expect(saved.evidence, hasLength(3));
+    expect(saved.phase, MissionPhase.closed);
+    expect(saved.failures, isEmpty);
+  });
 }

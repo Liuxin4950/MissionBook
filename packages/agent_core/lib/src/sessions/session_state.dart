@@ -42,6 +42,9 @@ final class SessionState {
   Map<String, ToolOutput> get resolvedOutcomes => Map.unmodifiable(_resolved);
   bool hasRequestSpec(String id) => _requestSpecs.contains(id);
   List<AgentMessage> get transcript => List.unmodifiable(_transcript);
+  int get transcriptLength => _transcript.length;
+  String? get lastTranscriptMessageId =>
+      _transcript.isEmpty ? null : _transcript.last.id;
   List<AgentMessage> get contextMessages => List.unmodifiable(_context);
   Map<String, ToolCallBlock> get pendingCalls => Map.unmodifiable(_pending);
   Set<String> get startedCallIds => Set.unmodifiable(_started);

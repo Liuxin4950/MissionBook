@@ -220,7 +220,9 @@ class _BarChart extends StatelessWidget {
                                     color: data.points[index].value < 0
                                         ? colors.tertiary
                                         : colors.primary,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(
+                                      AppLayout.radiusXs,
+                                    ),
                                   ),
                                 ),
                               ),

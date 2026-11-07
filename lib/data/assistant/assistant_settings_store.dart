@@ -72,11 +72,14 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
           : profile == 'deepseek'
           ? 'deepseek'
           : 'deepseek-chat',
-      permissionMode:
-          AssistantPermissionMode.values
-              .where((mode) => mode.name == permission)
-              .firstOrNull ??
-          AssistantPermissionMode.full,
+      permissionMode: switch (permission) {
+        // 首装没有配置时沿用当前完整权限策略；已保存的损坏值不得静默变成完整权限。
+        null => AssistantPermissionMode.full,
+        'standard' => AssistantPermissionMode.standard,
+        'relaxed' => AssistantPermissionMode.relaxed,
+        'full' => AssistantPermissionMode.full,
+        _ => throw FormatException('助手权限配置无效，请重新选择权限模式'),
+      },
     );
   }
 

@@ -108,6 +108,7 @@ void main() {
     await waitFor(() => assistant.liveActivity.value.text.isNotEmpty);
     final settled = notifications;
     final received = assistant.activity.text.length;
+    final settledTranscript = assistant.transcript;
     expect(assistant.isRunning, isTrue);
 
     await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -117,8 +118,14 @@ void main() {
       reason: '模型仍在持续输出',
     );
     expect(notifications, settled, reason: '流式增量不应让整页跟随重建');
+    expect(
+      assistant.transcript,
+      same(settledTranscript),
+      reason: '纯文本增量不应重复复制整条消息历史',
+    );
 
     await run;
+    expect(assistant.transcript, isNot(same(settledTranscript)));
     final reply = assistant.transcript.whereType<AssistantMessage>().last;
     expect(
       reply.text,

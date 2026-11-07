@@ -275,6 +275,12 @@ void main() {
     history.add(UserMessage(text: '保留当前要求'));
     final engine = compactor(
       summarizer: testProfile('summary', window: 2600),
+      context: ContextPolicy(
+        headroomTokens: 64,
+        summaryMaxTokens: 128,
+        keepRecentMessages: 2,
+        maxSummaryCalls: 4,
+      ),
       summary: (request, token) {
         calls++;
         return textReply('分块摘要$calls');
@@ -282,7 +288,8 @@ void main() {
     );
     final result = await engine.prepare(request(history), CancellationToken());
     expect(result, isNotNull);
-    expect(calls, greaterThan(1));
+    expect(calls, 4);
+    expect(result!.summaryRequests, calls);
     final limited = compactor(
       summarizer: testProfile('summary', window: 2600),
       context: ContextPolicy(

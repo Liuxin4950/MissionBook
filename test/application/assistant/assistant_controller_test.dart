@@ -207,6 +207,53 @@ void main() {
     expect(model.requests.last.systemPrompt, contains('小刘'));
   });
 
+  test('删除会话回收草稿；打开另一会话不沿用旧错误和迟到保存', () async {
+    final model = ScriptedModel([
+      (_) => throw StateError('模拟模型失败'),
+      (_) => textResponse('第二个会话'),
+      (_) => throw StateError('第二次模型失败'),
+    ]);
+    final assistant = makeController(model);
+    await assistant.initialize();
+    await assistant.send('失败输入');
+    final failedId = assistant.currentSessionId!;
+    expect(assistant.errorMessage, isNotNull);
+    assistant.saveDraft(failedId, '失败会话草稿');
+    assistant.saveAttachments(failedId, [
+      AssistantAttachment.fromBytes(
+        'draft.txt',
+        Uint8List.fromList(utf8.encode('失败会话附件')),
+      ),
+    ]);
+
+    await assistant.startNewSession();
+    await assistant.send('第二个会话');
+    final secondId = assistant.currentSessionId!;
+    expect(secondId, isNot(failedId));
+    assistant.saveDraft(secondId, '当前会话草稿');
+    final failedAgain = await assistant.send('再次失败');
+    expect(failedAgain?.failure, isNotNull);
+    expect(assistant.errorMessage, isNotNull);
+
+    await assistant.openConversation(failedId);
+    expect(assistant.errorMessage, isNull);
+    await assistant.deleteConversation(failedId);
+    expect(assistant.currentSessionId, secondId);
+    expect(assistant.draftFor(failedId), isEmpty);
+    expect(assistant.attachmentsFor(failedId), isEmpty);
+
+    assistant.saveDraft(failedId, '旧页面延迟保存的草稿');
+    assistant.saveAttachments(failedId, [
+      AssistantAttachment.fromBytes(
+        'late.txt',
+        Uint8List.fromList(utf8.encode('旧页面延迟保存的附件')),
+      ),
+    ]);
+    expect(assistant.draftFor(failedId), isEmpty);
+    expect(assistant.attachmentsFor(failedId), isEmpty);
+    expect(assistant.draftFor(secondId), '当前会话草稿');
+  });
+
   test('真实日期查询经工具返回，快捷查询不依赖模型', () async {
     await createMission('阅读第一章');
     final model = ScriptedModel([

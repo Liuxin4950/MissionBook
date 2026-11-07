@@ -506,7 +506,8 @@ class AssistantLauncherState extends State<AssistantLauncher> {
         child: CompositedTransformTarget(
           link: _link,
           child: Semantics(
-            label: 'AI 助手，长按后滑动选择快捷操作',
+            label: 'AI 助手，打开快捷菜单',
+            hint: '长按后滑动可选择文字对话或语音输入',
             excludeSemantics: true,
             button: true,
             onTap: _showMenu,
@@ -558,51 +559,44 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     );
   }
 
-  Widget _modeBubble(int index) => Semantics(
-    button: true,
-    label: switch (index) {
-      0 => '文字对话',
-      1 => '语音输入',
-      _ => '跨应用助手',
-    },
-    child: Material(
-      color: _hover == index ? AppColors.primarySoft : AppColors.card,
-      elevation: 4,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: () => _select(index),
-        child: SizedBox(
-          width: 64,
-          height: 64,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                switch (index) {
-                  0 => Icons.keyboard_outlined,
-                  1 => Icons.mic_none,
-                  _ => Icons.open_in_new_rounded,
-                },
-                color: AppColors.primary,
-                size: AppLayout.iconLg,
-              ),
-              Text(
-                switch (index) {
-                  0 => '文字',
-                  1 => '语音',
-                  _ => '浮窗',
-                },
-                style: Theme.of(
-                  context,
-                ).textTheme.labelSmall?.copyWith(color: AppColors.primary),
-              ),
-            ],
+  Widget _modeBubble(int index) {
+    final label = index == 0 ? '文字对话' : '语音输入';
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      onTap: () => _select(index),
+      child: Material(
+        color: _hover == index ? AppColors.primarySoft : AppColors.card,
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () => _select(index),
+          child: SizedBox(
+            width: 64,
+            height: 64,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  index == 0 ? Icons.keyboard_outlined : Icons.mic_none,
+                  color: AppColors.primary,
+                  size: AppLayout.iconLg,
+                ),
+                Text(
+                  index == 0 ? '文字' : '语音',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall?.copyWith(color: AppColors.primary),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _bubbleContent() {
     final controller = _scope!.controller;

@@ -675,6 +675,102 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  assistantTest('悬浮入口与快捷模式的读屏标签和实际操作一致', (tester) async {
+    await mount(tester, ScriptedModel([]));
+    final handle = tester.ensureSemantics();
+    try {
+      expect(
+        tester.getSemantics(find.byKey(const Key('assistant-launcher'))),
+        isSemantics(
+          label: 'AI 助手，打开快捷菜单',
+          hint: '长按后滑动可选择文字对话或语音输入',
+          isButton: true,
+          isFocusable: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+        ),
+      );
+      await tester.longPress(find.byKey(const Key('assistant-launcher')));
+      await tester.pumpAndSettle();
+      expect(find.text('浮窗'), findsNothing);
+      expect(
+        tester.getSemantics(find.text('文字')),
+        isSemantics(label: '文字对话', isButton: true, hasTapAction: true),
+      );
+      expect(
+        tester.getSemantics(find.text('语音')),
+        isSemantics(label: '语音输入', isButton: true, hasTapAction: true),
+      );
+    } finally {
+      handle.dispose();
+    }
+  });
+
+  testWidgets('跨应用悬浮窗开关提供名称、状态和可操作语义', (tester) async {
+    try {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('mission_book/device'),
+            (call) async => switch (call.method) {
+              'assistantOverlayEnabled' => true,
+              'toggleAssistantOverlay' => false,
+              _ => null,
+            },
+          );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(
+              const MethodChannel('mission_book/device'),
+              null,
+            ),
+      );
+      await mount(tester, ScriptedModel([]), width: 1106);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: AssistantSettingsPage(controller: assistant),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final overlaySwitch = find.byType(Switch).last;
+      await tester.ensureVisible(overlaySwitch);
+      await tester.pumpAndSettle();
+      final handle = tester.ensureSemantics();
+      try {
+        expect(
+          tester.getSemantics(overlaySwitch),
+          isSemantics(
+            label: '跨应用悬浮窗',
+            hasEnabledState: true,
+            isEnabled: true,
+            hasToggledState: true,
+            isToggled: true,
+            hasTapAction: true,
+          ),
+        );
+        await tester.tap(overlaySwitch);
+        await tester.pumpAndSettle();
+        expect(
+          tester.getSemantics(find.byType(Switch).last),
+          isSemantics(
+            label: '跨应用悬浮窗',
+            hasEnabledState: true,
+            isEnabled: true,
+            hasToggledState: true,
+            isToggled: false,
+            hasTapAction: true,
+          ),
+        );
+      } finally {
+        handle.dispose();
+      }
+    } finally {
+      assistant.stop();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.runAsync(() => assistant.close());
+    }
+  }, variant: const TargetPlatformVariant({TargetPlatform.android}));
+
   assistantTest('上下文提示分别显示输入预算、输出预留和总窗口', (tester) async {
     await mount(tester, ScriptedModel([]));
     await tester.longPress(find.byKey(const Key('assistant-launcher')));

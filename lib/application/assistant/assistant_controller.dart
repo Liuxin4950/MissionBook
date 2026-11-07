@@ -233,10 +233,11 @@ class AssistantController extends ChangeNotifier {
   List<AssistantAttachment> attachmentsFor(String? id) =>
       List.unmodifiable(_attachmentDrafts[id ?? draftKey] ?? const []);
   void saveAttachments(String? id, List<AssistantAttachment> attachments) {
+    final key = id ?? draftKey;
     if (attachments.isEmpty) {
-      _attachmentDrafts.remove(id ?? draftKey);
-    } else {
-      _attachmentDrafts[id ?? draftKey] = List.of(attachments);
+      _attachmentDrafts.remove(key);
+    } else if (_acceptsDraft(key)) {
+      _attachmentDrafts[key] = List.of(attachments);
     }
   }
 
@@ -249,12 +250,20 @@ class AssistantController extends ChangeNotifier {
 
   String get draft => draftFor(draftKey);
   String draftFor(String? id) => _drafts[id ?? draftKey] ?? '';
+
+  /// 已删除会话不能再通过旧页面的延迟保存复活草稿；当前空白草稿和现存会话仍保留。
+  bool _acceptsDraft(String key) =>
+      key == draftKey ||
+      key.startsWith('draft:') ||
+      _conversations.any((conversation) => conversation.id == key);
+
   void saveDraft(String? id, String text) {
-    _drafts[id ?? draftKey] = text;
+    final key = id ?? draftKey;
+    if (_acceptsDraft(key)) _drafts[key] = text;
   }
 
   set draft(String value) {
-    _drafts[draftKey] = value;
+    saveDraft(null, value);
   }
 
   Future<void>? _initializeFuture;
@@ -466,7 +475,7 @@ class AssistantController extends ChangeNotifier {
   List<ScheduledMission>? get localSchedule => _localSchedule;
   List<AssistantConversationSummary> get conversations =>
       List.unmodifiable(_conversations);
-  List<AgentMessage> get transcript => List.unmodifiable(_transcript);
+  List<AgentMessage> get transcript => _transcript;
   SessionActivity get activity => _activity;
   SessionUsage get sessionUsage =>
       _session?.sessionUsage ?? const SessionUsage();

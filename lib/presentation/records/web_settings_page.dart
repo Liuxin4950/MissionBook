@@ -156,7 +156,7 @@ class _WebSettingsPageState extends State<WebSettingsPage> {
               onPressed: () => showAppInfoSheet(
                 context,
                 '搜索与额度',
-                '搜索使用独立的 Tavily Key。基础搜索每次预留 1 次额度，发出的请求取消或超时后仍保留预留数。本地上限不会替代服务商的实际账户额度，达到上限会停止搜索。Key 仅保存在设备安全存储，不写入日志或备份。网页读取与搜索独立。',
+                '搜索使用独立的 Tavily Key。基础搜索每次预留 1 次额度，发出的请求取消或超时后仍保留预留数。本地上限不会替代服务商的实际账户额度，达到上限会停止搜索。搜索词会发送给 Tavily，网页读取请求会发送给目标网站；Key 仅保存在设备安全存储，不写入日志或备份。',
               ),
             ),
           ],

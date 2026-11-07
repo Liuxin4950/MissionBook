@@ -227,6 +227,8 @@ final class AgentSession {
   Map<String, ToolResultMessage> get unknownOutcomes => _state.unknownOutcomes;
   Map<String, ToolOutput> get resolvedOutcomes => _state.resolvedOutcomes;
   List<AgentMessage> get transcript => _state.transcript;
+  int get transcriptLength => _state.transcriptLength;
+  String? get lastTranscriptMessageId => _state.lastTranscriptMessageId;
   List<AgentMessage> get contextMessages => _state.contextMessages;
   SessionUsage get sessionUsage => _state.sessionUsage;
   int get recordCount => _handle.recordCount;

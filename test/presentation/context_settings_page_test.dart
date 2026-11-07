@@ -46,6 +46,34 @@ class _WebSettings implements WebSettingsStore {
   }
 }
 
+class _FailingMemory extends MemoryService {
+  _FailingMemory(super.repository);
+  int saveFailures = 0;
+  int forgetFailures = 0;
+
+  @override
+  Future<Map<String, Object?>> save(
+    Map<String, Object?> entry, {
+    bool userEdited = false,
+    String? operationId,
+  }) async {
+    if (saveFailures > 0) {
+      saveFailures--;
+      throw StateError('这条记忆正在被其他操作占用，请稍后重试');
+    }
+    return super.save(entry, userEdited: userEdited, operationId: operationId);
+  }
+
+  @override
+  Future<void> forget(String id, {String? operationId}) async {
+    if (forgetFailures > 0) {
+      forgetFailures--;
+      throw StateError('这条记忆仍被任务引用，不能忘记');
+    }
+    return super.forget(id, operationId: operationId);
+  }
+}
+
 class _Preferences implements AnalysisPreferencesStore {
   Set<AnalysisScope> scopes = {...summaryScopes};
   @override
@@ -254,6 +282,41 @@ void main() {
     await close(tester);
   });
 
+  testWidgets('记忆操作失败保留业务原因，下一次成功后清除旧错误', (tester) async {
+    final failing = _FailingMemory(
+      DriftMemoryRepository(db, clock: () => testNow),
+    );
+    memory = failing;
+    await open(tester, const MemoryPage());
+
+    failing.saveFailures = 1;
+    await tester.tap(find.text('添加第一条记忆'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('memory-content')), '需要保留的偏好');
+    await tester.ensureVisible(find.byKey(const Key('memory-save')));
+    await tester.tap(find.byKey(const Key('memory-save')));
+    await tester.pumpAndSettle();
+    expect(find.text('这条记忆正在被其他操作占用，请稍后重试'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('memory-save')));
+    await tester.pumpAndSettle();
+    expect(find.text('需要保留的偏好'), findsOneWidget);
+    expect(find.text('这条记忆正在被其他操作占用，请稍后重试'), findsNothing);
+
+    failing.forgetFailures = 1;
+    await tester.tap(find.byTooltip('忘记记忆'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '忘记').last);
+    await tester.pumpAndSettle();
+    expect(find.text('这条记忆仍被任务引用，不能忘记'), findsOneWidget);
+    await tester.tap(find.byTooltip('忘记记忆'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '忘记').last);
+    await tester.pumpAndSettle();
+    expect(find.text('这条记忆仍被任务引用，不能忘记'), findsNothing);
+    expect(find.text('需要保留的偏好'), findsNothing);
+    await close(tester);
+  });
+
   testWidgets('搜索设置加载后才能保存，验证额度并测试已保存的Key', (tester) async {
     await open(tester, const WebSettingsPage());
     expect(find.byType(AppTopBar), findsOneWidget);
@@ -283,6 +346,10 @@ void main() {
     await tester.tap(find.text('移除 Key'));
     await tester.pumpAndSettle();
     expect(settings.value, isNull);
+    await tester.tap(find.byTooltip('搜索设置说明'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('搜索词会发送给 Tavily'), findsOneWidget);
+    expect(find.textContaining('网页读取请求会发送给目标网站'), findsOneWidget);
     await close(tester);
   });
 

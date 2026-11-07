@@ -6,38 +6,10 @@ class _AssistantSessions {
   final AssistantController _controller;
   Timer? _snapshotNotify;
 
-  bool get canContinueInterrupted => _controller.canContinueInterrupted;
-  bool get initialized => _controller.initialized;
-  bool get initializing => _controller.initializing;
   bool get isRunning => _controller.isRunning;
-  bool get configuring => _controller.configuring;
-  bool get isBusy => _controller.isBusy;
-  int get contextWindowTokens => _controller.contextWindowTokens;
-  int get estimatedContextTokens => _controller.estimatedContextTokens;
-  bool get compacting => _controller.compacting;
   bool get hasCredential => _controller.hasCredential;
-  ModelProfile? get customProfile => _controller.customProfile;
-  AssistantPermissionMode get permissionMode => _controller.permissionMode;
-  AssistantSpeechSettings get speechSettings => _controller.speechSettings;
-  AssistantPersona get persona => _controller.persona;
-  String get _effectiveSystemPrompt => _controller._effectiveSystemPrompt;
-  bool get hasTranscriptionCredential => _controller.hasTranscriptionCredential;
-  bool get supportsImages => _controller.supportsImages;
-  String get modelProfileId => _controller.modelProfileId;
-  String get sessionTitle => _controller.sessionTitle;
   String? get currentSessionId => _controller.currentSessionId;
-  AssistantReference? get reference => _controller.reference;
-  String? get errorMessage => _controller.errorMessage;
-  String? get lastUserInput => _controller.lastUserInput;
-  bool get localLoading => _controller.localLoading;
-  String? get localScheduleDate => _controller.localScheduleDate;
-  List<ScheduledMission>? get localSchedule => _controller.localSchedule;
-  List<AssistantConversationSummary> get conversations =>
-      _controller.conversations;
-  List<AgentMessage> get transcript => _controller.transcript;
-  SessionActivity get activity => _controller.activity;
-  List<AssistantOperation> get operations => _controller.operations;
-  bool get needsOutcomeResolution => _controller.needsOutcomeResolution;
+  String get _effectiveSystemPrompt => _controller._effectiveSystemPrompt;
   AgentConfiguration get _configuration => _controller._configuration;
 
   Future<void> openMissionReference(String missionId) async {
@@ -173,6 +145,8 @@ class _AssistantSessions {
       _controller._reference = null;
     }
     await _controller._sessionStore.delete(id);
+    _controller._drafts.remove(id);
+    _controller._attachmentDrafts.remove(id);
     await _refreshConversations();
     if (_controller._session == null && _controller._conversations.isNotEmpty) {
       await _openSession(_controller._conversations.first.id);
@@ -355,6 +329,10 @@ class _AssistantSessions {
   Future<void> _openSession(String id) async {
     final runtime = _controller._runtime ?? (throw StateError('助手尚未初始化'));
     final session = await runtime.openSession(id);
+    _controller._errorMessage = null;
+    _controller._lastUserInput = null;
+    _controller._localSchedule = null;
+    _controller._localScheduleDate = null;
     final summary = _controller._conversations
         .where((item) => item.id == id)
         .firstOrNull;
@@ -443,16 +421,15 @@ class _AssistantSessions {
     final session = _controller._session;
     if (_controller._closed) return;
     if (session != null) {
-      final transcript = session.transcript;
       final previous = _controller._transcript;
-      // transcript 每次都是新的不可变列表，不能按列表身份判断是否变化；
-      // 记录只追加，比较长度和最后一条即可识别纯文本增量。
       final transcriptChanged =
-          transcript.length != previous.length ||
-          transcript.lastOrNull?.id != previous.lastOrNull?.id;
-      _controller._transcript = transcript;
-      // 纯文本增量不会改变会话记录；逐条重扫 transcript 会随聊天长度拖慢流式输出。
-      if (transcriptChanged) _controller._refreshOperations();
+          session.transcriptLength != previous.length ||
+          session.lastTranscriptMessageId != previous.lastOrNull?.id;
+      // 记录只追加；纯文本增量用 O(1) 元数据识别，避免每个 token 复制整条历史。
+      if (transcriptChanged) {
+        _controller._transcript = session.transcript;
+        _controller._refreshOperations();
+      }
     }
     // 模型逐 token 推送：只更新正文/思考快照，让生成中的区域单独刷新；
     // 整页仍按请求边界（开始、结束、工具、会话）重建，避免输入区和会话列表逐帧重绘。

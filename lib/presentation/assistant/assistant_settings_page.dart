@@ -63,8 +63,9 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       ).invokeMethod<bool>('assistantOverlayEnabled');
       if (mounted) setState(() => _overlayEnabled = enabled ?? false);
     } on PlatformException catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = userErrorMessage(error, fallback: '读取悬浮窗状态失败'));
+      }
     } on MissingPluginException {
       if (mounted) setState(() => _error = '当前设备不支持悬浮窗');
     }
@@ -79,10 +80,11 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       ).invokeMethod<bool>('toggleAssistantOverlay');
       if (mounted) setState(() => _overlayEnabled = enabled ?? false);
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error = userErrorMessage(error, fallback: '悬浮窗设置失败，请重试'),
         );
+      }
     } finally {
       if (mounted) setState(() => _overlayBusy = false);
     }
@@ -478,12 +480,26 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                       child: AppSettingsRow(
                         icon: Icons.open_in_new_rounded,
                         title: '跨应用悬浮窗',
-                        subtitle: '离开应用后显示 AI 悬浮入口',
-                        trailing: Switch(
-                          value: _overlayEnabled ?? false,
-                          onChanged: _overlayEnabled == null || _overlayBusy
+                        subtitle: _overlayEnabled == null
+                            ? '正在读取悬浮窗状态…'
+                            : _overlayBusy
+                            ? '正在切换悬浮窗…'
+                            : '离开应用后显示 AI 悬浮入口',
+                        trailing: Semantics(
+                          container: true,
+                          label: '跨应用悬浮窗',
+                          toggled: _overlayEnabled,
+                          enabled: _overlayEnabled != null && !_overlayBusy,
+                          excludeSemantics: true,
+                          onTap: _overlayEnabled == null || _overlayBusy
                               ? null
-                              : (_) => _toggleOverlay(),
+                              : _toggleOverlay,
+                          child: Switch(
+                            value: _overlayEnabled ?? false,
+                            onChanged: _overlayEnabled == null || _overlayBusy
+                                ? null
+                                : (_) => _toggleOverlay(),
+                          ),
                         ),
                       ),
                     ),

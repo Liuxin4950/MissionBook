@@ -94,7 +94,7 @@ class AssistantScreenCaptureService : Service() {
         bitmap.copyPixelsFromBuffer(plane.buffer)
         val cropped = Bitmap.createBitmap(bitmap, 0, 0, width, height)
         bitmap.recycle()
-        val directory = File(cacheDir, "assistant_capture").apply { mkdirs() }
+        val directory = File(cacheDir, MainActivity.ASSISTANT_CAPTURE_DIR).apply { mkdirs() }
         val file = File(directory, "capture-${UUID.randomUUID()}.jpg")
         var scaled = cropped
         var encoded: ByteArray

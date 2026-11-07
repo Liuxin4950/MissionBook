@@ -2,7 +2,7 @@ name: mission_book
 description: "AI-assisted planning, execution, evidence, evaluation, and replanning MVP."
 publish_to: 'none'
 
-version: 0.2.21+2023
+version: 0.2.22+2024
 
 environment:
   sdk: ^3.11.0

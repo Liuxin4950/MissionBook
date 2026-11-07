@@ -15,6 +15,7 @@ import '../widgets/adaptive_sheet.dart';
 import '../widgets/app_date_picker.dart';
 import '../widgets/app_dropdown_form_field.dart';
 import '../widgets/app_expansion.dart';
+import '../../application/errors/user_error_message.dart';
 
 String _dateLabel(DateTime date) => '${date.year}年${date.month}月${date.day}日';
 String _kindLabel(Object? kind) => switch (kind) {
@@ -87,16 +88,24 @@ class _MemoryPageState extends State<MemoryPage> {
       confirmText: '忘记',
     );
     if (!yes || !mounted) return;
+    setState(() => _error = null);
     try {
       await RecordScope.maybeOf(context)!.memory!.forget(entry['id'] as String);
       if (mounted) load();
-    } catch (_) {
-      if (mounted) setState(() => _error = '未能忘记这条记忆，请重试');
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '未能忘记这条记忆，请重试'),
+        );
+      }
     }
   }
 
   Future<void> retry(List<Map<String, Object?>> jobs) async {
-    setState(() => _retrying = true);
+    setState(() {
+      _retrying = true;
+      _error = null;
+    });
     try {
       final scope = RecordScope.maybeOf(context)!;
       for (final job in jobs) {
@@ -106,8 +115,12 @@ class _MemoryPageState extends State<MemoryPage> {
         );
       }
       if (mounted) load();
-    } catch (_) {
-      if (mounted) setState(() => _error = '重新整理失败，请稍后重试');
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '重新整理失败，请稍后重试'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _retrying = false);
     }
@@ -529,8 +542,15 @@ class _MemoryEditorState extends State<_MemoryEditor> {
         'expiresAt': _expiry?.millisecondsSinceEpoch,
       }, userEdited: true);
       if (mounted) Navigator.pop(context, true);
-    } catch (_) {
-      if (mounted) setState(() => _error = '保存失败，请检查内容、来源和有效期后重试');
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(
+            error,
+            fallback: '保存失败，请检查内容、来源和有效期后重试',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

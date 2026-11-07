@@ -346,6 +346,11 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
   }
 
   Future<void> _configureNotifications() async {
+    if (kIsWeb) {
+      // Web 没有系统提醒能力，也不能在运行期访问本机应用支持目录。
+      debugPrint('当前浏览器不支持系统提醒');
+      return;
+    }
     final plugin = FlutterLocalNotificationsPlugin();
     await plugin.initialize(
       settings: const InitializationSettings(
@@ -359,13 +364,13 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       onDidReceiveNotificationResponse: _handleNotificationResponse,
     );
     final NotificationDispatcher dispatcher;
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    if (defaultTargetPlatform == TargetPlatform.android) {
       dispatcher = _androidDispatcher = AndroidNotificationDispatcher(
         plugin: plugin,
         // 精确提醒权限按 capabilities.exactAlarms 定档（N3.1 实测补全）。
         exactAlarmsAllowed: (await _device.capabilities()).exactAlarms ?? false,
       );
-    } else if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    } else if (defaultTargetPlatform == TargetPlatform.windows) {
       // 当前 exe 直发形态无法撤销调度项，实测/MSIX 定档后再调整。
       dispatcher = WindowsNotificationDispatcher(
         plugin: plugin,
@@ -492,6 +497,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       ),
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      themeMode: ThemeMode.light,
       locale: const Locale('zh', 'CN'),
       supportedLocales: const [Locale('zh', 'CN')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
@@ -520,7 +526,9 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     if (_restoreShutdown == null) _plannedBridge?.dispose();
     final deadlineClose = _evidenceDeadlines?.dispose();
     final plannedClose = _plannedMissions?.dispose();
-    if (_restoreShutdown == null) unawaited(_notifications?.dispose());
+    final notificationClose = _restoreShutdown == null
+        ? _notifications?.dispose()
+        : null;
     // Flutter 移除这个 State 时调用 dispose。
     // close 返回 Future，但 dispose 不能等待异步完成；
     // unawaited 明确表示在这里发起关闭，不等待它。
@@ -535,6 +543,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
         await _analysis.dispose();
         await deadlineClose;
         await plannedClose;
+        await notificationClose;
         return _database.close();
       }),
     );

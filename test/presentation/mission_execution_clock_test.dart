@@ -99,7 +99,10 @@ void main() {
     expect(shortGap, greaterThanOrEqualTo(40));
     tester.view.physicalSize = const Size(390, 1000);
     await tester.pumpAndSettle();
-    expect(gap(), greaterThan(shortGap + 24));
+    expect(gap(), closeTo(shortGap + 24, .01));
+    tester.view.physicalSize = const Size(390, 1400);
+    await tester.pumpAndSettle();
+    expect(gap(), closeTo(shortGap + 24, .01));
     expect(tester.takeException(), isNull);
   });
 

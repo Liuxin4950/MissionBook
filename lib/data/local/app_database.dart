@@ -87,6 +87,13 @@ class AppDatabase extends _$AppDatabase {
     },
     // 普通查询之前，设置此连接的写锁等待和外键检查。
     beforeOpen: (details) async {
+      if (details.hadUpgrade) {
+        // 当前开发阶段不提供迁移，也不自动删除本机数据；旧结构必须显式拒绝。
+        throw StateError(
+          '本机数据库来自版本 ${details.versionBefore}，当前开发版本仅支持版本 $schemaVersion。'
+          '请先导出仍可读的数据，或在系统应用信息中清除数据后重新创建数据库。',
+        );
+      }
       // 前台与后台引擎各自持有一个连接；等待写锁而不是立即返回 SQLITE_BUSY。
       await customStatement('PRAGMA busy_timeout = 5000');
       await customStatement('PRAGMA foreign_keys = ON');

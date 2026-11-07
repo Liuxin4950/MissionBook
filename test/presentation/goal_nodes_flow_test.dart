@@ -197,7 +197,7 @@ void main() {
     expect(find.byKey(const Key('node-title-input')), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    await nodeAction(tester, '${child.id}', '归档节点及子节点');
+    await nodeAction(tester, child.id, '归档节点及子节点');
     expect(find.textContaining('已有任务和执行历史会保留'), findsOneWidget);
     await tester.tap(find.text('保留节点'));
     await tester.pumpAndSettle();
@@ -221,7 +221,7 @@ void main() {
   testWidgets('窄屏节点菜单仍可打开归档确认', (tester) async {
     final node = await seed('移动端节点');
     await open(tester, width: 320, scale: 1.2);
-    await nodeAction(tester, '${node.id}', '归档节点及子节点');
+    await nodeAction(tester, node.id, '归档节点及子节点');
     expect(find.textContaining('已有任务和执行历史会保留'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -322,6 +322,9 @@ void main() {
     expect(find.byKey(const Key('node-title-input')), findsNothing);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
+    expect(find.text('确认后可见'), findsOneWidget);
+    await tapKey(tester, 'goal-outline-toggle-${goal.id}');
+    expect(find.text('确认后可见'), findsNothing);
     await tapKey(tester, 'goal-outline-toggle-${goal.id}');
     expect(find.text('确认后可见'), findsOneWidget);
     expect(await service.findNodes(goal.id), hasLength(1));

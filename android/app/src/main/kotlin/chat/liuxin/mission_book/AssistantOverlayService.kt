@@ -11,12 +11,15 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.ViewConfiguration
 import android.widget.TextView
+import android.widget.Toast
 import android.widget.LinearLayout
 
 class AssistantOverlayService : Service() {
@@ -57,7 +60,7 @@ class AssistantOverlayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (!android.provider.Settings.canDrawOverlays(this)) {
+        if (!Settings.canDrawOverlays(this)) {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(ENABLED_KEY, false).apply()
             stopSelf()
             return START_NOT_STICKY
@@ -74,7 +77,7 @@ class AssistantOverlayService : Service() {
     }
 
     private fun showBubble() {
-        if (bubble != null || !android.provider.Settings.canDrawOverlays(this)) return
+        if (bubble != null || !Settings.canDrawOverlays(this)) return
         val size = (56 * resources.displayMetrics.density).toInt()
         val label = TextView(this).apply {
             text = "AI"
@@ -141,8 +144,9 @@ class AssistantOverlayService : Service() {
         try {
             windowManager?.addView(label, layout)
             bubble = label
-        } catch (_: Exception) {
+        } catch (error: Exception) {
             bubble = null
+            reportOverlayFailure("无法显示助手悬浮入口", error)
         }
     }
 
@@ -182,7 +186,13 @@ class AssistantOverlayService : Service() {
         option("截屏提问") {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(CAPTURE_PENDING_KEY, true).apply()
             removeBubble()
-            startActivity(Intent(this, AssistantCaptureConsentActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            try {
+                startActivity(Intent(this, AssistantCaptureConsentActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (error: Exception) {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(CAPTURE_PENDING_KEY, false).apply()
+                reportOverlayFailure("无法打开系统截屏授权", error)
+                showBubble()
+            }
         }
         option("关闭悬浮入口") {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(ENABLED_KEY, false).apply()
@@ -205,8 +215,18 @@ class AssistantOverlayService : Service() {
             menu = panel
             positionMenu(bubbleLayout)
             panel.post { if (menu === panel) positionMenu(bubbleLayout) }
-        } catch (_: Exception) {
-            menu = null
+        } catch (error: Exception) {
+            if (menu === panel) removeMenu() else menu = null
+            reportOverlayFailure("无法显示助手快捷菜单", error)
+        }
+    }
+
+    private fun reportOverlayFailure(message: String, error: Exception) {
+        Log.e(TAG, message, error)
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        if (error is SecurityException || !Settings.canDrawOverlays(this)) {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(ENABLED_KEY, false).apply()
+            stopSelf()
         }
     }
 
@@ -265,6 +285,7 @@ class AssistantOverlayService : Service() {
         const val PREFS = "assistant_overlay"
         const val ENABLED_KEY = "enabled"
         const val CAPTURE_PENDING_KEY = "capture_pending"
+        private const val TAG = "AssistantOverlay"
         private const val CHANNEL_ID = "assistant_overlay"
         private const val NOTIFICATION_ID = 7402
     }

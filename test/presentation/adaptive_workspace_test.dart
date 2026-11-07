@@ -387,10 +387,10 @@ void main() {
       await tester.ensureVisible(activeFilter);
       await tester.tap(activeFilter);
       await tester.pumpAndSettle();
-      final activeGoal = find.byKey(Key('goal-$goalId'));
-      await tester.ensureVisible(activeGoal);
+      final detailButton = find.byKey(Key('goal-details-$goalId'));
+      await tester.ensureVisible(detailButton);
       await tester.pumpAndSettle();
-      await tester.tap(activeGoal);
+      await tester.tap(detailButton);
       await tester.pumpAndSettle();
       expect(find.text('目标详情'), findsOneWidget);
       await tester.tap(find.byTooltip('返回'));

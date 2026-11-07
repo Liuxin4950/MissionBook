@@ -14,39 +14,6 @@ class _AssistantOperations {
         false;
   }
 
-  bool get canContinueInterrupted => _controller.canContinueInterrupted;
-  bool get initialized => _controller.initialized;
-  bool get initializing => _controller.initializing;
-  bool get isRunning => _controller.isRunning;
-  bool get configuring => _controller.configuring;
-  bool get isBusy => _controller.isBusy;
-  int get contextWindowTokens => _controller.contextWindowTokens;
-  int get estimatedContextTokens => _controller.estimatedContextTokens;
-  bool get compacting => _controller.compacting;
-  bool get hasCredential => _controller.hasCredential;
-  ModelProfile? get customProfile => _controller.customProfile;
-  AssistantPermissionMode get permissionMode => _controller.permissionMode;
-  AssistantSpeechSettings get speechSettings => _controller.speechSettings;
-  AssistantPersona get persona => _controller.persona;
-
-  bool get hasTranscriptionCredential => _controller.hasTranscriptionCredential;
-  bool get supportsImages => _controller.supportsImages;
-  String get modelProfileId => _controller.modelProfileId;
-  String get sessionTitle => _controller.sessionTitle;
-  String? get currentSessionId => _controller.currentSessionId;
-  AssistantReference? get reference => _controller.reference;
-  String? get errorMessage => _controller.errorMessage;
-  String? get lastUserInput => _controller.lastUserInput;
-  bool get localLoading => _controller.localLoading;
-  String? get localScheduleDate => _controller.localScheduleDate;
-  List<ScheduledMission>? get localSchedule => _controller.localSchedule;
-  List<AssistantConversationSummary> get conversations =>
-      _controller.conversations;
-  List<AgentMessage> get transcript => _controller.transcript;
-  SessionActivity get activity => _controller.activity;
-  List<AssistantOperation> get operations => _controller.operations;
-  bool get needsOutcomeResolution => _controller.needsOutcomeResolution;
-
   Future<void> resolveUnknownOutcome(String callId) async {
     final session = _controller._requireSession();
     final unknown = session.unknownOutcomes[callId];
