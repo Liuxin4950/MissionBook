@@ -105,6 +105,7 @@ class MainActivity : FlutterActivity() {
                             result.success(null)
                         }
                         "toggleAssistantOverlay" -> toggleAssistantOverlay(result)
+                        "assistantOverlayEnabled" -> result.success(overlayEnabled() && Settings.canDrawOverlays(this))
                         "saveBackup" -> {
                             check(pendingBackupResult == null) { "已有备份保存窗口" }
                             val source = File(requireNotNull(call.argument<String>("path"))).canonicalFile
@@ -429,7 +430,7 @@ class MainActivity : FlutterActivity() {
         super.onDestroy()
     }
 
-    private companion object {
+    companion object {
         const val MAX_ATTACHMENT_BYTES = 20L * 1024L * 1024L
         const val MAX_BACKUP_BYTES = 256L * 1024L * 1024L
         const val MAX_GOAL_JSON_BYTES = 32L * 1024L * 1024L

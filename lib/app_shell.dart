@@ -4,7 +4,6 @@ import 'presentation/today/today_page.dart';
 import 'package:flutter/services.dart';
 import 'application/assistant/assistant_controller.dart';
 import 'presentation/assistant/assistant_launcher.dart';
-import 'presentation/assistant/assistant_screen_capture.dart';
 import 'application/missions/mission_service.dart';
 import 'application/notifications/app_notification_service.dart';
 import 'core/theme/app_layout.dart';
@@ -64,15 +63,9 @@ class _AppShellState extends State<AppShell> {
   // 窗口缩放只换显示位置，不重建页面（草稿、返回链都留在栈里）。
   final _detailPane = DetailPaneController();
   final _pageStackKey = GlobalKey();
-  final _captureBoundary = GlobalKey();
   final _assistantEntry = GlobalKey<AssistantLauncherState>();
   StreamSubscription<NotificationUiAction>? _uiActions;
   bool _selectingPage = false;
-
-  Future<Uint8List?> _captureCurrentPage() => captureAssistantScreen(
-    _captureBoundary,
-    devicePixelRatio: View.of(context).devicePixelRatio,
-  );
 
   @override
   void initState() {
@@ -283,7 +276,7 @@ class _AppShellState extends State<AppShell> {
     );
     final body = AssistantEntryScope(
       openNode: (id) => _assistantEntry.currentState?.openNodeMenu(id),
-      child: RepaintBoundary(key: _captureBoundary, child: pageBody),
+      child: pageBody,
     );
     final compact = AppLayout.windowClassOf(context) == WindowClass.compact;
     // 右栏栈变化（打开/返回）会改变接管状态，这里需要跟着重建。
@@ -483,7 +476,6 @@ class _AppShellState extends State<AppShell> {
                               child: AssistantLauncher(
                                 key: _assistantEntry,
                                 navigationRailWidth: expanded ? 192 : 88,
-                                capturePage: _captureCurrentPage,
                               ),
                             ),
                           ),
@@ -552,10 +544,7 @@ class _AppShellState extends State<AppShell> {
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppLayout.spaceXs,
                         ),
-                        child: AssistantLauncher(
-                          key: _assistantEntry,
-                          capturePage: _captureCurrentPage,
-                        ),
+                        child: AssistantLauncher(key: _assistantEntry),
                       ),
                     _navigationItem(
                       2,

@@ -294,7 +294,8 @@ class _MemoryPageState extends State<MemoryPage> {
                                         constraints.precedingScrollExtent)
                                     .clamp(0.0, double.infinity),
                           ),
-                          child: Center(
+                          child: Align(
+                            alignment: const Alignment(0, -0.4),
                             child: Padding(
                               padding: padding.copyWith(top: 0),
                               child: AppEmptyState(

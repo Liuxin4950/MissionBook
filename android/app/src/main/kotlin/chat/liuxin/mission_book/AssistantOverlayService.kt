@@ -15,6 +15,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.ViewConfiguration
 import android.widget.TextView
 import android.widget.LinearLayout
 
@@ -118,16 +119,20 @@ class AssistantOverlayService : Service() {
                 MotionEvent.ACTION_MOVE -> {
                     val dx = (event.rawX - downX).toInt()
                     val dy = (event.rawY - downY).toInt()
-                    if (kotlin.math.abs(dx) + kotlin.math.abs(dy) > 8) moved = true
+                    if (kotlin.math.abs(dx) + kotlin.math.abs(dy) > ViewConfiguration.get(this).scaledTouchSlop) moved = true
                     if (moved) {
                         layout.x = (startX - dx).coerceAtLeast(0)
                         layout.y = (startY + dy).coerceAtLeast(0)
                         windowManager?.updateViewLayout(view, layout)
+                        positionMenu(layout)
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!moved) showMenu()
+                    if (!moved) {
+                        if (menu == null) showMenu(layout) else removeMenu()
+                        view.performClick()
+                    }
                     true
                 }
                 else -> true
@@ -150,7 +155,7 @@ class AssistantOverlayService : Service() {
         startActivity(intent)
     }
 
-    private fun showMenu() {
+    private fun showMenu(bubbleLayout: WindowManager.LayoutParams) {
         if (menu != null) return
         val density = resources.displayMetrics.density
         val panel = LinearLayout(this).apply {
@@ -192,15 +197,32 @@ class AssistantOverlayService : Service() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.END
-            x = (72 * density).toInt()
-            y = resources.displayMetrics.heightPixels / 3
+            x = bubbleLayout.x
+            y = bubbleLayout.y
         }
         try {
             windowManager?.addView(panel, params)
             menu = panel
+            positionMenu(bubbleLayout)
+            panel.post { if (menu === panel) positionMenu(bubbleLayout) }
         } catch (_: Exception) {
             menu = null
         }
+    }
+
+    private fun positionMenu(bubbleLayout: WindowManager.LayoutParams) {
+        val panel = menu ?: return
+        val params = panel.layoutParams as? WindowManager.LayoutParams ?: return
+        val metrics = resources.displayMetrics
+        val gap = (8 * metrics.density).toInt()
+        val panelWidth = params.width
+        val panelHeight = panel.height.takeIf { it > 0 } ?: (160 * metrics.density).toInt()
+        val maxX = (metrics.widthPixels - panelWidth).coerceAtLeast(0)
+        val leftOfBubble = bubbleLayout.x + bubbleLayout.width + gap
+        val rightOfBubble = bubbleLayout.x - panelWidth - gap
+        params.x = (if (leftOfBubble <= maxX) leftOfBubble else rightOfBubble).coerceIn(0, maxX)
+        params.y = bubbleLayout.y.coerceIn(0, (metrics.heightPixels - panelHeight).coerceAtLeast(0))
+        windowManager?.updateViewLayout(panel, params)
     }
 
     private fun removeMenu() {

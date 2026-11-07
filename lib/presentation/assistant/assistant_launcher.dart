@@ -10,7 +10,6 @@ import 'package:flutter/services.dart';
 import '../../core/theme/colors.dart';
 import '../../application/assistant/assistant_controller.dart';
 import '../../application/assistant/assistant_attachment.dart';
-import '../../application/assistant/assistant_image.dart';
 import 'assistant_markdown.dart';
 import 'assistant_thinking.dart';
 import 'assistant_turn_display.dart';
@@ -18,7 +17,6 @@ import 'assistant_operation_card.dart';
 import 'assistant_voice_status.dart';
 import 'assistant_avatar.dart';
 import 'assistant_scope.dart';
-import 'assistant_screen_capture.dart';
 import 'assistant_settings_page.dart';
 import '../../core/theme/app_layout.dart';
 
@@ -55,7 +53,6 @@ class AssistantSurface extends StatefulWidget {
 
 class _AssistantSurfaceState extends State<AssistantSurface> {
   final _entry = GlobalKey<AssistantLauncherState>();
-  final _captureBoundary = GlobalKey();
   @override
   Widget build(BuildContext context) {
     if (AssistantScope.maybeOf(context) == null) return widget.child;
@@ -68,10 +65,7 @@ class _AssistantSurfaceState extends State<AssistantSurface> {
           children: [
             Padding(
               padding: EdgeInsets.only(bottom: 76 + bottom),
-              child: RepaintBoundary(
-                key: _captureBoundary,
-                child: widget.child,
-              ),
+              child: widget.child,
             ),
             Positioned(
               bottom: 12 + bottom,
@@ -83,10 +77,6 @@ class _AssistantSurfaceState extends State<AssistantSurface> {
                   missionId: widget.missionId,
                   goalId: widget.goalId,
                   nodeId: widget.nodeId,
-                  capturePage: () => captureAssistantScreen(
-                    _captureBoundary,
-                    devicePixelRatio: View.of(context).devicePixelRatio,
-                  ),
                 ),
               ),
             ),
@@ -104,13 +94,11 @@ class AssistantLauncher extends StatefulWidget {
     this.goalId,
     this.nodeId,
     this.navigationRailWidth,
-    this.capturePage,
   });
   final String? missionId;
   final String? goalId;
   final String? nodeId;
   final double? navigationRailWidth;
-  final Future<Uint8List?> Function()? capturePage;
 
   @override
   State<AssistantLauncher> createState() => AssistantLauncherState();
@@ -301,9 +289,8 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     final rail = widget.navigationRailWidth;
     const choiceSize = 64.0;
     const choiceGap = 32.0;
-    final choiceCount = defaultTargetPlatform == TargetPlatform.android ? 4 : 3;
-    final grid = choiceCount == 4;
-    final columns = grid ? 2 : choiceCount;
+    const choiceCount = 2;
+    final columns = choiceCount;
     final rows = (choiceCount / columns).ceil();
     final groupWidth = choiceSize * columns + choiceGap * (columns - 1);
     final groupHeight = choiceSize * rows + choiceGap * (rows - 1);
@@ -345,55 +332,14 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     if (_opening) return;
     _opening = true;
     try {
-      if (mode == 3) {
-        final enabled = await const MethodChannel(
-          'mission_book/device',
-        ).invokeMethod<bool>('toggleAssistantOverlay');
-        if (mounted) {
-          _hide();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(enabled == true ? '跨应用 AI 气泡已开启' : '跨应用 AI 气泡已关闭'),
-            ),
-          );
-        }
-        return;
-      }
-      AssistantAttachment? screenshot;
-      if (mode == 2) {
-        final capturePage = widget.capturePage;
-        if (capturePage == null) {
-          throw const FormatException('当前页面暂不支持截屏');
-        }
-        final bytes = await capturePage().timeout(const Duration(seconds: 8));
-        if (bytes == null) throw const FormatException('当前页面截屏失败，请重试');
-        screenshot = await compressAssistantImage(
-          'screen-${DateTime.now().millisecondsSinceEpoch}.png',
-          bytes,
-        ).timeout(const Duration(seconds: 15));
-      }
       await _prepare().timeout(const Duration(seconds: 5));
       _selectedNodeId = null;
       if (!mounted) return;
-      if (screenshot != null) {
-        final controller = _scope!.controller;
-        final key = controller.draftKey;
-        final attachments = controller.attachmentsFor(key);
-        final totalBytes = attachments.fold<int>(
-          screenshot.bytes.length,
-          (total, attachment) => total + attachment.bytes.length,
-        );
-        if (attachments.length >= AssistantAttachment.maxCount ||
-            totalBytes > AssistantAttachment.maxTotalBytes) {
-          throw const FormatException('当前草稿附件已达上限，请先移除部分附件');
-        }
-        controller.saveAttachments(key, [...attachments, screenshot]);
-      }
       _menu = false;
       _opening = false;
       _bubbleIdentity = _scope!.controller.draftKey;
       _sentMessage = null;
-      if (mode == 0 || mode == 2) {
+      if (mode == 0) {
         await _expand();
       } else {
         setState(() {
@@ -409,10 +355,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              userErrorMessage(
-                error,
-                fallback: mode == 2 ? '截屏提问未完成，请重试' : '操作未完成，请重试；仍有问题时检查模型设置',
-              ),
+              userErrorMessage(error, fallback: '操作未完成，请重试；仍有问题时检查模型设置'),
             ),
           ),
         );
@@ -563,7 +506,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
         child: CompositedTransformTarget(
           link: _link,
           child: Semantics(
-            label: 'AI 助手，长按后滑动选择文字、语音或截屏提问',
+            label: 'AI 助手，长按后滑动选择快捷操作',
             excludeSemantics: true,
             button: true,
             onTap: _showMenu,
@@ -580,7 +523,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
               },
               child: Tooltip(
                 triggerMode: TooltipTriggerMode.manual,
-                message: '长按选择文字、语音或截屏提问',
+                message: '长按选择快捷操作',
                 child: Container(
                   key: const Key('assistant-launcher'),
                   width: 56,
@@ -620,7 +563,6 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     label: switch (index) {
       0 => '文字对话',
       1 => '语音输入',
-      2 => '截屏提问',
       _ => '跨应用助手',
     },
     child: Material(
@@ -640,7 +582,6 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                 switch (index) {
                   0 => Icons.keyboard_outlined,
                   1 => Icons.mic_none,
-                  2 => Icons.crop_free_rounded,
                   _ => Icons.open_in_new_rounded,
                 },
                 color: AppColors.primary,
@@ -650,7 +591,6 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                 switch (index) {
                   0 => '文字',
                   1 => '语音',
-                  2 => '截屏',
                   _ => '浮窗',
                 },
                 style: Theme.of(

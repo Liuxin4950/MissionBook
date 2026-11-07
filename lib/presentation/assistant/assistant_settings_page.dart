@@ -7,6 +7,8 @@ import '../records/analysis_settings_page.dart';
 import '../records/record_scope.dart';
 import '../widgets/app_dropdown_form_field.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'assistant_avatar.dart';
 import 'assistant_scope.dart';
 import '../me/data_backup_page.dart';
@@ -32,7 +34,8 @@ class AssistantSettingsPage extends StatefulWidget {
   State<AssistantSettingsPage> createState() => _AssistantSettingsPageState();
 }
 
-class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
+class _AssistantSettingsPageState extends State<AssistantSettingsPage>
+    with WidgetsBindingObserver {
   late final _personaName = TextEditingController(
     text: widget.controller.persona.name,
   );
@@ -50,6 +53,40 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   String? _loadError;
   String? _error;
   String? _result;
+  bool? _overlayEnabled;
+  bool _overlayBusy = false;
+
+  Future<void> _loadOverlay() async {
+    try {
+      final enabled = await const MethodChannel(
+        'mission_book/device',
+      ).invokeMethod<bool>('assistantOverlayEnabled');
+      if (mounted) setState(() => _overlayEnabled = enabled ?? false);
+    } on PlatformException catch (error) {
+      if (mounted)
+        setState(() => _error = userErrorMessage(error, fallback: '读取悬浮窗状态失败'));
+    } on MissingPluginException {
+      if (mounted) setState(() => _error = '当前设备不支持悬浮窗');
+    }
+  }
+
+  Future<void> _toggleOverlay() async {
+    if (_overlayBusy) return;
+    setState(() => _overlayBusy = true);
+    try {
+      final enabled = await const MethodChannel(
+        'mission_book/device',
+      ).invokeMethod<bool>('toggleAssistantOverlay');
+      if (mounted) setState(() => _overlayEnabled = enabled ?? false);
+    } catch (error) {
+      if (mounted)
+        setState(
+          () => _error = userErrorMessage(error, fallback: '悬浮窗设置失败，请重试'),
+        );
+    } finally {
+      if (mounted) setState(() => _overlayBusy = false);
+    }
+  }
 
   Future<void> _back() async {
     if (_saving || _leaving) return;
@@ -77,6 +114,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      unawaited(_loadOverlay());
+    }
     for (final field in [_personaName, _userAddress]) {
       field.addListener(_fieldChanged);
     }
@@ -86,6 +127,16 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) unawaited(_prepare());
       });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        !_overlayBusy &&
+        !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android) {
+      unawaited(_loadOverlay());
     }
   }
 
@@ -199,6 +250,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_fieldChanged);
     _personaName.dispose();
     _userAddress.dispose();
@@ -418,6 +470,24 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                   _buildPersonaSection(),
                   const SizedBox(height: AppLayout.spaceLg),
                   _buildPermissionSection(),
+                  if (!kIsWeb &&
+                      defaultTargetPlatform == TargetPlatform.android) ...[
+                    const SizedBox(height: AppLayout.spaceLg),
+                    AppSectionCard(
+                      padding: EdgeInsets.zero,
+                      child: AppSettingsRow(
+                        icon: Icons.open_in_new_rounded,
+                        title: '跨应用悬浮窗',
+                        subtitle: '离开应用后显示 AI 悬浮入口',
+                        trailing: Switch(
+                          value: _overlayEnabled ?? false,
+                          onChanged: _overlayEnabled == null || _overlayBusy
+                              ? null
+                              : (_) => _toggleOverlay(),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppLayout.spaceLg),
                   AppSectionCard(
                     padding: EdgeInsets.zero,
@@ -440,14 +510,22 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
     padding: EdgeInsets.zero,
     child: AppExpansionTile(
       key: const Key('assistant-persona-section'),
+      insetHeader: false,
+      headerPadding: const EdgeInsets.symmetric(
+        horizontal: AppLayout.spaceLg,
+        vertical: AppLayout.spaceSm,
+      ),
       leading: Icon(
         assistantAvatarIcon(_avatar),
         size: AppLayout.iconMd,
         color: AppColors.textSecondary,
       ),
-      title: const Text('角色与风格'),
+      title: Text('角色与风格', style: Theme.of(context).textTheme.titleSmall),
       subtitle: Text(
         '${_personaName.text.trim().isEmpty ? '助手' : _personaName.text.trim()} · ${_role.label} · ${_replyStyle.label}',
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
       ),
       childrenPadding: const EdgeInsets.fromLTRB(
         AppLayout.spaceLg,
@@ -566,7 +644,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   );
 
   Widget _buildPermissionSection() => AppSectionCard(
-    padding: const EdgeInsets.all(AppLayout.spaceLg),
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppLayout.spaceLg,
+      vertical: AppLayout.spaceMd,
+    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -574,7 +655,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
         const SizedBox(height: AppLayout.spaceSm),
         for (final mode in AssistantPermissionMode.values)
           Padding(
-            padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+            padding: EdgeInsets.zero,
             child: Material(
               color: _permission == mode
                   ? AppColors.primarySoft
@@ -582,6 +663,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
               borderRadius: BorderRadius.circular(AppLayout.radiusMd),
               child: ListTile(
                 key: Key('assistant-permission-${mode.name}'),
+                dense: true,
+                visualDensity: VisualDensity.compact,
                 selected: _permission == mode,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: AppLayout.spaceMd,
@@ -609,13 +692,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                     style: Theme.of(context).textTheme.bodySmall!.copyWith(
                       color: AppColors.textSecondary,
                     ),
-                    child: mode == AssistantPermissionMode.relaxed
-                        ? const Wrap(
-                            spacing: AppLayout.spaceMd,
-                            runSpacing: AppLayout.spaceXs,
-                            children: [Text('查询直接执行'), Text('创建、修改和执行任务需确认')],
-                          )
-                        : Text(mode.description),
+                    child: Text(mode.description),
                   ),
                 ),
                 onTap: _saving || widget.controller.isBusy
