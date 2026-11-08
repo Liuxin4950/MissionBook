@@ -542,14 +542,29 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                             color: AppColors.onPrimary,
                           ),
                         )
-                      : Icon(
+                      : scope.voice.listening && _recording ||
+                            controller.isRunning
+                      ? Icon(
                           scope.voice.listening && _recording
                               ? Icons.mic_rounded
-                              : controller.isRunning
-                              ? Icons.auto_awesome
-                              : assistantAvatarIcon(controller.persona.avatar),
+                              : Icons.auto_awesome,
                           color: AppColors.onPrimary,
                           size: AppLayout.iconLg,
+                        )
+                      : LayoutBuilder(
+                          builder: (context, constraints) => Center(
+                            child: AssistantPersonaAvatar(
+                              avatar: controller.persona.avatar,
+                              customAvatarBase64:
+                                  controller.persona.customAvatarBase64,
+                              size:
+                                  controller.persona.avatar ==
+                                      AssistantAvatar.spark
+                                  ? constraints.biggest.shortestSide
+                                  : AppLayout.iconLg,
+                              color: AppColors.onPrimary,
+                            ),
+                          ),
                         ),
                 ),
               ),
@@ -706,13 +721,19 @@ class AssistantLauncherState extends State<AssistantLauncher> {
           ),
           child: Row(
             children: [
-              Icon(
-                _recording
-                    ? Icons.mic_none_rounded
-                    : assistantAvatarIcon(controller.persona.avatar),
-                color: AppColors.primary,
-                size: AppLayout.iconMd,
-              ),
+              if (_recording)
+                const Icon(
+                  Icons.mic_none_rounded,
+                  color: AppColors.primary,
+                  size: AppLayout.iconMd,
+                )
+              else
+                AssistantPersonaAvatar(
+                  avatar: controller.persona.avatar,
+                  customAvatarBase64: controller.persona.customAvatarBase64,
+                  color: AppColors.primary,
+                  size: AppLayout.iconMd,
+                ),
               const SizedBox(width: AppLayout.spaceSm),
               Expanded(
                 child: Text(

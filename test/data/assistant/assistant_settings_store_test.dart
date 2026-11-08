@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:image/image.dart' as img;
 import 'package:agent_core/agent_core.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,32 @@ import 'package:mission_book/data/assistant/assistant_settings_store.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('自定义头像随角色持久化，缺失或损坏头像不影响其他角色字段', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    const store = SecureAssistantSettingsStore();
+    final avatar = base64Encode(
+      img.encodePng(img.Image(width: 192, height: 192)),
+    );
+    await store.savePersona(
+      AssistantPersona(name: '小书', customAvatarBase64: avatar),
+    );
+    expect((await store.load()).persona.customAvatarBase64, avatar);
+    final legacy = AssistantPersona.fromJson({'name': '小书'});
+    expect(legacy.customAvatarBase64, isNull);
+    final broken = AssistantPersona.fromJson({
+      'name': '小书',
+      'customAvatarBase64': 'broken',
+    });
+    expect(broken.name, '小书');
+    expect(broken.customAvatarBase64, isNull);
+    await expectLater(
+      store.savePersona(const AssistantPersona(customAvatarBase64: 'broken')),
+      throwsArgumentError,
+    );
+    expect((await store.load()).persona.customAvatarBase64, avatar);
+    await store.savePersona(const AssistantPersona(name: '小书'));
+    expect((await store.load()).persona.customAvatarBase64, isNull);
+  });
   test('角色名称、定位、回答风格和图标持久化，非法名称不覆盖原配置', () async {
     FlutterSecureStorage.setMockInitialValues({});
     const store = SecureAssistantSettingsStore();

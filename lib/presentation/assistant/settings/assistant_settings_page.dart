@@ -1,5 +1,10 @@
 import '../../../application/errors/user_error_message.dart';
 import 'dart:async';
+import 'dart:convert';
+
+import '../../../application/assistant/assistant_attachment.dart';
+import '../../../application/assistant/assistant_image.dart';
+import '../../../data/assistant/assistant_attachment_picker.dart';
 
 import '../../records/settings/memory_page.dart';
 import '../../records/settings/web_settings_page.dart';
@@ -23,12 +28,18 @@ import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_expansion.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/app_settings_row.dart';
+import '../../widgets/app_selection_option.dart';
 import '../../widgets/app_top_bar.dart';
 
 class AssistantSettingsPage extends StatefulWidget {
-  const AssistantSettingsPage({super.key, required this.controller});
+  const AssistantSettingsPage({
+    super.key,
+    required this.controller,
+    this.pickAvatar,
+  });
 
   final AssistantController controller;
+  final Future<AssistantAttachment?> Function()? pickAvatar;
 
   @override
   State<AssistantSettingsPage> createState() => _AssistantSettingsPageState();
@@ -45,6 +56,9 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
   late AssistantRole _role = widget.controller.persona.role;
   late AssistantReplyStyle _replyStyle = widget.controller.persona.replyStyle;
   late AssistantAvatar _avatar = widget.controller.persona.avatar;
+  late String? _customAvatarBase64 =
+      widget.controller.persona.customAvatarBase64;
+  bool _pickingAvatar = false;
   late AssistantPermissionMode _permission = widget.controller.permissionMode;
   bool _saving = false;
   bool _leaving = false;
@@ -180,6 +194,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
     _role = controller.persona.role;
     _replyStyle = controller.persona.replyStyle;
     _avatar = controller.persona.avatar;
+    _customAvatarBase64 = controller.persona.customAvatarBase64;
   }
 
   void _fieldChanged() {
@@ -231,13 +246,15 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       _userAddress.text.trim() != widget.controller.persona.userAddress ||
       _role != widget.controller.persona.role ||
       _replyStyle != widget.controller.persona.replyStyle ||
-      _avatar != widget.controller.persona.avatar;
+      _avatar != widget.controller.persona.avatar ||
+      _customAvatarBase64 != widget.controller.persona.customAvatarBase64;
   AssistantPersona _readPersona() => AssistantPersona(
     name: _personaName.text.trim(),
     userAddress: _userAddress.text.trim(),
     role: _role,
     replyStyle: _replyStyle,
     avatar: _avatar,
+    customAvatarBase64: _customAvatarBase64,
   );
   String? get _validationError {
     try {
@@ -285,9 +302,9 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
                   AppLayout.horizontalPadding(context),
-                  8,
+                  AppLayout.spaceSm,
                   AppLayout.horizontalPadding(context),
-                  12,
+                  AppLayout.spaceMd,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -302,11 +319,12 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                           liveRegion: true,
                           child: Text(
                             _error ?? _result!,
-                            style: TextStyle(
-                              color: _error != null
-                                  ? AppColors.error
-                                  : AppColors.primary,
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: _error != null
+                                      ? AppColors.error
+                                      : AppColors.primary,
+                                ),
                           ),
                         ),
                       ),
@@ -529,16 +547,17 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       insetHeader: false,
       headerPadding: const EdgeInsets.symmetric(
         horizontal: AppLayout.spaceLg,
-        vertical: AppLayout.spaceSm,
+        vertical: AppLayout.spaceMd,
       ),
-      leading: Icon(
-        assistantAvatarIcon(_avatar),
-        size: AppLayout.iconMd,
-        color: AppColors.textSecondary,
+      leading: AssistantPersonaAvatar(
+        avatar: _avatar,
+        customAvatarBase64: _customAvatarBase64,
+        size: 48,
+        color: AppColors.primary,
       ),
-      title: Text('角色与风格', style: Theme.of(context).textTheme.titleSmall),
+      title: Text('角色与风格', style: Theme.of(context).textTheme.titleMedium),
       subtitle: Text(
-        '${_personaName.text.trim().isEmpty ? '书祺' : _personaName.text.trim()} · ${_role.label} · ${_replyStyle.label}',
+        '${_personaName.text.trim().isEmpty ? '书祺' : _personaName.text.trim()}\n${_role.label} · ${_replyStyle.label}',
         style: Theme.of(
           context,
         ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
@@ -550,28 +569,35 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
         AppLayout.spaceLg,
       ),
       children: [
-        TextField(
-          key: const Key('assistant-persona-name'),
-          controller: _personaName,
-          enabled: !_saving && !widget.controller.isBusy,
-          maxLength: 24,
-          decoration: const InputDecoration(
-            labelText: '角色名称',
-            hintText: '例如：小书、阿青',
-          ),
+        AdaptiveColumns(
+          minColumnWidth: 240,
+          maxColumns: 2,
+          children: [
+            TextField(
+              key: const Key('assistant-persona-name'),
+              controller: _personaName,
+              style: Theme.of(context).textTheme.bodyLarge,
+              enabled: !_saving && !widget.controller.isBusy,
+              maxLength: 24,
+              decoration: const InputDecoration(
+                labelText: '角色名称',
+                hintText: '例如：小书、阿青',
+              ),
+            ),
+            TextField(
+              key: const Key('assistant-user-address'),
+              controller: _userAddress,
+              style: Theme.of(context).textTheme.bodyLarge,
+              enabled: !_saving && !widget.controller.isBusy,
+              maxLength: 24,
+              decoration: const InputDecoration(
+                labelText: '对我的称呼',
+                hintText: '例如：小刘；留空使用自然称呼',
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: AppLayout.spaceMd),
-        TextField(
-          key: const Key('assistant-user-address'),
-          controller: _userAddress,
-          enabled: !_saving && !widget.controller.isBusy,
-          maxLength: 24,
-          decoration: const InputDecoration(
-            labelText: '对我的称呼',
-            hintText: '例如：小刘；留空使用自然称呼',
-          ),
-        ),
-        const SizedBox(height: AppLayout.spaceMd),
+        const SizedBox(height: AppLayout.spaceLg),
         AdaptiveColumns(
           minColumnWidth: 240,
           maxColumns: 2,
@@ -580,7 +606,15 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
               key: const Key('assistant-persona-role'),
               isExpanded: true,
               initialValue: _role,
-              decoration: const InputDecoration(labelText: '角色定位'),
+              decoration: InputDecoration(
+                labelText: '角色定位',
+                helperText: switch (_role) {
+                  AssistantRole.assistant => '整理目标与任务，明确下一步',
+                  AssistantRole.coach => '梳理学习思路，循序解释问题',
+                  AssistantRole.planner => '结合目标与时间，规划任务安排',
+                },
+                helperMaxLines: 3,
+              ),
               items: [
                 for (final role in AssistantRole.values)
                   DropdownMenuItem(value: role, child: Text(role.label)),
@@ -593,7 +627,15 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
               key: const Key('assistant-reply-style'),
               isExpanded: true,
               initialValue: _replyStyle,
-              decoration: const InputDecoration(labelText: '回答风格'),
+              decoration: InputDecoration(
+                labelText: '回答风格',
+                helperText: switch (_replyStyle) {
+                  AssistantReplyStyle.concise => '先给结论和下一步，按需展开',
+                  AssistantReplyStyle.explanatory => '循序解释原因、过程与结果',
+                  AssistantReplyStyle.supportive => '语气温和，提供具体的小步骤',
+                },
+                helperMaxLines: 3,
+              ),
               items: [
                 for (final style in AssistantReplyStyle.values)
                   DropdownMenuItem(value: style, child: Text(style.label)),
@@ -606,44 +648,161 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
           ],
         ),
         const SizedBox(height: AppLayout.spaceLg),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text('角色图标', style: Theme.of(context).textTheme.titleSmall),
-        ),
+        Text('角色头像', style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: AppLayout.spaceSm),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Wrap(
-            spacing: AppLayout.spaceSm,
-            runSpacing: AppLayout.spaceSm,
-            children: [
-              for (final choice in [
-                (AssistantAvatar.spark, '灵感'),
-                (AssistantAvatar.book, '书页'),
-                (AssistantAvatar.compass, '指南针'),
-              ])
-                ChoiceChip(
-                  avatar: Icon(
-                    assistantAvatarIcon(choice.$1),
-                    size: AppLayout.iconSm,
-                  ),
-                  label: Text(choice.$2),
-                  selected: _avatar == choice.$1,
-                  onSelected: _saving || widget.controller.isBusy
-                      ? null
-                      : (_) => setState(() => _avatar = choice.$1),
-                ),
-            ],
-          ),
+        AdaptiveColumns(
+          minColumnWidth: 104,
+          maxColumns: AppLayout.windowClassOf(context) == WindowClass.compact
+              ? 2
+              : 4,
+          spacing: AppLayout.spaceSm,
+          children: [
+            for (final choice in [
+              (AssistantAvatar.spark, '书祺'),
+              (AssistantAvatar.book, '书页'),
+              (AssistantAvatar.compass, '指南针'),
+            ])
+              _buildAvatarChoice(choice.$1, choice.$2),
+            _buildCustomAvatarChoice(),
+          ],
         ),
+        if (_customAvatarBase64 != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              key: const Key('assistant-avatar-reset'),
+              onPressed: _saving || _pickingAvatar || widget.controller.isBusy
+                  ? null
+                  : () => setState(() {
+                      _customAvatarBase64 = null;
+                      _avatar = AssistantAvatar.spark;
+                    }),
+              child: const Text('恢复默认头像'),
+            ),
+          ),
         const SizedBox(height: AppLayout.spaceMd),
         Text(
-          '角色决定帮助的侧重点，回答风格决定表达方式；保存后也会应用到已有会话。',
-          style: Theme.of(context).textTheme.bodySmall,
+          '保存后应用到助手入口与已有会话。',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
         ),
       ],
     ),
   );
+
+  Widget _buildAvatarChoice(AssistantAvatar avatar, String label) {
+    final enabled = !_saving && !_pickingAvatar && !widget.controller.isBusy;
+    return TextButton(
+      key: Key('assistant-avatar-${avatar.name}'),
+      style: TextButton.styleFrom(
+        padding: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+          side: const BorderSide(color: AppColors.hairline),
+        ),
+      ),
+      onPressed: enabled
+          ? () => setState(() {
+              _avatar = avatar;
+              _customAvatarBase64 = null;
+            })
+          : null,
+      child: AppSelectionOption(
+        selected: _customAvatarBase64 == null && _avatar == avatar,
+        enabled: enabled,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AssistantPersonaAvatar(
+              avatar: avatar,
+              size: 40,
+              color: enabled ? AppColors.primary : AppColors.onDisabled,
+            ),
+            const SizedBox(height: AppLayout.spaceSm),
+            Text(label, textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomAvatarChoice() {
+    final enabled = !_saving && !_pickingAvatar && !widget.controller.isBusy;
+    return TextButton(
+      key: const Key('assistant-avatar-custom'),
+      style: TextButton.styleFrom(
+        padding: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+          side: const BorderSide(color: AppColors.hairline),
+        ),
+      ),
+      onPressed: enabled ? _pickCustomAvatar : null,
+      child: AppSelectionOption(
+        selected: _customAvatarBase64 != null,
+        enabled: enabled,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_pickingAvatar)
+              const SizedBox.square(
+                dimension: 40,
+                child: Padding(
+                  padding: EdgeInsets.all(AppLayout.spaceSm),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else if (_customAvatarBase64 != null)
+              AssistantPersonaAvatar(
+                avatar: AssistantAvatar.spark,
+                customAvatarBase64: _customAvatarBase64,
+                size: 40,
+              )
+            else
+              const Icon(Icons.add_photo_alternate_outlined, size: 40),
+            const SizedBox(height: AppLayout.spaceSm),
+            Text(_pickingAvatar ? '处理中' : '自定义', textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickCustomAvatar() async {
+    if (_pickingAvatar || _saving || widget.controller.isBusy) return;
+    setState(() => _pickingAvatar = true);
+    try {
+      final image = widget.pickAvatar != null
+          ? await widget.pickAvatar!()
+          : await pickAssistantAttachment(
+              image: true,
+              confirmButtonText: '选择头像',
+              onOversizedImage: (name, bytes) async =>
+                  AssistantAttachment.fromBytes(
+                    'avatar.png',
+                    base64Decode(await prepareAssistantAvatar(bytes)),
+                  ),
+            );
+      if (image == null || !mounted) return;
+      final avatar = await prepareAssistantAvatar(image.bytes);
+      if (!mounted || widget.controller.isBusy) return;
+      setState(() {
+        _avatar = AssistantAvatar.spark;
+        _customAvatarBase64 = avatar;
+        _error = null;
+        _result = null;
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = userErrorMessage(error, fallback: '头像读取失败，请重新选择'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pickingAvatar = false);
+    }
+  }
 
   Widget _buildSaveActions() => Align(
     alignment: Alignment.centerRight,
@@ -652,7 +811,12 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       style: FilledButton.styleFrom(
         minimumSize: const Size(160, AppLayout.actionMinHeight),
       ),
-      onPressed: _saving || widget.controller.isBusy || !_changed || !_valid
+      onPressed:
+          _saving ||
+              _pickingAvatar ||
+              widget.controller.isBusy ||
+              !_changed ||
+              !_valid
           ? null
           : _save,
       child: Text(_saving ? '正在保存…' : '保存设置'),

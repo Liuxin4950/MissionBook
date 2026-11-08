@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:agent_core/agent_core.dart';
 
 /// 宿主决定哪些操作等用户确认；模型和附件都不能改变这一选择。
@@ -46,16 +48,24 @@ class AssistantPersona {
     this.role = AssistantRole.assistant,
     this.replyStyle = AssistantReplyStyle.concise,
     this.avatar = AssistantAvatar.spark,
+    this.customAvatarBase64,
     this.userAddress = '',
   });
   final String name;
   final AssistantRole role;
   final AssistantReplyStyle replyStyle;
   final AssistantAvatar avatar;
+  // 本机头像缩略图的 PNG 内容，与角色设置一同保存。
+  final String? customAvatarBase64;
+  static const avatarEdge = 192;
+  static const maxAvatarBytes = 192 * 1024;
   // 用户希望助手怎样称呼自己；留空沿用自然称呼，不另存一份记忆事实。
   final String userAddress;
 
   void validate() {
+    if (customAvatarBase64 != null && !_validAvatar(customAvatarBase64!)) {
+      throw ArgumentError('头像图片无效，请重新选择');
+    }
     if (name.trim().isEmpty ||
         name.trim().runes.length > 24 ||
         RegExp(r'[\x00-\x1f\x7f]').hasMatch(name)) {
@@ -72,11 +82,17 @@ class AssistantPersona {
     'role': role.name,
     'replyStyle': replyStyle.name,
     'avatar': avatar.name,
+    if (customAvatarBase64 != null) 'customAvatarBase64': customAvatarBase64,
     'userAddress': userAddress.trim(),
   };
 
   factory AssistantPersona.fromJson(Map<String, Object?> value) {
     final persona = AssistantPersona(
+      customAvatarBase64:
+          value['customAvatarBase64'] is String &&
+              _validAvatar(value['customAvatarBase64'] as String)
+          ? value['customAvatarBase64'] as String
+          : null,
       name: value['name'] is String ? value['name'] as String : '书祺',
       userAddress: value['userAddress'] is String
           ? value['userAddress'] as String
@@ -102,6 +118,27 @@ class AssistantPersona {
       return persona;
     } on ArgumentError {
       return const AssistantPersona();
+    }
+  }
+
+  static bool _validAvatar(String value) {
+    if (value.length > (maxAvatarBytes * 4 / 3).ceil()) return false;
+    try {
+      final bytes = base64Decode(value);
+      const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+      if (bytes.length < 24 || bytes.length > maxAvatarBytes) return false;
+      for (var index = 0; index < signature.length; index++) {
+        if (bytes[index] != signature[index]) return false;
+      }
+      final header = bytes.buffer.asByteData(bytes.offsetInBytes, bytes.length);
+      final width = header.getUint32(16);
+      final height = header.getUint32(20);
+      return width > 0 &&
+          width <= avatarEdge &&
+          height > 0 &&
+          height <= avatarEdge;
+    } on FormatException {
+      return false;
     }
   }
 }

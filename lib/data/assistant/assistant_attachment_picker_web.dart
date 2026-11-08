@@ -6,6 +6,7 @@ import '../../application/assistant/assistant_attachment.dart';
 
 Future<AssistantAttachment?> pickAssistantAttachment({
   required bool image,
+  String confirmButtonText = '添加到对话',
   Future<AssistantAttachment?> Function(String name, Uint8List bytes)?
   onOversizedImage,
 }) async {

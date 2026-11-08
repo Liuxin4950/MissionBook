@@ -8,6 +8,8 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
+import 'package:mission_book/application/assistant/assistant_attachment.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/application/assistant/assistant_speech.dart';
 import 'package:mission_book/application/analysis/analysis_service.dart';
@@ -210,6 +212,8 @@ void main() {
     bool shell = false,
     bool realDetail = false,
     bool recordsPage = false,
+    bool settingsPage = false,
+    Future<AssistantAttachment?> Function()? pickAvatar,
     bool initializeAssistant = true,
     MemoryAssistantSettingsStore? settingsStore,
   }) async {
@@ -286,7 +290,12 @@ void main() {
             ),
           ),
         ),
-        home: shell
+        home: settingsPage
+            ? AssistantSettingsPage(
+                controller: assistant,
+                pickAvatar: pickAvatar,
+              )
+            : shell
             ? AppShell(
                 assistant: assistant,
                 missionService: missions,
@@ -661,6 +670,14 @@ void main() {
           .text,
       '书祺',
     );
+    expect(find.byKey(const Key('assistant-avatar-spark')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('assistant-avatar-spark')),
+        matching: find.byType(Image),
+      ),
+      findsOneWidget,
+    );
     await tester.enterText(
       find.byKey(const Key('assistant-persona-name')),
       '小书',
@@ -673,13 +690,145 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('耐心讲解').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChoiceChip, '书页'));
+    await tester.tap(find.byKey(const Key('assistant-avatar-book')));
     await tester.pump();
     await tester.tap(find.byKey(const Key('assistant-save-settings')));
     await pumpUntil(tester, () => assistant.persona.name == '小书');
     expect(assistant.persona.replyStyle, AssistantReplyStyle.explanatory);
     expect(assistant.persona.avatar, AssistantAvatar.book);
     expect(assistant.persona.userAddress, '小刘');
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final (width, textScale) in [(390.0, 1.0), (320.0, 2.0)]) {
+    assistantTest('角色设置头像预览与窄屏布局 $width $textScale', (tester) async {
+      const deviceChannel = MethodChannel('mission_book/device');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(deviceChannel, (_) async => false);
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(deviceChannel, null);
+      });
+      await mount(
+        tester,
+        ScriptedModel([]),
+        width: width,
+        textScale: textScale,
+        settingsPage: true,
+      );
+      final section = find.byKey(const Key('assistant-persona-section'));
+      await tester.ensureVisible(section);
+      await tester.tap(section);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('assistant-persona-name')))
+            .style
+            ?.fontSize,
+        14,
+      );
+      expect(
+        Theme.of(
+          tester.element(section),
+        ).inputDecorationTheme.labelStyle?.fontSize,
+        12,
+      );
+      await tester.enterText(
+        find.byKey(const Key('assistant-persona-name')),
+        '小书',
+      );
+      await tester.pump();
+      expect(find.text('小书\n效率助理 · 简洁直接'), findsOneWidget);
+      FocusManager.instance.primaryFocus?.unfocus();
+      final choice = find.byKey(const Key('assistant-avatar-book'));
+      await Scrollable.ensureVisible(tester.element(choice), alignment: 0.5);
+      await tester.pumpAndSettle();
+      expect(choice.hitTestable(), findsOneWidget);
+      await tester.tap(choice);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: choice, matching: find.byIcon(Icons.check_rounded)),
+        findsOneWidget,
+      );
+      for (final name in ['spark', 'book', 'compass', 'custom']) {
+        final size = tester.getSize(find.byKey(Key('assistant-avatar-$name')));
+        expect(size.width, greaterThanOrEqualTo(AppLayout.touchTargetMin));
+        expect(size.height, greaterThanOrEqualTo(AppLayout.touchTargetMin));
+      }
+      expect(assistant.persona.avatar, AssistantAvatar.spark);
+      final defaultChoice = find.byKey(const Key('assistant-avatar-spark'));
+      await Scrollable.ensureVisible(
+        tester.element(defaultChoice),
+        alignment: 0.5,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(defaultChoice);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('assistant-persona-name')),
+        '书祺',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await Scrollable.ensureVisible(tester.element(section), alignment: 0);
+      await tester.pumpAndSettle();
+      await capture(tester, 'persona-settings-${width.toInt()}');
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  assistantTest('自定义头像预览保存、取消选择和恢复默认均走角色设置', (tester) async {
+    final store = MemoryAssistantSettingsStore();
+    AssistantAttachment? selected = AssistantAttachment.fromBytes(
+      'avatar.png',
+      img.encodePng(img.Image(width: 24, height: 48, numChannels: 4)),
+    );
+    var failSelection = false;
+    await mount(
+      tester,
+      ScriptedModel([]),
+      width: 1106,
+      settingsPage: true,
+      settingsStore: store,
+      pickAvatar: () async {
+        if (failSelection) throw const FormatException('图片无法解码，请重新选择');
+        return selected;
+      },
+    );
+    await tester.tap(find.byKey(const Key('assistant-persona-section')));
+    await tester.pumpAndSettle();
+    final custom = find.byKey(const Key('assistant-avatar-custom'));
+    await tester.ensureVisible(custom);
+    await tester.tap(custom);
+    await pumpUntil(
+      tester,
+      () =>
+          find.byKey(const Key('assistant-avatar-reset')).evaluate().isNotEmpty,
+    );
+    expect(assistant.persona.customAvatarBase64, isNull);
+    await tester.tap(find.byKey(const Key('assistant-save-settings')));
+    await pumpUntil(tester, () => assistant.persona.customAvatarBase64 != null);
+    final saved = (await store.load()).persona.customAvatarBase64;
+    expect(saved, isNotNull);
+    selected = null;
+    await tester.ensureVisible(custom);
+    await tester.tap(custom);
+    await tester.pumpAndSettle();
+    expect((await store.load()).persona.customAvatarBase64, saved);
+    failSelection = true;
+    await tester.tap(custom);
+    await pumpUntil(
+      tester,
+      () => find.textContaining('图片无法解码').evaluate().isNotEmpty,
+    );
+    expect((await store.load()).persona.customAvatarBase64, saved);
+    final reset = find.byKey(const Key('assistant-avatar-reset'));
+    await tester.ensureVisible(reset);
+    await tester.tap(reset);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('assistant-avatar-reset')), findsNothing);
+    await tester.tap(find.byKey(const Key('assistant-save-settings')));
+    await pumpUntil(tester, () => assistant.persona.customAvatarBase64 == null);
+    expect((await store.load()).persona.customAvatarBase64, isNull);
     expect(tester.takeException(), isNull);
   });
 
@@ -1143,6 +1292,16 @@ void main() {
         find.byKey(const Key('assistant-launcher')).hitTestable(),
         findsOneWidget,
       );
+      final avatar = find.descendant(
+        of: find.byKey(const Key('assistant-launcher')),
+        matching: find.byType(Image),
+      );
+      expect(avatar, findsOneWidget);
+      final launcherSize = tester.getSize(
+        find.byKey(const Key('assistant-launcher')),
+      );
+      expect(tester.getSize(avatar), Size.square(launcherSize.shortestSide));
+      await capture(tester, 'shuqi-launcher-${width.toInt()}');
       await tester.tap(
         find.byKey(const Key('assistant-launcher')).hitTestable(),
       );

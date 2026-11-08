@@ -4,6 +4,7 @@ import '../../application/assistant/assistant_attachment.dart';
 
 Future<AssistantAttachment?> pickAssistantAttachment({
   required bool image,
+  String confirmButtonText = '添加到对话',
   Future<AssistantAttachment?> Function(String name, Uint8List bytes)?
   onOversizedImage,
 }) async {
@@ -24,7 +25,7 @@ Future<AssistantAttachment?> pickAssistantAttachment({
               ],
       ),
     ],
-    confirmButtonText: '添加到对话',
+    confirmButtonText: confirmButtonText,
   );
   if (file == null) return null;
   final limit = image ? 20 * 1024 * 1024 : AssistantAttachment.maxTextBytes;

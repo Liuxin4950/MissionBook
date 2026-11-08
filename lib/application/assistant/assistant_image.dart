@@ -1,7 +1,35 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
 import 'assistant_attachment.dart';
+import 'assistant_settings.dart';
+
+/// 将所选图片居中裁成小尺寸 PNG，只把缩略图交给本机角色设置。
+Future<String> prepareAssistantAvatar(Uint8List bytes) async =>
+    base64Encode(await compute(_prepareAvatar, bytes));
+
+Uint8List _prepareAvatar(Uint8List bytes) {
+  final decoder = img.findDecoderForData(bytes);
+  final info = decoder?.startDecode(bytes);
+  if (info == null) throw const FormatException('图片无法解码，请重新选择');
+  if (info.width * info.height > 40000000) {
+    throw const FormatException('图片像素过大，请先裁剪');
+  }
+  final decoded = decoder!.decodeFrame(0);
+  if (decoded == null) throw const FormatException('图片无法解码，请重新选择');
+  final thumbnail = img.copyResizeCropSquare(
+    img.bakeOrientation(decoded),
+    size: AssistantPersona.avatarEdge,
+    interpolation: img.Interpolation.average,
+  );
+  final png = img.encodePng(thumbnail);
+  if (png.length > AssistantPersona.maxAvatarBytes) {
+    throw const FormatException('头像处理后过大，请更换图片');
+  }
+  return png;
+}
 
 /// 只压缩用户选择发送的副本；原文件和记录材料保持原样。
 Future<AssistantAttachment> compressAssistantImage(
