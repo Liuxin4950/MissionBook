@@ -40,6 +40,12 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
   bool _busy = false;
   bool _confirming = false;
   int _generation = 0;
+  double _minZoom = 1;
+  double _maxZoom = 1;
+  double _zoom = 1;
+  double _gestureStartZoom = 1;
+  Offset? _focusPoint;
+  Timer? _focusIndicatorTimer;
 
   @override
   void initState() {
@@ -68,11 +74,25 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
         enableAudio: false,
       );
       await next.initialize();
+      var minZoom = 1.0;
+      var maxZoom = 1.0;
+      try {
+        minZoom = await next.getMinZoomLevel();
+        maxZoom = await next.getMaxZoomLevel();
+      } on Object {
+        // 相机无变焦能力时仍可正常取景和拍照。
+      }
       if (!mounted || generation != _generation) {
         await next.dispose();
         return;
       }
-      setState(() => _controller = next);
+      setState(() {
+        _controller = next;
+        _minZoom = minZoom;
+        _maxZoom = maxZoom;
+        _zoom = minZoom;
+        _focusPoint = null;
+      });
     } on CameraException catch (error) {
       await next?.dispose();
       if (mounted && generation == _generation) {
@@ -187,10 +207,124 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
     if (_controller == null) unawaited(_start());
   }
 
+  Future<void> _setZoom(double zoom) async {
+    final controller = _controller;
+    if (controller == null || _busy || _maxZoom <= _minZoom) return;
+    final nextZoom = zoom.clamp(_minZoom, _maxZoom).toDouble();
+    setState(() => _zoom = nextZoom);
+    try {
+      await controller.setZoomLevel(nextZoom);
+    } on CameraException {
+      if (mounted) setState(() => _error = '此设备暂不支持调整变焦');
+    }
+  }
+
+  Future<void> _focusAt(Offset localPosition, Size size) async {
+    final controller = _controller;
+    if (controller == null ||
+        !controller.value.focusPointSupported ||
+        size.isEmpty ||
+        _busy) {
+      return;
+    }
+    final point = Offset(
+      (localPosition.dx / size.width).clamp(0.0, 1.0),
+      (localPosition.dy / size.height).clamp(0.0, 1.0),
+    );
+    _focusIndicatorTimer?.cancel();
+    setState(() => _focusPoint = point);
+    try {
+      await controller.setFocusPoint(point);
+      _focusIndicatorTimer = Timer(const Duration(seconds: 1), () {
+        if (mounted) setState(() => _focusPoint = null);
+      });
+    } on CameraException {
+      if (mounted) {
+        setState(() {
+          _focusPoint = null;
+          _error = '此设备暂不支持点按对焦';
+        });
+      }
+    }
+  }
+
+  Widget _interactivePreview(CameraController controller, Widget preview) =>
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final size = constraints.biggest;
+          final point = _focusPoint;
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              GestureDetector(
+                key: const Key('camera-preview-gestures'),
+                behavior: HitTestBehavior.opaque,
+                onTapUp: (details) => _focusAt(details.localPosition, size),
+                onScaleStart: (_) => _gestureStartZoom = _zoom,
+                onScaleUpdate: (details) {
+                  if (details.pointerCount > 1 && _maxZoom > _minZoom) {
+                    unawaited(_setZoom(_gestureStartZoom * details.scale));
+                  }
+                },
+                child: preview,
+              ),
+              if (point != null && controller.value.focusPointSupported)
+                Positioned(
+                  left: point.dx * size.width - 20,
+                  top: point.dy * size.height - 20,
+                  child: IgnorePointer(
+                    child: Container(
+                      key: const Key('camera-focus-indicator'),
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.onMedia, width: 2),
+                        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      );
+
+  Widget _zoomControl({required bool onMedia}) {
+    if (_maxZoom <= _minZoom) return const SizedBox.shrink();
+    final foreground = onMedia
+        ? AppColors.onMedia
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    return Row(
+      children: [
+        Icon(Icons.zoom_out, color: foreground, size: AppLayout.iconSm),
+        Expanded(
+          child: Slider(
+            key: const Key('camera-zoom-slider'),
+            min: _minZoom,
+            max: _maxZoom,
+            value: _zoom.clamp(_minZoom, _maxZoom).toDouble(),
+            label: '${_zoom.toStringAsFixed(1)}×',
+            onChanged: _busy ? null : (value) => unawaited(_setZoom(value)),
+          ),
+        ),
+        Icon(Icons.zoom_in, color: foreground, size: AppLayout.iconSm),
+        SizedBox(
+          width: 42,
+          child: Text(
+            '${_zoom.toStringAsFixed(1)}×',
+            textAlign: TextAlign.end,
+            style: TextStyle(color: foreground),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _generation++;
+    _focusIndicatorTimer?.cancel();
     final controller = _controller;
     if (controller != null) unawaited(controller.dispose());
     super.dispose();
@@ -213,13 +347,16 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
                 final size = controller.value.previewSize!;
                 final portrait =
                     MediaQuery.orientationOf(context) == Orientation.portrait;
-                return ClipRect(
-                  child: FittedBox(
-                    fit: BoxFit.cover,
-                    child: SizedBox(
-                      width: portrait ? size.height : size.width,
-                      height: portrait ? size.width : size.height,
-                      child: CameraPreview(controller),
+                return _interactivePreview(
+                  controller,
+                  ClipRect(
+                    child: FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: portrait ? size.height : size.width,
+                        height: portrait ? size.width : size.height,
+                        child: CameraPreview(controller),
+                      ),
                     ),
                   ),
                 );
@@ -251,6 +388,13 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
                     icon: const Icon(Icons.arrow_back),
                   ),
                 ),
+                if (_capture == null && _maxZoom > _minZoom)
+                  Positioned(
+                    left: AppLayout.spaceLg,
+                    right: AppLayout.spaceLg,
+                    bottom: 92,
+                    child: _zoomControl(onMedia: true),
+                  ),
                 if (_capture != null)
                   Positioned(
                     top: AppLayout.spaceSm,
@@ -289,6 +433,7 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
                             : _shoot,
                         icon: Icon(
                           _capture == null ? Icons.camera_alt : Icons.check,
+                          color: AppColors.onPrimary,
                         ),
                       ),
                       TextButton(
@@ -348,7 +493,10 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
               aspectRatio: controller.value.aspectRatio,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(AppLayout.radiusMd),
-                child: CameraPreview(controller),
+                child: _interactivePreview(
+                  controller,
+                  CameraPreview(controller),
+                ),
               ),
             )
           else if (_busy)
@@ -357,6 +505,8 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
             const SizedBox(height: AppLayout.spaceSm),
             Text(_error!, style: TextStyle(color: AppColors.error)),
           ],
+          if (_capture == null && controller != null && _maxZoom > _minZoom)
+            _zoomControl(onMedia: false),
           const SizedBox(height: AppLayout.spaceMd),
           Wrap(
             spacing: AppLayout.spaceSm,
@@ -366,7 +516,10 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
                 FilledButton.icon(
                   key: const Key('evidence-camera-shoot'),
                   onPressed: _busy ? null : _shoot,
-                  icon: const Icon(Icons.camera_alt_outlined),
+                  icon: const Icon(
+                    Icons.camera_alt_outlined,
+                    color: AppColors.onPrimary,
+                  ),
                   label: const Text('拍照'),
                 ),
               if (_capture != null) ...[

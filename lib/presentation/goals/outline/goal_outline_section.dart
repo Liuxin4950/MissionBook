@@ -558,134 +558,140 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
         ),
       ],
     );
-    final menu = PopupMenuButton<_NodeAction>(
-      color: AppColors.card,
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
-      ),
-      key: Key('node-menu-${node.id}'),
-      tooltip: '节点操作：${node.title}',
-      enabled: !_busy,
-      icon: const Icon(Icons.more_horiz, color: AppColors.textSecondary),
-      itemBuilder: (_) => archived
-          ? [
-              PopupMenuItem(
-                value: _NodeAction.restore,
-                enabled:
-                    node.parentNodeId == null ||
-                    byId[node.parentNodeId]?.archivedAt == null,
-                child: Text(
-                  node.parentNodeId != null &&
-                          byId[node.parentNodeId]?.archivedAt != null
-                      ? '请先恢复父节点'
-                      : '恢复节点及子节点',
-                ),
-              ),
-            ]
-          : [
-              if (widget.missionService != null &&
-                  widget.goal?.status == GoalStatus.active)
+    final menu = Tooltip(
+      key: Key('node-menu-tooltip-${node.id}'),
+      message: '节点操作',
+      preferBelow: false,
+      child: PopupMenuButton<_NodeAction>(
+        color: AppColors.card,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        ),
+        key: Key('node-menu-${node.id}'),
+        tooltip: '',
+        enabled: !_busy,
+        icon: const Icon(Icons.more_horiz, color: AppColors.textSecondary),
+        itemBuilder: (_) => archived
+            ? [
                 PopupMenuItem(
-                  key: Key('node-create-mission-menu-${node.id}'),
-                  value: _NodeAction.createMission,
-                  child: menuLabel(Icons.add_task_outlined, '建任务'),
+                  value: _NodeAction.restore,
+                  enabled:
+                      node.parentNodeId == null ||
+                      byId[node.parentNodeId]?.archivedAt == null,
+                  child: Text(
+                    node.parentNodeId != null &&
+                            byId[node.parentNodeId]?.archivedAt != null
+                        ? '请先恢复父节点'
+                        : '恢复节点及子节点',
+                  ),
                 ),
-              PopupMenuItem(
-                value: _NodeAction.add,
-                child: menuLabel(Icons.subdirectory_arrow_right, '添加子节点'),
-              ),
-              PopupMenuItem(
-                value: _NodeAction.edit,
-                child: menuLabel(Icons.edit_outlined, '编辑名称与说明'),
-              ),
-              if (RecordScope.maybeOf(context) != null)
+              ]
+            : [
+                if (widget.missionService != null &&
+                    widget.goal?.status == GoalStatus.active)
+                  PopupMenuItem(
+                    key: Key('node-create-mission-menu-${node.id}'),
+                    value: _NodeAction.createMission,
+                    child: menuLabel(Icons.add_task_outlined, '建任务'),
+                  ),
                 PopupMenuItem(
-                  value: _NodeAction.summary,
-                  child: menuLabel(Icons.auto_awesome_outlined, '节点摘要'),
+                  value: _NodeAction.add,
+                  child: menuLabel(Icons.subdirectory_arrow_right, '添加子节点'),
                 ),
-              PopupMenuItem(
-                value: _NodeAction.up,
-                enabled: position > 0,
-                child: menuLabel(
-                  Icons.arrow_upward,
-                  '上移',
+                PopupMenuItem(
+                  value: _NodeAction.edit,
+                  child: menuLabel(Icons.edit_outlined, '编辑名称与说明'),
+                ),
+                if (RecordScope.maybeOf(context) != null)
+                  PopupMenuItem(
+                    value: _NodeAction.summary,
+                    child: menuLabel(Icons.auto_awesome_outlined, '节点摘要'),
+                  ),
+                PopupMenuItem(
+                  value: _NodeAction.up,
                   enabled: position > 0,
+                  child: menuLabel(
+                    Icons.arrow_upward,
+                    '上移',
+                    enabled: position > 0,
+                  ),
                 ),
-              ),
-              PopupMenuItem(
-                value: _NodeAction.down,
-                enabled: position >= 0 && position < visibleSiblings.length - 1,
-                child: menuLabel(
-                  Icons.arrow_downward,
-                  '下移',
+                PopupMenuItem(
+                  value: _NodeAction.down,
                   enabled:
                       position >= 0 && position < visibleSiblings.length - 1,
+                  child: menuLabel(
+                    Icons.arrow_downward,
+                    '下移',
+                    enabled:
+                        position >= 0 && position < visibleSiblings.length - 1,
+                  ),
                 ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: _NodeAction.archive,
-                child: menuLabel(
-                  Icons.archive_outlined,
-                  '归档节点及子节点',
-                  destructive: true,
-                ),
-              ),
-              if (AssistantEntryScope.maybeOf(context) != null)
+                const PopupMenuDivider(),
                 PopupMenuItem(
-                  value: _NodeAction.assistant,
-                  child: menuLabel(Icons.auto_awesome_outlined, '问助手'),
+                  value: _NodeAction.archive,
+                  child: menuLabel(
+                    Icons.archive_outlined,
+                    '归档节点及子节点',
+                    destructive: true,
+                  ),
                 ),
-            ],
-      onSelected: (action) {
-        switch (action) {
-          case _NodeAction.summary:
-            unawaited(
-              showAnalysisSummary(
-                context,
-                scope: AnalysisScope.node,
-                id: node.id,
-                title: node.title,
-              ),
-            );
-          case _NodeAction.assistant:
-            AssistantEntryScope.maybeOf(context)?.openNode(node.id);
-          case _NodeAction.createMission:
-            final section = _taskSections[node.id]?.currentState;
-            if (section != null) unawaited(section.createMission());
-          case _NodeAction.add:
-            unawaited(_edit(parent: node));
-          case _NodeAction.edit:
-            unawaited(_edit(node: node, parent: byId[node.parentNodeId]));
-          case _NodeAction.up:
-            unawaited(
-              _run(
-                () => widget.service.moveNode(
-                  node,
-                  siblings: siblings,
-                  upward: true,
+                if (AssistantEntryScope.maybeOf(context) != null)
+                  PopupMenuItem(
+                    value: _NodeAction.assistant,
+                    child: menuLabel(Icons.auto_awesome_outlined, '问助手'),
+                  ),
+              ],
+        onSelected: (action) {
+          switch (action) {
+            case _NodeAction.summary:
+              unawaited(
+                showAnalysisSummary(
+                  context,
+                  scope: AnalysisScope.node,
+                  id: node.id,
+                  title: node.title,
                 ),
-              ),
-            );
-          case _NodeAction.down:
-            unawaited(
-              _run(
-                () => widget.service.moveNode(
-                  node,
-                  siblings: siblings,
-                  upward: false,
+              );
+            case _NodeAction.assistant:
+              AssistantEntryScope.maybeOf(context)?.openNode(node.id);
+            case _NodeAction.createMission:
+              final section = _taskSections[node.id]?.currentState;
+              if (section != null) unawaited(section.createMission());
+            case _NodeAction.add:
+              unawaited(_edit(parent: node));
+            case _NodeAction.edit:
+              unawaited(_edit(node: node, parent: byId[node.parentNodeId]));
+            case _NodeAction.up:
+              unawaited(
+                _run(
+                  () => widget.service.moveNode(
+                    node,
+                    siblings: siblings,
+                    upward: true,
+                  ),
                 ),
-              ),
-            );
-          case _NodeAction.archive:
-            unawaited(
-              _run(() => widget.service.archiveNode(node.id), archive: node),
-            );
-          case _NodeAction.restore:
-            unawaited(_run(() => widget.service.restoreNode(node.id)));
-        }
-      },
+              );
+            case _NodeAction.down:
+              unawaited(
+                _run(
+                  () => widget.service.moveNode(
+                    node,
+                    siblings: siblings,
+                    upward: false,
+                  ),
+                ),
+              );
+            case _NodeAction.archive:
+              unawaited(
+                _run(() => widget.service.archiveNode(node.id), archive: node),
+              );
+            case _NodeAction.restore:
+              unawaited(_run(() => widget.service.restoreNode(node.id)));
+          }
+        },
+      ),
     );
     Future<void> toggleChildren() async {
       if (!collapsed &&
@@ -755,11 +761,15 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                     padding: const EdgeInsets.symmetric(
                       vertical: _nodeRowPadding,
                     ),
-                    // 任务区放在整行下方，不再塞进标题旁的 Expanded 列，展开后能使用整块可用宽度。
+                    // 展开内容放在节点行下方，由任务区对齐标题列，避开树线和节点标记。
                     child: widget.missionService != null && widget.goal != null
                         ? _missionsFor(
                             node,
                             leading: treeToggle,
+                            onToggleChildren: hasChildren
+                                ? toggleChildren
+                                : null,
+                            childrenExpanded: !collapsed,
                             trailing: menu,
                             annotation: annotation,
                           )
@@ -839,10 +849,14 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   Widget _missionsFor(
     GoalNode? node, {
     Widget? leading,
+    VoidCallback? onToggleChildren,
+    bool? childrenExpanded,
     Widget? trailing,
     String? annotation,
   }) => GoalMissionsSection(
     leading: leading,
+    onToggleChildren: onToggleChildren,
+    childrenExpanded: childrenExpanded,
     trailing: trailing,
     annotation: annotation,
     relatedContent: node != null && RecordScope.maybeOf(context) != null

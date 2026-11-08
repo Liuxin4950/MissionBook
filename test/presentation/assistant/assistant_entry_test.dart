@@ -14,6 +14,7 @@ import 'package:mission_book/application/analysis/analysis_service.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/records/record_service.dart';
+import 'package:mission_book/core/theme/app_layout.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/analysis/drift_analysis_store.dart';
@@ -653,6 +654,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('assistant-persona-section')));
     await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('assistant-persona-name')))
+          .controller!
+          .text,
+      '书祺',
+    );
     await tester.enterText(
       find.byKey(const Key('assistant-persona-name')),
       '小书',
@@ -693,6 +701,22 @@ void main() {
       await tester.longPress(find.byKey(const Key('assistant-launcher')));
       await tester.pumpAndSettle();
       expect(find.text('浮窗'), findsNothing);
+      final launcher = tester.getRect(
+        find.byKey(const Key('assistant-launcher')),
+      );
+      final textBubble = tester.getRect(
+        find.byKey(const Key('assistant-mode-bubble-0')),
+      );
+      final voiceBubble = tester.getRect(
+        find.byKey(const Key('assistant-mode-bubble-1')),
+      );
+      expect(textBubble.size, const Size(56, 56));
+      expect(voiceBubble.size, const Size(56, 56));
+      expect(textBubble.bottom, lessThan(launcher.top));
+      expect(
+        launcher.top - textBubble.bottom,
+        closeTo(AppLayout.spaceXxl, 0.1),
+      );
       expect(
         tester.getSemantics(find.text('文字')),
         isSemantics(label: '文字对话', isButton: true, hasTapAction: true),
@@ -704,6 +728,66 @@ void main() {
     } finally {
       handle.dispose();
     }
+  });
+
+  assistantTest('附件菜单只保留附件入口', (tester) async {
+    await mount(tester, ScriptedModel([]));
+    await tester.longPress(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-add-attachment')));
+    await tester.pumpAndSettle();
+    expect(find.text('添加图片'), findsOneWidget);
+    expect(find.text('添加文件'), findsOneWidget);
+    expect(find.widgetWithText(PopupMenuItem<String>, '查看今天安排'), findsNothing);
+    expect(find.widgetWithText(PopupMenuItem<String>, '帮我规划今天'), findsNothing);
+    expect(find.widgetWithText(PopupMenuItem<String>, '压缩会话'), findsNothing);
+  });
+
+  assistantTest('长按助手回答选区提供复制操作', (tester) async {
+    await mount(tester, ScriptedModel([(_) => textResponse('可长按复制的回答内容')]));
+    await tester.longPress(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('assistant-input')), '你好');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('assistant-send')));
+    await pumpUntil(tester, () => !assistant.isRunning);
+    await tester.pumpAndSettle();
+
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
+    await tester.longPress(find.text('可长按复制的回答内容'));
+    await tester.pumpAndSettle();
+    expect(find.text('复制'), findsOneWidget);
+    await tester.tap(find.text('复制'));
+    await tester.pumpAndSettle();
+    expect(copied, isNotEmpty);
   });
 
   testWidgets('跨应用悬浮窗开关提供名称、状态和可操作语义', (tester) async {
@@ -771,6 +855,42 @@ void main() {
     }
   }, variant: const TargetPlatformVariant({TargetPlatform.android}));
 
+  assistantTest('思考程度菜单使用紧凑竖排选项和简洁图标', (tester) async {
+    await mount(tester, ScriptedModel([]));
+    await tester.tap(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+
+    final reasoningButton = find.byKey(const Key('assistant-reasoning'));
+    final reasoningIcon =
+        tester.widget<IconButton>(reasoningButton).icon as Icon;
+    expect(reasoningIcon.icon, Icons.lightbulb_outline_rounded);
+    await tester.tap(reasoningButton);
+    await tester.pumpAndSettle();
+
+    final items = find.byType(MenuItemButton);
+    expect(items, findsNWidgets(4));
+    final rects = [
+      for (var index = 0; index < 4; index++) tester.getRect(items.at(index)),
+    ];
+    for (var index = 0; index < rects.length; index++) {
+      expect(
+        rects[index].height,
+        greaterThanOrEqualTo(AppLayout.touchTargetMin),
+      );
+      if (index > 0) {
+        expect(rects[index].left, rects.first.left);
+        expect(rects[index].right, rects.first.right);
+        expect(rects[index].top, greaterThanOrEqualTo(rects[index - 1].bottom));
+      }
+    }
+  });
+
   assistantTest('上下文提示分别显示输入预算、输出预留和总窗口', (tester) async {
     await mount(tester, ScriptedModel([]));
     await tester.longPress(find.byKey(const Key('assistant-launcher')));
@@ -782,25 +902,29 @@ void main() {
     );
     await tester.pumpAndSettle();
     final indicator = find.byKey(const Key('assistant-context-usage'));
-    final tooltip = tester.widget<Tooltip>(
-      find.ancestor(of: indicator, matching: find.byType(Tooltip)).first,
+    expect(
+      find.ancestor(of: indicator, matching: find.byType(Tooltip)),
+      findsNothing,
     );
+    final semantics = tester.ensureSemantics();
+    final semanticLabel = tester.getSemantics(indicator).label;
+    semantics.dispose();
     expect(
       assistant.contextInputLimit,
       assistant.contextWindowTokens - assistant.reservedOutputTokens - 512,
     );
     expect(
-      tooltip.message,
+      semanticLabel,
       contains(
         '输入估算 ${assistant.estimatedContextTokens} / 可用输入 ${assistant.contextInputLimit} tokens',
       ),
     );
     expect(
-      tooltip.message,
+      semanticLabel,
       contains('输出预留 ${assistant.reservedOutputTokens} tokens'),
     );
     expect(
-      tooltip.message,
+      semanticLabel,
       contains('上下文总窗口 ${assistant.contextWindowTokens} tokens'),
     );
     final progress = tester.widget<CircularProgressIndicator>(
@@ -816,10 +940,19 @@ void main() {
         1.0,
       ),
     );
+    await tester.longPress(indicator);
+    await tester.pumpAndSettle();
+    expect(find.text('上下文与用量'), findsOneWidget);
+    expect(find.text('输入占用约'), findsNothing);
+    await tester.tap(find.byTooltip('关闭用量面板'));
+    await tester.pumpAndSettle();
     await tester.tap(indicator);
     await tester.pumpAndSettle();
     expect(find.text('上下文与用量'), findsOneWidget);
     expect(find.text('当前输入估算'), findsOneWidget);
+    expect(find.text('本会话实际用量'), findsNothing);
+    expect(find.text('尚无供应商报告的用量。'), findsNothing);
+    expect(find.text('达到可用输入预算的 80% 时自动压缩早期对话。'), findsNothing);
     currentTextScale = 2;
     tester.view.physicalSize = const Size(320, 640);
     await tester.pumpAndSettle();
@@ -861,14 +994,23 @@ void main() {
     );
     await tester.pumpAndSettle();
     final indicator = find.byKey(const Key('assistant-context-usage'));
-    final tooltip = tester.widget<Tooltip>(
-      find.ancestor(of: indicator, matching: find.byType(Tooltip)).first,
+    final semantics = tester.ensureSemantics();
+    final semanticLabel = tester.getSemantics(indicator).label;
+    semantics.dispose();
+    expect(semanticLabel, contains('会话累计输入 100 / 输出 20 tokens'));
+    expect(semanticLabel, contains('正文缓存命中率 60.0%'));
+    expect(semanticLabel, contains('最近一次正文输入 100 tokens'));
+    expect(
+      find.ancestor(of: indicator, matching: find.byType(Tooltip)),
+      findsNothing,
     );
-    expect(tooltip.message, contains('会话累计（含会话压缩与重试）：输入 100 / 输出 20 tokens'));
-    expect(tooltip.message, contains('正文缓存命中率：60.0%（缓存 60 / 输入 100）'));
-    expect(tooltip.message, contains('最近一次正文请求实际输入：100 tokens'));
-    expect(tooltip.message, contains('最近一次正文请求实际输入：100 tokens，其中缓存 60'));
     expect(assistant.sessionUsage.cacheHitRate, .6);
+    await tester.longPress(indicator);
+    await tester.pumpAndSettle();
+    expect(find.text('本会话实际用量'), findsOneWidget);
+    expect(find.text('尚无供应商报告的用量。'), findsNothing);
+    await tester.tap(find.byTooltip('关闭用量面板'));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 
@@ -1166,6 +1308,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('自定义服务').last);
     await tester.pumpAndSettle();
+    expect(find.text('模型配置的 id、provider、model 和凭据标识不能为空'), findsNothing);
+    expect(find.text('保存模型配置后可测试连接'), findsNothing);
+    expect(find.byKey(const Key('assistant-test-connection')), findsNothing);
+    await tester.ensureVisible(
+      find.byKey(const Key('assistant-save-settings')),
+    );
+    await tester.tap(find.byKey(const Key('assistant-save-settings')));
+    await tester.pumpAndSettle();
+    expect(find.text('模型配置的 id、provider、model 和凭据标识不能为空'), findsOneWidget);
     await tester.enterText(
       find.byKey(const Key('assistant-custom-endpoint')),
       'https://example.invalid/v1/chat/completions',

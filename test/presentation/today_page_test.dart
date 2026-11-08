@@ -466,6 +466,7 @@ void main() {
     // 固定区没有任务：标题和“全部任务”入口仍在，列表位置是空态提示。
     expect(find.text('计划日程'), findsOneWidget);
     expect(find.text('这一天还没有固定任务'), findsOneWidget);
+    expect(find.textContaining('当日记录'), findsNothing);
     expect(find.text('仅有自选任务'), findsOneWidget);
     expect(find.text('这一天还没有自选任务'), findsNothing);
     // 空固定列表没有时间轴可画，不应进入每秒读取。
@@ -497,6 +498,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('计划日程'), findsOneWidget);
     expect(find.text('自选时间'), findsOneWidget);
+    expect(find.textContaining('当日记录'), findsNothing);
     expect(find.text('这一天还没有固定任务'), findsOneWidget);
     expect(find.text('这一天还没有自选任务'), findsOneWidget);
     expect(find.text('这一天没有未取消的任务'), findsNothing);
@@ -902,6 +904,17 @@ void main() {
     expect(find.text('自选任务 3'), findsOneWidget);
     expect(find.text('自选任务 4'), findsNothing);
     expect(find.text('展开全部（5）'), findsOneWidget);
+    final titleStyle = tester.widget<Text>(find.text('自选任务 1')).style!;
+    expect(titleStyle.fontSize, AppTheme.light.textTheme.labelSmall?.fontSize);
+    expect(titleStyle.fontWeight, FontWeight.w500);
+    expect(
+      tester.widget<Text>(find.text('100')).style?.fontSize,
+      AppTheme.light.textTheme.titleSmall?.fontSize,
+    );
+    expect(
+      tester.widget<Text>(find.text('计划分钟')).style?.fontSize,
+      AppTheme.light.textTheme.bodySmall?.fontSize,
+    );
 
     await tester.ensureVisible(
       find.byKey(const Key('flexible-missions-toggle')),

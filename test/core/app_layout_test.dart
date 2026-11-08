@@ -17,4 +17,9 @@ void main() {
     expect(AppLayout.canSplitPane(AppLayout.paneMinContentWidth - 1), isFalse);
     expect(AppLayout.canSplitPane(AppLayout.paneMinContentWidth), isTrue);
   });
+
+  test('页面区块与分栏间距统一为 16', () {
+    expect(AppLayout.sectionGap, 16);
+    expect(AppLayout.paneGap, AppLayout.sectionGap);
+  });
 }

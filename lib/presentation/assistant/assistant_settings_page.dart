@@ -538,7 +538,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       ),
       title: Text('角色与风格', style: Theme.of(context).textTheme.titleSmall),
       subtitle: Text(
-        '${_personaName.text.trim().isEmpty ? '助手' : _personaName.text.trim()} · ${_role.label} · ${_replyStyle.label}',
+        '${_personaName.text.trim().isEmpty ? '书祺' : _personaName.text.trim()} · ${_role.label} · ${_replyStyle.label}',
         style: Theme.of(
           context,
         ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),

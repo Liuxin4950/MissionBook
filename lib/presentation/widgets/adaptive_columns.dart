@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_layout.dart';
+
 /// 根据区域实际宽度分列。始终使用同一棵 Wrap 子树，缩放时保留字段与展开状态。
 class AdaptiveColumns extends StatelessWidget {
   const AdaptiveColumns({
@@ -7,7 +9,7 @@ class AdaptiveColumns extends StatelessWidget {
     required this.children,
     this.minColumnWidth = 320,
     this.maxColumns = 3,
-    this.spacing = 20,
+    this.spacing = AppLayout.sectionGap,
   });
   final List<Widget> children;
   final double minColumnWidth;

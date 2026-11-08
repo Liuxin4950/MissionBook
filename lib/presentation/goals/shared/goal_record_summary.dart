@@ -7,7 +7,7 @@ import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/app_layout.dart';
 
-/// 目标卡和详情共用的真实记录摘要；仅统计有效节点的直接完成报告，不表示掌握程度。
+/// 目标卡和详情共用的任务完成进度；节点全部直接任务报告完成后才计为完成。
 class GoalRecordSummary extends StatefulWidget {
   const GoalRecordSummary({
     super.key,
@@ -45,7 +45,7 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
 
   Future<({int total, int completed})> _load() async {
     final nodes = await widget.goals.findNodes(widget.goalId);
-    // 覆盖率口径（有效节点、直接完成报告、去重）集中在
+    // 进度口径（有效节点、全部直接任务均有完成报告）集中在
     // domain/rules/goal_node_record_rules.dart，页面只负责展示。
     return widget.missions.findGoalCoverage(widget.goalId, nodes);
   }
@@ -91,7 +91,8 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
           return Semantics(
             key: Key('goal-record-summary-${widget.goalId}'),
             container: true,
-            label: '有效节点${value.total}项，其中${value.completed}项有直接完成记录，不表示掌握程度',
+            label:
+                '有效节点${value.total}项，其中${value.completed}项的直接任务全部报告完成，不表示掌握程度',
             child: ExcludeSemantics(
               child: Row(
                 children: [
@@ -109,7 +110,7 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
                   const SizedBox(width: AppLayout.spaceSm),
                   Flexible(
                     child: Text(
-                      '节点完成 ${value.completed}/${value.total}',
+                      '任务全部完成的节点 ${value.completed}/${value.total}',
                       style: textStyle,
                     ),
                   ),

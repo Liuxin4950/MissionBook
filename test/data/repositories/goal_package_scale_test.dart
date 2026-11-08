@@ -150,7 +150,10 @@ void main() {
       final reminders = await missions.findReminderCandidates();
       expect(reminders.length, 64);
       expect((await missions.findPlannedSnapshot()).candidates.length, 1);
-      expect(await missions.findCompletedGoalNodeIds(result.goalId), isEmpty);
+      expect(
+        await missions.findFullyCompletedGoalNodeIds(result.goalId),
+        isEmpty,
+      );
       now = DateTime.utc(2030, 1, 1, 0, 3);
       final started = await missions.reconcileScheduledMissions();
       expect(started.length, 1);

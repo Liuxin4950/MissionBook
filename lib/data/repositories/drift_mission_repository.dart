@@ -151,8 +151,8 @@ WHERE m.cancelled_at IS NULL AND r.time_policy='FIXED'
   Future<List<MissionDetail>> findReminderCandidates() =>
       _queries.findReminderCandidates();
   @override
-  Future<Set<String>> findCompletedGoalNodeIds(String goalId) =>
-      _queries.findCompletedGoalNodeIds(goalId);
+  Future<Set<String>> findFullyCompletedGoalNodeIds(String goalId) =>
+      _queries.findFullyCompletedGoalNodeIds(goalId);
   @override
   Future<List<MissionGoalChoices>> findGoalChoices() =>
       _queries.findGoalChoices();

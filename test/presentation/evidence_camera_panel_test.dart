@@ -1,17 +1,21 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' show Point;
 import 'dart:typed_data';
 
 import 'package:camera_platform_interface/camera_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
+import 'package:mission_book/core/theme/colors.dart';
 import 'package:mission_book/presentation/attachments/photo_capture_panel.dart';
 
 class _Camera extends CameraPlatform {
   bool denied = false;
   int created = 0;
   int disposed = 0;
+  double zoomLevel = 1;
+  Offset? focusPoint;
   final errors = StreamController<CameraErrorEvent>.broadcast();
   Completer<XFile>? pending;
   final bytes = File(
@@ -50,7 +54,7 @@ class _Camera extends CameraPlatform {
           ExposureMode.auto,
           false,
           FocusMode.auto,
-          false,
+          true,
         ),
       );
   @override
@@ -69,6 +73,22 @@ class _Camera extends CameraPlatform {
   Future<void> dispose(int cameraId) async {
     disposed++;
     errors.add(CameraErrorEvent(cameraId, 'closed'));
+  }
+
+  @override
+  Future<double> getMinZoomLevel(int cameraId) async => 1;
+
+  @override
+  Future<double> getMaxZoomLevel(int cameraId) async => 4;
+
+  @override
+  Future<void> setZoomLevel(int cameraId, double zoom) async {
+    zoomLevel = zoom;
+  }
+
+  @override
+  Future<void> setFocusPoint(int cameraId, Point<double>? point) async {
+    focusPoint = point == null ? null : Offset(point.x, point.y);
   }
 }
 
@@ -133,6 +153,41 @@ void main() {
     await close(tester);
   });
 
+  testWidgets('预览点按设置对焦点，变焦滑杆调用设备变焦', (tester) async {
+    await open(tester);
+    expect(find.byKey(const Key('camera-zoom-slider')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('camera-preview-gestures')));
+    await tester.pumpAndSettle();
+    expect(camera.focusPoint, isNotNull);
+    expect(camera.focusPoint!.dx, closeTo(0.5, 0.02));
+    expect(camera.focusPoint!.dy, closeTo(0.5, 0.02));
+    expect(find.byKey(const Key('camera-focus-indicator')), findsOneWidget);
+
+    final slider = tester.widget<Slider>(
+      find.byKey(const Key('camera-zoom-slider')),
+    );
+    slider.onChanged!(3);
+    await tester.pumpAndSettle();
+    expect(camera.zoomLevel, 3);
+
+    final center = tester.getCenter(
+      find.byKey(const Key('camera-preview-gestures')),
+    );
+    final firstFinger = await tester.startGesture(center - const Offset(20, 0));
+    final secondFinger = await tester.startGesture(
+      center + const Offset(20, 0),
+    );
+    await tester.pump();
+    await firstFinger.moveTo(center - const Offset(60, 0));
+    await secondFinger.moveTo(center + const Offset(60, 0));
+    await tester.pump();
+    await firstFinger.up();
+    await secondFinger.up();
+    await tester.pumpAndSettle();
+    expect(camera.zoomLevel, greaterThan(3));
+    await close(tester);
+  });
+
   testWidgets('照片保存失败保留同一份照片，重试不重复拍照', (tester) async {
     var attempts = 0;
     final captured = <Uint8List>[];
@@ -166,6 +221,13 @@ void main() {
         if (++attempts == 1) throw StateError('test disk error');
       },
     );
+    final shutterIcon = tester.widget<Icon>(
+      find.descendant(
+        of: find.byKey(const Key('evidence-camera-shoot')),
+        matching: find.byType(Icon),
+      ),
+    );
+    expect(shutterIcon.color, AppColors.onPrimary);
     await tester.tap(find.byKey(const Key('evidence-camera-shoot')));
     await tester.pumpAndSettle();
     expect(find.byTooltip('重试保存照片'), findsOneWidget);

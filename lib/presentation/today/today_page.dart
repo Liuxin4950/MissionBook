@@ -468,13 +468,13 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                       ),
                     )
                   else ...[
-                    const SizedBox(height: AppLayout.spaceLg),
+                    const SizedBox(height: AppLayout.spaceMd),
                     _WeekStrip(
                       selectedDate: _selectedDate,
                       today: _today,
                       onSelect: _changeDate,
                     ),
-                    const SizedBox(height: AppLayout.spaceLg),
+                    const SizedBox(height: AppLayout.spaceMd),
                   ],
                   IgnorePointer(
                     ignoring: _isChangingDate,
@@ -508,7 +508,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                     ),
                   ),
                   if (!widget.fullSchedule && _pendingEvidence.isNotEmpty) ...[
-                    const SizedBox(height: AppLayout.spaceXxl),
+                    const SizedBox(height: AppLayout.sectionGap),
                     Text(
                       '待补材料',
                       style: Theme.of(context).textTheme.titleMedium,
@@ -583,7 +583,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
               onOpenMission: _openDetail,
               onCreate: _openCreate,
             ),
-            const SizedBox(height: AppLayout.spaceXl),
+            const SizedBox(height: AppLayout.spaceMd),
             _ScheduleOverview(missions: missions),
           ],
         );
@@ -706,12 +706,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                     flex: 3,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        schedule,
-                        DailyRecordsStrip(
-                          date: display.scheduleDateKey(_selectedDate),
-                        ),
-                      ],
+                      children: [schedule],
                     ),
                   ),
                   const SizedBox(width: AppLayout.spaceXl),
@@ -720,9 +715,8 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
               )
             else ...[
               schedule,
-              DailyRecordsStrip(date: display.scheduleDateKey(_selectedDate)),
               if (!widget.fullSchedule) ...[
-                const SizedBox(height: AppLayout.spaceXl),
+                const SizedBox(height: AppLayout.spaceMd),
                 side,
               ],
             ],
@@ -1267,7 +1261,6 @@ class _MissionDetails extends StatelessWidget {
           style: _todayTitleStyle(context).copyWith(
             // 已取消由分区和状态文字表达，保留可阅读的完整标题。
             color: item.isCancelled ? theme.colorScheme.onSurfaceVariant : null,
-            fontWeight: item.isCancelled ? FontWeight.w500 : FontWeight.w600,
           ),
         ),
         SizedBox(height: compact ? 2 : 4),
@@ -1360,7 +1353,7 @@ class _ScheduleOverview extends StatelessWidget {
                           color: theme.colorScheme.primary,
                         ),
                         const SizedBox(height: AppLayout.spaceXs),
-                        Text(entry.$2, style: theme.textTheme.titleMedium),
+                        Text(entry.$2, style: theme.textTheme.titleSmall),
                         const SizedBox(height: AppLayout.spaceXs),
                         Text(
                           entry.$3,

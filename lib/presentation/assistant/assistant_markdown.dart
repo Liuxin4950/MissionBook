@@ -77,7 +77,18 @@ class _AssistantMarkdownState extends State<AssistantMarkdown> {
     final markdown = _isLongReply(nodes)
         ? _buildLongReply(context, nodes, styleSheet)
         : _buildBody(nodes, styleSheet);
-    return RepaintBoundary(child: SelectionArea(child: markdown));
+    return RepaintBoundary(
+      child: SelectionArea(
+        contextMenuBuilder: (context, state) =>
+            AdaptiveTextSelectionToolbar.buttonItems(
+              anchors: state.contextMenuAnchors,
+              buttonItems: state.contextMenuButtonItems
+                  .where((item) => item.type == ContextMenuButtonType.copy)
+                  .toList(),
+            ),
+        child: markdown,
+      ),
+    );
   }
 
   MarkdownStyleSheet _createStyleSheet(BuildContext context) {

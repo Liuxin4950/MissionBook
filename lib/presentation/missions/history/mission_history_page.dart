@@ -168,7 +168,9 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
                     SliverPadding(
-                      padding: AppLayout.pagePadding(context),
+                      padding: AppLayout.pagePadding(
+                        context,
+                      ).copyWith(bottom: 0),
                       sliver: SliverList(
                         delegate: SliverChildListDelegate([
                           AppPageHeader(
@@ -199,7 +201,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                                 : const Key('history-finished'),
                             onSelected: _selectCancelled,
                           ),
-                          const SizedBox(height: AppLayout.spaceXl),
+                          const SizedBox(height: AppLayout.spaceMd),
                           if (waiting)
                             const Padding(
                               padding: EdgeInsets.all(AppLayout.space3Xl),
@@ -249,8 +251,9 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                             final entry = entries[index];
                             if (entry.day case final day?) {
                               return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: AppLayout.spaceMd,
+                                padding: EdgeInsets.only(
+                                  top: index == 0 ? 0 : AppLayout.spaceSm,
+                                  bottom: AppLayout.spaceSm,
                                 ),
                                 child: Text(
                                   day,
@@ -263,12 +266,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
                             final record = entry.record!;
                             return KeyedSubtree(
                               key: ValueKey(record.mission.id),
-                              child: Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppLayout.spaceMd,
-                                ),
-                                child: _recordCard(record),
-                              ),
+                              child: _recordCard(record),
                             );
                           }, childCount: entries.length),
                         ),
@@ -356,7 +354,7 @@ class _MissionHistoryPageState extends State<MissionHistoryPage>
     final evidence = _cancelled ? '' : evidenceStatusLabel(detail);
     return Padding(
       key: ValueKey('history-record-${detail.mission.id}'),
-      padding: const EdgeInsets.only(bottom: AppLayout.spaceMd),
+      padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
       child: Material(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(AppLayout.radiusXl),

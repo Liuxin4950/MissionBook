@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/settings/app_device.dart';
+import 'package:mission_book/core/theme/app_layout.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
@@ -205,6 +206,11 @@ void main() {
     );
     now = now.add(const Duration(minutes: 10));
     await open(tester);
+    final profileCard = tester.getRect(find.byKey(const Key('profile-card')));
+    final recentRecords = tester.getRect(
+      find.byKey(const Key('profile-recent-records')),
+    );
+    expect(recentRecords.top - profileCard.bottom, AppLayout.sectionGap);
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('profile-stat-进行中目标')))

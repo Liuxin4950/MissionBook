@@ -111,7 +111,7 @@ class _Welcome extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(height: AppLayout.spaceXxl),
+        const SizedBox(height: AppLayout.sectionGap),
         Text('从这里开始', style: text.titleMedium),
         const SizedBox(height: AppLayout.spaceMd),
         AdaptiveColumns(

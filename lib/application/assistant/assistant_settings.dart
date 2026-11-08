@@ -42,7 +42,7 @@ enum AssistantAvatar { spark, book, compass }
 /// 角色设定只调整称呼与表达；工具授权始终由宿主设置决定。
 class AssistantPersona {
   const AssistantPersona({
-    this.name = '助手',
+    this.name = '书祺',
     this.role = AssistantRole.assistant,
     this.replyStyle = AssistantReplyStyle.concise,
     this.avatar = AssistantAvatar.spark,
@@ -77,7 +77,7 @@ class AssistantPersona {
 
   factory AssistantPersona.fromJson(Map<String, Object?> value) {
     final persona = AssistantPersona(
-      name: value['name'] is String ? value['name'] as String : '助手',
+      name: value['name'] is String ? value['name'] as String : '书祺',
       userAddress: value['userAddress'] is String
           ? value['userAddress'] as String
           : '',

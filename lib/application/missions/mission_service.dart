@@ -355,7 +355,7 @@ class MissionService {
     if (source is MissionQueryRepository) {
       return goalNodeCoverageFromIds(
         nodes,
-        await source.findCompletedGoalNodeIds(goalId),
+        await source.findFullyCompletedGoalNodeIds(goalId),
       );
     }
     return goalNodeCoverage(nodes, await findForGoal(goalId));

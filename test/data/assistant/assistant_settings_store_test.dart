@@ -9,7 +9,7 @@ void main() {
   test('角色名称、定位、回答风格和图标持久化，非法名称不覆盖原配置', () async {
     FlutterSecureStorage.setMockInitialValues({});
     const store = SecureAssistantSettingsStore();
-    expect((await store.load()).persona.name, '助手');
+    expect((await store.load()).persona.name, '书祺');
     await store.savePersona(
       const AssistantPersona(
         name: '小书',
@@ -23,6 +23,7 @@ void main() {
     expect(restored.name, '小书');
     expect(restored.userAddress, '小刘');
     expect(AssistantPersona.fromJson({'name': '旧配置'}).userAddress, isEmpty);
+    expect(AssistantPersona.fromJson({'role': 'coach'}).name, '书祺');
     await expectLater(
       store.savePersona(const AssistantPersona(userAddress: '含有\n换行')),
       throwsArgumentError,

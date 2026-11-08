@@ -20,7 +20,7 @@ abstract final class AppLayout {
   static const formMaxWidth = 1080.0;
   static const dashboardSplitWidth = 840.0; // 已扣除侧栏和页面边距。
 
-  static const sectionGap = spaceXxl;
+  static const sectionGap = spaceLg;
 
   // 断点（语义化常量）：compact < mediumBreakpoint ≤ medium < expandedBreakpoint。
   static const mediumBreakpoint = 600.0;
@@ -33,7 +33,7 @@ abstract final class AppLayout {
   // 双栏三要素：左栏最小宽 + 栏间距 + 右栏最小宽。
   // 只有内容区宽度凑齐三者才分栏，否则自动落回单列（宽窗口也可能因侧栏落回）。
   static const paneLeftMin = 480.0;
-  static const paneGap = 24.0;
+  static const paneGap = spaceLg;
   static const paneRightMin = 360.0;
   static const paneMinContentWidth = paneLeftMin + paneGap + paneRightMin;
 

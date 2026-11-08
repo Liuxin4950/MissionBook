@@ -268,9 +268,9 @@ class _ActionStep extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.only(
               top: AppLayout.spaceXs,
-              bottom: last ? 0 : AppLayout.spaceXxl,
+              bottom: last ? 0 : AppLayout.spaceMd,
             ),
-            child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+            child: Text(text, style: Theme.of(context).textTheme.titleSmall),
           ),
         ),
       ],
@@ -386,7 +386,7 @@ class _MaterialRequirementsCard extends StatelessWidget {
                       ),
                       Text(
                         _localTimeLabel(deadline, detail.schedule.timeZone),
-                        style: theme.textTheme.bodyLarge,
+                        style: theme.textTheme.bodyMedium,
                       ),
                     ],
                   ),
@@ -551,7 +551,7 @@ class _ScheduleFact extends StatelessWidget {
               const SizedBox(height: AppLayout.spaceXs),
               Text(
                 value,
-                style: theme.textTheme.bodyLarge?.copyWith(color: foreground),
+                style: theme.textTheme.bodyMedium?.copyWith(color: foreground),
               ),
             ],
           ),

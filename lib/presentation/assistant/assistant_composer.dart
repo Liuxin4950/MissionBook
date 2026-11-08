@@ -215,25 +215,6 @@ class _AssistantComposer {
                               _page._attachments.length <
                               AssistantAttachment.maxCount,
                         ),
-                        const PopupMenuDivider(height: 8),
-                        _composerMenuItem(
-                          'today',
-                          Icons.today_outlined,
-                          '查看今天安排',
-                        ),
-                        _composerMenuItem(
-                          'plan',
-                          Icons.auto_awesome_outlined,
-                          '帮我规划今天',
-                        ),
-                        _composerMenuItem(
-                          'compact',
-                          Icons.compress_rounded,
-                          '压缩会话',
-                          enabled:
-                              controller.hasCredential &&
-                              controller.transcript.isNotEmpty,
-                        ),
                       ],
                     ),
                     if (_page._voice != null)
@@ -307,7 +288,7 @@ class _AssistantComposer {
     final scale = MediaQuery.textScalerOf(context).scale(1);
     final available = (MediaQuery.sizeOf(context).width - AppLayout.space3Xl)
         .clamp(0.0, double.infinity);
-    final width = (160 * scale).clamp(0.0, available);
+    final width = (128 * scale).clamp(0.0, available);
     final colors = Theme.of(context).colorScheme;
     return MenuAnchor(
       style: const MenuStyle(
@@ -325,32 +306,31 @@ class _AssistantComposer {
       menuChildren: [
         SizedBox(
           width: width,
-          child: Wrap(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (final effort in ReasoningEffort.values)
-                SizedBox(
-                  width: width / 2,
-                  child: MenuItemButton(
-                    onPressed: () =>
-                        unawaited(_selectReasoning(controller, effort)),
-                    style: const ButtonStyle(
-                      padding: WidgetStatePropertyAll(EdgeInsets.zero),
-                      minimumSize: WidgetStatePropertyAll(
-                        Size(0, AppLayout.touchTargetMin),
-                      ),
-                      shape: WidgetStatePropertyAll(
-                        RoundedRectangleBorder(
-                          borderRadius: BorderRadius.all(
-                            Radius.circular(AppLayout.radiusMd),
-                          ),
+                MenuItemButton(
+                  onPressed: () =>
+                      unawaited(_selectReasoning(controller, effort)),
+                  style: const ButtonStyle(
+                    padding: WidgetStatePropertyAll(EdgeInsets.zero),
+                    minimumSize: WidgetStatePropertyAll(
+                      Size(0, AppLayout.touchTargetMin),
+                    ),
+                    shape: WidgetStatePropertyAll(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(
+                          Radius.circular(AppLayout.radiusMd),
                         ),
                       ),
                     ),
-                    child: AppSelectionOption(
-                      selected: effort == controller.reasoningEffort,
-                      enabled: true,
-                      child: Text(assistantReasoningLabel(effort)),
-                    ),
+                  ),
+                  child: AppSelectionOption(
+                    selected: effort == controller.reasoningEffort,
+                    enabled: true,
+                    child: Text(assistantReasoningLabel(effort)),
                   ),
                 ),
             ],
@@ -370,7 +350,10 @@ class _AssistantComposer {
               : colors.primary,
           disabledForegroundColor: AppColors.onDisabled,
         ),
-        icon: const Icon(Icons.psychology_outlined, size: AppLayout.iconMd),
+        icon: const Icon(
+          Icons.lightbulb_outline_rounded,
+          size: AppLayout.iconMd,
+        ),
       ),
     );
   }
@@ -415,32 +398,6 @@ class _AssistantComposer {
         await _pickAttachment(true);
       case 'file':
         await _pickAttachment(false);
-      case 'today':
-        await widget.controller.loadLocalSchedule();
-      case 'plan':
-        _page._usePrompt('帮我规划今天的任务，先查看我的安排。');
-      case 'compact':
-        try {
-          final result = await widget.controller.compactConversation();
-          if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                result == null ? '当前会话较短，暂不需要压缩' : '已压缩上下文，聊天记录已保留',
-              ),
-            ),
-          );
-        } catch (error) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  error is StateError ? error.message : '压缩未完成，请重试；原聊天记录已保留',
-                ),
-              ),
-            );
-          }
-        }
     }
   }
 
@@ -456,45 +413,35 @@ class _AssistantComposer {
       '输入估算 $used / 可用输入 $limit tokens',
       '输出预留 ${controller.reservedOutputTokens} tokens',
       '上下文总窗口 ${controller.contextWindowTokens} tokens',
-      if (session.hasUsage) ...[
-        '会话累计（含会话压缩与重试）：输入 ${session.usage.inputTokens} / 输出 ${session.usage.outputTokens} tokens',
-        if (cacheRate != null)
-          '正文缓存命中率：${(cacheRate * 100).toStringAsFixed(1)}%（缓存 ${session.cacheUsage.cachedInputTokens} / 输入 ${session.cacheUsage.inputTokens}）${session.cacheComplete ? '' : '（仅已报告请求）'}'
-        else if (session.cacheComplete)
-          '正文缓存命中率：暂无输入用量'
-        else
-          '正文缓存命中率：—（没有请求报告缓存）',
-        if (last != null)
-          '最近一次正文请求实际输入：${last.inputTokens} tokens${last.cacheReported == true ? '，其中缓存 ${last.cachedInputTokens}' : ''}',
-        if (session.hasIncompleteUsage)
-          '有 ${session.incompleteReports} 次尝试未完整结束，统计可能偏低',
-      ],
-    ].join('\n');
-    return Tooltip(
-      message: label,
-      triggerMode: TooltipTriggerMode.longPress,
-      child: Semantics(
-        label: label,
+      if (session.hasUsage)
+        '会话累计输入 ${session.usage.inputTokens} / 输出 ${session.usage.outputTokens} tokens',
+      if (cacheRate != null) '正文缓存命中率 ${(cacheRate * 100).toStringAsFixed(1)}%',
+      if (last != null) '最近一次正文输入 ${last.inputTokens} tokens',
+      if (session.hasIncompleteUsage)
+        '${session.incompleteReports} 次请求未完整结束，用量可能偏低',
+      '点按或长按查看图表和详细用量',
+    ].join('；');
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      label: label,
+      button: true,
+      onTap: () => _showContextUsage(controller),
+      child: ExcludeSemantics(
         child: IconButton(
           key: const Key('assistant-context-usage'),
-          onPressed: () => showModalBottomSheet<void>(
-            context: context,
-            isScrollControlled: true,
-            useSafeArea: true,
-            builder: (_) => _AssistantContextSheet(controller: controller),
-          ),
+          onPressed: () => _showContextUsage(controller),
+          onLongPress: () => _showContextUsage(controller),
           icon: SizedBox.square(
             dimension: 20,
             child: CircularProgressIndicator(
               value: ratio,
               strokeWidth: 3,
-              backgroundColor: AppColors.hairline,
+              backgroundColor: colors.surfaceContainerHighest,
               color: ratio >= .9
-                  ? AppColors.error
+                  ? colors.error
                   : ratio >= .75
                   ? AppColors.warning
-                  : AppColors.primary,
-              semanticsLabel: '输入预算占用',
+                  : colors.primary,
               semanticsValue: '${(ratio * 100).round()}%',
             ),
           ),
@@ -502,6 +449,20 @@ class _AssistantComposer {
       ),
     );
   }
+
+  Future<void> _showContextUsage(AssistantController controller) =>
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppLayout.radiusXxl),
+          ),
+        ),
+        builder: (_) => _AssistantContextSheet(controller: controller),
+      );
 
   Future<void> _send() async {
     final text = _page._input.text.trim();

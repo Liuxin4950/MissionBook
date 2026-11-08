@@ -287,8 +287,9 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     final anchor = _anchor();
     final bounds = _safeBounds(context);
     final rail = widget.navigationRailWidth;
-    const choiceSize = 64.0;
+    const choiceSize = 56.0;
     const choiceGap = 32.0;
+    const anchorGap = AppLayout.spaceXxl;
     const choiceCount = 2;
     final columns = choiceCount;
     final rows = (choiceCount / columns).ceil();
@@ -302,7 +303,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
       math.max(bounds.left, bounds.right - groupWidth),
     );
     final requestedTop = rail == null
-        ? anchor.top - groupHeight - 12
+        ? anchor.top - groupHeight - anchorGap
         : anchor.center.dy - groupHeight / 2;
     final top = requestedTop.clamp(
       bounds.top,
@@ -567,6 +568,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
       excludeSemantics: true,
       onTap: () => _select(index),
       child: Material(
+        key: Key('assistant-mode-bubble-$index'),
         color: _hover == index ? AppColors.primarySoft : AppColors.card,
         elevation: 4,
         shape: const CircleBorder(),
@@ -574,15 +576,15 @@ class AssistantLauncherState extends State<AssistantLauncher> {
           customBorder: const CircleBorder(),
           onTap: () => _select(index),
           child: SizedBox(
-            width: 64,
-            height: 64,
+            width: 56,
+            height: 56,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   index == 0 ? Icons.keyboard_outlined : Icons.mic_none,
                   color: AppColors.primary,
-                  size: AppLayout.iconLg,
+                  size: AppLayout.iconMd,
                 ),
                 Text(
                   index == 0 ? '文字' : '语音',

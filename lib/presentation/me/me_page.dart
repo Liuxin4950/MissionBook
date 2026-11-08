@@ -265,12 +265,12 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                 icon: const Icon(Icons.settings_outlined),
               ),
             ),
-            const SizedBox(height: AppLayout.spaceXxl),
+            const SizedBox(height: AppLayout.sectionGap),
             AdaptiveColumns(
               key: const Key('me-workspace-columns'),
               minColumnWidth: 400,
               maxColumns: 2,
-              spacing: AppLayout.spaceXxl,
+              spacing: AppLayout.paneGap,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -282,7 +282,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                       onRetry: _loadProfile,
                     ),
                     if (_statsError == null && _recentRecords.isNotEmpty) ...[
-                      const SizedBox(height: AppLayout.spaceXxl),
+                      const SizedBox(height: AppLayout.sectionGap),
                       _RecentRecords(
                         records: _recentRecords,
                         onOpen: _openRecord,
@@ -402,6 +402,7 @@ class _RecentRecords extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     return AppSectionCard(
+      key: const Key('profile-recent-records'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

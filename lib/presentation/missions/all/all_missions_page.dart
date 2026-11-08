@@ -387,7 +387,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                           matches,
                           showDate: true,
                         ),
-                    const SizedBox(height: AppLayout.spaceXxl),
+                    const SizedBox(height: AppLayout.sectionGap),
                     AppSectionCard(
                       padding: EdgeInsets.zero,
                       child: AppExpansionTile(

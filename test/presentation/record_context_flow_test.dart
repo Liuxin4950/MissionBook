@@ -172,8 +172,7 @@ void main() {
     );
     await tester.pumpWidget(app(const RecordDetail(id: 'long-record')));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('修改文字 / 说明'));
-    await tester.tap(find.text('修改文字 / 说明'));
+    await tester.tap(find.byTooltip('编辑记录'));
     await tester.pumpAndSettle();
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,

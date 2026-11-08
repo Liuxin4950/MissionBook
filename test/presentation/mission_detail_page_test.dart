@@ -580,6 +580,10 @@ void main() {
     );
     expect(find.text('10月22日 18:00'), findsOneWidget);
     expect(
+      tester.widget<Text>(find.text('10月22日 18:00')).style?.fontSize,
+      AppTheme.light.textTheme.bodyMedium?.fontSize,
+    );
+    expect(
       tester.getTopLeft(find.text('计划')).dy,
       greaterThan(tester.getBottomLeft(find.text('10月22日 18:00')).dy),
     );
@@ -607,6 +611,10 @@ void main() {
       );
       expect(find.text(label), findsOneWidget);
     }
+    expect(
+      tester.widget<Text>(find.text('从任务编号开始')).style?.fontSize,
+      AppTheme.light.textTheme.titleSmall?.fontSize,
+    );
     expect(find.text('尚未报告'), findsNothing);
     expect(tester.takeException(), isNull);
   });

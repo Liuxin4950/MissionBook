@@ -29,6 +29,8 @@ class GoalMissionsSection extends StatefulWidget {
     required this.missions,
     required this.onRefresh,
     this.leading,
+    this.onToggleChildren,
+    this.childrenExpanded,
     this.trailing,
     this.annotation,
     this.relatedContent,
@@ -40,6 +42,8 @@ class GoalMissionsSection extends StatefulWidget {
   final Future<List<MissionDetail>> missions; // 上层一次读取整个目标，各节点在内存中筛选直接关联项。
   final VoidCallback onRefresh;
   final Widget? leading; // 节点树传入展开箭头；任务区负责把它与节点标题放在同一行。
+  final VoidCallback? onToggleChildren;
+  final bool? childrenExpanded;
   final Widget? trailing; // 节点维护菜单，由原来的树组件提供，操作逻辑不搬到这里。
   final String? annotation;
   final Widget? relatedContent; // 节点自身的记录入口，与任务并列，由目标工作区组装。
@@ -59,6 +63,17 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
   Future<void> _toggle() async {
     if (mounted) setState(() => _expanded = !_expanded);
   }
+
+  Widget _createMissionAction(String title) => IconButton(
+    key: Key('node-create-mission-${widget.node?.id ?? widget.goal.id}'),
+    tooltip: '为“$title”新建任务',
+    onPressed: _opening ? null : () => _open(),
+    icon: const Icon(
+      Icons.add_rounded,
+      size: AppLayout.iconSm,
+      color: AppColors.primary,
+    ),
+  );
 
   Future<void> _open({MissionDetail? detail}) async {
     if (_opening) return;
@@ -162,8 +177,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
           }
           return a.mission.id.compareTo(b.mission.id);
         });
-        // 完成记录与记录标签的口径集中在 domain/rules/goal_node_record_rules.dart，
-        // 这里只负责展示；“完成”只是 END 报告已完成，不表示掌握程度。
+        // 完成记录与任务状态的口径集中在 domain/rules/goal_node_record_rules.dart。
         final pageCount = direct.isEmpty
             ? 1
             : (direct.length + _pageSize - 1) ~/ _pageSize;
@@ -177,6 +191,8 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
           label = '正在读取任务…';
         }
         final title = widget.node?.title ?? '仅关联目标的任务';
+        final showTaskSummary =
+            snapshot.hasError || _lastMissions == null || direct.isNotEmpty;
         final createButton = available
             ? TextButton.icon(
                 key: Key(
@@ -199,9 +215,9 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
         }
         final statusText = snapshot.hasError || _lastMissions == null
             ? label
-            : direct.isEmpty
-            ? '未建任务'
             : '$label · ${direct.length} 项任务';
+        final titleAction =
+            widget.onToggleChildren ?? (showTaskSummary ? _toggle : null);
         final leading = SizedBox.square(
           key: Key('node-marker-${widget.node?.id ?? widget.goal.id}'),
           dimension: GoalMissionsSection.markerExtent,
@@ -211,7 +227,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                 widget.node == null
                     ? Icons.flag_outlined
                     : completed
-                    ? Icons.check_circle_outline
+                    ? Icons.receipt_long_outlined
                     : Icons.radio_button_unchecked,
                 size: AppLayout.iconSm,
                 color: completed ? AppColors.primary : AppColors.outline,
@@ -230,77 +246,108 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                 children: [
                   leading,
                   Expanded(
-                    child: Semantics(
-                      button: true,
-                      expanded: _expanded,
-                      hint: _expanded ? '收起任务与说明' : '展开任务与说明',
-                      child: InkWell(
-                        key: Key(
-                          'node-tasks-${widget.node?.id ?? widget.goal.id}',
-                        ),
-                        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
-                        onTap: _toggle,
-                        child: Padding(
-                          padding: const EdgeInsets.only(
-                            top: AppLayout.spaceSm,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                title,
-                                maxLines: _expanded ? null : 1,
-                                overflow: _expanded
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Semantics(
+                                button: titleAction != null,
+                                expanded: widget.onToggleChildren == null
+                                    ? _expanded
+                                    : widget.childrenExpanded,
+                                hint: titleAction == null
                                     ? null
-                                    : TextOverflow.ellipsis,
-                                style: theme.textTheme.titleSmall,
-                              ),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            statusText,
-                                            style: theme.textTheme.bodySmall,
-                                          ),
-                                        ),
-                                        const SizedBox(
-                                          width: AppLayout.spaceXs,
-                                        ),
-                                        Icon(
-                                          _expanded
-                                              ? Icons.expand_less
-                                              : Icons.expand_more,
-                                          size: AppLayout.iconSm,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ],
+                                    : widget.onToggleChildren != null
+                                    ? (widget.childrenExpanded == true
+                                          ? '收起子节点'
+                                          : '展开子节点')
+                                    : (_expanded ? '收起任务' : '展开任务'),
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: AppLayout.touchTargetMin,
+                                  ),
+                                  child: InkWell(
+                                    key: Key(
+                                      'node-title-${widget.node?.id ?? widget.goal.id}',
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      AppLayout.radiusSm,
+                                    ),
+                                    onTap: titleAction,
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        title,
+                                        maxLines: _expanded ? null : 1,
+                                        overflow: _expanded
+                                            ? null
+                                            : TextOverflow.ellipsis,
+                                        style: theme.textTheme.titleSmall,
+                                      ),
                                     ),
                                   ),
-                                  if (available)
-                                    IconButton(
-                                      key: Key(
-                                        'node-create-mission-${widget.node?.id ?? widget.goal.id}',
+                                ),
+                              ),
+                            ),
+                            if (available) _createMissionAction(title),
+                            if (widget.trailing != null) widget.trailing!,
+                          ],
+                        ),
+                        if (showTaskSummary)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Semantics(
+                                  button: true,
+                                  expanded: _expanded,
+                                  hint: _expanded ? '收起任务' : '展开任务',
+                                  child: InkWell(
+                                    key: Key(
+                                      'node-tasks-${widget.node?.id ?? widget.goal.id}',
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      AppLayout.radiusSm,
+                                    ),
+                                    onTap: _toggle,
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        minHeight: AppLayout.touchTargetMin,
                                       ),
-                                      tooltip: '为“$title”新建任务',
-                                      onPressed: _opening
-                                          ? null
-                                          : () => _open(),
-                                      icon: const Icon(
-                                        Icons.add_rounded,
-                                        size: AppLayout.iconSm,
-                                        color: AppColors.primary,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: AppLayout.spaceXs,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                statusText,
+                                                style:
+                                                    theme.textTheme.bodySmall,
+                                              ),
+                                            ),
+                                            const SizedBox(
+                                              width: AppLayout.spaceXs,
+                                            ),
+                                            Icon(
+                                              _expanded
+                                                  ? Icons.expand_less
+                                                  : Icons.expand_more,
+                                              size: AppLayout.iconSm,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  if (widget.trailing != null) widget.trailing!,
-                                ],
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                      ),
+                      ],
                     ),
                   ),
                 ],
@@ -345,60 +392,64 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
-              if (_expanded) ...[
-                if (snapshot.hasError)
-                  TextButton(
-                    onPressed: widget.onRefresh,
-                    child: const Text('重试读取任务'),
+              if (_expanded)
+                Padding(
+                  // 节点内容从标题列开始，避开树线与标记；目标直属任务保持原宽度。
+                  padding: EdgeInsets.only(
+                    left: widget.node == null
+                        ? 0
+                        : GoalMissionsSection.markerExtent,
                   ),
-                if (widget.node?.description != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppLayout.spaceMd,
-                      AppLayout.spaceSm,
-                      AppLayout.spaceMd,
-                      AppLayout.spaceMd,
-                    ),
-                    child: Text(
-                      widget.node!.description!,
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ),
-                for (final detail
-                    in direct.skip(pageIndex * _pageSize).take(_pageSize))
-                  _taskTile(
-                    context,
-                    detail,
-                    emphasized:
-                        detail.phase == MissionPhase.running ||
-                        (detail.phase == MissionPhase.paused ||
-                            detail.phase == MissionPhase.reportPending),
-                  ),
-                if (direct.length > _pageSize)
-                  Wrap(
-                    spacing: AppLayout.spaceSm,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      TextButton(
-                        onPressed: pageIndex == 0
-                            ? null
-                            : () => setState(() => _pageIndex = pageIndex - 1),
-                        child: const Text('上一页任务'),
-                      ),
-                      Text(
-                        '${pageIndex + 1}/$pageCount 页 · 共 ${direct.length} 项',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      TextButton(
-                        onPressed: (pageIndex + 1) * _pageSize >= direct.length
-                            ? null
-                            : () => setState(() => _pageIndex = pageIndex + 1),
-                        child: const Text('下一页任务'),
-                      ),
+                      if (snapshot.hasError)
+                        TextButton(
+                          onPressed: widget.onRefresh,
+                          child: const Text('重试读取任务'),
+                        ),
+                      for (final detail
+                          in direct.skip(pageIndex * _pageSize).take(_pageSize))
+                        _taskTile(
+                          context,
+                          detail,
+                          emphasized:
+                              detail.phase == MissionPhase.running ||
+                              (detail.phase == MissionPhase.paused ||
+                                  detail.phase == MissionPhase.reportPending),
+                        ),
+                      if (direct.length > _pageSize)
+                        Wrap(
+                          spacing: AppLayout.spaceSm,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            TextButton(
+                              onPressed: pageIndex == 0
+                                  ? null
+                                  : () => setState(
+                                      () => _pageIndex = pageIndex - 1,
+                                    ),
+                              child: const Text('上一页任务'),
+                            ),
+                            Text(
+                              '${pageIndex + 1}/$pageCount 页 · 共 ${direct.length} 项',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            TextButton(
+                              onPressed:
+                                  (pageIndex + 1) * _pageSize >= direct.length
+                                  ? null
+                                  : () => setState(
+                                      () => _pageIndex = pageIndex + 1,
+                                    ),
+                              child: const Text('下一页任务'),
+                            ),
+                          ],
+                        ),
+                      if (widget.relatedContent != null) widget.relatedContent!,
                     ],
                   ),
-                if (widget.relatedContent != null) widget.relatedContent!,
-              ],
+                ),
             ],
           ),
         );
@@ -414,16 +465,27 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
     final theme = Theme.of(context);
     final phase = phaseLabel(detail.phase, schedule: detail.schedule);
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppLayout.spaceXs),
+      padding: EdgeInsets.only(
+        left: widget.node == null ? 0 : AppLayout.spaceMd,
+        bottom: AppLayout.spaceXs,
+      ),
       child: Material(
         key: ValueKey('goal-task-${detail.mission.id}'),
-        color: emphasized ? AppColors.primarySoft : AppColors.card,
-        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+        color: emphasized ? AppColors.primarySoft : AppColors.surfaceMuted,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+          side: BorderSide(
+            color: emphasized ? AppColors.primary : AppColors.hairline,
+          ),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: _opening ? null : () => _open(detail: detail),
           child: Padding(
-            padding: const EdgeInsets.all(AppLayout.spaceMd),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppLayout.spaceMd,
+              vertical: AppLayout.spaceSm,
+            ),
             child: Row(
               children: [
                 Expanded(

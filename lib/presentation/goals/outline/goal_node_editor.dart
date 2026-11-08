@@ -227,7 +227,7 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                     color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: AppLayout.spaceXxl),
+                const SizedBox(height: AppLayout.sectionGap),
                 AppTextField(
                   key: const Key('node-title-input'),
                   controller: _title,
@@ -250,7 +250,7 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                   label: '节点说明（选填）',
                   hint: '需要时再补充范围或学习重点',
                 ),
-                const SizedBox(height: AppLayout.spaceXxl),
+                const SizedBox(height: AppLayout.sectionGap),
                 if (_error != null) ...[
                   Semantics(
                     liveRegion: true,

@@ -352,7 +352,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
         ),
       ],
       const Padding(
-        padding: EdgeInsets.symmetric(vertical: AppLayout.spaceXxl),
+        padding: EdgeInsets.symmetric(vertical: AppLayout.sectionGap),
         child: Divider(height: 1),
       ),
       _timeFields(),

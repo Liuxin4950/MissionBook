@@ -8,6 +8,8 @@ abstract interface class MissionQueryRepository {
   Future<List<MissionDetail>> findDetailsByIds(List<String> ids);
   Future<PlannedMissionSnapshot> findPlannedSnapshot();
   Future<List<MissionDetail>> findReminderCandidates();
-  Future<Set<String>> findCompletedGoalNodeIds(String goalId);
+
+  /// 有直接任务且全部直接任务都报告完成的目标节点。
+  Future<Set<String>> findFullyCompletedGoalNodeIds(String goalId);
   Future<OperationReceiptInfo?> findOperationReceipt(String operationId);
 }

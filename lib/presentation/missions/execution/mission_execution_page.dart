@@ -481,7 +481,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
               ],
             ),
           ),
-          const SizedBox(height: AppLayout.spaceXxl),
+          const SizedBox(height: AppLayout.sectionGap),
           MissionEvidenceSection(
             key: _evidenceKey,
             detail: detail,
@@ -622,7 +622,7 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
               ],
             ),
           ),
-          const SizedBox(height: AppLayout.spaceXl),
+          const SizedBox(height: AppLayout.sectionGap),
           Text(
             detail.phase == MissionPhase.reportPending
                 ? '计划时间已到，计时已停止。确认完成情况后可补充材料。'

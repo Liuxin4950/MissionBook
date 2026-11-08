@@ -118,3 +118,6 @@ app.*.map.json
 
 # 独立 agent_core 验证产物
 /packages/agent_core/build/
+
+# 本机助手会话记忆与临时工作数据，不进入 Git
+/.workbuddy-ai/

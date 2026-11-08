@@ -83,7 +83,7 @@ class _MissionOwnershipFieldState extends State<MissionOwnershipField> {
           ? [label]
           : [info.goal.title, ...info.path.map((node) => node.title)];
       return Padding(
-        padding: const EdgeInsets.only(bottom: AppLayout.spaceXxl),
+        padding: const EdgeInsets.only(bottom: AppLayout.sectionGap),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

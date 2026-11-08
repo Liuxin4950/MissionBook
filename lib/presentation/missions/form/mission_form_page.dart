@@ -903,7 +903,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: AppLayout.spaceXxl),
+                                const SizedBox(height: AppLayout.sectionGap),
                               ],
                             ),
                           ],

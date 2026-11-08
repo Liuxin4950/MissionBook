@@ -241,7 +241,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                           widget.goal == null ? '你希望做到什么？' : '调整目标内容',
                           style: theme.textTheme.titleLarge,
                         ),
-                        const SizedBox(height: AppLayout.spaceXxl),
+                        const SizedBox(height: AppLayout.sectionGap),
                         AppTextField(
                           key: const Key('goal-title-input'),
                           controller: _title,
@@ -276,7 +276,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                           minLines: 2,
                           maxLines: 6,
                         ),
-                        const SizedBox(height: AppLayout.spaceXxl),
+                        const SizedBox(height: AppLayout.sectionGap),
                         DropdownButtonFormField<int>(
                           initialValue: _desire ?? 0,
                           decoration: const InputDecoration(labelText: '希望程度'),

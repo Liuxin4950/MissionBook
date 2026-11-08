@@ -7,6 +7,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/core/theme/app_layout.dart';
+import 'package:mission_book/core/theme/colors.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
@@ -304,9 +306,33 @@ void main() {
     expect(find.byKey(Key('node-row-${node.id}')), findsNothing);
     await tap(tester, 'node-expand-${parent.id}');
     expect(find.byKey(Key('node-row-${node.id}')), findsOneWidget);
+    await tap(tester, 'node-title-${parent.id}');
+    expect(find.byKey(Key('node-row-${node.id}')), findsNothing);
+    await tap(tester, 'node-title-${parent.id}');
+    expect(find.byKey(Key('node-row-${node.id}')), findsOneWidget);
     await tap(tester, 'node-tasks-${parent.id}');
     expect(find.text('父节点任务'), findsOneWidget);
     expect(find.byKey(Key('node-row-${node.id}')), findsOneWidget);
+    final parentHeader = tester.getRect(
+      find.byKey(Key('node-header-${parent.id}')),
+    );
+    final parentActions = [
+      tester.getRect(find.byKey(Key('node-create-mission-${parent.id}'))),
+      tester.getRect(find.byKey(Key('node-menu-${parent.id}'))),
+    ];
+    for (final action in parentActions) {
+      expect(action.top, parentHeader.top);
+    }
+    expect(
+      parentHeader.top,
+      lessThan(tester.getRect(find.byKey(Key('node-tasks-${parent.id}'))).top),
+    );
+    expect(
+      tester
+          .widget<Tooltip>(find.byKey(Key('node-menu-tooltip-${parent.id}')))
+          .preferBelow,
+      isFalse,
+    );
     await tap(tester, 'node-menu-${parent.id}');
     expect(find.text('添加子节点'), findsOneWidget);
     expect(find.byKey(Key('node-row-${node.id}')), findsOneWidget);
@@ -316,6 +342,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('node-title-input')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('子节点任务卡紧凑缩进并用浅底区分层级，窄屏大字仍适配', (tester) async {
+    final task = await create(title: '练习布局层级', nodeId: node.id);
+    for (final size in [
+      (width: 473.0, scale: 1.0),
+      (width: 320.0, scale: 2.0),
+    ]) {
+      await open(tester, width: size.width, scale: size.scale);
+      await tap(tester, 'node-tasks-${node.id}');
+      expect(find.text('理解约束'), findsNothing);
+      final card = tester.getRect(
+        find.byKey(ValueKey('goal-task-${task.mission.id}')),
+      );
+      final marker = tester.getRect(find.byKey(Key('node-marker-${node.id}')));
+      final header = tester.getRect(find.byKey(Key('node-header-${node.id}')));
+      expect(card.left, closeTo(marker.right + AppLayout.spaceMd, 0.01));
+      expect(card.right, closeTo(header.right, 0.01));
+      expect(card.width, greaterThan(0));
+      expect(
+        tester
+            .widget<Material>(
+              find.byKey(ValueKey('goal-task-${task.mission.id}')),
+            )
+            .color,
+        AppColors.surfaceMuted,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
   });
 
   testWidgets('从节点直接建任务，预填名称说明原因，可以改成独立任务', (tester) async {
@@ -456,7 +512,7 @@ void main() {
         tester
             .getSemantics(find.byKey(Key('goal-record-summary-${goal.id}')))
             .label,
-        '有效节点2项，其中1项有直接完成记录，不表示掌握程度',
+        '有效节点2项，其中0项的直接任务全部报告完成，不表示掌握程度',
       );
     } finally {
       semantics.dispose();
@@ -467,9 +523,18 @@ void main() {
         of: find.byKey(Key('node-row-${parent.id}')),
         matching: find.text('未建任务'),
       ),
+      findsNothing,
+    );
+    expect(find.byKey(Key('node-create-mission-${parent.id}')), findsOneWidget);
+    expect(find.textContaining('部分完成 · 2 项任务'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(Key('node-marker-${node.id}')),
+        matching: find.byIcon(Icons.receipt_long_outlined),
+      ),
       findsOneWidget,
     );
-    expect(find.textContaining('有完成记录 · 2'), findsOneWidget);
+    expect(find.textContaining('任务全部完成的节点 0/2'), findsOneWidget);
     expect(find.text('待补材料'), findsOneWidget);
     await tap(tester, 'node-tasks-${node.id}');
     expect(find.text('下一次练习'), findsOneWidget);
@@ -491,6 +556,41 @@ void main() {
     expect(find.byKey(Key('node-create-mission-${node.id}')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('目标摘要只在节点的全部直接任务完成后增加进度', (tester) async {
+    final first = await create(title: '第一项', nodeId: node.id);
+    final second = await create(title: '第二项', nodeId: node.id);
+
+    Future<void> complete(MissionDetail detail) async {
+      await missions.execute(
+        missions.prepareExecution(
+          detail: detail,
+          type: ExecutionEventType.start,
+        ),
+      );
+      final started = (await missions.findDetail(
+        missionId: detail.mission.id,
+      ))!;
+      await missions.execute(
+        missions.prepareExecution(
+          detail: started,
+          type: ExecutionEventType.end,
+          report: UserReportedResult.completed,
+          submitOptionalEvidence: true,
+        ),
+      );
+    }
+
+    await complete(first);
+    await open(tester);
+    expect(find.text('任务全部完成的节点 0/2'), findsOneWidget);
+    expect(find.textContaining('部分完成 · 2 项任务'), findsOneWidget);
+
+    await complete(second);
+    await tester.pumpAndSettle();
+    expect(find.text('任务全部完成的节点 1/2'), findsOneWidget);
+    expect(find.textContaining('已完成 · 2 项任务'), findsOneWidget);
   });
 
   testWidgets('节点任务进入独立执行页，报告返回保护草稿且不保存 END', (tester) async {

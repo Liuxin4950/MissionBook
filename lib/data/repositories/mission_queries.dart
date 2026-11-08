@@ -203,13 +203,21 @@ LIMIT 64
           ]),
         ];
       });
-  Future<Set<String>> findCompletedGoalNodeIds(String goalId) async {
+  Future<Set<String>> findFullyCompletedGoalNodeIds(String goalId) async {
     final rows = await _repository.database
         .customSelect(
           '''
 SELECT DISTINCT m.goal_node_id FROM missions m
-JOIN execution_events e ON e.mission_id=m.id AND e.type='END' AND e.user_reported_result='COMPLETED'
 WHERE m.goal_id=? AND m.goal_node_id IS NOT NULL
+AND NOT EXISTS (
+  SELECT 1 FROM missions pending
+  WHERE pending.goal_id=m.goal_id AND pending.goal_node_id=m.goal_node_id
+  AND NOT EXISTS (
+    SELECT 1 FROM execution_events e
+    WHERE e.mission_id=pending.id AND e.type='END'
+      AND e.user_reported_result='COMPLETED'
+  )
+)
 ''',
           variables: [Variable<String>(goalId)],
         )

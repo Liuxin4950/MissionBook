@@ -51,6 +51,7 @@ class _ModelFormState extends State<_ModelForm> {
   late String _profile = widget.controller.modelProfileId;
   late ReasoningEffort _reasoning = widget.controller.reasoningEffort;
   bool _saving = false, _testing = false, _showKey = false;
+  bool _attemptedSave = false;
   String? _error, _result, _connectionResult, _connectionError;
   String _errorText(Object error) =>
       userErrorMessage(error, fallback: '设置无效，请检查输入');
@@ -103,9 +104,9 @@ class _ModelFormState extends State<_ModelForm> {
     title: 'AI 模型',
     changed: _modelChanged,
     busy: _saving || _testing || widget.controller.isBusy,
-    error: _error ?? (_modelChanged ? _validationError : null),
+    error: _error ?? (_attemptedSave ? _validationError : null),
     message: _result,
-    onSave: _modelChanged && _validationError == null ? _save : null,
+    onSave: _modelChanged ? _save : null,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -125,6 +126,14 @@ class _ModelFormState extends State<_ModelForm> {
   );
   Future<void> _save() async {
     if (_saving || _testing || widget.controller.isBusy) return;
+    final validationError = _validationError;
+    if (validationError != null) {
+      setState(() {
+        _attemptedSave = true;
+        _error = null;
+      });
+      return;
+    }
     FocusScope.of(context).unfocus();
     final profileId = _profile;
     final profile = profileId == 'custom' ? _readCustomProfile() : null;
@@ -132,6 +141,7 @@ class _ModelFormState extends State<_ModelForm> {
     final reasoning = _reasoning;
     setState(() {
       _saving = true;
+      _attemptedSave = false;
       _error = null;
       _result = null;
       _connectionError = null;
@@ -244,11 +254,6 @@ class _ModelFormState extends State<_ModelForm> {
               ? null
               : (value) => setState(() => _reasoning = value ?? _reasoning),
         ),
-        const SizedBox(height: AppLayout.spaceSm),
-        Text(
-          '按模型服务保存；较高程度可能增加等待与用量，实际支持由所用服务决定。',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
         if (_profile == 'custom') ..._customFields(),
         const SizedBox(height: AppLayout.spaceMd),
         TextField(
@@ -288,44 +293,36 @@ class _ModelFormState extends State<_ModelForm> {
               label: const Text('清除已保存 Key'),
             ),
           ),
-        const SizedBox(height: AppLayout.spaceSm),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            key: const Key('assistant-test-connection'),
-            onPressed:
-                _saving ||
-                    _testing ||
-                    widget.controller.isBusy ||
-                    _modelChanged ||
-                    !widget.controller.profileHasCredential(_profile)
-                ? null
-                : _testConnection,
-            icon: _testing
-                ? const SizedBox.square(
-                    dimension: AppLayout.iconSm,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(
-                    Icons.network_check_outlined,
-                    size: AppLayout.iconSm,
-                  ),
-            label: Text(_testing ? '正在测试…' : '测试连接'),
+        if (!_modelChanged &&
+            widget.controller.profileHasCredential(_profile)) ...[
+          const SizedBox(height: AppLayout.spaceSm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const Key('assistant-test-connection'),
+              onPressed: _saving || _testing || widget.controller.isBusy
+                  ? null
+                  : _testConnection,
+              icon: _testing
+                  ? const SizedBox.square(
+                      dimension: AppLayout.iconSm,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(
+                      Icons.network_check_outlined,
+                      size: AppLayout.iconSm,
+                    ),
+              label: Text(_testing ? '正在测试…' : '测试连接'),
+            ),
           ),
-        ),
-        if (_modelChanged ||
-            _connectionError != null ||
-            _connectionResult != null)
+        ],
+        if (_connectionError != null || _connectionResult != null)
           Semantics(
             liveRegion: true,
             child: Text(
-              _modelChanged
-                  ? '保存模型配置后可测试连接'
-                  : _connectionError ?? _connectionResult!,
+              _connectionError ?? _connectionResult!,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: _modelChanged
-                    ? AppColors.textSecondary
-                    : _connectionError != null
+                color: _connectionError != null
                     ? AppColors.error
                     : AppColors.primary,
               ),
@@ -396,13 +393,11 @@ class _ModelFormState extends State<_ModelForm> {
     SwitchListTile(
       contentPadding: EdgeInsets.zero,
       title: const Text('此模型支持图片'),
-      subtitle: const Text('仅在供应商明确支持图片输入时开启。'),
       value: _images,
       onChanged: _saving || _testing || widget.controller.isBusy
           ? null
           : (value) => setState(() => _images = value),
     ),
-    const Text('地址需与协议一致；保存不会发起模型请求。'),
   ];
 
   Future<void> _clearCredential() async {
