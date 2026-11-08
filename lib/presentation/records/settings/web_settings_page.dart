@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../core/theme/app_layout.dart';
-import '../widgets/app_confirm_dialog.dart';
-import '../widgets/app_empty_state.dart';
-import '../widgets/app_section_card.dart';
-import '../widgets/app_section_header.dart';
-import '../widgets/app_settings_row.dart';
-import '../widgets/app_top_bar.dart';
-import '../widgets/app_info_sheet.dart';
-import 'record_scope.dart';
-import '../widgets/page_footer_bar.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_empty_state.dart';
+import '../../widgets/app_section_card.dart';
+import '../../widgets/app_section_header.dart';
+import '../../widgets/app_settings_row.dart';
+import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_info_sheet.dart';
+import '../shared/record_scope.dart';
+import '../../widgets/page_footer_bar.dart';
 
 /// 搜索凭据和本地额度沿既有 WebService 保存，页面管理加载、草稿和反馈。
 class WebSettingsPage extends StatefulWidget {

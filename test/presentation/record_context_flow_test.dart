@@ -1,8 +1,8 @@
-import 'package:mission_book/presentation/records/material_record_source.dart';
+import 'package:mission_book/presentation/records/shared/material_record_source.dart';
 import 'package:mission_book/domain/entities/record_draft.dart';
 import 'package:mission_book/data/repositories/drift_memory_repository.dart';
 import 'package:mission_book/application/memory/memory_service.dart';
-import 'package:mission_book/presentation/records/memory_page.dart';
+import 'package:mission_book/presentation/records/settings/memory_page.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,8 +15,8 @@ import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/missions/history/mission_history_page.dart';
-import 'package:mission_book/presentation/records/record_scope.dart';
-import 'package:mission_book/presentation/records/records_page.dart';
+import 'package:mission_book/presentation/records/shared/record_scope.dart';
+import 'package:mission_book/presentation/records/list/records_page.dart';
 import 'package:mission_book/presentation/missions/execution/execution_report_button.dart';
 
 void main() {

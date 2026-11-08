@@ -1,21 +1,21 @@
-import '../../core/theme/colors.dart';
-import '../../domain/entities/analysis_scope.dart';
+import '../../../core/theme/colors.dart';
+import '../../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../core/theme/app_layout.dart';
-import '../widgets/app_confirm_dialog.dart';
-import '../widgets/app_empty_state.dart';
-import '../widgets/app_section_card.dart';
-import '../widgets/app_settings_row.dart';
-import '../widgets/app_top_bar.dart';
-import '../widgets/app_info_sheet.dart';
-import 'record_scope.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_empty_state.dart';
+import '../../widgets/app_section_card.dart';
+import '../../widgets/app_settings_row.dart';
+import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_info_sheet.dart';
+import '../shared/record_scope.dart';
 import 'package:uuid/uuid.dart';
-import '../widgets/adaptive_sheet.dart';
-import '../widgets/app_date_picker.dart';
-import '../widgets/app_dropdown_form_field.dart';
-import '../widgets/app_expansion.dart';
-import '../../application/errors/user_error_message.dart';
+import '../../widgets/adaptive_sheet.dart';
+import '../../widgets/app_date_picker.dart';
+import '../../widgets/app_dropdown_form_field.dart';
+import '../../widgets/app_expansion.dart';
+import '../../../application/errors/user_error_message.dart';
 
 String _dateLabel(DateTime date) => '${date.year}年${date.month}月${date.day}日';
 String _kindLabel(Object? kind) => switch (kind) {

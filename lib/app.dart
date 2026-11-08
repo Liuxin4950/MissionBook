@@ -12,7 +12,7 @@ import 'data/analysis/analysis_preferences_store.dart';
 import 'data/assistant/drift_unified_reader.dart';
 import 'data/web/web_settings_store.dart';
 import 'data/web/public_http_client.dart';
-import 'presentation/records/record_scope.dart';
+import 'presentation/records/shared/record_scope.dart';
 import 'application/settings/motion_settings.dart';
 import 'data/settings/motion_settings_store.dart';
 import 'presentation/widgets/motion_settings_scope.dart';

@@ -15,7 +15,7 @@ import 'package:mission_book/domain/entities/execution_command.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
-import 'package:mission_book/presentation/records/record_scope.dart';
+import 'package:mission_book/presentation/records/shared/record_scope.dart';
 import '../data/repositories/mission_cancellation_test.dart' show seedMission;
 
 class LostResponseRepository extends DriftMissionRepository {

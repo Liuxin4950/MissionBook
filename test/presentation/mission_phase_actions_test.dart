@@ -19,9 +19,9 @@ import 'package:mission_book/presentation/missions/detail/mission_detail_page.da
 import 'package:mission_book/presentation/missions/detail/mission_detail_content.dart';
 import 'package:mission_book/presentation/missions/evidence/mission_evidence_section.dart';
 import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
-import 'package:mission_book/presentation/records/analysis_panel.dart';
-import 'package:mission_book/presentation/records/record_scope.dart';
-import 'package:mission_book/presentation/records/records_page.dart';
+import 'package:mission_book/presentation/records/analysis/analysis_panel.dart';
+import 'package:mission_book/presentation/records/shared/record_scope.dart';
+import 'package:mission_book/presentation/records/list/records_page.dart';
 
 void main() {
   late DateTime now;

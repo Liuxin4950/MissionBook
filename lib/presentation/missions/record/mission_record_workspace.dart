@@ -1,8 +1,8 @@
 import '../../../domain/entities/analysis_scope.dart';
 import '../../../domain/entities/execution_event.dart';
-import '../../records/analysis_panel.dart';
+import '../../records/analysis/analysis_panel.dart';
 import '../execution/execution_report_button.dart';
-import '../../records/record_scope.dart';
+import '../../records/shared/record_scope.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';

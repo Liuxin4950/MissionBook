@@ -25,7 +25,7 @@ import '../shared/mission_execution_display.dart';
 import '../record/mission_record_workspace.dart';
 import '../detail/mission_detail_page.dart';
 import '../evidence/mission_evidence_section.dart';
-import '../../records/records_page.dart';
+import '../../records/list/records_page.dart';
 
 /// 已 START 任务的独立执行页；离开页面不会停止或暂停真实执行。
 /// 结束报告与材料留在独立工作流中，旧自报独立页沿用原记录路由。

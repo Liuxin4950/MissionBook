@@ -12,7 +12,7 @@ import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
-import 'package:mission_book/presentation/records/record_scope.dart';
+import 'package:mission_book/presentation/records/shared/record_scope.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
 import 'package:mission_book/presentation/widgets/app_page_header.dart';
 

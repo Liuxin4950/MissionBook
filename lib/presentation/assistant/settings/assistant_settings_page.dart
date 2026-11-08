@@ -1,10 +1,10 @@
 import '../../../application/errors/user_error_message.dart';
 import 'dart:async';
 
-import '../../records/memory_page.dart';
-import '../../records/web_settings_page.dart';
-import '../../records/analysis_settings_page.dart';
-import '../../records/record_scope.dart';
+import '../../records/settings/memory_page.dart';
+import '../../records/settings/web_settings_page.dart';
+import '../../records/analysis/analysis_settings_page.dart';
+import '../../records/shared/record_scope.dart';
 import '../../widgets/app_dropdown_form_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';

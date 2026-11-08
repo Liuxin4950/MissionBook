@@ -1,7 +1,7 @@
 import '../../../domain/entities/analysis_scope.dart';
-import '../../records/analysis_panel.dart';
-import '../../records/records_page.dart';
-import '../../records/record_scope.dart';
+import '../../records/analysis/analysis_panel.dart';
+import '../../records/list/records_page.dart';
+import '../../records/shared/record_scope.dart';
 
 import 'dart:async';
 

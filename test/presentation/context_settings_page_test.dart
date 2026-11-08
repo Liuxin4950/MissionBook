@@ -20,10 +20,10 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
 import 'package:mission_book/data/web/web_settings_store.dart';
-import 'package:mission_book/presentation/records/memory_page.dart';
-import 'package:mission_book/presentation/records/web_settings_page.dart';
-import 'package:mission_book/presentation/records/analysis_settings_page.dart';
-import 'package:mission_book/presentation/records/record_scope.dart';
+import 'package:mission_book/presentation/records/settings/memory_page.dart';
+import 'package:mission_book/presentation/records/settings/web_settings_page.dart';
+import 'package:mission_book/presentation/records/analysis/analysis_settings_page.dart';
+import 'package:mission_book/presentation/records/shared/record_scope.dart';
 import 'package:mission_book/presentation/widgets/app_top_bar.dart';
 
 class _WebSettings implements WebSettingsStore {

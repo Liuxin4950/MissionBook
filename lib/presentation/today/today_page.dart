@@ -1,5 +1,5 @@
-import '../records/records_page.dart';
-import '../records/record_scope.dart';
+import '../records/list/records_page.dart';
+import '../records/shared/record_scope.dart';
 import '../widgets/app_date_picker.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';

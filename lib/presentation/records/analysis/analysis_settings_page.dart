@@ -1,16 +1,16 @@
-import '../../domain/entities/analysis_scope.dart';
+import '../../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../core/theme/app_layout.dart';
-import '../widgets/app_confirm_dialog.dart';
-import '../widgets/app_empty_state.dart';
-import '../widgets/app_section_card.dart';
-import '../widgets/app_settings_row.dart';
-import '../widgets/app_top_bar.dart';
-import '../widgets/app_info_sheet.dart';
-import 'record_scope.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_empty_state.dart';
+import '../../widgets/app_section_card.dart';
+import '../../widgets/app_settings_row.dart';
+import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_info_sheet.dart';
+import '../shared/record_scope.dart';
 import 'package:flutter/foundation.dart' show setEquals;
-import '../widgets/page_footer_bar.dart';
+import '../../widgets/page_footer_bar.dart';
 
 /// 各层总结共用分析服务的持久偏好，页面保存后立即约束后台取任务。
 class AnalysisSettingsPage extends StatefulWidget {

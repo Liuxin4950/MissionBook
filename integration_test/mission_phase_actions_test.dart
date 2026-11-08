@@ -18,9 +18,9 @@ import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/web/web_settings_store.dart';
 import 'package:mission_book/presentation/assistant/settings/assistant_settings_page.dart';
-import 'package:mission_book/presentation/records/memory_page.dart';
-import 'package:mission_book/presentation/records/web_settings_page.dart';
-import 'package:mission_book/presentation/records/analysis_settings_page.dart';
+import 'package:mission_book/presentation/records/settings/memory_page.dart';
+import 'package:mission_book/presentation/records/settings/web_settings_page.dart';
+import 'package:mission_book/presentation/records/analysis/analysis_settings_page.dart';
 import 'package:http/http.dart' as http;
 import '../test/support/assistant_fakes.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
@@ -34,8 +34,8 @@ import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/presentation/missions/detail/mission_detail_page.dart';
 import 'package:mission_book/presentation/missions/execution/mission_execution_page.dart';
-import 'package:mission_book/presentation/records/analysis_panel.dart';
-import 'package:mission_book/presentation/records/record_scope.dart';
+import 'package:mission_book/presentation/records/analysis/analysis_panel.dart';
+import 'package:mission_book/presentation/records/shared/record_scope.dart';
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();

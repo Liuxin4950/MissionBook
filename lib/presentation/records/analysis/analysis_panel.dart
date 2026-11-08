@@ -1,12 +1,12 @@
-import '../../core/theme/colors.dart';
-import '../../domain/entities/analysis_scope.dart';
+import '../../../core/theme/colors.dart';
+import '../../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../widgets/app_expansion.dart';
-import '../widgets/app_confirm_dialog.dart';
-import '../../core/theme/app_layout.dart';
-import 'record_scope.dart';
-import '../widgets/adaptive_sheet.dart';
+import '../../widgets/app_expansion.dart';
+import '../../widgets/app_confirm_dialog.dart';
+import '../../../core/theme/app_layout.dart';
+import '../shared/record_scope.dart';
+import '../../widgets/adaptive_sheet.dart';
 
 /// 次要总结操作由菜单打开，保留原页面的节点或任务上下文。
 Future<void> showAnalysisSummary(

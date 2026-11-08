@@ -1,5 +1,5 @@
 import '../../../domain/entities/content_draft.dart';
-import '../../records/material_record_source.dart';
+import '../../records/shared/material_record_source.dart';
 import '../../../application/errors/user_error_message.dart';
 import 'dart:async';
 import 'dart:typed_data';

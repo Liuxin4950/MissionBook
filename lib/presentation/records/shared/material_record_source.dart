@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../domain/entities/saved_record.dart';
+import '../../../domain/entities/saved_record.dart';
 import 'record_scope.dart';
-import 'records_page.dart';
+import '../list/records_page.dart';
 
 /// 仅展示材料来源的存续状态；材料正文始终来自已提交快照。
 class MaterialRecordSource extends StatefulWidget {

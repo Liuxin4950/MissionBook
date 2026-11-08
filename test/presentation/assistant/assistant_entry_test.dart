@@ -30,8 +30,8 @@ import 'package:mission_book/presentation/assistant/shared/assistant_markdown.da
 import 'package:mission_book/presentation/assistant/settings/assistant_settings_page.dart';
 import 'package:mission_book/presentation/assistant/settings/assistant_model_settings_page.dart';
 import 'package:mission_book/presentation/assistant/settings/assistant_speech_settings_page.dart';
-import 'package:mission_book/presentation/records/record_scope.dart';
-import 'package:mission_book/presentation/records/records_page.dart';
+import 'package:mission_book/presentation/records/shared/record_scope.dart';
+import 'package:mission_book/presentation/records/list/records_page.dart';
 
 import '../../support/assistant_fakes.dart';
 import '../../support/me_fakes.dart';

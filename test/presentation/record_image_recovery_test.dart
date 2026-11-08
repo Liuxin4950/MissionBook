@@ -17,8 +17,8 @@ import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
-import 'package:mission_book/presentation/records/record_scope.dart';
-import 'package:mission_book/presentation/records/records_page.dart';
+import 'package:mission_book/presentation/records/shared/record_scope.dart';
+import 'package:mission_book/presentation/records/list/records_page.dart';
 
 class _Images implements AttachmentStore, ImageAttachmentPicker {
   late Uint8List bytes;

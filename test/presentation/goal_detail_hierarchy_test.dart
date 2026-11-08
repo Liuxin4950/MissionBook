@@ -17,8 +17,8 @@ import 'package:mission_book/domain/entities/goal_node.dart';
 import 'package:mission_book/domain/entities/record_draft.dart';
 import 'package:mission_book/domain/entities/saved_record.dart';
 import 'package:mission_book/presentation/goals/detail/goal_detail_page.dart';
-import 'package:mission_book/presentation/records/record_scope.dart';
-import 'package:mission_book/presentation/records/records_page.dart';
+import 'package:mission_book/presentation/records/shared/record_scope.dart';
+import 'package:mission_book/presentation/records/list/records_page.dart';
 
 class _Records extends DriftRecordRepository {
   _Records(super.db);

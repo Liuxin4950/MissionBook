@@ -1,8 +1,8 @@
-import '../../application/memory/memory_service.dart';
-import '../../application/web/web_service.dart';
+import '../../../application/memory/memory_service.dart';
+import '../../../application/web/web_service.dart';
 import 'package:flutter/material.dart';
-import '../../application/records/record_service.dart';
-import '../../application/analysis/analysis_service.dart';
+import '../../../application/records/record_service.dart';
+import '../../../application/analysis/analysis_service.dart';
 
 class RecordScope extends InheritedWidget {
   const RecordScope({

@@ -1,7 +1,7 @@
 import '../../../domain/entities/content_draft.dart';
 import '../../../domain/entities/execution_event.dart';
-import '../../records/record_scope.dart';
-import '../../records/records_page.dart';
+import '../../records/shared/record_scope.dart';
+import '../../records/list/records_page.dart';
 import '../../widgets/app_page_header.dart';
 import '../../widgets/app_segmented_control.dart';
 import 'dart:async';
