@@ -17,7 +17,7 @@ import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/web/web_settings_store.dart';
-import 'package:mission_book/presentation/assistant/assistant_settings_page.dart';
+import 'package:mission_book/presentation/assistant/settings/assistant_settings_page.dart';
 import 'package:mission_book/presentation/records/memory_page.dart';
 import 'package:mission_book/presentation/records/web_settings_page.dart';
 import 'package:mission_book/presentation/records/analysis_settings_page.dart';

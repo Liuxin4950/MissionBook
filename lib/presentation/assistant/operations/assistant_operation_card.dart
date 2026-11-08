@@ -1,18 +1,18 @@
-import '../widgets/app_dropdown_form_field.dart';
+import '../../widgets/app_dropdown_form_field.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../../application/assistant/assistant_controller.dart';
-import '../../core/theme/colors.dart';
-import '../../domain/entities/mission.dart';
-import '../../domain/entities/mission_detail.dart';
-import '../../domain/rules/historical_completion_rules.dart';
+import '../../../application/assistant/assistant_controller.dart';
+import '../../../core/theme/colors.dart';
+import '../../../domain/entities/mission.dart';
+import '../../../domain/entities/mission_detail.dart';
+import '../../../domain/rules/historical_completion_rules.dart';
 import 'assistant_schedule_card.dart';
 import 'assistant_outline_editor.dart';
-import '../../application/assistant/assistant_goal_outline.dart';
-import '../../core/theme/app_layout.dart';
-import '../widgets/app_expansion.dart';
+import '../../../application/assistant/assistant_goal_outline.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../widgets/app_expansion.dart';
 
 class AssistantOperationCard extends StatefulWidget {
   const AssistantOperationCard({

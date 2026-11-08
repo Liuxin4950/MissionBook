@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../data/speech/speech_model_store.dart';
-import '../../core/theme/app_layout.dart';
+import '../../../data/speech/speech_model_store.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 用户主动下载离线模型；离开这一区域会取消尚未完成的下载。
 class OfflineSpeechModelSection extends StatefulWidget {

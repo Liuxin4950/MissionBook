@@ -1,13 +1,13 @@
-import '../../application/errors/user_error_message.dart';
+import '../../../application/errors/user_error_message.dart';
 import 'package:flutter/material.dart';
 
-import '../../application/assistant/assistant_controller.dart';
-import '../../core/theme/app_layout.dart';
-import '../../application/assistant/assistant_conversation_store.dart';
-import '../../core/theme/colors.dart';
-import '../widgets/app_confirm_dialog.dart';
-import '../widgets/app_empty_state.dart';
-import '../widgets/app_top_bar.dart';
+import '../../../application/assistant/assistant_controller.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../../application/assistant/assistant_conversation_store.dart';
+import '../../../core/theme/colors.dart';
+import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_empty_state.dart';
+import '../../widgets/app_top_bar.dart';
 
 class AssistantHistoryPage extends StatefulWidget {
   const AssistantHistoryPage({super.key, required this.controller});

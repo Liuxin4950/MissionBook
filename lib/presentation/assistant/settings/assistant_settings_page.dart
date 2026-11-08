@@ -1,29 +1,29 @@
-import '../../application/errors/user_error_message.dart';
+import '../../../application/errors/user_error_message.dart';
 import 'dart:async';
 
-import '../records/memory_page.dart';
-import '../records/web_settings_page.dart';
-import '../records/analysis_settings_page.dart';
-import '../records/record_scope.dart';
-import '../widgets/app_dropdown_form_field.dart';
+import '../../records/memory_page.dart';
+import '../../records/web_settings_page.dart';
+import '../../records/analysis_settings_page.dart';
+import '../../records/record_scope.dart';
+import '../../widgets/app_dropdown_form_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'assistant_avatar.dart';
-import 'assistant_scope.dart';
-import '../me/data_backup_page.dart';
+import '../shared/assistant_avatar.dart';
+import '../entry/assistant_scope.dart';
+import '../../me/data_backup_page.dart';
 import 'assistant_model_settings_page.dart';
 import 'assistant_speech_settings_page.dart';
 
-import '../../application/assistant/assistant_controller.dart';
-import '../../core/theme/app_layout.dart';
-import '../../core/theme/colors.dart';
-import '../widgets/adaptive_columns.dart';
-import '../widgets/app_confirm_dialog.dart';
-import '../widgets/app_expansion.dart';
-import '../widgets/app_section_card.dart';
-import '../widgets/app_settings_row.dart';
-import '../widgets/app_top_bar.dart';
+import '../../../application/assistant/assistant_controller.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/colors.dart';
+import '../../widgets/adaptive_columns.dart';
+import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_expansion.dart';
+import '../../widgets/app_section_card.dart';
+import '../../widgets/app_settings_row.dart';
+import '../../widgets/app_top_bar.dart';
 
 class AssistantSettingsPage extends StatefulWidget {
   const AssistantSettingsPage({super.key, required this.controller});

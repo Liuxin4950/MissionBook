@@ -16,7 +16,7 @@ import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
-import 'package:mission_book/presentation/assistant/assistant_schedule_card.dart';
+import 'package:mission_book/presentation/assistant/operations/assistant_schedule_card.dart';
 
 import '../../support/assistant_fakes.dart';
 

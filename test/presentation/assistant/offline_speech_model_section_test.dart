@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/data/speech/speech_model_store.dart';
-import 'package:mission_book/presentation/assistant/offline_speech_model_section.dart';
+import 'package:mission_book/presentation/assistant/settings/offline_speech_model_section.dart';
 
 void main() {
   testWidgets('打开设置不下载；用户点击后显示进度；取消后可重试', (tester) async {

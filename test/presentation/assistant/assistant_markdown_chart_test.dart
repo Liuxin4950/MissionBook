@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mission_book/presentation/assistant/assistant_markdown.dart';
-import 'package:mission_book/presentation/assistant/assistant_markdown_chart.dart';
+import 'package:mission_book/presentation/assistant/shared/assistant_markdown.dart';
+import 'package:mission_book/presentation/assistant/shared/assistant_markdown_chart.dart';
 
 void main() {
   test('图表数据限制类型、点数、文字和数值范围', () {

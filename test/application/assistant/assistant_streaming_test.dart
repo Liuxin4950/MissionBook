@@ -13,7 +13,7 @@ import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
-import 'package:mission_book/presentation/assistant/assistant_page.dart';
+import 'package:mission_book/presentation/assistant/chat/assistant_page.dart';
 
 import '../../support/assistant_fakes.dart';
 

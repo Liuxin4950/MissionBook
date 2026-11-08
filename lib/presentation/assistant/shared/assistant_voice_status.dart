@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../application/assistant/assistant_speech.dart';
-import '../../core/theme/colors.dart';
-import '../../core/theme/app_layout.dart';
+import '../../../application/assistant/assistant_speech.dart';
+import '../../../core/theme/colors.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 浮层与对话输入共用的真实录音状态，不以装饰波形模拟音量。
 class AssistantVoiceStatus extends StatelessWidget {

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 
-import '../../core/theme/app_layout.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 只把助手明确标记的 JSON 数据转成原生图表，不执行模型提供的代码。
 class AssistantChartMarkdownElementBuilder extends MarkdownElementBuilder {

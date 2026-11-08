@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:agent_core/agent_core.dart';
-import '../../application/assistant/assistant_controller.dart';
-import '../../application/errors/user_error_message.dart';
-import '../../core/theme/app_layout.dart';
-import '../../core/theme/colors.dart';
-import '../widgets/app_section_card.dart';
-import '../widgets/app_settings_row.dart';
-import '../widgets/app_dropdown_form_field.dart';
-import '../widgets/app_confirm_dialog.dart';
+import '../../../application/assistant/assistant_controller.dart';
+import '../../../application/errors/user_error_message.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/colors.dart';
+import '../../widgets/app_section_card.dart';
+import '../../widgets/app_settings_row.dart';
+import '../../widgets/app_dropdown_form_field.dart';
+import '../../widgets/app_confirm_dialog.dart';
 import 'assistant_settings_form.dart';
-import 'assistant_reasoning_display.dart';
+import '../shared/assistant_reasoning_display.dart';
 
 /// 模型、协议、思考及凭据独立保存，不改写角色或语音配置。
 class AssistantModelSettingsPage extends StatelessWidget {

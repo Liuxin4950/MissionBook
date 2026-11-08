@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mission_book/presentation/assistant/assistant_markdown.dart';
-import 'package:mission_book/presentation/assistant/assistant_markdown_cache.dart';
+import 'package:mission_book/presentation/assistant/shared/assistant_markdown.dart';
+import 'package:mission_book/presentation/assistant/shared/assistant_markdown_cache.dart';
 
 void main() {
   test('Markdown AST 缓存按最近使用顺序淘汰并限制容量', () {

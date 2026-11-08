@@ -10,9 +10,9 @@ import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/data/assistant/configured_assistant_speech.dart';
 import 'package:mission_book/data/speech/local_speech_backend_base.dart';
 import 'package:mission_book/domain/entities/analysis_scope.dart';
-import 'package:mission_book/presentation/assistant/assistant_markdown.dart';
-import 'package:mission_book/presentation/assistant/assistant_page.dart';
-import 'package:mission_book/presentation/assistant/assistant_scope.dart';
+import 'package:mission_book/presentation/assistant/shared/assistant_markdown.dart';
+import 'package:mission_book/presentation/assistant/chat/assistant_page.dart';
+import 'package:mission_book/presentation/assistant/entry/assistant_scope.dart';
 import 'package:mission_book/presentation/goals/outline/goal_outline_section.dart';
 import 'package:mission_book/presentation/missions/history/mission_history_page.dart';
 

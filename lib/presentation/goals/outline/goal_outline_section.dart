@@ -5,7 +5,7 @@ import '../../records/record_scope.dart';
 
 import 'dart:async';
 
-import '../../assistant/assistant_launcher.dart';
+import '../../assistant/entry/assistant_launcher.dart';
 
 import 'package:flutter/material.dart';
 

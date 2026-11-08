@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
-import '../../core/theme/app_layout.dart';
+import '../../../core/theme/app_layout.dart';
 import 'assistant_markdown_cache.dart';
 import 'assistant_markdown_chart.dart';
 

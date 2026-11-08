@@ -11,7 +11,7 @@ import '../../core/theme/app_layout.dart';
 import '../../core/theme/colors.dart';
 import '../attachments/photo_capture_panel.dart';
 import '../attachments/attachment_image_loader.dart';
-import '../assistant/assistant_launcher.dart';
+import '../assistant/entry/assistant_launcher.dart';
 import '../widgets/adaptive_columns.dart';
 import '../widgets/app_confirm_dialog.dart';
 import '../widgets/app_dropdown_form_field.dart';

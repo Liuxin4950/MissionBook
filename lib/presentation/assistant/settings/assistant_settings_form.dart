@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../application/assistant/assistant_controller.dart';
-import '../../application/errors/user_error_message.dart';
-import '../../core/theme/app_layout.dart';
-import '../../core/theme/colors.dart';
-import '../widgets/app_confirm_dialog.dart';
-import '../widgets/app_top_bar.dart';
-import '../widgets/page_footer_bar.dart';
+import '../../../application/assistant/assistant_controller.dart';
+import '../../../application/errors/user_error_message.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/colors.dart';
+import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_top_bar.dart';
+import '../../widgets/page_footer_bar.dart';
 
 /// 等设置加载后再建立表单，避免默认值覆盖设备已保存配置。
 class AssistantSettingsLoader extends StatefulWidget {

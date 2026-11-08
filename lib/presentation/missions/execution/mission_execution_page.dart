@@ -1,7 +1,7 @@
 import '../../widgets/app_dropdown_form_field.dart';
 import 'package:mission_book/presentation/missions/execution/execution_widgets.dart';
 import 'dart:async';
-import '../../assistant/assistant_launcher.dart';
+import '../../assistant/entry/assistant_launcher.dart';
 
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';

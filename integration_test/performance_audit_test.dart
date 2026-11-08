@@ -8,9 +8,9 @@ import 'package:integration_test/integration_test.dart';
 import 'package:mission_book/app_shell.dart';
 import 'package:mission_book/application/assistant/assistant_speech.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
-import 'package:mission_book/presentation/assistant/assistant_page.dart';
-import 'package:mission_book/presentation/assistant/assistant_markdown.dart';
-import 'package:mission_book/presentation/assistant/assistant_scope.dart';
+import 'package:mission_book/presentation/assistant/chat/assistant_page.dart';
+import 'package:mission_book/presentation/assistant/shared/assistant_markdown.dart';
+import 'package:mission_book/presentation/assistant/entry/assistant_scope.dart';
 
 import '../test/support/me_fakes.dart';
 import '../test/support/performance_audit_fixture.dart';

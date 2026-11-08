@@ -11,7 +11,7 @@ import 'dart:async';
 import 'package:timezone/timezone.dart' as tz;
 import '../../../domain/rules/mission_attention_rules.dart';
 import '../../widgets/app_visibility.dart';
-import '../../assistant/assistant_launcher.dart';
+import '../../assistant/entry/assistant_launcher.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';
 

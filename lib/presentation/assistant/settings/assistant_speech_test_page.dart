@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../application/assistant/assistant_speech.dart';
-import '../../core/theme/app_layout.dart';
-import '../widgets/app_section_card.dart';
-import '../widgets/app_top_bar.dart';
-import 'assistant_voice_status.dart';
+import '../../../application/assistant/assistant_speech.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../widgets/app_section_card.dart';
+import '../../widgets/app_top_bar.dart';
+import '../shared/assistant_voice_status.dart';
 
 /// 独立录音试用，只展示识别结果；不修改聊天草稿，不创建会话。
 class AssistantSpeechTestPage extends StatefulWidget {

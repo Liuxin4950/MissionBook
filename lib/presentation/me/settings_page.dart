@@ -11,8 +11,8 @@ import '../widgets/app_section_card.dart';
 import '../widgets/app_section_header.dart';
 import '../widgets/app_settings_row.dart';
 import 'data_backup_page.dart';
-import '../assistant/assistant_scope.dart';
-import '../assistant/assistant_settings_page.dart';
+import '../assistant/entry/assistant_scope.dart';
+import '../assistant/settings/assistant_settings_page.dart';
 
 import '../../application/backup/backup_service.dart';
 import '../../application/settings/app_device.dart';

@@ -1,16 +1,16 @@
-import '../../application/errors/user_error_message.dart';
+import '../../../application/errors/user_error_message.dart';
 import 'package:flutter/material.dart';
 
-import '../../application/assistant/assistant_controller.dart';
-import '../../application/assistant/assistant_speech.dart';
-import '../../application/goals/goal_service.dart';
-import '../../application/missions/mission_service.dart';
-import '../../application/backup/backup_service.dart';
-import '../../application/settings/app_device.dart';
-import '../goals/detail/goal_detail_page.dart';
-import '../missions/detail/mission_detail_page.dart';
-import '../widgets/detail_pane.dart';
-import 'assistant_page.dart';
+import '../../../application/assistant/assistant_controller.dart';
+import '../../../application/assistant/assistant_speech.dart';
+import '../../../application/goals/goal_service.dart';
+import '../../../application/missions/mission_service.dart';
+import '../../../application/backup/backup_service.dart';
+import '../../../application/settings/app_device.dart';
+import '../../goals/detail/goal_detail_page.dart';
+import '../../missions/detail/mission_detail_page.dart';
+import '../../widgets/detail_pane.dart';
+import '../chat/assistant_page.dart';
 
 class AssistantScope extends InheritedWidget {
   const AssistantScope({

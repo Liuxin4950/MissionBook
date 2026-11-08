@@ -7,8 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
-import 'package:mission_book/presentation/assistant/assistant_operation_card.dart';
-import 'package:mission_book/presentation/assistant/assistant_outline_editor.dart';
+import 'package:mission_book/presentation/assistant/operations/assistant_operation_card.dart';
+import 'package:mission_book/presentation/assistant/operations/assistant_outline_editor.dart';
 
 const _captureDir = String.fromEnvironment('AI_ACTION_CAPTURE_DIR');
 

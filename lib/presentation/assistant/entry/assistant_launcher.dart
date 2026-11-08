@@ -1,4 +1,4 @@
-import '../../application/errors/user_error_message.dart';
+import '../../../application/errors/user_error_message.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -7,18 +7,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/theme/colors.dart';
-import '../../application/assistant/assistant_controller.dart';
-import '../../application/assistant/assistant_attachment.dart';
-import 'assistant_markdown.dart';
-import 'assistant_thinking.dart';
-import 'assistant_turn_display.dart';
-import 'assistant_operation_card.dart';
-import 'assistant_voice_status.dart';
-import 'assistant_avatar.dart';
+import '../../../core/theme/colors.dart';
+import '../../../application/assistant/assistant_controller.dart';
+import '../../../application/assistant/assistant_attachment.dart';
+import '../shared/assistant_markdown.dart';
+import '../shared/assistant_thinking.dart';
+import '../shared/assistant_turn_display.dart';
+import '../operations/assistant_operation_card.dart';
+import '../shared/assistant_voice_status.dart';
+import '../shared/assistant_avatar.dart';
 import 'assistant_scope.dart';
-import 'assistant_settings_page.dart';
-import '../../core/theme/app_layout.dart';
+import '../settings/assistant_settings_page.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 业务页面仅提供身份；助手状态、识别和操作不归业务页面持有。
 class AssistantEntryScope extends InheritedWidget {

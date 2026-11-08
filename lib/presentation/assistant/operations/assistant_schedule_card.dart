@@ -3,12 +3,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 
-import '../../application/assistant/assistant_controller.dart';
-import '../../application/assistant/assistant_schedule.dart';
-import '../../core/theme/colors.dart';
-import '../../domain/entities/mission_schedule_revision.dart';
-import '../../core/theme/app_layout.dart';
-import '../widgets/app_expansion.dart';
+import '../../../application/assistant/assistant_controller.dart';
+import '../../../application/assistant/assistant_schedule.dart';
+import '../../../core/theme/colors.dart';
+import '../../../domain/entities/mission_schedule_revision.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../widgets/app_expansion.dart';
 
 /// 一份真实计划的预览、逐项修改与保存结果；窄屏沿阅读顺序纵向排列。
 class AssistantScheduleCard extends StatelessWidget {

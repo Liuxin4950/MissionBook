@@ -1,8 +1,8 @@
-import '../../core/theme/colors.dart';
+import '../../../core/theme/colors.dart';
 import 'package:flutter/material.dart';
 
-import '../../application/assistant/assistant_goal_outline.dart';
-import '../../core/theme/app_layout.dart';
+import '../../../application/assistant/assistant_goal_outline.dart';
+import '../../../core/theme/app_layout.dart';
 
 /// 整份目标大纲的草稿编辑，不在编辑过程中写业务数据。
 class AssistantOutlineEditor extends StatefulWidget {

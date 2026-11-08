@@ -35,7 +35,7 @@ import 'application/assistant/assistant_speech.dart';
 import 'data/assistant/assistant_settings_store.dart';
 import 'data/assistant/drift_session_store.dart';
 import 'data/assistant/configured_assistant_speech.dart';
-import 'presentation/assistant/assistant_scope.dart';
+import 'presentation/assistant/entry/assistant_scope.dart';
 import 'application/attachments/attachment_file_service.dart';
 import 'data/attachments/attachment_platform.dart' as attachment_platform;
 import 'application/goals/goal_service.dart';

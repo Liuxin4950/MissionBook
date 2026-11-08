@@ -3,7 +3,7 @@ import 'dart:async';
 import 'presentation/today/today_page.dart';
 import 'package:flutter/services.dart';
 import 'application/assistant/assistant_controller.dart';
-import 'presentation/assistant/assistant_launcher.dart';
+import 'presentation/assistant/entry/assistant_launcher.dart';
 import 'application/missions/mission_service.dart';
 import 'application/notifications/app_notification_service.dart';
 import 'core/theme/app_layout.dart';

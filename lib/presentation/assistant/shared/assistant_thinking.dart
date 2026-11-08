@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
-import '../../core/theme/colors.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/colors.dart';
 import 'assistant_markdown.dart';
 
 /// 思考是处理过程中的一行；默认收起，预览与正文不共用回答卡片。
