@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_motion.dart';
 
 /// 应用共用的双按钮确认框。这里只展示文案并返回选择，业务仍由页面处理。
 class AppConfirmDialog extends StatelessWidget {
@@ -26,6 +27,7 @@ class AppConfirmDialog extends StatelessWidget {
   }) async {
     final result = await showDialog<bool>(
       context: context,
+      animationStyle: AppMotion.overlayStyle(context),
       builder: (dialogContext) => AppConfirmDialog(
         title: title,
         message: message,

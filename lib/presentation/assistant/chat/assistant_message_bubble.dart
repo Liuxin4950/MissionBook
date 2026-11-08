@@ -220,6 +220,7 @@ class _MessageImage extends StatelessWidget {
         child: InkWell(
           onTap: () => showDialog<void>(
             context: context,
+            animationStyle: AppMotion.overlayStyle(context),
             builder: (context) => Dialog(
               child: Stack(
                 children: [

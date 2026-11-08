@@ -1,3 +1,4 @@
+import '../../../core/theme/app_motion.dart';
 import '../../../domain/entities/analysis_scope.dart';
 import '../../records/analysis/analysis_panel.dart';
 import '../../records/list/records_page.dart';
@@ -43,6 +44,7 @@ class GoalDetailPage extends StatefulWidget {
 
 class _GoalDetailPageState extends State<GoalDetailPage> {
   late Future<Goal?> _goal;
+  final _outlineKey = GlobalKey<GoalOutlineSectionState>();
   Goal? _lastGoal; // 刷新期间保留最近一次成功内容，避免卸载节点工作区。
   StreamSubscription<void>? _changes;
   bool _busy = false;
@@ -204,6 +206,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                           ),
                         ),
                         PopupMenuButton<_GoalDetailAction>(
+                          popUpAnimationStyle: AppMotion.overlayStyle(context),
                           key: const Key('goal-status-menu'),
                           tooltip: '目标操作',
                           enabled: !_busy,
@@ -257,15 +260,33 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                       ],
                     ),
                     const SizedBox(height: AppLayout.spaceMd),
-                    if (widget.missionService != null) ...[
-                      GoalRecordSummary(
-                        goalId: goal.id,
-                        goals: widget.service,
-                        missions: widget.missionService!,
-                      ),
-                      const SizedBox(height: AppLayout.spaceLg),
-                    ],
+                    Row(
+                      key: Key('goal-progress-row-${goal.id}'),
+                      children: [
+                        Expanded(
+                          child: widget.missionService == null
+                              ? const SizedBox.shrink()
+                              : GoalRecordSummary(
+                                  goalId: goal.id,
+                                  goals: widget.service,
+                                  missions: widget.missionService!,
+                                ),
+                        ),
+                        IconButton(
+                          key: Key('node-add-root-${goal.id}'),
+                          tooltip: '添加节点',
+                          onPressed: () =>
+                              _outlineKey.currentState?.addRootNode(),
+                          icon: const Icon(
+                            Icons.add_rounded,
+                            size: AppLayout.iconMd,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppLayout.spaceSm),
                     GoalOutlineSection(
+                      key: _outlineKey,
                       service: widget.service,
                       missionService: widget.missionService,
                       goal: goal,

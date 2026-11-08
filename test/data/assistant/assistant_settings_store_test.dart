@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:agent_core/agent_core.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -7,6 +9,39 @@ import 'package:mission_book/data/assistant/assistant_settings_store.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('保存和重读角色同步系统悬浮头像，恢复内置头像清除自定义内容', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    const channel = MethodChannel('mission_book/device');
+    final calls = <MethodCall>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          calls.add(call);
+          return null;
+        });
+    addTearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+    FlutterSecureStorage.setMockInitialValues({});
+    const store = SecureAssistantSettingsStore();
+    final custom = base64Encode(
+      img.encodePng(img.Image(width: 192, height: 192)),
+    );
+    await store.savePersona(
+      AssistantPersona(name: '测试助手', customAvatarBase64: custom),
+    );
+    expect(calls.last.method, 'syncAssistantOverlayPersona');
+    expect(calls.last.arguments['customAvatarBase64'], custom);
+    await store.load();
+    expect(calls.last.arguments['name'], '测试助手');
+    await store.savePersona(
+      const AssistantPersona(avatar: AssistantAvatar.compass),
+    );
+    expect(calls.last.arguments['avatar'], 'compass');
+    expect(calls.last.arguments['customAvatarBase64'], isNull);
+  });
+
   test('自定义头像随角色持久化，缺失或损坏头像不影响其他角色字段', () async {
     FlutterSecureStorage.setMockInitialValues({});
     const store = SecureAssistantSettingsStore();

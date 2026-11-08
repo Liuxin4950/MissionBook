@@ -17,13 +17,31 @@ void main() {
     expect(first.reduceMotion(true), isTrue);
     expect(first.reduceMotion(false), isFalse);
     await first.select(MotionPreference.full);
+    await first.selectPageStyle(PageMotionStyle.slide);
     final reopened = createMotionSettings(preferencesFile: file);
     addTearDown(reopened.dispose);
     await reopened.load();
     expect(reopened.preference, MotionPreference.full);
+    expect(reopened.pageStyle, PageMotionStyle.slide);
     expect(reopened.reduceMotion(true), isFalse);
     await reopened.select(MotionPreference.reduced);
     expect(reopened.reduceMotion(false), isTrue);
+  });
+
+  test('旧版枚举保存值保留强度，未知风格回退平台', () async {
+    String? saved = 'reduced';
+    final settings = MotionSettings(
+      read: () async => saved,
+      write: (value) async => saved = value,
+    );
+    addTearDown(settings.dispose);
+    await settings.load();
+    expect(settings.preference, MotionPreference.reduced);
+    expect(settings.pageStyle, PageMotionStyle.platform);
+    saved = '{"preference":"full","pageStyle":"future"}';
+    await settings.load();
+    expect(settings.preference, MotionPreference.full);
+    expect(settings.pageStyle, PageMotionStyle.platform);
   });
 
   test('保存失败不显示为已生效，能够重试，迟到读取不能覆盖新选择', () async {

@@ -1,3 +1,4 @@
+import '../../../core/theme/app_motion.dart';
 import '../../../application/errors/user_error_message.dart';
 import 'package:flutter/material.dart';
 
@@ -186,6 +187,7 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
                       ),
                     ),
                     PopupMenuButton<String>(
+                      popUpAnimationStyle: AppMotion.overlayStyle(context),
                       tooltip: '会话操作 ${conversation.title}',
                       enabled: !controller.isBusy,
                       icon: const Icon(Icons.more_horiz),
@@ -255,6 +257,7 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
   ) async {
     final title = await showDialog<String>(
       context: context,
+      animationStyle: AppMotion.overlayStyle(context),
       builder: (_) => _RenameConversationDialog(title: conversation.title),
     );
     if (title == null || title.isEmpty || !context.mounted) return;

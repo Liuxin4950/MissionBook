@@ -1,3 +1,4 @@
+import '../../../core/theme/app_motion.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/theme/colors.dart';
@@ -10,6 +11,7 @@ class ExecutionPauseDialog extends StatefulWidget {
 
   static Future<String?> show(BuildContext context) => showDialog<String>(
     context: context,
+    animationStyle: AppMotion.overlayStyle(context),
     builder: (_) => const ExecutionPauseDialog(),
   );
 

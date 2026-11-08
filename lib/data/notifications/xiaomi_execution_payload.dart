@@ -12,7 +12,7 @@ Map<String, Object?> xiaomiExecutionPayload(ReminderRequest request) {
   final state = request.clockBehind
       ? '请校时'
       : running
-      ? '正在专注'
+      ? '执行中'
       : request.kind == ReminderKind.executionStopped
       ? '待确认'
       : '已暂停';

@@ -1,3 +1,4 @@
+import '../../../core/theme/app_motion.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -28,6 +29,7 @@ class AssistantScheduleCard extends StatelessWidget {
   Future<void> _edit(BuildContext context, Map<String, Object?> row) =>
       showModalBottomSheet<void>(
         context: context,
+        sheetAnimationStyle: AppMotion.overlayStyle(context),
         isScrollControlled: true,
         useSafeArea: true,
         constraints: const BoxConstraints(maxWidth: 640),

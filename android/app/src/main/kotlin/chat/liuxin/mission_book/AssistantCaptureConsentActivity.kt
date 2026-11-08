@@ -1,7 +1,12 @@
 package chat.liuxin.mission_book
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.os.Handler
+import android.os.Looper
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -12,8 +17,45 @@ import android.widget.Toast
 
 @Suppress("DEPRECATION")
 class AssistantCaptureConsentActivity : Activity() {
+    private val handler = Handler(Looper.getMainLooper())
+    private val receiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val path = intent?.getStringExtra(MainActivity.EXTRA_CAPTURE_PATH)
+            if (path != null) {
+                try {
+                    val tasks = getSystemService(ActivityManager::class.java).appTasks
+                    val mainTask = tasks.firstOrNull {
+                        it.taskInfo.baseActivity?.className == MainActivity::class.java.name
+                    }
+                    mainTask?.moveToFront()
+                    startActivity(Intent(this@AssistantCaptureConsentActivity, MainActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        .putExtra(MainActivity.EXTRA_CAPTURE_PATH, path))
+                } catch (error: Exception) {
+                    Log.e(TAG, "打开助手失败", error)
+                    Toast.makeText(this@AssistantCaptureConsentActivity, "截图已保留，请打开 MissionBook 重试", Toast.LENGTH_LONG).show()
+                    restoreOverlayIfEnabled()
+                }
+            }
+            // 部分系统静默拒绝后台启动；保留可点按的截图入口。
+            restoreOverlayIfEnabled()
+            finish()
+        }
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        unregisterReceiver(receiver)
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val filter = IntentFilter(AssistantScreenCaptureService.ACTION_CAPTURE_READY)
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
+        else registerReceiver(receiver, filter)
+        // 系统重建授权页时由原请求返回，避免再次申请同一投影会话。
+        if (savedInstanceState != null) return
         val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val request = try {
             manager.createScreenCaptureIntent()
@@ -22,7 +64,11 @@ class AssistantCaptureConsentActivity : Activity() {
             cancelCapture("无法打开系统截屏授权")
             return
         }
-        startActivityForResult(request, REQUEST_CAPTURE)
+        try { startActivityForResult(request, REQUEST_CAPTURE) }
+        catch (error: Exception) {
+            Log.e(TAG, "无法打开系统截屏授权", error)
+            cancelCapture("无法打开系统截屏授权")
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -47,7 +93,7 @@ class AssistantCaptureConsentActivity : Activity() {
             cancelCapture("截屏服务启动失败")
             return
         }
-        finish()
+        handler.postDelayed({ cancelCapture("截屏超时，请重试") }, 10000)
     }
 
     private fun cancelCapture(reason: String?) {

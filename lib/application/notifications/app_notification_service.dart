@@ -230,8 +230,8 @@ class AppNotificationService {
             missionId: missionId,
             scheduleRevisionId: detail.schedule.id,
             kind: ReminderKind.upcomingReminder,
-            title: '计划任务等待开始：${detail.mission.title}',
-            body: '另一个任务正在执行，点击查看并处理',
+            title: detail.mission.title,
+            body: '待开始 · 其他任务执行中',
             expectedSequence: detail.lastSequence,
             candidateEventIds: const {},
           ),
@@ -392,11 +392,10 @@ class AppNotificationService {
       missionId: missionId,
       scheduleRevisionId: detail.schedule.id,
       kind: ReminderKind.upcomingReminder,
-      title:
-          '${detail.schedule.fixedStartAt!.isAfter(_now()) ? '计划任务即将开始' : '计划任务待处理'}：${detail.mission.title}',
+      title: detail.mission.title,
       body:
-          '计划 ${local.hour.toString().padLeft(2, '0')}:'
-          '${local.minute.toString().padLeft(2, '0')} 自动开始，点击可查看或调整',
+          '${local.hour.toString().padLeft(2, '0')}:'
+          '${local.minute.toString().padLeft(2, '0')} · ${detail.schedule.fixedStartAt!.isAfter(_now()) ? '即将开始' : '待开始'}',
       expectedSequence: detail.lastSequence,
       candidateEventIds: {
         'start': 'notif-start-$missionId-${detail.schedule.id}',

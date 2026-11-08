@@ -7,10 +7,10 @@ import 'package:agent_core/agent_core.dart';
 class AssistantAttachment {
   AssistantAttachment._(this.name, this.bytes, this.block);
 
-  static const maxCount = 4;
+  static const maxCount = 12;
   static const maxImageBytes = 4 * 1024 * 1024;
   static const maxTextBytes = 256 * 1024;
-  static const maxTotalBytes = 8 * 1024 * 1024;
+  static const maxTotalBytes = 24 * 1024 * 1024;
   static const maxTextCharacters = 32000;
   static const imageExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
   static const textExtensions = [

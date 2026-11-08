@@ -57,7 +57,11 @@ class AssistantPage extends StatefulWidget {
 
 class _AssistantPageState extends State<AssistantPage> {
   late final _composer = _AssistantComposer(this);
-  void _update(VoidCallback update) => setState(update);
+  void _update(VoidCallback update) {
+    setState(update);
+    widget.controller.saveAttachments(_draftSession, _attachments);
+  }
+
   final _input = TextEditingController();
   final _inputFocus = FocusNode();
   final _scroll = ScrollController(keepScrollOffset: false);
@@ -86,6 +90,14 @@ class _AssistantPageState extends State<AssistantPage> {
         ..clear()
         ..addAll(widget.controller.attachmentsFor(id));
       _followOutput = true;
+    }
+    final files = widget.controller.attachmentsFor(id);
+    if (!listEquals(_attachments, files)) {
+      setState(
+        () => _attachments
+          ..clear()
+          ..addAll(files),
+      );
     }
     if (_followOutput) _scrollToBottom(animate: false);
   }

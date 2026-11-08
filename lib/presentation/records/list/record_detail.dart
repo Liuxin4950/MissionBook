@@ -138,6 +138,7 @@ class _RecordDetailState extends State<RecordDetail> {
             icon: const Icon(Icons.edit_outlined),
           ),
           PopupMenuButton<String>(
+            popUpAnimationStyle: AppMotion.overlayStyle(context),
             tooltip: '更多记录操作',
             onSelected: (_) => _setRecordOwnership(scope.service),
             itemBuilder: (context) => [

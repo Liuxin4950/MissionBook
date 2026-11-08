@@ -6,6 +6,7 @@ import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_motion.dart';
 
 /// 目标卡和详情共用的任务完成进度；节点全部直接任务报告完成后才计为完成。
 class GoalRecordSummary extends StatefulWidget {
@@ -70,54 +71,75 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      FutureBuilder<({int total, int completed})>(
-        future: _summary,
-        builder: (context, snapshot) {
-          final textStyle = Theme.of(context).textTheme.bodySmall;
-          if (snapshot.hasError) {
-            return TextButton(
-              onPressed: () => setState(_read),
-              child: const Text('重新读取节点记录'),
-            );
-          }
-          if (!snapshot.hasData) {
-            return Text('正在读取节点记录…', style: textStyle);
-          }
-          final value = snapshot.data!;
-          if (value.total == 0) {
-            return Text('暂无节点', style: textStyle);
-          }
-          return Semantics(
-            key: Key('goal-record-summary-${widget.goalId}'),
-            container: true,
-            label:
-                '有效节点${value.total}项，其中${value.completed}项的直接任务全部报告完成，不表示掌握程度',
-            child: ExcludeSemantics(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppLayout.radiusXs),
-                      child: LinearProgressIndicator(
-                        value: value.completed / value.total,
-                        minHeight: AppLayout.spaceXs,
-                        color: AppColors.primary,
-                        backgroundColor: AppColors.primarySoft,
-                      ),
+  Widget build(
+    BuildContext context,
+  ) => FutureBuilder<({int total, int completed})>(
+    future: _summary,
+    builder: (context, snapshot) {
+      final textStyle = Theme.of(context).textTheme.bodySmall;
+      if (snapshot.hasError) {
+        return TextButton(
+          onPressed: () => setState(_read),
+          child: const Text('重新读取节点记录'),
+        );
+      }
+      if (!snapshot.hasData) {
+        return Text('正在读取节点记录…', style: textStyle);
+      }
+      final value = snapshot.data!;
+      if (value.total == 0) {
+        return Text('暂无节点', style: textStyle);
+      }
+      return Semantics(
+        key: Key('goal-record-summary-${widget.goalId}'),
+        container: true,
+        label: '有效节点${value.total}项，其中${value.completed}项的直接任务全部报告完成，不表示掌握程度',
+        child: ExcludeSemantics(
+          child: Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppLayout.radiusXs),
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(
+                      begin: value.completed / value.total,
+                      end: value.completed / value.total,
+                    ),
+                    duration: AppMotion.resolve(context, AppMotion.standard),
+                    curve: AppMotion.curve,
+                    builder: (context, progress, _) => LinearProgressIndicator(
+                      value: progress,
+                      minHeight: AppLayout.spaceXs,
+                      color: AppColors.primary,
+                      backgroundColor: AppColors.primarySoft,
                     ),
                   ),
-                  const SizedBox(width: AppLayout.spaceSm),
-                  Flexible(
-                    child: Text(
-                      '任务全部完成的节点 ${value.completed}/${value.total}',
-                      style: textStyle,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          );
-        },
+              const SizedBox(width: AppLayout.spaceSm),
+              Ink(
+                key: Key('goal-coverage-count-${widget.goalId}'),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySoft,
+                  borderRadius: BorderRadius.circular(AppLayout.radiusPill),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppLayout.spaceSm,
+                    vertical: AppLayout.spaceXs,
+                  ),
+                  child: Text(
+                    '${value.completed}/${value.total}',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelMedium?.copyWith(color: AppColors.primary),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
+    },
+  );
 }

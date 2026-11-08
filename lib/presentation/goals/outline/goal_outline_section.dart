@@ -1,3 +1,4 @@
+import '../../widgets/app_animated_size.dart';
 import '../../../domain/entities/analysis_scope.dart';
 import '../../records/list/records_page.dart';
 import '../../records/analysis/analysis_panel.dart';
@@ -66,12 +67,13 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   final _collapsed = <String>{}; // 只保存界面折叠选择，不写入节点表。
   final _treeScroll = ScrollController();
   final _searchController = TextEditingController();
+  final _searchFocus = FocusNode(debugLabel: '目标节点搜索');
   String _query = '';
   bool _showArchived = false;
   bool _busy = false;
   bool _refreshWhenActive = false;
   String? _operationError;
-  Future<void> addRootNode() => _edit(); // 卡片目录工具栏复用此入口，不再重复画一行“目标路径”。
+  Future<void> addRootNode() => _edit(); // 目标进度行的加号复用此入口。
 
   @override
   void initState() {
@@ -230,6 +232,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     unawaited(_missionSubscription?.cancel());
     _treeScroll.dispose();
     _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -322,62 +325,84 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                 onPressed: _refresh,
                 child: const Text('路径刷新失败，保留当前工作区，点击重试'),
               ),
-            if (!widget.embedded)
-              Row(
-                children: [
-                  if (!widget.embedded)
-                    const Icon(
-                      Icons.account_tree_outlined,
-                      size: AppLayout.iconMd,
-                      color: AppColors.primary,
-                    ),
-                  const SizedBox(width: AppLayout.spaceSm),
-                  Expanded(
-                    child: widget.embedded
-                        ? const SizedBox.shrink()
-                        : Text('目标路径', style: theme.textTheme.titleSmall),
-                  ),
-                  TextButton.icon(
-                    key: Key('node-add-root-${widget.goalId}'),
-                    onPressed: _busy ? null : () => _edit(),
-                    icon: const Icon(Icons.add_rounded, size: AppLayout.iconSm),
-                    style: TextButton.styleFrom(
-                      textStyle: theme.textTheme.labelMedium,
-                    ),
-                    label: Text(widget.embedded ? '添加节点' : '新增节点'),
-                  ),
-                ],
-              ),
             if (shown.length > 6 || _query.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
-                child: TextField(
-                  key: const Key('goal-node-search'),
-                  controller: _searchController,
-                  style: theme.textTheme.bodySmall,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                  onChanged: (value) => setState(() => _query = value),
-                  decoration: InputDecoration(
-                    hintText: '搜索节点',
-                    hintStyle: theme.textTheme.bodySmall,
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      size: AppLayout.iconSm,
-                    ),
-                    suffixIcon: _query.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: '清除节点搜索',
-                            onPressed: () => setState(() {
-                              _searchController.clear();
-                              _query = '';
-                            }),
-                            icon: const Icon(
-                              Icons.close_rounded,
-                              size: AppLayout.iconSm,
+                child: ListenableBuilder(
+                  listenable: _searchFocus,
+                  builder: (context, _) => Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned.fill(
+                        top: AppLayout.spaceSm,
+                        bottom: AppLayout.spaceSm,
+                        child: DecoratedBox(
+                          key: const Key('goal-node-search-surface'),
+                          decoration: BoxDecoration(
+                            color: AppColors.card,
+                            borderRadius: BorderRadius.circular(
+                              AppLayout.radiusMd,
+                            ),
+                            border: Border.all(
+                              color: _searchFocus.hasFocus
+                                  ? AppColors.primary
+                                  : AppColors.hairline,
+                              width: _searchFocus.hasFocus
+                                  ? AppLayout.strokeFocus
+                                  : AppLayout.strokeThin,
                             ),
                           ),
+                        ),
+                      ),
+                      TextField(
+                        key: const Key('goal-node-search'),
+                        controller: _searchController,
+                        focusNode: _searchFocus,
+                        style: theme.textTheme.bodyLarge,
+                        textAlignVertical: TextAlignVertical.center,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                        onChanged: (value) => setState(() => _query = value),
+                        decoration: InputDecoration(
+                          hintText: '搜索节点',
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          alignLabelWithHint: false,
+                          isDense: true,
+                          constraints: const BoxConstraints(
+                            minHeight: AppLayout.touchTargetMin,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: AppLayout.spaceMd,
+                            vertical: AppLayout.spaceSm,
+                          ),
+                          prefixIconConstraints: const BoxConstraints(
+                            minWidth: AppLayout.touchTargetMin,
+                            minHeight: AppLayout.touchTargetMin,
+                          ),
+                          hintStyle: theme.textTheme.bodySmall,
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            size: AppLayout.iconSm,
+                          ),
+                          suffixIcon: _query.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: '清除节点搜索',
+                                  onPressed: () => setState(() {
+                                    _searchController.clear();
+                                    _query = '';
+                                  }),
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    size: AppLayout.iconSm,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -448,7 +473,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                     scrollDirection: Axis.horizontal,
                     child: SizedBox(
                       width: width,
-                      child: AnimatedSize(
+                      child: AppAnimatedSize(
                         alignment: Alignment.topLeft,
                         duration: AppMotion.resolve(
                           context,
@@ -563,6 +588,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
       message: '节点操作',
       preferBelow: false,
       child: PopupMenuButton<_NodeAction>(
+        popUpAnimationStyle: AppMotion.overlayStyle(context),
         color: AppColors.card,
         elevation: 2,
         shape: RoundedRectangleBorder(
@@ -742,22 +768,28 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
         ),
         child: Padding(
           padding: EdgeInsets.only(left: indent),
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onLongPress: archived || _busy
-                ? null
-                : () => _edit(node: node, parent: byId[node.parentNodeId]),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: entry.depth == 0
-                        ? AppColors.surfaceMuted.withValues(alpha: .65)
-                        : null,
-                    borderRadius: BorderRadius.circular(AppLayout.radiusMd),
-                  ),
-                  child: Padding(
+          child: Material(
+            key: Key('node-surface-${node.id}'),
+            color: entry.depth == 0
+                ? AppColors.surfaceMuted.withValues(alpha: .65)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              key: Key('node-press-${node.id}'),
+              onTap: hasChildren
+                  ? toggleChildren
+                  : widget.missionService != null
+                  ? () => _taskSections[node.id]?.currentState?.toggleTasks()
+                  : null,
+              borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+              onLongPress: archived || _busy
+                  ? null
+                  : () => _edit(node: node, parent: byId[node.parentNodeId]),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
                     padding: const EdgeInsets.symmetric(
                       vertical: _nodeRowPadding,
                     ),
@@ -775,67 +807,60 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                           )
                         : Semantics(
                             button: hasChildren,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(
-                                AppLayout.radiusMd,
-                              ),
-                              onTap: hasChildren ? toggleChildren : null,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      SizedBox.square(
-                                        dimension:
-                                            GoalMissionsSection.markerExtent,
-                                        child:
-                                            treeToggle ??
-                                            const Icon(
-                                              Icons.radio_button_unchecked,
-                                              size: AppLayout.iconSm,
-                                              color: AppColors.outline,
-                                            ),
-                                      ),
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: AppLayout.spaceMd,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox.square(
+                                      dimension:
+                                          GoalMissionsSection.markerExtent,
+                                      child:
+                                          treeToggle ??
+                                          const Icon(
+                                            Icons.radio_button_unchecked,
+                                            size: AppLayout.iconSm,
+                                            color: AppColors.outline,
                                           ),
-                                          child: Text(
-                                            node.title,
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.labelLarge,
-                                          ),
+                                    ),
+                                    Expanded(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: AppLayout.spaceMd,
+                                        ),
+                                        child: Text(
+                                          node.title,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.labelLarge,
                                         ),
                                       ),
-                                      menu,
-                                    ],
-                                  ),
-                                  if (annotation.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        left: AppLayout.touchTargetMin,
-                                      ),
-                                      child: Text(
-                                        annotation,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium,
-                                      ),
                                     ),
-                                ],
-                              ),
+                                    menu,
+                                  ],
+                                ),
+                                if (annotation.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: AppLayout.touchTargetMin,
+                                    ),
+                                    child: Text(
+                                      annotation,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                   ),
-                ),
-                if (widget.missionService == null &&
-                    RecordScope.maybeOf(context) != null)
-                  _nodeRecords(node),
-              ],
+                  if (widget.missionService == null &&
+                      RecordScope.maybeOf(context) != null)
+                    _nodeRecords(node),
+                ],
+              ),
             ),
           ),
         ),

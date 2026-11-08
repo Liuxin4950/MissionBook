@@ -68,8 +68,13 @@ void main() {
     device = _Device();
   });
 
-  Future<void> open(WidgetTester tester, {bool reduceMotion = false}) async {
-    tester.view.physicalSize = const Size(390, 1000);
+  Future<void> open(
+    WidgetTester tester, {
+    bool reduceMotion = false,
+    double width = 390,
+    double textScale = 1,
+  }) async {
+    tester.view.physicalSize = Size(width, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -79,7 +84,10 @@ void main() {
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(
             context,
-          ).copyWith(disableAnimations: reduceMotion),
+          ).copyWith(
+            disableAnimations: reduceMotion,
+            textScaler: TextScaler.linear(textScale),
+          ),
           child: child!,
         ),
         home: Scaffold(
@@ -126,11 +134,24 @@ void main() {
     expect(backup.calls, 3);
   });
 
+  testWidgets('窄屏大字下缺失的两个权限仍可操作', (tester) async {
+    device.exactAlarms = false;
+    await open(tester, width: 320, textScale: 2);
+    for (final key in ['grant-notifications', 'grant-exact-alarms']) {
+      final button = find.byKey(Key(key));
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+    }
+    expect(device.settings, [false, true]);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('仅缺失权限显示入口，回前台授权后收起，关于显示实际版本', (tester) async {
     device.exactAlarms = false;
     await open(tester);
     expect(find.text('开启系统通知'), findsOneWidget);
-    expect(find.text('系统未允许'), findsNWidgets(2));
+    expect(find.text('系统未允许'), findsNothing);
     await tester.tap(find.byKey(const Key('grant-notifications')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('grant-exact-alarms')));
@@ -213,10 +234,7 @@ void main() {
     await open(tester);
     expect(find.text('执行状态通知已关闭'), findsOneWidget);
     expect(find.text('提醒权限已就绪'), findsNothing);
-    await tester.ensureVisible(
-      find.byKey(const Key('island-capability-status')),
-    );
-    expect(find.textContaining('本应用尚未获准焦点通知'), findsOneWidget);
+    expect(find.text('超级岛焦点通知未授权'), findsOneWidget);
   });
 
   testWidgets('超级岛已适配时仍区分平台尚未开通和系统权限获准', (tester) async {
@@ -224,17 +242,11 @@ void main() {
     device.focusPermission = true;
     device.focusConfigured = false;
     await open(tester);
-    await tester.ensureVisible(
-      find.byKey(const Key('island-capability-status')),
-    );
-    expect(find.textContaining('尚未完成小米平台开通'), findsOneWidget);
+    expect(find.text('超级岛待平台开通，使用普通通知'), findsOneWidget);
     device.focusConfigured = true;
     await tester.pumpWidget(const SizedBox.shrink());
     await open(tester);
-    await tester.ensureVisible(
-      find.byKey(const Key('island-capability-status')),
-    );
-    expect(find.textContaining('执行时由系统显示'), findsOneWidget);
+    expect(find.text('超级岛已就绪'), findsOneWidget);
     expect(find.textContaining('当前版本仍使用普通通知'), findsNothing);
   });
 

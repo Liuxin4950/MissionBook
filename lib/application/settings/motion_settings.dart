@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'dart:convert';
 
 enum MotionPreference { system, full, reduced }
+
+enum PageMotionStyle { platform, fade, slide }
 
 /// 本机动效选择；保存成功后才通知页面，不改变操作系统的辅助功能设置。
 class MotionSettings extends ChangeNotifier {
@@ -9,6 +12,7 @@ class MotionSettings extends ChangeNotifier {
   final Future<String?> Function() read;
   final Future<void> Function(String) write;
   MotionPreference preference = MotionPreference.system;
+  PageMotionStyle pageStyle = PageMotionStyle.platform;
   bool saving = false;
   String? error;
   bool _disposed = false;
@@ -25,9 +29,17 @@ class MotionSettings extends ChangeNotifier {
     try {
       final value = await read();
       if (_disposed || generation != _generation) return;
+      // 旧版本只保存一个枚举名，新版本同时保存强度和页面风格。
+      final decoded = value?.trimLeft().startsWith('{') == true
+          ? jsonDecode(value!) as Map<String, dynamic>
+          : <String, dynamic>{'preference': value};
       preference = MotionPreference.values.firstWhere(
-        (item) => item.name == value,
+        (item) => item.name == decoded['preference'],
         orElse: () => MotionPreference.system,
+      );
+      pageStyle = PageMotionStyle.values.firstWhere(
+        (item) => item.name == decoded['pageStyle'],
+        orElse: () => PageMotionStyle.platform,
       );
       error = null;
     } catch (exception, stack) {
@@ -40,14 +52,26 @@ class MotionSettings extends ChangeNotifier {
 
   Future<void> select(MotionPreference value) async {
     if (saving || preference == value) return;
+    await _save(value, pageStyle);
+  }
+
+  Future<void> selectPageStyle(PageMotionStyle value) async {
+    if (saving || pageStyle == value) return;
+    await _save(preference, value);
+  }
+
+  Future<void> _save(MotionPreference next, PageMotionStyle style) async {
     _generation++;
     saving = true;
     error = null;
     notifyListeners();
     try {
-      await write(value.name);
+      await write(
+        jsonEncode({'preference': next.name, 'pageStyle': style.name}),
+      );
       if (_disposed) return;
-      preference = value;
+      preference = next;
+      pageStyle = style;
     } catch (exception, stack) {
       debugPrint('保存动效偏好失败：$exception\n$stack');
       if (_disposed) return;

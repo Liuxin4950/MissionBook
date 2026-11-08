@@ -879,6 +879,46 @@ void main() {
     }
   });
 
+  assistantTest('已打开聊天接收截图立即显示并复用当前路由和文字草稿', (tester) async {
+    await mount(tester, ScriptedModel([]));
+    final launcher = tester.state<AssistantLauncherState>(
+      find.byType(AssistantLauncher).first,
+    );
+    final bytes = Uint8List.fromList(
+      img.encodeJpg(img.Image(width: 8, height: 8)),
+    );
+    expect(
+      await tester.runAsync(() => launcher.openCapturedScreen(bytes)),
+      true,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(AssistantPage), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('assistant-input')), '保留这段输入');
+    expect(
+      await tester.runAsync(() => launcher.openCapturedScreen(bytes)),
+      true,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(AssistantPage), findsOneWidget);
+    expect(assistant.attachmentsFor(assistant.draftKey).length, 2);
+    expect(find.text('2/12 个附件'), findsOneWidget);
+    expect(find.text('保留这段输入'), findsOneWidget);
+    final preview = find.byTooltip(RegExp(r'^预览图片 '));
+    expect(preview, findsNWidgets(2));
+    expect(tester.getSize(preview.first).width, lessThanOrEqualTo(48));
+    await tester.tap(preview.first);
+    await tester.pumpAndSettle();
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    await tester.tap(find.byTooltip('关闭预览'));
+    await tester.pumpAndSettle();
+    await tester.tap(preview.first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('移除图片'));
+    await tester.pumpAndSettle();
+    expect(assistant.attachmentsFor(assistant.draftKey).length, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   assistantTest('附件菜单只保留附件入口', (tester) async {
     await mount(tester, ScriptedModel([]));
     await tester.longPress(find.byKey(const Key('assistant-launcher')));
@@ -1285,6 +1325,28 @@ void main() {
     await tester.pumpAndSettle();
     await tester.runAsync(() => assistant.close());
   });
+  assistantTest('取消节点助手菜单后，普通入口使用当前任务上下文', (tester) async {
+    final goal = goals.prepareCreation(title: '目标');
+    await goals.create(goal);
+    final node = goals.prepareNodeCreation(goalId: goal.id, title: '节点');
+    await goals.createNode(node);
+    await mount(tester, ScriptedModel([]));
+    final pageContext = tester.element(find.byKey(const Key('original-draft')));
+    AssistantEntryScope.maybeOf(pageContext)!.openNode(node.id);
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(20, 100));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    expect(assistant.reference?.type, AssistantReferenceType.mission);
+    expect(assistant.reference?.id, missionId);
+  });
+
   for (final width in [320.0, 390.0, 768.0, 1200.0]) {
     assistantTest('真实AppShell $width 宽中央入口可用且不会切换主导航', (tester) async {
       await mount(tester, ScriptedModel([]), width: width, shell: true);

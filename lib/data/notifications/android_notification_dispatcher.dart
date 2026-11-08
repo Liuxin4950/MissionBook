@@ -72,13 +72,6 @@ class AndroidNotificationDispatcher implements NotificationDispatcher {
         channelShowBadge: !executing,
         // 通知使用与应用一致的品牌色。
         color: AppColors.primary,
-        subText: executing
-            ? (running
-                  ? '正在专注'
-                  : kind == ReminderKind.executionStopped
-                  ? '待确认'
-                  : '已暂停')
-            : '计划提醒',
         styleInformation: BigTextStyleInformation(
           request.body,
           contentTitle: request.title,

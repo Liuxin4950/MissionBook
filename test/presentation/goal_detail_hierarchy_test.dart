@@ -144,6 +144,20 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('详情进度行提供新增节点入口', (tester) async {
+    await open(tester);
+    final row = find.byKey(Key('goal-progress-row-${goal.id}'));
+    final add = find.byKey(Key('node-add-root-${goal.id}'));
+    expect(find.descendant(of: row, matching: add), findsOneWidget);
+    expect(find.text('目标路径'), findsNothing);
+    expect(find.text('完成节点'), findsNothing);
+    expect(find.byKey(Key('goal-coverage-count-${goal.id}')), findsOneWidget);
+    await tap(tester, add);
+    expect(find.text('添加节点'), findsWidgets);
+    expect(find.text('节点名称（必填）'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('空目标无记录入口，节点摘要只从三点菜单打开', (tester) async {
     await open(tester);
     expect(find.textContaining('目标记录 ·'), findsNothing);
@@ -170,7 +184,7 @@ void main() {
     await open(tester);
     expect(find.text('目标记录 · 2'), findsOneWidget);
     // 节点记录入口属于节点展开内容；先展开当前节点，再验证入口范围。
-    await tap(tester, find.byKey(Key('node-tasks-${first.id}')));
+    await tap(tester, find.byKey(Key('node-title-${first.id}')));
     expect(find.text('节点记录 · 1'), findsOneWidget);
     await tap(tester, find.text('节点记录 · 1'));
     final page = tester.widget<RecordsPage>(find.byType(RecordsPage));
@@ -184,7 +198,7 @@ void main() {
     await records.setOwnership('first-note', nodeId: second.id);
     await tester.pumpAndSettle();
     // 归属变化后，重新展开新的节点即可看到记录入口。
-    await tap(tester, find.byKey(Key('node-tasks-${second.id}')));
+    await tap(tester, find.byKey(Key('node-title-${second.id}')));
     expect(find.text('节点记录 · 1'), findsOneWidget);
     await records.delete('first-note');
     await records.delete('goal-note');
@@ -222,7 +236,7 @@ void main() {
   testWidgets('320窄屏双倍字体，节点展开和摘要动作无溢出', (tester) async {
     await save('first-note', nodeId: first.id);
     await open(tester, width: 320, scale: 2);
-    await tap(tester, find.byKey(Key('node-tasks-${first.id}')));
+    await tap(tester, find.byKey(Key('node-title-${first.id}')));
     await tap(tester, find.byKey(Key('node-menu-${first.id}')));
     await tap(tester, find.text('节点摘要'));
     await tester.ensureVisible(

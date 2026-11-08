@@ -1,3 +1,4 @@
+import '../../../core/theme/app_motion.dart';
 import '../../../domain/entities/analysis_scope.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../records/analysis/analysis_panel.dart';
@@ -188,6 +189,7 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
         title: '执行记录',
         actions: [
           PopupMenuButton<String>(
+            popUpAnimationStyle: AppMotion.overlayStyle(context),
             key: const Key('record-more'),
             tooltip: '记录更多操作',
             icon: const Icon(Icons.more_horiz, size: AppLayout.iconLg),

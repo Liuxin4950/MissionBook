@@ -552,11 +552,13 @@ class _RecordEditorState extends State<RecordEditor> {
 Future<Map<String, String>?> chooseRecordOwnership(BuildContext context) =>
     showDialog<Map<String, String>>(
       context: context,
+      animationStyle: AppMotion.overlayStyle(context),
       builder: (_) => const _AssociationDialog(material: false),
     );
 
 Future<Map<String, String>?> chooseRecordMaterialTask(BuildContext context) =>
     showDialog<Map<String, String>>(
       context: context,
+      animationStyle: AppMotion.overlayStyle(context),
       builder: (_) => const _AssociationDialog(material: true),
     );

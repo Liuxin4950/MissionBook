@@ -1,3 +1,4 @@
+import 'app_animated_size.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_layout.dart';
@@ -127,7 +128,7 @@ class _AppExpansionTileState extends State<AppExpansionTile> {
             ),
           ),
         ),
-        AnimatedSize(
+        AppAnimatedSize(
           duration: duration,
           curve: AppMotion.curve,
           alignment: Alignment.topCenter,

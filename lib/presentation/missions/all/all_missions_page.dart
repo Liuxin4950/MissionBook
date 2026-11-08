@@ -1,3 +1,4 @@
+import '../../../core/theme/app_motion.dart';
 import '../../widgets/app_dropdown_form_field.dart';
 import '../../widgets/app_date_picker.dart';
 import '../../../domain/entities/mission_maintenance.dart';
@@ -330,6 +331,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                     Align(
                       alignment: Alignment.centerRight,
                       child: PopupMenuButton<MissionMaintenanceAction>(
+                        popUpAnimationStyle: AppMotion.overlayStyle(context),
                         tooltip: '批量操作当前筛选结果',
                         onSelected: (action) async {
                           final ids = all

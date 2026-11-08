@@ -102,6 +102,47 @@ void main() {
     throw StateError('等待助手状态超时');
   }
 
+  test('并发打开同一会话和切换全局入口不会重复持有运行时会话', () async {
+    final ai = makeController(ScriptedModel([(_) => textResponse('已回答')]));
+    await ai.initialize();
+    await ai.send('建立全局历史');
+    final global = ai.currentSessionId!;
+    await ai.startNewSession();
+    await Future.wait([
+      ai.openConversation(global),
+      ai.openConversation(global),
+    ]);
+    expect(ai.currentSessionId, global);
+    expect(ai.transcript.whereType<UserMessage>().length, 1);
+    expect(ai.isBusy, false);
+    await ai.startNewSession();
+    await Future.wait([
+      ai.openConversation(global),
+      ai.openGlobalConversation(),
+    ]);
+    expect(ai.currentSessionId, global);
+  });
+
+  test('外部截图通知当前聊天并在达到数量上限时保留原草稿', () async {
+    final ai = makeController(ScriptedModel([]));
+    await ai.initialize();
+    final image = AssistantAttachment.fromBytes(
+      'screen.png',
+      base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+      ),
+    );
+    var changes = 0;
+    ai.addListener(() => changes++);
+    for (var i = 0; i < AssistantAttachment.maxCount; i++) {
+      ai.addCapturedAttachment(image);
+    }
+    expect(changes, AssistantAttachment.maxCount);
+    expect(() => ai.addCapturedAttachment(image), throwsFormatException);
+    expect(ai.attachmentsFor(ai.draftKey).length, AssistantAttachment.maxCount);
+    expect(ai.currentSessionId, isNull);
+  });
+
   test('后台超过写租约仍可发送，回前台不需要重启应用', () async {
     var leaseClock = now;
     final model = ScriptedModel([

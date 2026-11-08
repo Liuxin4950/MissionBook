@@ -144,32 +144,27 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     }
   }
 
-  Future<void> openCapturedScreen(Uint8List bytes) async {
-    if (_opening || !mounted) return;
-    _opening = true;
+  Future<bool> openCapturedScreen(Uint8List bytes) async {
+    if (!mounted) return false;
     try {
       final screenshot = AssistantAttachment.fromBytes(
         'screen-${DateTime.now().millisecondsSinceEpoch}.jpg',
         bytes,
       );
-      _selectedNodeId = null;
-      await _prepare().timeout(const Duration(seconds: 5));
-      if (!mounted) return;
-      final controller = _scope!.controller;
-      final key = controller.draftKey;
-      final attachments = controller.attachmentsFor(key);
-      final total = attachments.fold<int>(
-        screenshot.bytes.length,
-        (size, item) => size + item.bytes.length,
-      );
-      if (attachments.length >= AssistantAttachment.maxCount ||
-          total > AssistantAttachment.maxTotalBytes) {
-        throw const FormatException('当前草稿附件已达上限，请先移除部分附件');
+      await _scope!.controller.initialize();
+      if (!mounted) return false;
+      // 已有聊天页时接续当前草稿，避免为截图重复切换会话。
+      final conversationOpen = assistantConversationIsOpen(context);
+      if (!_opening && !conversationOpen) {
+        _selectedNodeId = null;
+        await _prepare();
       }
-      controller.saveAttachments(key, [...attachments, screenshot]);
-      _bubbleIdentity = key;
+      if (!mounted) return false;
+      _scope!.controller.addCapturedAttachment(screenshot);
+      _bubbleIdentity = _scope!.controller.draftKey;
       _sentMessage = null;
-      await _expand();
+      if (!_opening && !conversationOpen) unawaited(_expand());
+      return true;
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -178,8 +173,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
           ),
         );
       }
-    } finally {
-      _opening = false;
+      return false;
     }
   }
 
@@ -261,6 +255,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
       _menu = false;
       _bubble = false;
       _hover = null;
+      _selectedNodeId = null;
     });
     _portal.hide();
   }

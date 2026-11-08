@@ -241,6 +241,21 @@ class AssistantController extends ChangeNotifier {
     }
   }
 
+  /// 系统截图经校验后加入当前草稿，通知已经打开的聊天页刷新。
+  void addCapturedAttachment(AssistantAttachment attachment) {
+    final files = attachmentsFor(draftKey);
+    if (files.length >= AssistantAttachment.maxCount ||
+        files.fold<int>(
+              attachment.bytes.length,
+              (sum, file) => sum + file.bytes.length,
+            ) >
+            AssistantAttachment.maxTotalBytes) {
+      throw const FormatException('当前草稿附件已达上限，请先移除部分附件');
+    }
+    saveAttachments(draftKey, [...files, attachment]);
+    _notifyListeners();
+  }
+
   /// 未发送的全局/对象聊天按草稿身份隔离，不需要先建立数据库会话。
   String get draftKey {
     final ref = _reference;
@@ -632,6 +647,7 @@ class AssistantController extends ChangeNotifier {
     _gateway.interruptObsoleteRequests();
     stop();
     await _configurationDone?.future;
+    await _sessions._navigation;
     await _changes?.cancel();
     await _events?.cancel();
     await _closeSession();

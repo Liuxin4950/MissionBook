@@ -11,6 +11,8 @@ import '../widgets/app_section_card.dart';
 import '../widgets/app_section_header.dart';
 import '../widgets/app_settings_row.dart';
 import 'data_backup_page.dart';
+import 'motion_style_sheet.dart';
+import 'motion_preferences_sheet.dart';
 import '../assistant/entry/assistant_scope.dart';
 import '../assistant/settings/assistant_settings_page.dart';
 
@@ -258,10 +260,8 @@ class _SettingsPageState extends State<SettingsPage>
   Widget _motionSection(MotionSettingsScope scope) {
     final settings = scope.settings;
     final note = switch (settings.preference) {
-      MotionPreference.system =>
-        scope.systemReducedMotion ? '系统要求减少动效' : '系统允许页面过渡',
-      MotionPreference.full => '仅对本机开启动效',
-      MotionPreference.reduced => '仅对本机减少动效',
+      MotionPreference.system when scope.systemReducedMotion => '系统要求减少动效',
+      _ => null,
     };
     return _section(
       '界面',
@@ -270,25 +270,23 @@ class _SettingsPageState extends State<SettingsPage>
           AppSettingsRow(
             key: ValueKey('page-motion-${settings.preference.name}'),
             icon: Icons.animation_outlined,
-            title: '页面动效',
+            title: '动效',
             subtitle: note,
             enabled: !settings.saving,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _motionLabel(settings.preference),
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(width: AppLayout.spaceXs),
-                const Icon(
-                  Icons.chevron_right,
-                  size: AppLayout.iconMd,
-                  color: AppColors.textSecondary,
-                ),
-              ],
-            ),
+            trailing: _motionValue(_motionLabel(settings.preference)),
             onTap: settings.saving ? null : () => _chooseMotion(scope),
+          ),
+          _rowDivider,
+          AppSettingsRow(
+            key: const Key('page-motion-style'),
+            icon: Icons.open_in_new,
+            title: '页面切换',
+            trailing: _motionValue(MotionStyleSheet.label(settings.pageStyle)),
+            enabled: !settings.saving,
+            onTap: () => showAdaptiveSheet<void>(
+              context: context,
+              builder: (_) => MotionStyleSheet(settings: settings),
+            ),
           ),
           if (settings.error case final error?) ...[
             _rowDivider,
@@ -312,48 +310,30 @@ class _SettingsPageState extends State<SettingsPage>
     );
   }
 
+  Widget _motionValue(String value) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(value, style: Theme.of(context).textTheme.bodyMedium),
+      const SizedBox(width: AppLayout.spaceXs),
+      const Icon(
+        Icons.chevron_right,
+        size: AppLayout.iconMd,
+        color: AppColors.textSecondary,
+      ),
+    ],
+  );
+
   String _motionLabel(MotionPreference preference) => switch (preference) {
     MotionPreference.system => '跟随系统',
     MotionPreference.full => '开启动效',
     MotionPreference.reduced => '减少动效',
   };
 
-  Future<void> _chooseMotion(MotionSettingsScope scope) async {
-    final current = scope.settings.preference;
-    final choice = await showAdaptiveSheet<MotionPreference>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(AppLayout.spaceLg),
-                child: Text(
-                  '页面动效',
-                  style: Theme.of(sheetContext).textTheme.titleMedium,
-                ),
-              ),
-              for (final preference in MotionPreference.values)
-                ListTile(
-                  key: Key('motion-option-${preference.name}'),
-                  title: Text(_motionLabel(preference)),
-                  selected: preference == current,
-                  trailing: preference == current
-                      ? const Icon(Icons.check)
-                      : null,
-                  onTap: () => Navigator.pop(sheetContext, preference),
-                ),
-              const SizedBox(height: AppLayout.spaceSm),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (choice != null && choice != current) {
-      await scope.settings.select(choice);
-    }
-  }
+  Future<void> _chooseMotion(MotionSettingsScope scope) =>
+      showAdaptiveSheet<void>(
+        context: context,
+        builder: (_) => MotionPreferencesSheet(settings: scope.settings),
+      );
 
   Widget _buildPermissionSection(BuildContext context) {
     final capabilities = _capabilities;
@@ -371,43 +351,35 @@ class _SettingsPageState extends State<SettingsPage>
         (platform == DevicePlatform.android &&
             capabilities?.exactAlarms == null);
     final String title;
-    final String description;
+    String? description;
     final IconData icon;
     if (_capabilityError != null) {
       title = '暂时无法确认提醒权限';
-      description = '请重新读取权限状态。';
       icon = Icons.info_outline;
     } else if (capabilities == null) {
       title = '正在读取提醒权限';
-      description = '正在查询系统权限。';
       icon = Icons.notifications_outlined;
     } else if (!supported) {
       title = '当前平台尚未接入系统提醒';
-      description = '任务仍可在应用内管理。';
       icon = Icons.notifications_off_outlined;
     } else if (platform == DevicePlatform.windows) {
       title = 'Windows 通知设置';
-      description = '应用无法读取权限，请在系统中检查。';
       icon = Icons.notifications_outlined;
     } else if (needsNotifications) {
       title = '开启系统通知';
-      description = '允许后才能收到任务提醒。';
       icon = Icons.notifications_off_outlined;
     } else if (needsExecutionChannel) {
       title = '执行状态通知已关闭';
-      description = '请在系统通知设置中开启执行状态分类。';
       icon = Icons.notifications_off_outlined;
     } else if (unknownPermission) {
       title = '部分提醒权限无法查询';
-      description = '可在系统设置中查看。';
       icon = Icons.info_outline;
     } else if (needsExactAlarms) {
       title = '准时提醒权限待开启';
-      description = '未开启时固定任务提醒可能延迟。';
+      description = '固定任务提醒可能延迟';
       icon = Icons.alarm_outlined;
     } else {
       title = '提醒权限已就绪';
-      description = '实际送达请在系统通知栏确认。';
       icon = Icons.notifications_active_outlined;
     }
 
@@ -421,6 +393,20 @@ class _SettingsPageState extends State<SettingsPage>
             key: const Key('windows-notification-settings'),
             onPressed: _openingSettings ? null : () => _settings(false),
             child: const Text('打开设置'),
+          )
+        : platform == DevicePlatform.android &&
+              _capabilityError == null &&
+              (needsNotifications || needsExecutionChannel)
+        ? TextButton(
+            key: const Key('grant-notifications'),
+            onPressed: _openingSettings ? null : () => _settings(false),
+            child: const Text('去设置'),
+          )
+        : _capabilityError == null && needsExactAlarms && !unknownPermission
+        ? TextButton(
+            key: const Key('grant-exact-alarms'),
+            onPressed: _openingSettings ? null : () => _settings(true),
+            child: const Text('去设置'),
           )
         : canRefresh
         ? TextButton(
@@ -439,30 +425,14 @@ class _SettingsPageState extends State<SettingsPage>
       ),
     ];
     if (_capabilityError == null && supported) {
-      if (needsNotifications || needsExecutionChannel) {
-        rows.add(_rowDivider);
-        rows.add(
-          AppSettingsRow(
-            icon: needsNotifications
-                ? Icons.notifications_outlined
-                : Icons.timer_outlined,
-            title: needsNotifications ? '系统通知' : '执行状态通知',
-            subtitle: '系统未允许',
-            trailing: TextButton(
-              key: const Key('grant-notifications'),
-              onPressed: _openingSettings ? null : () => _settings(false),
-              child: const Text('去设置'),
-            ),
-          ),
-        );
-      }
-      if (needsExactAlarms) {
+      if (needsExactAlarms &&
+          (needsNotifications || needsExecutionChannel || unknownPermission)) {
         rows.add(_rowDivider);
         rows.add(
           AppSettingsRow(
             icon: Icons.alarm_outlined,
             title: '准时提醒权限',
-            subtitle: '系统未允许',
+            subtitle: '固定任务提醒可能延迟',
             trailing: TextButton(
               key: const Key('grant-exact-alarms'),
               onPressed: _openingSettings ? null : () => _settings(true),
@@ -479,9 +449,9 @@ class _SettingsPageState extends State<SettingsPage>
         AppSettingsRow(
           icon: Icons.notifications_active_outlined,
           title: platform == DevicePlatform.android ? '执行计时通知' : '执行状态通知',
-          subtitle: platform == DevicePlatform.android
-              ? '课前和执行通知常驻，清空其他通知后仍保留'
-              : '通过 Windows 通知呈现',
+          subtitle: capabilities?.islandSupported == true
+              ? _islandDescription(capabilities)
+              : null,
           trailing: widget.notifications == null
               ? null
               : TextButton(
@@ -493,24 +463,6 @@ class _SettingsPageState extends State<SettingsPage>
                 ),
         ),
       );
-      if (platform == DevicePlatform.android &&
-          capabilities?.islandSupported == true) {
-        rows.add(
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppLayout.spaceLg + AppLayout.iconMd + AppLayout.spaceMd,
-              0,
-              AppLayout.spaceLg,
-              AppLayout.spaceMd,
-            ),
-            child: Text(
-              _islandDescription(capabilities),
-              key: const Key('island-capability-status'),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        );
-      }
     }
     return _section('提醒与权限', child: Column(children: rows));
   }
@@ -652,15 +604,15 @@ class _SettingsPageState extends State<SettingsPage>
     }
     if (capabilities.islandSupported == true) {
       if (capabilities.focusConfigured == false) {
-        return '超级岛计时已适配，应用尚未完成小米平台开通，当前使用常驻计时通知。';
+        return '超级岛待平台开通，使用普通通知';
       }
       if (capabilities.focusPermission == false) {
-        return '系统支持超级岛，但本应用尚未获准焦点通知。';
+        return '超级岛焦点通知未授权';
       }
       if (capabilities.focusPermission == true) {
-        return '超级岛计时已适配，执行时由系统显示；暂停和到点后冻结计时。';
+        return '超级岛已就绪';
       }
-      return '系统支持超级岛，焦点权限暂时未知。';
+      return '超级岛权限未知';
     }
     return '当前平台无法确认小米超级岛能力。';
   }

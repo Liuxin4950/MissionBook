@@ -1,3 +1,4 @@
+import '../../core/theme/app_motion.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -182,6 +183,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
     try {
       final saved = await showDialog<LocalProfile>(
         context: context,
+        animationStyle: AppMotion.overlayStyle(context),
         barrierDismissible: false,
         builder: (_) =>
             _ProfileEditor(profile: _profile!, device: widget.device),

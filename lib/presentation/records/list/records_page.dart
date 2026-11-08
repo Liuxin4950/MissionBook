@@ -1,3 +1,4 @@
+import '../../../core/theme/app_motion.dart';
 import '../../../domain/entities/saved_record.dart';
 import '../../../domain/entities/record_draft.dart';
 import '../../../application/errors/user_error_message.dart';
@@ -426,6 +427,7 @@ class _RecordTile extends StatelessWidget {
                   const SizedBox(width: AppLayout.spaceSm),
                   Expanded(child: Text(date, style: text.bodySmall)),
                   PopupMenuButton<String>(
+                    popUpAnimationStyle: AppMotion.overlayStyle(context),
                     tooltip: '记录操作',
                     onSelected: (_) => onDelete(),
                     itemBuilder: (_) => [

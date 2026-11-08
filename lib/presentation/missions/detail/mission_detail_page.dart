@@ -1,3 +1,4 @@
+import '../../../core/theme/app_motion.dart';
 import '../../widgets/adaptive_sheet.dart';
 import '../../attachments/attachment_image_loader.dart';
 import '../../../domain/entities/analysis_scope.dart';
@@ -569,6 +570,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
           canGoBack: !_isCancelBusy,
           actions: [
             PopupMenuButton<String>(
+              popUpAnimationStyle: AppMotion.overlayStyle(context),
               tooltip: '任务更多操作',
               icon: const Icon(Icons.more_horiz, size: AppLayout.iconLg),
               enabled: !_isCancelBusy,

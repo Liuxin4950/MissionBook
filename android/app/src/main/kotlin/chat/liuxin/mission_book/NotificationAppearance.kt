@@ -93,7 +93,7 @@ object NotificationAppearance {
             else String.format(Locale.ROOT, "%02d:%02d", seconds / 60, seconds % 60)
         fun content(layout: Int) = RemoteViews(context.packageName, layout).apply {
             setTextViewText(R.id.notification_title, title)
-            setTextViewText(R.id.notification_state, if (behind) "请校正系统时间" else if (running) "正在专注" else if (stopped) "已到点 · 待确认" else "已暂停 · 专注已冻结")
+            setTextViewText(R.id.notification_state, if (behind) "请校时" else if (running) "执行中" else if (stopped) "待确认" else "已暂停")
             setImageViewResource(R.id.notification_state_icon, if (running) R.drawable.ic_stat_running else R.drawable.ic_stat_paused)
             setContentDescription(R.id.notification_state_icon, if (running) "执行中" else if (stopped) "待确认" else "已暂停")
             setViewVisibility(R.id.notification_clock, if (advancing) View.VISIBLE else View.GONE)
@@ -101,7 +101,7 @@ object NotificationAppearance {
             setChronometer(R.id.notification_clock, SystemClock.elapsedRealtime() - currentFocus, null, advancing)
             setTextViewText(R.id.notification_frozen, frozen)
             if (layout == R.layout.notification_execution_expanded) {
-                setTextViewText(R.id.notification_budget, "专注时长 · 当前额度 $budget 分钟")
+                setTextViewText(R.id.notification_budget, "总时长 $budget 分钟")
             }
         }
         // recoverBuilder 继承插件已有的点击意图、动作按钮、payload、静默频道及撤销编号。

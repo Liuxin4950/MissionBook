@@ -1,3 +1,4 @@
+import '../../core/theme/app_motion.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -33,6 +34,7 @@ class AttachmentImagePreview extends StatelessWidget {
     // 图片本身就是入口。查看层不依赖所在草稿区域的 PopScope，关闭不会丢弃草稿。
     showDialog<void>(
       context: context,
+      animationStyle: AppMotion.overlayStyle(context),
       // 背景铺满整屏，内容自己避让安全区；否则状态栏和底部会露出灰色遮罩。
       useSafeArea: false,
       builder: (context) => AnnotatedRegion<SystemUiOverlayStyle>(

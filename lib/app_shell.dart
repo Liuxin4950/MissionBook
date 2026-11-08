@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'dart:async';
 import 'presentation/today/today_page.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,7 @@ import 'application/backup/backup_service.dart';
 import 'application/settings/app_device.dart';
 import 'presentation/me/me_page.dart';
 import 'presentation/widgets/detail_pane.dart';
+import 'presentation/widgets/app_content_transition.dart';
 
 /// 管理顶层导航入口，并保留各页状态、转交共享业务对象。
 class AppShell extends StatefulWidget {
@@ -100,13 +102,25 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  bool _consumingCapture = false;
+  Uint8List? _acceptedCapture;
   Future<void> _consumePendingCapture() async {
+    if (_consumingCapture) return;
+    _consumingCapture = true;
     try {
       final bytes = await _overlayChannel.invokeMethod<Uint8List>(
         'consumePendingCapture',
       );
       if (bytes != null && mounted) {
-        await _assistantEntry.currentState?.openCapturedScreen(bytes);
+        final accepted =
+            listEquals(_acceptedCapture, bytes) ||
+            await _assistantEntry.currentState?.openCapturedScreen(bytes) ==
+                true;
+        if (accepted == true) {
+          _acceptedCapture = bytes;
+          await _overlayChannel.invokeMethod<void>('acknowledgeCapture');
+          _acceptedCapture = null;
+        }
       }
     } on PlatformException {
       if (mounted) {
@@ -116,6 +130,8 @@ class _AppShellState extends State<AppShell> {
       }
     } on MissingPluginException {
       // 桌面和 Web 没有 Android 投屏入口。
+    } finally {
+      _consumingCapture = false;
     }
   }
 
@@ -197,7 +213,7 @@ class _AppShellState extends State<AppShell> {
 
   // 路由变更方法
   Future<void> _selectPage(int index) async {
-    if (_selectingPage) return;
+    if (_selectingPage || index == _selectedIndex) return;
     _selectingPage = true;
     try {
       // 切主导航先处理右栏及草稿守卫，否则新页面只会在旧面板下面切换。
@@ -263,15 +279,18 @@ class _AppShellState extends State<AppShell> {
     ];
     final pageBody = KeyedSubtree(
       key: _pageStackKey,
-      child: IndexedStack(
-        index: _selectedIndex,
-        children: [
-          for (var index = 0; index < pages.length; index++)
-            TickerMode(
-              enabled: index == _selectedIndex,
-              child: pages[index],
-            ), // 只在选中时才启动动画
-        ],
+      child: AppContentTransition(
+        identity: _selectedIndex,
+        child: IndexedStack(
+          index: _selectedIndex,
+          children: [
+            for (var index = 0; index < pages.length; index++)
+              TickerMode(
+                enabled: index == _selectedIndex,
+                child: pages[index],
+              ), // 只在选中时才启动动画
+          ],
+        ),
       ),
     );
     final body = AssistantEntryScope(

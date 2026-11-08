@@ -298,6 +298,186 @@ void main() {
     }
   });
 
+  testWidgets('手机节点收紧为单行高度，任务计数和全卡按压反馈保留', (tester) async {
+    await create(title: '紧凑任务', nodeId: parent.id);
+    for (var index = 0; index < 5; index++) {
+      await goals.createNode(
+        goals.prepareNodeCreation(goalId: goal.id, title: '其他节点 $index'),
+      );
+    }
+    const captureKey = Key('compact-node-capture');
+    await open(
+      tester,
+      home: RepaintBoundary(
+        key: captureKey,
+        child: Scaffold(
+          body: GoalsPage(service: goals, missionService: missions),
+        ),
+      ),
+    );
+    final goalCard = find.byKey(Key('goal-outline-toggle-${goal.id}'));
+    Future<List<int>> readBottomPixels(Finder target) {
+      final bounds = tester.getRect(target);
+      final origin = tester.getTopLeft(find.byKey(captureKey));
+      final points = [
+        Offset(bounds.left + 16, bounds.bottom - 6) - origin,
+        Offset(bounds.right - 16, bounds.bottom - 6) - origin,
+      ];
+      return tester
+          .runAsync(() async {
+            final image = await tester
+                .renderObject<RenderRepaintBoundary>(find.byKey(captureKey))
+                .toImage();
+            final bytes = (await image.toByteData(
+              format: ui.ImageByteFormat.rawRgba,
+            ))!.buffer.asUint8List();
+            final colors = [
+              for (final point in points)
+                bytes[(point.dy.floor() * image.width + point.dx.floor()) * 4],
+            ];
+            image.dispose();
+            return colors;
+          })
+          .then((value) => value!);
+    }
+
+    final goalBefore = await readBottomPixels(goalCard);
+    final goalGesture = await tester.startGesture(
+      tester.getCenter(find.text(goal.title)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 150));
+    final goalPressed = await readBottomPixels(goalCard);
+    expect(goalPressed[0], lessThan(goalBefore[0]));
+    expect(goalPressed[1], lessThan(goalBefore[1]));
+    await goalGesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('行动路径'), findsNothing);
+    expect(find.textContaining('完成节点'), findsNothing);
+    final summary = find.byKey(Key('goal-record-summary-${goal.id}'));
+    final bar = find.descendant(
+      of: summary,
+      matching: find.byType(LinearProgressIndicator),
+    );
+    expect(
+      tester.getSize(bar).width,
+      greaterThan(tester.getSize(summary).width * .65),
+    );
+    expect(find.byKey(Key('goal-coverage-count-${goal.id}')), findsOneWidget);
+    final addRoot = find.byKey(Key('node-add-root-${goal.id}'));
+    final progress = find.byKey(Key('goal-progress-row-${goal.id}'));
+    expect(find.descendant(of: progress, matching: addRoot), findsOneWidget);
+    expect(
+      tester.getRect(addRoot).right,
+      closeTo(tester.getRect(progress).right, .01),
+    );
+    final search = find.byKey(const Key('goal-node-search'));
+    expect(tester.getSize(search).height, 48);
+    expect(
+      tester.getSize(find.byKey(const Key('goal-node-search-surface'))).height,
+      32,
+    );
+    final header = find.byKey(Key('node-header-${parent.id}'));
+    expect(tester.getSize(header).height, lessThanOrEqualTo(56));
+    expect(
+      tester.getSize(find.byKey(Key('node-row-${parent.id}'))).height,
+      lessThanOrEqualTo(64),
+    );
+    final tasks = find.byKey(Key('node-tasks-${parent.id}'));
+    expect(tester.getSize(tasks).height, greaterThanOrEqualTo(48));
+    expect(
+      find.descendant(of: tasks, matching: find.text('1')),
+      findsOneWidget,
+    );
+    expect(find.byKey(Key('node-create-mission-${parent.id}')), findsNothing);
+    await tap(tester, 'node-menu-${parent.id}');
+    expect(
+      find.byKey(Key('node-create-mission-menu-${parent.id}')),
+      findsOneWidget,
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    final surface = find.byKey(Key('node-surface-${parent.id}'));
+    expect(
+      tester.getSize(surface),
+      tester.getSize(find.byKey(Key('node-press-${parent.id}'))),
+    );
+    final before = await readBottomPixels(surface);
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(Key('node-title-${parent.id}'))),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 150));
+    final pressed = await readBottomPixels(surface);
+    expect(pressed[0], lessThan(before[0]), reason: '左侧卡片底色应完整激活');
+    expect(pressed[1], lessThan(before[1]), reason: '右侧卡片底色应完整激活');
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.enterText(search, '界面');
+    await tester.pumpAndSettle();
+    expect(find.text('其他节点 0'), findsNothing);
+    final clearSearch = find.byTooltip('清除节点搜索');
+    expect(tester.getSize(clearSearch).height, greaterThanOrEqualTo(48));
+    await tester.tap(clearSearch);
+    await tester.pumpAndSettle();
+    expect(find.text('其他节点 0'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('紧凑搜索的提示、光标和图标在常规及双倍字号下居中', (tester) async {
+    for (var index = 0; index < 5; index++) {
+      await goals.createNode(
+        goals.prepareNodeCreation(goalId: goal.id, title: '搜索节点 $index'),
+      );
+    }
+    for (final scale in [1.0, 2.0]) {
+      await open(tester, width: 320, scale: scale);
+      final search = find.byKey(const Key('goal-node-search'));
+      await tester.ensureVisible(search);
+      await tester.pumpAndSettle();
+      Rect surfaceRect() =>
+          tester.getRect(find.byKey(const Key('goal-node-search-surface')));
+      void expectCentered() {
+        final bounds = surfaceRect();
+        final icon = find.descendant(
+          of: search,
+          matching: find.byIcon(Icons.search_rounded),
+        );
+        expect(tester.getCenter(icon).dy, closeTo(bounds.center.dy, 1));
+        final editable = tester
+            .state<EditableTextState>(
+              find.descendant(of: search, matching: find.byType(EditableText)),
+            )
+            .renderEditable;
+        final caret = editable.getLocalRectForCaret(
+          const TextPosition(offset: 0),
+        );
+        final globalCaret = caret.shift(editable.localToGlobal(Offset.zero));
+        expect(globalCaret.center.dy, closeTo(bounds.center.dy, 3));
+        expect(globalCaret.top, greaterThanOrEqualTo(bounds.top - 1));
+        expect(globalCaret.bottom, lessThanOrEqualTo(bounds.bottom + 1));
+      }
+
+      expect(
+        tester.getCenter(find.text('搜索节点')).dy,
+        closeTo(surfaceRect().center.dy, 3),
+      );
+      expectCentered();
+      await tester.enterText(search, '界面');
+      await tester.pumpAndSettle();
+      expectCentered();
+      final clear = find.byTooltip('清除节点搜索');
+      expect(tester.getCenter(clear).dy, closeTo(surfaceRect().center.dy, 1));
+      expect(tester.getSize(clear).height, greaterThanOrEqualTo(48));
+      await tester.tap(clear);
+      await tester.pumpAndSettle();
+      expectCentered();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+  });
+
   testWidgets('节点展开箭头控制子项，任务记录和菜单保持独立', (tester) async {
     await create(title: '父节点任务', nodeId: parent.id);
     await open(tester);
@@ -317,7 +497,6 @@ void main() {
       find.byKey(Key('node-header-${parent.id}')),
     );
     final parentActions = [
-      tester.getRect(find.byKey(Key('node-create-mission-${parent.id}'))),
       tester.getRect(find.byKey(Key('node-menu-${parent.id}'))),
     ];
     for (final action in parentActions) {
@@ -325,7 +504,7 @@ void main() {
     }
     expect(
       parentHeader.top,
-      lessThan(tester.getRect(find.byKey(Key('node-tasks-${parent.id}'))).top),
+      tester.getRect(find.byKey(Key('node-tasks-${parent.id}'))).top,
     );
     expect(
       tester
@@ -358,8 +537,8 @@ void main() {
       );
       final marker = tester.getRect(find.byKey(Key('node-marker-${node.id}')));
       final header = tester.getRect(find.byKey(Key('node-header-${node.id}')));
-      expect(card.left, closeTo(marker.right + AppLayout.spaceMd, 0.01));
-      expect(card.right, closeTo(header.right, 0.01));
+      expect(card.left, closeTo(marker.left + AppLayout.spaceSm, 0.01));
+      expect(card.right, closeTo(header.right - AppLayout.spaceSm, 0.01));
       expect(card.width, greaterThan(0));
       expect(
         tester
@@ -525,8 +704,8 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.byKey(Key('node-create-mission-${parent.id}')), findsOneWidget);
-    expect(find.textContaining('部分完成 · 2 项任务'), findsOneWidget);
+    expect(find.byKey(Key('node-menu-${parent.id}')), findsOneWidget);
+    expect(find.textContaining('部分完成'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(Key('node-marker-${node.id}')),
@@ -534,7 +713,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.textContaining('任务全部完成的节点 0/2'), findsOneWidget);
+    expect(find.textContaining('0/2'), findsOneWidget);
     expect(find.text('待补材料'), findsOneWidget);
     await tap(tester, 'node-tasks-${node.id}');
     expect(find.text('下一次练习'), findsOneWidget);
@@ -584,13 +763,13 @@ void main() {
 
     await complete(first);
     await open(tester);
-    expect(find.text('任务全部完成的节点 0/2'), findsOneWidget);
-    expect(find.textContaining('部分完成 · 2 项任务'), findsOneWidget);
+    expect(find.text('0/2'), findsOneWidget);
+    expect(find.textContaining('部分完成'), findsOneWidget);
 
     await complete(second);
     await tester.pumpAndSettle();
-    expect(find.text('任务全部完成的节点 1/2'), findsOneWidget);
-    expect(find.textContaining('已完成 · 2 项任务'), findsOneWidget);
+    expect(find.text('1/2'), findsOneWidget);
+    expect(find.textContaining('已完成'), findsOneWidget);
   });
 
   testWidgets('节点任务进入独立执行页，报告返回保护草稿且不保存 END', (tester) async {
@@ -715,7 +894,8 @@ void main() {
 
   testWidgets('320宽双倍字体下任务归属、选择器与节点建任务没有溢出', (tester) async {
     await open(tester, width: 320, scale: 2);
-    await tap(tester, 'node-create-mission-${node.id}');
+    await tap(tester, 'node-menu-${node.id}');
+    await tap(tester, 'node-create-mission-menu-${node.id}');
     await tap(tester, 'mission-ownership');
     await tap(tester, 'ownership-node-${node.id}');
     tester.view.viewInsets = const FakeViewPadding(bottom: 260);

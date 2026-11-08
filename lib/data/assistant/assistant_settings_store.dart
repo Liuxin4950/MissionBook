@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'assistant_overlay_appearance.dart';
 import 'package:agent_core/agent_core.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -45,6 +46,12 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
     final reasoning = reasoningJson == null
         ? <String, Object?>{}
         : Map<String, Object?>.from(jsonDecode(reasoningJson) as Map);
+    final persona = personaJson == null
+        ? const AssistantPersona()
+        : AssistantPersona.fromJson(
+            Map<String, Object?>.from(jsonDecode(personaJson) as Map),
+          );
+    await syncAssistantOverlayPersona(persona);
     return AssistantSettings(
       reasoningEfforts: {
         for (final entry in reasoning.entries)
@@ -53,13 +60,7 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
       hasDeepSeekCredential: apiKey != null,
       hasCustomCredential: customKey != null,
       customProfile: custom,
-      persona: personaJson == null
-          ? const AssistantPersona()
-          : AssistantPersona.fromJson(
-              Map<String, Object?>.from(
-                jsonDecode(personaJson) as Map<String, dynamic>,
-              ),
-            ),
+      persona: persona,
       hasTranscriptionCredential:
           await resolveCredential('MISSIONBOOK_TRANSCRIPTION_API_KEY') != null,
       speech: AssistantSpeechSettings(
@@ -159,6 +160,7 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
   Future<void> savePersona(AssistantPersona persona) async {
     persona.validate();
     await _storage.write(key: _personaKey, value: jsonEncode(persona.toJson()));
+    await syncAssistantOverlayPersona(persona);
   }
 
   @override

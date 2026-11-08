@@ -213,7 +213,8 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     );
     _device = createAppDevice();
     _motionSettings = createMotionSettings();
-    unawaited(_motionSettings.load());
+    final motionLoaded = _motionSettings.load();
+    unawaited(motionLoaded);
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       _plannedBridge = PlannedAlarmBridge()
         ..listenForCommits(_missionService.refreshAfterExternalCommit);
@@ -240,9 +241,17 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     _notificationInitialization = _initNotifications();
     unawaited(_notificationInitialization);
     // 首帧先呈现品牌页；短暂过渡后才装载四个主页面。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await motionLoaded;
       if (!mounted) return;
-      _launchTimer = Timer(AppMotion.launch, () {
+      final reduced = _motionSettings.reduceMotion(
+        WidgetsBinding
+            .instance
+            .platformDispatcher
+            .accessibilityFeatures
+            .disableAnimations,
+      );
+      _launchTimer = Timer(reduced ? Duration.zero : AppMotion.launch, () {
         if (mounted) setState(() => _launchComplete = true);
         if (mounted && widget.notice != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -502,19 +511,21 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       supportedLocales: const [Locale('zh', 'CN')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       // build 可以重复执行，但这里始终传入已创建的同一个业务对象。
-      home: AnimatedSwitcher(
-        duration: AppMotion.resolve(context, AppMotion.quick),
-        child: _launchComplete
-            ? AppShell(
-                key: const ValueKey('app-shell'),
-                assistant: _assistant,
-                missionService: _missionService,
-                goalService: _goalService,
-                backupService: _backupService,
-                device: _device,
-                notifications: _notifications,
-              )
-            : const LaunchPage(key: ValueKey('launch-page')),
+      home: Builder(
+        builder: (context) => AnimatedSwitcher(
+          duration: AppMotion.resolve(context, AppMotion.quick),
+          child: _launchComplete
+              ? AppShell(
+                  key: const ValueKey('app-shell'),
+                  assistant: _assistant,
+                  missionService: _missionService,
+                  goalService: _goalService,
+                  backupService: _backupService,
+                  device: _device,
+                  notifications: _notifications,
+                )
+              : const LaunchPage(key: ValueKey('launch-page')),
+        ),
       ),
     );
   }

@@ -84,6 +84,11 @@ Future<void> openAssistant(
   }
 }
 
+final _conversationRoutes = Expando<Future<void>>();
+
+bool assistantConversationIsOpen(BuildContext context) =>
+    _conversationRoutes[Navigator.of(context, rootNavigator: true)] != null;
+
 /// 独立二级路由覆盖原工作区；不切主导航或清空详情/草稿栈。
 Future<void> showAssistantConversation(
   BuildContext context, {
@@ -91,17 +96,23 @@ Future<void> showAssistantConversation(
   String? initialOperationCallId,
 }) {
   final scope = AssistantScope.of(context);
-  return Navigator.of(context, rootNavigator: true).push<void>(
-    MaterialPageRoute(
-      settings: const RouteSettings(name: '/assistant/conversation'),
-      builder: (_) => AssistantPage(
-        controller: scope.controller,
-        showBack: true,
-        initialText: initialText,
-        initialOperationCallId: initialOperationCallId,
-      ),
-    ),
-  );
+  final navigator = Navigator.of(context, rootNavigator: true);
+  if (_conversationRoutes[navigator] != null) return Future.value();
+  final route = navigator
+      .push<void>(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: '/assistant/conversation'),
+          builder: (_) => AssistantPage(
+            controller: scope.controller,
+            showBack: true,
+            initialText: initialText,
+            initialOperationCallId: initialOperationCallId,
+          ),
+        ),
+      )
+      .then<void>((_) {});
+  _conversationRoutes[navigator] = route;
+  return route.whenComplete(() => _conversationRoutes[navigator] = null);
 }
 
 Future<void> openAssistantMission(

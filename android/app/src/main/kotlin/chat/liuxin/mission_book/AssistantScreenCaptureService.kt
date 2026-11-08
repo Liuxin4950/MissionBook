@@ -18,6 +18,9 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.DisplayMetrics
+import android.util.Log
+import android.provider.Settings
+import android.widget.Toast
 import android.view.WindowManager
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -31,7 +34,13 @@ class AssistantScreenCaptureService : Service() {
     private var completed = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startCaptureForeground()
+        try {
+            startCaptureForeground()
+        } catch (error: Exception) {
+            Log.e("AssistantCapture", "截屏前台服务启动失败", error)
+            finishCapture(null)
+            return START_NOT_STICKY
+        }
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, ActivityResultCanceled) ?: ActivityResultCanceled
         val data = getResultData(intent)
         if (resultCode != ActivityResultOk || data == null) {
@@ -45,9 +54,14 @@ class AssistantScreenCaptureService : Service() {
             val imageReader = ImageReader.newInstance(metrics.widthPixels, metrics.heightPixels, PixelFormat.RGBA_8888, 2)
             reader = imageReader
             imageReader.setOnImageAvailableListener({ source ->
-                val image = source.acquireLatestImage() ?: return@setOnImageAvailableListener
+                if (completed) return@setOnImageAvailableListener
+                val image = try { source.acquireLatestImage() } catch (error: Exception) {
+                    Log.e("AssistantCapture", "读取截屏帧失败", error)
+                    finishCapture(null)
+                    return@setOnImageAvailableListener
+                } ?: return@setOnImageAvailableListener
                 val file = try { writeCapture(image, metrics.widthPixels, metrics.heightPixels) }
-                catch (_: Exception) { null }
+                catch (error: Exception) { Log.e("AssistantCapture", "截屏编码失败", error); null }
                 finally { image.close() }
                 finishCapture(file)
             }, handler)
@@ -93,7 +107,7 @@ class AssistantScreenCaptureService : Service() {
         val bitmap = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888)
         bitmap.copyPixelsFromBuffer(plane.buffer)
         val cropped = Bitmap.createBitmap(bitmap, 0, 0, width, height)
-        bitmap.recycle()
+        if (cropped !== bitmap) bitmap.recycle()
         val directory = File(cacheDir, MainActivity.ASSISTANT_CAPTURE_DIR).apply { mkdirs() }
         val file = File(directory, "capture-${UUID.randomUUID()}.jpg")
         var scaled = cropped
@@ -126,7 +140,6 @@ class AssistantScreenCaptureService : Service() {
             Notification.Builder(this)
         }.setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("正在截取屏幕")
-            .setContentText("截取一帧后立即停止。")
             .setOngoing(true)
             .build()
         if (Build.VERSION.SDK_INT >= 29) {
@@ -149,11 +162,20 @@ class AssistantScreenCaptureService : Service() {
         projection?.stop()
         projection = null
         if (file != null) {
-            val intent = Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                putExtra(MainActivity.EXTRA_CAPTURE_PATH, file.absolutePath)
+            getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
+                .edit().putString(MainActivity.EXTRA_CAPTURE_PATH, file.absolutePath).apply()
+            // 授权 Activity 保持存活，由可见 Activity 完成返回应用。
+            sendBroadcast(Intent(ACTION_CAPTURE_READY).setPackage(packageName)
+                .putExtra(MainActivity.EXTRA_CAPTURE_PATH, file.absolutePath))
+        } else {
+            Toast.makeText(this, "截屏失败，请重新截取", Toast.LENGTH_LONG).show()
+            sendBroadcast(Intent(ACTION_CAPTURE_READY).setPackage(packageName))
+            val prefs = getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
+            if (prefs.getBoolean(AssistantOverlayService.ENABLED_KEY, false) && Settings.canDrawOverlays(this)) {
+                try { startService(Intent(this, AssistantOverlayService::class.java)
+                    .setAction(AssistantOverlayService.ACTION_SHOW)) }
+                catch (error: Exception) { Log.e("AssistantCapture", "恢复悬浮入口失败", error) }
             }
-            startActivity(intent)
         }
         stopSelf()
     }
@@ -168,6 +190,7 @@ class AssistantScreenCaptureService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        const val ACTION_CAPTURE_READY = "chat.liuxin.mission_book.CAPTURE_READY"
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
         private const val CHANNEL_ID = "assistant_screen_capture"

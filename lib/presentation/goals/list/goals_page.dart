@@ -1,3 +1,4 @@
+import '../../../core/theme/app_motion.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -269,6 +270,9 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           PopupMenuButton<String>(
+                            popUpAnimationStyle: AppMotion.overlayStyle(
+                              context,
+                            ),
                             key: const Key('goal-more-filters'),
                             tooltip: '更多目标操作',
                             onSelected: (value) {
@@ -411,6 +415,9 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                             selected: selected?.id == goal.id,
                             onTap: () => _open(goal),
                             onToggleOutline: () => _toggleOutline(goal),
+                            onAddNode: selected?.id == goal.id
+                                ? () => _outlineKey.currentState?.addRootNode()
+                                : null,
                           ),
                           // 手机上目录紧跟被选目标，不需要越过其他目标才能找到路径。
                           if (!split && selected?.id == goal.id) ...[
@@ -438,37 +445,15 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
   Widget _pathPanel(Goal goal) => AppSectionCard(
     key: const Key('goal-path-panel'),
     padding: const EdgeInsets.all(AppLayout.spaceSm),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            const SizedBox(width: AppLayout.spaceSm),
-            Expanded(
-              child: Text(
-                '行动路径',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            IconButton(
-              key: Key('node-add-root-${goal.id}'),
-              tooltip: '添加节点',
-              onPressed: () => _outlineKey.currentState?.addRootNode(),
-              icon: const Icon(Icons.add_rounded, size: AppLayout.iconMd),
-            ),
-          ],
-        ),
-        GoalOutlineSection(
-          key: _outlineKey,
-          service: widget.service,
-          missionService: widget.missionService,
-          goal: goal,
-          goalId: goal.id,
-          goalTitle: goal.title,
-          embedded: true,
-          active: widget.active,
-        ),
-      ],
+    child: GoalOutlineSection(
+      key: _outlineKey,
+      service: widget.service,
+      missionService: widget.missionService,
+      goal: goal,
+      goalId: goal.id,
+      goalTitle: goal.title,
+      embedded: true,
+      active: widget.active,
     ),
   );
 
@@ -556,12 +541,14 @@ class _GoalCard extends StatelessWidget {
     required this.onToggleOutline,
     required this.selected,
     this.missionService,
+    this.onAddNode,
   });
   final Goal goal;
   final GoalService service;
   final MissionService? missionService;
   final VoidCallback onTap;
   final VoidCallback onToggleOutline;
+  final VoidCallback? onAddNode;
   final bool selected;
 
   @override
@@ -577,18 +564,19 @@ class _GoalCard extends StatelessWidget {
         ),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+      child: Semantics(
+        expanded: selected,
+        button: true,
+        child: InkWell(
+          key: Key('goal-outline-toggle-${goal.id}'),
+          onTap: onToggleOutline,
+          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: Semantics(
-                  expanded: selected,
-                  button: true,
-                  child: InkWell(
-                    key: Key('goal-outline-toggle-${goal.id}'),
-                    onTap: onToggleOutline,
+              Row(
+                children: [
+                  Expanded(
                     child: Padding(
                       padding: const EdgeInsets.all(AppLayout.spaceMd),
                       child: Row(
@@ -624,35 +612,54 @@ class _GoalCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                ),
+                  IconButton(
+                    key: Key('goal-details-${goal.id}'),
+                    tooltip: '目标详情：${goal.title}',
+                    onPressed: onTap,
+                    icon: const Icon(
+                      Icons.chevron_right_rounded,
+                      size: AppLayout.iconMd,
+                    ),
+                  ),
+                  const SizedBox(width: AppLayout.spaceXs),
+                ],
               ),
-              IconButton(
-                key: Key('goal-details-${goal.id}'),
-                tooltip: '目标详情：${goal.title}',
-                onPressed: onTap,
-                icon: const Icon(
-                  Icons.chevron_right_rounded,
-                  size: AppLayout.iconMd,
+              if (missionService != null || onAddNode != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppLayout.spaceMd,
+                    0,
+                    AppLayout.spaceXs,
+                    AppLayout.spaceXs,
+                  ),
+                  child: Row(
+                    key: Key('goal-progress-row-${goal.id}'),
+                    children: [
+                      Expanded(
+                        child: missionService == null
+                            ? const SizedBox.shrink()
+                            : GoalRecordSummary(
+                                goalId: goal.id,
+                                goals: service,
+                                missions: missionService!,
+                              ),
+                      ),
+                      if (onAddNode != null)
+                        IconButton(
+                          key: Key('node-add-root-${goal.id}'),
+                          tooltip: '添加节点',
+                          onPressed: onAddNode,
+                          icon: const Icon(
+                            Icons.add_rounded,
+                            size: AppLayout.iconMd,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppLayout.spaceXs),
             ],
           ),
-          if (missionService != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppLayout.spaceMd,
-                0,
-                AppLayout.spaceMd,
-                AppLayout.spaceMd,
-              ),
-              child: GoalRecordSummary(
-                goalId: goal.id,
-                goals: service,
-                missions: missionService!,
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }

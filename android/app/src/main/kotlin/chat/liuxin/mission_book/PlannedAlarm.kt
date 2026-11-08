@@ -67,8 +67,8 @@ object PlannedAlarm {
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, "planned_failures")
             else Notification.Builder(context)
         manager.notify(-71003, builder.setSmallIcon(R.drawable.ic_stat_mission)
-            .setContentTitle("计划任务自动执行暂未完成")
-            .setContentText("请打开应用查看任务，系统将稍后重试")
+            .setContentTitle("自动启动待重试")
+            .setContentText("点按查看任务")
             .setContentIntent(launch).setOnlyAlertOnce(true).setAutoCancel(true).build())
     }
 
@@ -188,8 +188,7 @@ class PlannedExecutionService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notification = (if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, "planned_execution")
             else Notification.Builder(this)).setSmallIcon(R.drawable.ic_stat_mission)
-            .setContentTitle("正在处理计划任务")
-            .setContentText("正在确认排期并启动执行")
+            .setContentTitle("启动计划任务")
             .setContentIntent(launch).setOngoing(true).build()
         if (Build.VERSION.SDK_INT >= 34) startForeground(-71002, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE)
         else startForeground(-71002, notification)

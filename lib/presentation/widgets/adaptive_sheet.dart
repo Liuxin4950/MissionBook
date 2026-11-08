@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_motion.dart';
 import '../../core/theme/colors.dart';
 
 /// 自适应弹层：手机从底部升起（现行稿），平板/桌面居中为对话框。
@@ -19,6 +20,7 @@ Future<T?> showAdaptiveSheet<T>({
   if (AppLayout.windowClassOf(context) == WindowClass.compact) {
     return showModalBottomSheet<T>(
       context: context,
+      sheetAnimationStyle: AppMotion.overlayStyle(context),
       builder: builder,
       isScrollControlled: isScrollControlled,
       showDragHandle: showDragHandle,
@@ -34,6 +36,7 @@ Future<T?> showAdaptiveSheet<T>({
   // 内容自带的高度/滚动约束（FractionallySizedBox、ListView 等）照常生效。
   return showDialog<T>(
     context: context,
+    animationStyle: AppMotion.overlayStyle(context),
     barrierDismissible: isDismissible,
     builder: (dialogContext) => Dialog(
       backgroundColor: backgroundColor ?? AppColors.background,

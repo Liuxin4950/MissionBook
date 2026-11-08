@@ -33,6 +33,7 @@ class MainActivity : FlutterActivity() {
     private var pendingOverlayResult: MethodChannel.Result? = null
     private var pendingAssistantOpen = false
     private var pendingCapturePath: String? = null
+    private var deliveredCapturePath: String? = null
     private var assistantOverlayChannel: MethodChannel? = null
     // ContentProvider 读取、能力查询和文件写入交给后台线程，避免阻塞 Flutter 界面。
     private val fileCopyExecutor = Executors.newSingleThreadExecutor()
@@ -41,6 +42,7 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
         pendingAssistantOpen = intent?.getBooleanExtra(EXTRA_OPEN_ASSISTANT, false) == true
         pendingCapturePath = intent?.getStringExtra(EXTRA_CAPTURE_PATH)
+            ?: getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).getString(EXTRA_CAPTURE_PATH, null)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -58,11 +60,25 @@ class MainActivity : FlutterActivity() {
                         result.success(pending)
                     }
                     "consumePendingCapture" -> consumePendingCapture(result)
+                    "acknowledgeCapture" -> {
+                        deliveredCapturePath?.let { path ->
+                            val source = File(path).canonicalFile
+                            if (source.path.startsWith(assistantCaptureRoot().canonicalPath + File.separator)) source.delete()
+                        }
+                        if (pendingCapturePath == deliveredCapturePath) {
+                            pendingCapturePath = null
+                            getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).edit().remove(EXTRA_CAPTURE_PATH).apply()
+                            intent?.removeExtra(EXTRA_CAPTURE_PATH)
+                        }
+                        deliveredCapturePath = null
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }
         }
-        val keepCapturePath = pendingCapturePath
+        val keepCapturePath = intent?.getStringExtra(EXTRA_CAPTURE_PATH)
+            ?: getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).getString(EXTRA_CAPTURE_PATH, null)
         fileCopyExecutor.execute {
             fileSelectorCacheRoot().deleteRecursively()
             deleteStaleAssistantCaptures(keepCapturePath)
@@ -107,6 +123,22 @@ class MainActivity : FlutterActivity() {
                             val intent = if (Build.VERSION.SDK_INT >= 31) Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName"))
                             else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
                             startActivity(intent)
+                            result.success(null)
+                        }
+                        "syncAssistantOverlayPersona" -> {
+                            val prefs = getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
+                            val name = call.argument<String>("name") ?: "书祺"
+                            val avatar = call.argument<String>("avatar") ?: "spark"
+                            val custom = call.argument<String>("customAvatarBase64")
+                            check(name.length <= 48 && (custom?.length ?: 0) <= 262144) { "头像数据过大" }
+                            val changed = prefs.getString("persona_name", null) != name ||
+                                prefs.getString("persona_avatar", null) != avatar ||
+                                prefs.getString("persona_custom_avatar", null) != custom
+                            if (changed) {
+                                prefs.edit().putString("persona_name", name).putString("persona_avatar", avatar)
+                                    .putString("persona_custom_avatar", custom).apply()
+                                if (overlayEnabled()) sendOverlayAction(AssistantOverlayService.ACTION_REFRESH)
+                            }
                             result.success(null)
                         }
                         "toggleAssistantOverlay" -> toggleAssistantOverlay(result)
@@ -163,28 +195,27 @@ class MainActivity : FlutterActivity() {
 
     private fun consumePendingCapture(result: MethodChannel.Result) {
         val path = pendingCapturePath ?: run { result.success(null); return }
-        pendingCapturePath = null
         fileCopyExecutor.execute {
-            var validatedSource: File? = null
             try {
                 val root = assistantCaptureRoot().canonicalFile
                 val source = File(path).canonicalFile
                 check(source.path.startsWith(root.path + File.separator) && source.isFile) { "截屏缓存无效" }
                 check(source.length() <= MAX_ASSISTANT_CAPTURE_BYTES) { "截屏文件超出大小限制" }
-                validatedSource = source
                 val bytes = source.readBytes()
-                runOnUiThread { result.success(bytes) }
+                runOnUiThread { deliveredCapturePath = path; result.success(bytes) }
             } catch (error: Exception) {
                 Log.e(TAG, "读取助手截屏失败", error)
                 runOnUiThread { result.error("capture_read_failed", error.message, null) }
-            } finally {
-                validatedSource?.delete()
             }
         }
     }
 
     override fun onResume() {
         super.onResume()
+        if (pendingCapturePath == null) {
+            pendingCapturePath = getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).getString(EXTRA_CAPTURE_PATH, null)
+        }
+        if (pendingCapturePath != null) assistantOverlayChannel?.invokeMethod("pendingCapture", null)
         if (overlayEnabled()) sendOverlayAction(AssistantOverlayService.ACTION_HIDE)
     }
 
@@ -266,6 +297,7 @@ class MainActivity : FlutterActivity() {
         }
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, call.argument<Boolean>("multiple") == true)
             type = if (mimeTypes.size == 1) mimeTypes.single() else "*/*"
             if (mimeTypes.size > 1) {
                 putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toTypedArray())
@@ -342,18 +374,27 @@ class MainActivity : FlutterActivity() {
             result.success(null)
             return
         }
-        val uri = data?.data
-        if (uri == null) {
+        val uris = data?.clipData?.let { clip ->
+            (0 until clip.itemCount).map { clip.getItemAt(it).uri }
+        } ?: listOfNotNull(data?.data)
+        if (uris.isEmpty()) {
             pendingFileResult = null
             result.error("empty_selection", "系统没有返回可读取的文件。", null)
             return
         }
         fileCopyExecutor.execute {
             try {
-                val selectedPath = copySelectionToCache(uri, pendingFileLimit).absolutePath
+                check(uris.size <= 12) { "一次最多选择 12 个文件" }
+                val selectedPaths = mutableListOf<String>()
+                try {
+                    for (uri in uris) selectedPaths.add(copySelectionToCache(uri, pendingFileLimit).absolutePath)
+                } catch (error: Exception) {
+                    selectedPaths.forEach { File(it).delete() }
+                    throw error
+                }
                 runOnUiThread {
                     pendingFileResult = null
-                    result.success(listOf(selectedPath))
+                    result.success(selectedPaths)
                 }
             } catch (error: Exception) {
                 runOnUiThread {

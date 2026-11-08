@@ -5,6 +5,26 @@ class _AssistantSessions {
   _AssistantSessions(this._controller);
   final AssistantController _controller;
   Timer? _snapshotNotify;
+  Future<void>? _navigation;
+
+  Future<void> _navigate(Future<void> Function() action) async {
+    while (_navigation != null) {
+      await _navigation;
+    }
+    _ensureUsable();
+    _controller._changingConversation = true;
+    final done = Completer<void>();
+    _navigation = done.future;
+    _controller._notifyListeners();
+    try {
+      await action();
+    } finally {
+      _controller._changingConversation = false;
+      _navigation = null;
+      done.complete();
+      _controller._notifyListeners();
+    }
+  }
 
   bool get isRunning => _controller.isRunning;
   bool get hasCredential => _controller.hasCredential;
@@ -56,7 +76,10 @@ class _AssistantSessions {
 
   Future<void> openGlobalConversation() async {
     await _controller.initialize();
-    _ensureUsable();
+    await _navigate(_openGlobalConversation);
+  }
+
+  Future<void> _openGlobalConversation() async {
     if (_controller._reference == null) return;
     if (isRunning) throw StateError('请先结束当前对象的这一轮，再切换全局会话');
     final global = _controller._conversations
@@ -76,8 +99,10 @@ class _AssistantSessions {
     }
   }
 
-  Future<void> _selectReference(AssistantReference reference) async {
-    _ensureUsable();
+  Future<void> _selectReference(AssistantReference reference) =>
+      _navigate(() => _selectReferenceNow(reference));
+
+  Future<void> _selectReferenceNow(AssistantReference reference) async {
     if (_controller._reference?.type == reference.type &&
         _controller._reference?.id == reference.id) {
       _controller._reference = reference;
@@ -103,21 +128,13 @@ class _AssistantSessions {
     _controller._notifyListeners();
   }
 
-  Future<void> startNewSession({bool clearReference = true}) async {
-    if (_controller._changingConversation) return;
-    _ensureUsable();
-    if (isRunning) throw StateError('请先等待本轮结束或停止本轮');
-    _controller._changingConversation = true;
-    _controller._notifyListeners();
-    try {
-      await _closeSession();
-      if (clearReference) _controller._reference = null;
-      _showEmptyConversation();
-    } finally {
-      _controller._changingConversation = false;
-      _controller._notifyListeners();
-    }
-  }
+  Future<void> startNewSession({bool clearReference = true}) =>
+      _navigate(() async {
+        if (isRunning) throw StateError('请先结束本轮，再新建会话');
+        await _closeSession();
+        if (clearReference) _controller._reference = null;
+        _showEmptyConversation();
+      });
 
   /// 空白会话只是界面草稿；首次有效消息发送时才创建持久会话。
   void _showEmptyConversation() {
@@ -128,8 +145,10 @@ class _AssistantSessions {
     _controller._notifyListeners();
   }
 
-  Future<void> openConversation(String id) async {
-    _ensureUsable();
+  Future<void> openConversation(String id) =>
+      _navigate(() => _openConversationNow(id));
+
+  Future<void> _openConversationNow(String id) async {
     if (isRunning) throw StateError('请先等待本轮结束或停止本轮');
     if (_controller._session?.id == id) return;
     await _closeSession();
@@ -329,48 +348,57 @@ class _AssistantSessions {
   Future<void> _openSession(String id) async {
     final runtime = _controller._runtime ?? (throw StateError('助手尚未初始化'));
     final session = await runtime.openSession(id);
-    _controller._errorMessage = null;
-    _controller._lastUserInput = null;
-    _controller._localSchedule = null;
-    _controller._localScheduleDate = null;
-    final summary = _controller._conversations
-        .where((item) => item.id == id)
-        .firstOrNull;
-    if (summary?.nodeId != null) {
-      final node = await _controller._goals.findNodeById(summary!.nodeId!);
-      if (node != null) {
-        _controller._reference = AssistantReference(
-          type: AssistantReferenceType.node,
-          id: node.id,
-          title: node.title,
-          goalId: node.goalId,
+    try {
+      _controller._errorMessage = null;
+      _controller._lastUserInput = null;
+      _controller._localSchedule = null;
+      _controller._localScheduleDate = null;
+      final summary = _controller._conversations
+          .where((item) => item.id == id)
+          .firstOrNull;
+      if (summary?.nodeId != null) {
+        final node = await _controller._goals.findNodeById(summary!.nodeId!);
+        if (node != null) {
+          _controller._reference = AssistantReference(
+            type: AssistantReferenceType.node,
+            id: node.id,
+            title: node.title,
+            goalId: node.goalId,
+          );
+        }
+      } else if (summary?.missionId != null) {
+        final detail = await _controller._missions.findDetail(
+          missionId: summary!.missionId!,
         );
+        if (detail != null) {
+          _controller._reference = AssistantReference(
+            type: AssistantReferenceType.mission,
+            id: detail.mission.id,
+            title: detail.mission.title,
+            goalId: detail.mission.goalId,
+            nodeId: detail.mission.goalNodeId,
+            path: detail.ownershipInfo?.label,
+          );
+        }
+      } else if (summary?.goalId != null) {
+        final goal = await _controller._goals.findById(summary!.goalId!);
+        if (goal != null) {
+          _controller._reference = AssistantReference(
+            type: AssistantReferenceType.goal,
+            id: goal.id,
+            title: goal.title,
+          );
+        }
       }
-    } else if (summary?.missionId != null) {
-      final detail = await _controller._missions.findDetail(
-        missionId: summary!.missionId!,
-      );
-      if (detail != null) {
-        _controller._reference = AssistantReference(
-          type: AssistantReferenceType.mission,
-          id: detail.mission.id,
-          title: detail.mission.title,
-          goalId: detail.mission.goalId,
-          nodeId: detail.mission.goalNodeId,
-          path: detail.ownershipInfo?.label,
-        );
+      await _attachSession(session);
+    } catch (_) {
+      if (identical(_controller._session, session)) {
+        await _closeSession();
+      } else {
+        await session.close();
       }
-    } else if (summary?.goalId != null) {
-      final goal = await _controller._goals.findById(summary!.goalId!);
-      if (goal != null) {
-        _controller._reference = AssistantReference(
-          type: AssistantReferenceType.goal,
-          id: goal.id,
-          title: goal.title,
-        );
-      }
+      rethrow;
     }
-    await _attachSession(session);
   }
 
   Future<void> _attachSession(AgentSession session) async {

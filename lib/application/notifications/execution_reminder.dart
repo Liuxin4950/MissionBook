@@ -43,8 +43,8 @@ ReminderRequest executionReminder(
         '${running
             ? '执行中'
             : detail.phase == MissionPhase.reportPending
-            ? '已到点 · 待确认'
-            : '已暂停'} · 专注 $focus · 额度 $budget 分钟${times.clockBehind ? ' · 请校时' : ''}',
+            ? '待确认'
+            : '已暂停'} · $focus / $budget 分钟${times.clockBehind ? ' · 请校时' : ''}',
     focusMilliseconds: times.focus.inMilliseconds,
     projectedAt: projectedAt,
     budgetMinutes: budget,

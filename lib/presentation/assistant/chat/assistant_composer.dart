@@ -61,7 +61,7 @@ class _AssistantComposer {
               children: [
                 if (_page._attachments.isNotEmpty)
                   SizedBox(
-                    height: 72,
+                    height: AppLayout.touchTargetMin,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: _page._attachments.length,
@@ -69,24 +69,51 @@ class _AssistantComposer {
                           const SizedBox(width: AppLayout.spaceSm),
                       itemBuilder: (context, index) {
                         final file = _page._attachments[index];
-                        return InputChip(
-                          avatar: file.isImage
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(
-                                    AppLayout.radiusSm,
+                        if (file.isImage) {
+                          return Material(
+                            color: colors.surface,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppLayout.radiusMd,
+                              ),
+                              side: BorderSide(color: colors.outlineVariant),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: Tooltip(
+                              message: '预览图片 ${file.name}',
+                              child: InkWell(
+                                onTap: () => _previewAttachment(file),
+                                child: SizedBox.square(
+                                  dimension: AppLayout.touchTargetMin,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(
+                                      AppLayout.spaceXs,
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(
+                                        AppLayout.radiusSm,
+                                      ),
+                                      child: Image.memory(
+                                        file.bytes,
+                                        cacheWidth: 80,
+                                        fit: BoxFit.cover,
+                                        semanticLabel: '预览图片 ${file.name}',
+                                        errorBuilder: (_, _, _) => const Icon(
+                                          Icons.broken_image_outlined,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                  child: Image.memory(
-                                    file.bytes,
-                                    width: 32,
-                                    height: 32,
-                                    cacheWidth: 64,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.description_outlined,
-                                  size: AppLayout.iconMd,
                                 ),
+                              ),
+                            ),
+                          );
+                        }
+                        return InputChip(
+                          avatar: const Icon(
+                            Icons.description_outlined,
+                            size: AppLayout.iconMd,
+                          ),
                           label: SizedBox(
                             width: 108,
                             child: Text(
@@ -163,6 +190,7 @@ class _AssistantComposer {
                 Row(
                   children: [
                     PopupMenuButton<String>(
+                      popUpAnimationStyle: AppMotion.overlayStyle(context),
                       key: const Key('assistant-add-attachment'),
                       tooltip: '附件与快捷指令',
                       style: toolStyle,
@@ -453,6 +481,7 @@ class _AssistantComposer {
   Future<void> _showContextUsage(AssistantController controller) =>
       showModalBottomSheet<void>(
         context: context,
+        sheetAnimationStyle: AppMotion.overlayStyle(context),
         isScrollControlled: true,
         useSafeArea: true,
         backgroundColor: Theme.of(context).colorScheme.surface,
@@ -580,24 +609,36 @@ class _AssistantComposer {
     final draftKey = widget.controller.draftKey;
     _page._update(() => _page._picking = true);
     try {
-      final file = capture
-          ? await _captureImage()
-          : await pickAssistantAttachment(
+      final captured = capture ? await _captureImage() : null;
+      final files = capture
+          ? [?captured]
+          : await pickAssistantAttachments(
               image: image,
+              maxCount:
+                  AssistantAttachment.maxCount - _page._attachments.length,
               onOversizedImage: _compressImage,
             );
-      if (file == null || !mounted || draftKey != widget.controller.draftKey) {
+      if (files.isEmpty || !mounted || draftKey != widget.controller.draftKey) {
         return;
       }
+      if (_page._attachments.length + files.length >
+          AssistantAttachment.maxCount) {
+        throw const FormatException('每条消息最多添加 12 个附件');
+      }
       if (_page._attachments.fold<int>(
-            file.bytes.length,
+            files.fold<int>(0, (sum, file) => sum + file.bytes.length),
             (total, file) => total + file.bytes.length,
           ) >
           AssistantAttachment.maxTotalBytes) {
-        throw const FormatException('本条消息附件合计不能超过 8 MiB');
+        throw const FormatException('本条消息附件合计不能超过 24 MiB');
       }
       if (_page._attachments.fold<int>(
-            file.isImage ? 0 : (file.block as TextBlock).text.length,
+            files.fold<int>(
+              0,
+              (sum, file) =>
+                  sum +
+                  (file.isImage ? 0 : (file.block as TextBlock).text.length),
+            ),
             (total, file) =>
                 total +
                 (file.isImage ? 0 : (file.block as TextBlock).text.length),
@@ -605,7 +646,7 @@ class _AssistantComposer {
           AssistantAttachment.maxTextCharacters) {
         throw const FormatException('本条消息文本附件合计不能超过 32000 字符');
       }
-      _page._update(() => _page._attachments.add(file));
+      _page._update(() => _page._attachments.addAll(files));
     } catch (error) {
       if (mounted) {
         _showNotice(userErrorMessage(error, fallback: '附件未能加入，请重新选择或检查文件'));
@@ -619,6 +660,7 @@ class _AssistantComposer {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   Future<void> _previewAttachment(AssistantAttachment file) => showDialog<void>(
     context: context,
+    animationStyle: AppMotion.overlayStyle(context),
     builder: (context) => Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 720, maxHeight: 640),
@@ -627,10 +669,28 @@ class _AssistantComposer {
           children: [
             ListTile(
               title: Text(file.name),
-              trailing: IconButton(
-                tooltip: '关闭预览',
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close_rounded),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (file.isImage)
+                    IconButton(
+                      tooltip: '移除图片',
+                      onPressed: widget.controller.isBusy
+                          ? null
+                          : () {
+                              _page._update(
+                                () => _page._attachments.remove(file),
+                              );
+                              Navigator.pop(context);
+                            },
+                      icon: const Icon(Icons.delete_outline_rounded),
+                    ),
+                  IconButton(
+                    tooltip: '关闭预览',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
               ),
             ),
             Flexible(

@@ -1,3 +1,4 @@
+import '../widgets/app_animated_size.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -194,7 +195,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
                 onCreate: widget.onCreate,
               )
             else
-              AnimatedSize(
+              AppAnimatedSize(
                 duration: _motionDuration(context),
                 curve: AppMotion.curve,
                 alignment: Alignment.topCenter,

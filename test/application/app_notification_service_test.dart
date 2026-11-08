@@ -301,7 +301,7 @@ void main() {
     await missions.reconcileScheduledMissions();
     await service.refresh();
     final waiting = dispatcher.visible.values.where(
-      (request) => request.title.startsWith('计划任务等待开始'),
+      (request) => request.body == '待开始 · 其他任务执行中',
     );
     expect(waiting, hasLength(1));
     final shownCount = dispatcher.shown.length;
@@ -312,7 +312,7 @@ void main() {
     );
     expect(
       dispatcher.visible.values.where(
-        (request) => request.title.startsWith('计划任务等待开始'),
+        (request) => request.body == '待开始 · 其他任务执行中',
       ),
       hasLength(1),
     );

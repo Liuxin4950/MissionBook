@@ -176,7 +176,7 @@ void main() {
     await service.refresh();
     final running = dispatcher.visible.values.single;
     expect(running.focusMilliseconds, 75000);
-    expect(running.body, contains('专注 01:15'));
+    expect(running.body, '执行中 · 01:15 / 120 分钟');
     expect(running.budgetMinutes, 120);
     Future<void> act(
       ExecutionEventType type, {
@@ -210,7 +210,7 @@ void main() {
     expect(dispatcher.visible.values.single.focusMilliseconds, 120000);
     now = now.add(const Duration(hours: 1));
     await service.refresh();
-    expect(dispatcher.visible.values.single.body, contains('专注 01:02:00'));
+    expect(dispatcher.visible.values.single.body, contains('01:02:00'));
     final correctTime = now;
     now = now.subtract(const Duration(hours: 2));
     await service.refresh();
