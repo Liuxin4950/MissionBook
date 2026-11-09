@@ -4,11 +4,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/colors.dart';
-import '../../../domain/entities/scheduled_mission.dart';
 import '../../../domain/entities/mission_phase.dart';
 import '../../widgets/app_visibility.dart';
 import '../../widgets/app_section_card.dart';
-import '../../widgets/adaptive_sheet.dart';
+import 'timetable_conflicts.dart';
 import '../shared/mission_phase_display.dart';
 import 'timetable_layout.dart';
 import '../../../core/theme/app_layout.dart';
@@ -100,63 +99,13 @@ class _MissionTimetableState extends State<MissionTimetable>
     super.dispose();
   }
 
-  Future<void> _showConflicts([TimetableSlot? selected]) async {
-    final conflicts = selected?.conflicts ?? _layout.conflicts;
-    final visibleIds = _layout.slots.map((slot) => slot.id).toSet();
-    final target = await showAdaptiveSheet<ScheduledMission>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * .65,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              AppLayout.spaceXxl,
-              0,
-              AppLayout.spaceXxl,
-              AppLayout.spaceXxl,
-            ),
-            children: [
-              Text('计划时间冲突', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: AppLayout.spaceSm),
-              Text(
-                '以下计划时段重叠，点击任务查看或调整。',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              for (final conflict in conflicts) ...[
-                const SizedBox(height: AppLayout.spaceXxl),
-                Text(
-                  '${timetableClock(conflict.start)}–${timetableClock(conflict.end)}'
-                  ' · 重叠 ${(conflict.end - conflict.start).ceil()} 分钟',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleMedium?.copyWith(color: AppColors.error),
-                ),
-                for (final slot in [conflict.first, conflict.second])
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    minLeadingWidth: AppLayout.iconSm,
-                    title: Text(
-                      slot.detail.mission.title,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    subtitle: Text(
-                      '${slot.timeLabel} · ${phaseLabel(slot.detail.phase)}'
-                      '${visibleIds.contains(slot.id) ? '' : ' · 已被筛选隐藏'}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.pop(context, slot.detail),
-                  ),
-                const Divider(),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-    if (target != null && mounted) widget.onOpen(target.mission.id);
-  }
+  Future<void> _showConflicts([TimetableSlot? selected]) =>
+      showTimetableConflicts(
+        context,
+        days: [(day: widget.day, layout: _layout)],
+        onOpen: widget.onOpen,
+        selected: selected,
+      );
 
   @override
   Widget build(BuildContext context) {

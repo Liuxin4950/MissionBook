@@ -108,7 +108,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   bool _isOpeningSchedules = false;
   bool _isOpeningAllMissions = false;
   bool _isOpeningRecord = false;
-  bool _dayTimeline = false;
+  bool _dayTimeline = true;
   StreamSubscription<void>? _changes;
   bool _refreshWhenActive = false;
   // 跨日待补与所选排期日期分开；不让昨天结束的任务在今天失去材料入口。

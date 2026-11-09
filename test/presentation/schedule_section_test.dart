@@ -5,6 +5,7 @@ import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/presentation/today/schedule_section.dart';
+import 'package:mission_book/presentation/missions/all/mission_timetable.dart';
 import 'package:mission_book/presentation/today/today_display.dart' as display;
 
 import 'today_page_test.dart' show ControlledQueryRepository, example, testApp;
@@ -111,6 +112,10 @@ void main() {
     repository.requests.last.complete(items);
     await tester.pumpAndSettle();
     expect(find.text('当日日程'), findsOneWidget);
+    expect(find.byKey(const Key('day-schedule-timeline')), findsOneWidget);
+    expect(find.byType(MissionTimetable), findsOneWidget);
+    await tester.tap(find.byKey(const Key('day-schedule-list-mode')));
+    await tester.pumpAndSettle();
     expect(find.byType(ScheduleMissionRow), findsNWidgets(12));
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();

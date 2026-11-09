@@ -143,6 +143,40 @@ class TimetableConflict {
         );
 }
 
+/// 判断展示区间是否覆盖日历范围；不逐日枚举长时间运行的任务。
+/// [from] 包含，[until] 不包含，二者以日历字段表达北京时间日期。
+bool timetableOverlapsRange(
+  MissionDetail detail,
+  DateTime from,
+  DateTime until,
+  DateTime now,
+) {
+  final span = _displaySpan(_scheduled(detail), now);
+  if (detail.schedule.fixedStartAt == null || span == null) {
+    final date = detail.schedule.scheduledDate;
+    final firstKey = timetableDateKey(from);
+    final lastKey = timetableDateKey(
+      DateTime.utc(until.year, until.month, until.day - 1),
+    );
+    if (date.compareTo(firstKey) >= 0 && date.compareTo(lastKey) <= 0) {
+      return true;
+    }
+  }
+  if (span == null) return false;
+  final zone = tz.getLocation(defaultScheduleTimeZone);
+  final start = tz.TZDateTime(zone, from.year, from.month, from.day);
+  final end = tz.TZDateTime(zone, until.year, until.month, until.day);
+  return span.from.isBefore(end) &&
+      (span.until == span.from
+          ? !span.from.isBefore(start)
+          : span.until.isAfter(start));
+}
+
+String timetableDateKey(DateTime day) =>
+    '${day.year.toString().padLeft(4, '0')}-'
+    '${day.month.toString().padLeft(2, '0')}-'
+    '${day.day.toString().padLeft(2, '0')}';
+
 /// 全部日期分组同时包含计划列表日期和图上区间覆盖的日期，跨日事实不会失联。
 Iterable<String> timetableDateKeys(MissionDetail detail, DateTime now) sync* {
   final span = _displaySpan(_scheduled(detail), now);

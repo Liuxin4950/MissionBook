@@ -11,7 +11,7 @@
 | 固定日程、完整日程列表 | [today/schedule_section.dart](today/schedule_section.dart) | 时间轴、计划时段及对应任务行 |
 | 自选任务、展开与收起 | [today/today_page.dart](today/today_page.dart) | 同文件的 _FlexibleMissionSection，自选列表和局部展开状态 |
 | 今天列表分组、日期和展示文字 | [today/today_display.dart](today/today_display.dart) | 整理已查询的数据，不访问数据库 |
-| 全部任务、日期与阶段/目标筛选 | [missions/all/all_missions_page.dart](missions/all/all_missions_page.dart) | 固定任务直接按时间排布，自选与取消任务在下方，保留查询与任务跳转 |
+| 全部任务、日期与阶段/目标筛选 | [missions/all/all_missions_page.dart](missions/all/all_missions_page.dart) | 周一至周日七列周表，自选与取消任务在下方，保留筛选与任务跳转 |
 | 固定任务的比例布局、冲突和当前时间线 | [missions/all/mission_timetable.dart](missions/all/mission_timetable.dart)、[timetable_layout.dart](missions/all/timetable_layout.dart) | 复杂时间布局与只读交集计算；没有单独课表任务类型或视图切换 |
 | 新建、修改、重试新建 | [missions/form/mission_form_page.dart](missions/form/mission_form_page.dart) | 接收输入草稿、保存、处理错误和离开前确认 |
 | 可选任务归属 | [missions/form/mission_ownership_field.dart](missions/form/mission_ownership_field.dart) | 默认独立，按需选择有效目标/节点，归属编号交回表单 |
@@ -83,11 +83,11 @@ goals/
 
 ## 分类与筛选控件
 
-目标状态与历史类别是互斥的页面分类，共用 `widgets/app_segmented_control.dart`；全部任务的日期、阶段和目标归属是可以组合的筛选，使用主题中的标签、输入框和卡片。全部任务始终显示日期入口及快捷切换，筛选收起后保留当前条件摘要。筛选只改变展示，计划时段和实际执行仍由原有时间线与业务事实计算。
+目标状态与历史类别是互斥的页面分类，共用 `widgets/app_segmented_control.dart`；全部任务的日期、阶段和目标归属是可以组合的筛选，使用主题中的标签、输入框和卡片。全部任务始终显示整周日期入口和前后周切换，筛选收起后保留当前条件摘要；七列直接展示，不增加模式 tabs，批量操作位于顶栏菜单。筛选只改变展示，计划时段和实际执行仍由原有时间线与业务事实计算。
 
 目标页的列表、空态和上下文操作跟随所选状态；已搁置、已达成、已放弃均只展示本分类内容，不补放进行中目标或创建／导入工作区。创建和导入入口放在进行中分类，切换分类前复用导入区的草稿保护。节点标记保持行首定位，右侧建任务和菜单作为一个操作区在标题与状态区域内垂直居中。
 
-目标树通过一致缩进、连续分支线和浅底根节点表达父子关系，不在每行重复显示层级编号。任务归属弹层可搜索目标、节点或父路径中的多个关键词，并保留完整路径区分同名节点。今天页在周日期栏直接标记今天，跨周时才在日期旁提供今天快捷入口；全部任务日期区直接显示所选日期，并提供固定位置的今天／全部日期选项，不增加固定的“计划日期”标题。时间轴使用 4px 小圆角条保留时段形状；图例、短时任务收在同一分区内，任务列表与统计复用白色分区表面及统一内边距。
+目标树通过一致缩进、连续分支线和浅底根节点表达父子关系，不在每行重复显示层级编号。任务归属弹层可搜索目标、节点或父路径中的多个关键词，并保留完整路径区分同名节点。今天页在周日期栏直接标记今天，跨周时才在日期旁提供今天快捷入口；全部任务日期区直接显示所选整周，日期范围保留本周／全部日期；七天始终完整显示，点击日期展开当天安排。时间轴使用 4px 小圆角条保留时段形状；图例、短时任务收在同一分区内，任务列表与统计复用白色分区表面及统一内边距。
 
 ## 状态应该去哪里找
 

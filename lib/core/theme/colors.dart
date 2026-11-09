@@ -23,6 +23,14 @@ abstract final class AppColors {
   static const Color errorSoft = Color(0xFFF8EAE6); // 错误浅底
   static const Color warning = Color(0xFF805D28); // 提醒棕
   static const Color warningSoft = Color(0xFFF4EBDD); // 提醒浅底
+  // 周表按任务名称稳定分色；这些浅色只帮助辨认任务，不代表执行阶段。
+  static const Color scheduleMint = Color(0xFFE1ECE4);
+  static const Color scheduleBlue = Color(0xFFE4EDF2);
+  static const Color scheduleLilac = Color(0xFFECE7F1);
+  static const Color scheduleOlive = Color(0xFFEDF0DE);
+  static const Color scheduleBlueAccent = Color(0xFF4F7282);
+  static const Color scheduleLilacAccent = Color(0xFF7A668A);
+  static const Color scheduleOliveAccent = Color(0xFF6F7D4A);
   static const Color shadow = Color(0x33000000); // 浮层中性阴影，避免纯黑硬阴影。
   static const Color mediaBackground = Color(0xFF000000); // 全屏相机取景底色。
   static const Color onMedia = Color(0xFFFFFFFF); // 取景画面上的高对比操作与提示。

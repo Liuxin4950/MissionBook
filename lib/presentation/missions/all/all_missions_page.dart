@@ -24,10 +24,11 @@ import '../shared/mission_phase_icon.dart';
 import '../shared/mission_live_status.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/app_expansion.dart';
-import 'mission_timetable.dart';
 import 'timetable_layout.dart';
+import 'week_timetable_layout.dart';
+import 'mission_week_timetable.dart';
 
-enum _TaskDateScope { today, selected, all, pastUnstarted }
+enum _TaskDateScope { thisWeek, selected, all, pastUnstarted }
 
 /// 跨日期读取全部任务，筛选只作用于查询结果，不另存一份可变阶段。
 class AllMissionsPage extends StatefulWidget {
@@ -50,7 +51,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   late Future<List<Goal>> _goalChoices;
   StreamSubscription<void>? _missionChanges, _goalChanges;
   List<MissionDetail>? _lastRecords;
-  DateTime? _day;
+  DateTime? _weekStart;
   bool _showFilters = false;
   MissionPhase? _phase;
   String? _goalId; // null 全部；空字符串只看独立任务。
@@ -61,10 +62,10 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     final labels = <String>[];
     if (_pastUnstarted) {
       labels.add('以前未开始');
-    } else if (_day == null) {
+    } else if (_weekStart == null) {
       labels.add('全部日期');
-    } else if (!DateUtils.isSameDay(_day, today)) {
-      labels.add(_dateKey(_day!));
+    } else if (!DateUtils.isSameDay(_weekStart, timetableWeekStart(today))) {
+      labels.add(_weekLabel(_weekStart!));
     }
     if (_phase != null) labels.add(phaseLabel(_phase!));
     if (_goalId != null) labels.add(_goalId!.isEmpty ? '独立任务' : '指定目标');
@@ -76,7 +77,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   @override
   void initState() {
     super.initState();
-    _day = DateUtils.dateOnly(timetableNow(widget.clock()));
+    _weekStart = timetableWeekStart(timetableNow(widget.clock()));
     WidgetsBinding.instance.addObserver(this);
     _read();
     _missionChanges = widget.missions.changes.listen((_) => _refresh());
@@ -136,15 +137,15 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     final today = timetableNow(widget.clock());
     final selected = await showAppDatePicker(
       context: context,
-      initialDate: _day ?? today,
+      initialDate: _weekStart ?? today,
       firstDate: DateTime(1),
       lastDate: DateTime(9999, 12, 31),
       currentDate: today,
-      title: '筛选计划日期',
+      title: '选择一周中的任意日期',
     );
     if (mounted && selected != null) {
       setState(() {
-        _day = selected;
+        _weekStart = timetableWeekStart(selected);
         _pastUnstarted = false;
       });
     }
@@ -187,34 +188,91 @@ class _AllMissionsPageState extends State<AllMissionsPage>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
   DateTime? _completionDay(MissionDetail detail) {
-    // 完成日期按报告完成的 END 事件在设备本地的日历日；
+    // 完成日期与日程共用北京时间的日历日；
     // “是否报告完成”的判定口径统一走 MissionDetail 的派生属性。
     final report = detail.completionReport;
     return report == null
         ? null
-        : DateUtils.dateOnly(report.occurredAt.toLocal());
+        : DateUtils.dateOnly(timetableNow(report.occurredAt));
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppTopBar(
-      maxContentWidth: AppLayout.dashboardMaxWidth,
-      title: '全部任务',
-      actions: [
-        Tooltip(
-          message: _showFilters ? '收起筛选' : '筛选任务',
-          child: Semantics(
-            expanded: _showFilters,
-            child: TextButton.icon(
+  bool _matches(MissionDetail detail, DateTime now) =>
+      (_phase == null || detail.phase == _phase) &&
+      (_goalId == null ||
+          (_goalId!.isEmpty
+              ? detail.mission.goalId == null
+              : detail.mission.goalId == _goalId)) &&
+      (!_pastUnstarted ||
+          (detail.phase == MissionPhase.notStarted &&
+              detail.schedule.scheduledDate.compareTo(
+                    timetableDateKey(timetableNow(now)),
+                  ) <
+                  0));
+
+  bool _inSelectedRange(MissionDetail detail, DateTime now) {
+    final start = _weekStart;
+    return start == null ||
+        timetableOverlapsRange(
+          detail,
+          start,
+          DateTime.utc(start.year, start.month, start.day + 7),
+          now,
+        );
+  }
+
+  Widget _maintenanceMenu(BuildContext context) =>
+      PopupMenuButton<MissionMaintenanceAction>(
+        popUpAnimationStyle: AppMotion.overlayStyle(context),
+        tooltip: '批量操作当前筛选结果',
+        icon: const Icon(Icons.more_horiz),
+        onSelected: (action) async {
+          final now = widget.clock();
+          final ids = (_lastRecords ?? const <MissionDetail>[])
+              .where(
+                (detail) =>
+                    _matches(detail, now) && _inSelectedRange(detail, now),
+              )
+              .map((detail) => detail.mission.id)
+              .toList();
+          await maintainMissions(context, widget.missions, action, ids);
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(
+            value: MissionMaintenanceAction.cancel,
+            child: Text('批量取消未开始任务'),
+          ),
+          PopupMenuItem(
+            value: MissionMaintenanceAction.delete,
+            child: Text('永久删除筛选结果'),
+          ),
+        ],
+      );
+
+  Widget _filterAction(BuildContext context) {
+    final compact =
+        MediaQuery.sizeOf(context).width < AppLayout.mediumBreakpoint;
+    final label = _showFilters
+        ? '收起筛选'
+        : _activeFilterCount == 0
+        ? '筛选任务'
+        : '筛选任务，$_activeFilterCount项条件';
+    final icon = Icon(
+      _showFilters ? Icons.tune_rounded : Icons.tune,
+      size: AppLayout.iconMd,
+    );
+    return Semantics(
+      expanded: _showFilters,
+      child: compact
+          ? IconButton(
               key: const Key('all-missions-filters'),
-              style: TextButton.styleFrom(
-                textStyle: Theme.of(context).textTheme.labelSmall,
-              ),
+              tooltip: label,
               onPressed: () => setState(() => _showFilters = !_showFilters),
-              icon: Icon(
-                _showFilters ? Icons.tune_rounded : Icons.tune,
-                size: AppLayout.iconMd,
-              ),
+              icon: icon,
+            )
+          : TextButton.icon(
+              key: const Key('all-missions-filters'),
+              onPressed: () => setState(() => _showFilters = !_showFilters),
+              icon: icon,
               label: Text(
                 _showFilters
                     ? '收起筛选'
@@ -223,9 +281,18 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                     : '筛选 · $_activeFilterCount',
               ),
             ),
-          ),
-        ),
-        SizedBox(width: AppLayout.horizontalPadding(context) - 8),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppTopBar(
+      maxContentWidth: AppLayout.dashboardMaxWidth,
+      title: '全部任务',
+      actions: [
+        _filterAction(context),
+        _maintenanceMenu(context),
+        const SizedBox(width: AppLayout.spaceSm),
       ],
     ),
     body: SafeArea(
@@ -252,47 +319,25 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 );
               }
               final today = DateUtils.dateOnly(timetableNow(widget.clock()));
-              final todayKey = _dateKey(today);
-              bool matches(MissionDetail detail) =>
-                  (_phase == null || detail.phase == _phase) &&
-                  (_goalId == null ||
-                      (_goalId!.isEmpty
-                          ? detail.mission.goalId == null
-                          : detail.mission.goalId == _goalId)) &&
-                  (!_pastUnstarted ||
-                      (detail.phase == MissionPhase.notStarted &&
-                          detail.schedule.scheduledDate.compareTo(todayKey) <
-                              0));
-              // 保留计划日期入口，也补上实际区间覆盖日，跨日执行可在对应日阅读。
-              final dayKey = _day == null ? null : _dateKey(_day!);
-              final volume = dayKey == null
-                  ? all.length
-                  : all
-                        .where(
-                          (detail) => timetableDateKeys(
-                            detail,
-                            widget.clock(),
-                          ).contains(dayKey),
-                        )
-                        .length;
-              final large = volume > 250;
-              final pagedRecords = large
-                  ? all
-                        .where(
-                          (detail) =>
-                              matches(detail) &&
-                              (dayKey == null ||
-                                  timetableDateKeys(
-                                    detail,
-                                    widget.clock(),
-                                  ).contains(dayKey)),
-                        )
-                        .toList()
-                  : <MissionDetail>[];
-              final dates = <String>{
-                for (final detail in all.where(matches))
-                  ...timetableDateKeys(detail, widget.clock()),
-              }.toList()..sort((a, b) => b.compareTo(a));
+              final now = widget.clock();
+              bool matches(MissionDetail detail) => _matches(detail, now);
+              final rangeStart = _weekStart;
+              // 展示与顶栏批量操作共用筛选及区间，操作前使用当下时钟重算。
+              final filtered = all
+                  .where(
+                    (detail) =>
+                        matches(detail) && _inSelectedRange(detail, now),
+                  )
+                  .toList();
+              final large = rangeStart == null && all.length > 250;
+              final dates =
+                  rangeStart != null || large
+                        ? <String>[]
+                        : <String>{
+                            for (final detail in filtered)
+                              ...timetableDateKeys(detail, now),
+                          }.toList()
+                    ..sort((a, b) => b.compareTo(a));
               return RefreshIndicator(
                 onRefresh: () async {
                   _refresh();
@@ -304,7 +349,14 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 },
                 child: ListView(
                   key: const Key('all-missions-list'),
-                  padding: AppLayout.pagePadding(context),
+                  padding: EdgeInsets.symmetric(
+                    horizontal:
+                        MediaQuery.sizeOf(context).width <
+                            AppLayout.mediumBreakpoint
+                        ? AppLayout.spaceSm
+                        : AppLayout.spaceXxl,
+                    vertical: AppLayout.spaceMd,
+                  ),
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
                     _dateNavigation(context),
@@ -328,56 +380,28 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                           child: const Text('刷新失败，当前保留上次读取的任务，点击重试'),
                         ),
                       ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: PopupMenuButton<MissionMaintenanceAction>(
-                        popUpAnimationStyle: AppMotion.overlayStyle(context),
-                        tooltip: '批量操作当前筛选结果',
-                        onSelected: (action) async {
-                          final ids = all
-                              .where(
-                                (d) =>
-                                    matches(d) &&
-                                    (dayKey == null ||
-                                        timetableDateKeys(
-                                          d,
-                                          widget.clock(),
-                                        ).contains(dayKey)),
-                              )
-                              .map((d) => d.mission.id)
-                              .toList();
-                          await maintainMissions(
-                            context,
-                            widget.missions,
-                            action,
-                            ids,
-                          );
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: MissionMaintenanceAction.cancel,
-                            child: Text('批量取消未开始任务'),
-                          ),
-                          PopupMenuItem(
-                            value: MissionMaintenanceAction.delete,
-                            child: Text('永久删除筛选结果'),
-                          ),
-                        ],
-                        child: const Padding(
-                          padding: EdgeInsets.all(AppLayout.spaceMd),
-                          child: Text('批量操作'),
+                    const SizedBox(height: AppLayout.spaceSm),
+                    if (_weekStart != null)
+                      MissionWeekTimetable(
+                        start: _weekStart!,
+                        records: all,
+                        visible: matches,
+                        onOpen: (id) => _open(
+                          all.firstWhere((detail) => detail.mission.id == id),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: AppLayout.spaceXl),
-                    if (large)
+                        buildOtherRow: (detail) =>
+                            _row(context, detail, embedded: true),
+                        clock: widget.clock,
+                        filtered: _phase != null || _goalId != null,
+                      )
+                    else if (large)
                       _PagedMissionRows(
-                        key: ValueKey('$_day|$_phase|$_goalId|$_pastUnstarted'),
-                        records: pagedRecords,
+                        key: ValueKey(
+                          '$_weekStart|$_phase|$_goalId|$_pastUnstarted',
+                        ),
+                        records: filtered,
                         buildRow: (detail) => _row(context, detail),
                       )
-                    else if (_day != null)
-                      _tasksForDay(context, all, _day!, matches)
                     else if (dates.isEmpty)
                       _empty(context)
                     else
@@ -387,7 +411,6 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                           all,
                           DateTime.parse(date),
                           matches,
-                          showDate: true,
                         ),
                     const SizedBox(height: AppLayout.sectionGap),
                     AppSectionCard(
@@ -426,39 +449,28 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     BuildContext context,
     List<MissionDetail> all,
     DateTime day,
-    bool Function(MissionDetail) matches, {
-    bool showDate = false,
-  }) {
-    TimetableDay layoutAt(DateTime now) => TimetableDay.build(
-      all,
-      day,
-      visible: matches,
-      // 实际执行区间按“现在”截断未结束任务；自选任务由此也能画上时间轴。
-      now: now,
-      // 26px 最小条高 / 每分钟 2px，字号缩放同时作用于两者，比例仍为 13 分钟。
-      minimumDisplayMinutes: 13,
-    );
-    final layout = layoutAt(widget.clock());
-    final other = all
+    bool Function(MissionDetail) matches,
+  ) {
+    final until = DateTime.utc(day.year, day.month, day.day + 1);
+    final now = widget.clock();
+    final records = all
         .where(
           (detail) =>
               matches(detail) &&
-              detail.schedule.scheduledDate == _dateKey(day) &&
-              (detail.schedule.fixedStartAt == null ||
-                  detail.phase == MissionPhase.cancelled),
+              timetableOverlapsRange(detail, day, until, now),
         )
         .toList();
     return Padding(
-      padding: EdgeInsets.only(bottom: showDate ? AppLayout.sectionGap : 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (showDate) ...[
+      padding: const EdgeInsets.only(bottom: AppLayout.sectionGap),
+      child: AppSectionCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton(
                 onPressed: () => setState(() {
-                  _day = day;
+                  _weekStart = timetableWeekStart(day);
                   _pastUnstarted = false;
                 }),
                 child: Text(
@@ -467,126 +479,90 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 ),
               ),
             ),
-            const SizedBox(height: AppLayout.spaceSm),
+            for (final detail in records) _row(context, detail, embedded: true),
           ],
-          AdaptiveColumns(
-            minColumnWidth: 420,
-            maxColumns: 2,
-            children: [
-              if (layout.slots.isNotEmpty || !showDate && other.isEmpty)
-                MissionTimetable(
-                  day: day,
-                  layoutBuilder: layoutAt,
-                  onOpen: (id) => _open(
-                    all.firstWhere((detail) => detail.mission.id == id),
-                  ),
-                  clock: widget.clock,
-                  filtered: _phase != null || _goalId != null || _pastUnstarted,
-                ),
-              if (other.isNotEmpty)
-                AppSectionCard(
-                  padding: const EdgeInsets.all(AppLayout.spaceLg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (other.any(
-                        (detail) => detail.phase != MissionPhase.cancelled,
-                      )) ...[
-                        Text(
-                          '自选任务',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: AppLayout.spaceXs),
-                        Text(
-                          '按日期安排，时间自由选择',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: AppLayout.spaceMd),
-                        for (final detail in other.where(
-                          (detail) => detail.phase != MissionPhase.cancelled,
-                        ))
-                          _row(context, detail, embedded: true),
-                      ],
-                      if (other.any(
-                        (detail) => detail.phase == MissionPhase.cancelled,
-                      )) ...[
-                        const SizedBox(height: AppLayout.spaceLg),
-                        Text(
-                          '已取消 · 不占用时段',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: AppLayout.spaceMd),
-                        for (final detail in other.where(
-                          (detail) => detail.phase == MissionPhase.cancelled,
-                        ))
-                          _row(context, detail, embedded: true),
-                      ],
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 
+  String _weekLabel(DateTime start) {
+    final end = DateTime.utc(start.year, start.month, start.day + 6);
+    final supportedEnd = end.year > 9999 ? DateTime.utc(9999, 12, 31) : end;
+    return '${start.year}年${start.month}月${start.day}日—'
+        '${supportedEnd.year != start.year ? '${supportedEnd.year}年' : ''}'
+        '${supportedEnd.month}月${supportedEnd.day}日';
+  }
+
   Widget _dateNavigation(BuildContext context) {
-    const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-    final day = _day;
-    final theme = Theme.of(context);
+    final start = _weekStart;
+    final current = timetableWeekStart(timetableNow(widget.clock()));
+    final isCurrent = DateUtils.isSameDay(start, current);
     void move(int offset) => setState(() {
-      _day = DateTime(day!.year, day.month, day.day + offset);
+      _weekStart = DateTime.utc(
+        start!.year,
+        start.month,
+        start.day + offset * 7,
+      );
       _pastUnstarted = false;
     });
-    final navigation = Row(
-      children: [
-        IconButton(
-          key: const Key('timetable-previous-day'),
-          tooltip: '前一天',
-          onPressed:
-              day == null || day.year == 1 && day.month == 1 && day.day == 1
-              ? null
-              : () => move(-1),
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Expanded(
-          child: TextButton(
-            key: const Key('all-missions-date'),
-            onPressed: _pickDay,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Flexible(
+    return AppSectionCard(
+      padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceXs),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                key: const Key('timetable-previous-week'),
+                tooltip: '上一周',
+                onPressed:
+                    start == null ||
+                        start.year == 1 && start.month == 1 && start.day == 1
+                    ? null
+                    : () => move(-1),
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Expanded(
+                child: TextButton(
+                  key: const Key('all-missions-date'),
+                  onPressed: _pickDay,
                   child: Text(
-                    day == null
+                    start == null
                         ? (_pastUnstarted ? '以前未开始' : '全部日期')
-                        : '${day.year}年${day.month}月${day.day}日 · ${weekdays[day.weekday - 1]}',
+                        : _weekLabel(start),
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.titleSmall,
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
-                const SizedBox(width: AppLayout.spaceXs),
-                const Icon(Icons.expand_more, size: AppLayout.iconSm),
-              ],
-            ),
+              ),
+              IconButton(
+                key: const Key('timetable-next-week'),
+                tooltip: '下一周',
+                onPressed:
+                    start == null ||
+                        DateTime.utc(
+                              start.year,
+                              start.month,
+                              start.day + 7,
+                            ).year >
+                            9999
+                    ? null
+                    : () => move(1),
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
           ),
-        ),
-        IconButton(
-          key: const Key('timetable-next-day'),
-          tooltip: '后一天',
-          onPressed:
-              day == null ||
-                  day.year == 9999 && day.month == 12 && day.day == 31
-              ? null
-              : () => move(1),
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
-    );
-    return AppSectionCard(
-      padding: const EdgeInsets.all(AppLayout.spaceSm),
-      child: navigation,
+          if (!isCurrent)
+            TextButton(
+              key: const Key('all-missions-current-week'),
+              onPressed: () => setState(() {
+                _weekStart = current;
+                _pastUnstarted = false;
+              }),
+              child: const Text('返回本周'),
+            ),
+        ],
+      ),
     );
   }
 
@@ -597,9 +573,10 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   ) {
     final theme = Theme.of(context);
     final todayKey = _dateKey(today);
-    final selectedDay = _day;
+    final selectedDay = _weekStart;
     final customDay =
-        selectedDay != null && !DateUtils.isSameDay(selectedDay, today);
+        selectedDay != null &&
+        !DateUtils.isSameDay(selectedDay, timetableWeekStart(today));
     final _TaskDateScope dateScope;
     if (_pastUnstarted) {
       dateScope = _TaskDateScope.pastUnstarted;
@@ -608,7 +585,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     } else if (customDay) {
       dateScope = _TaskDateScope.selected;
     } else {
-      dateScope = _TaskDateScope.today;
+      dateScope = _TaskDateScope.thisWeek;
     }
     final pastCount = all
         .where(
@@ -643,13 +620,13 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 decoration: const InputDecoration(labelText: '日期范围'),
                 items: [
                   const DropdownMenuItem(
-                    value: _TaskDateScope.today,
-                    child: Text('今天'),
+                    value: _TaskDateScope.thisWeek,
+                    child: Text('本周'),
                   ),
                   if (customDay)
                     DropdownMenuItem(
                       value: _TaskDateScope.selected,
-                      child: Text(_dateKey(selectedDay)),
+                      child: Text(_weekLabel(selectedDay)),
                     ),
                   const DropdownMenuItem(
                     value: _TaskDateScope.all,
@@ -664,14 +641,14 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 onChanged: (value) {
                   if (value == null) return;
                   setState(() {
-                    if (value == _TaskDateScope.today) {
-                      _day = today;
+                    if (value == _TaskDateScope.thisWeek) {
+                      _weekStart = timetableWeekStart(today);
                       _pastUnstarted = false;
                     } else if (value == _TaskDateScope.all) {
-                      _day = null;
+                      _weekStart = null;
                       _pastUnstarted = false;
                     } else if (value == _TaskDateScope.pastUnstarted) {
-                      _day = null;
+                      _weekStart = null;
                       _pastUnstarted = true;
                       _phase = null;
                     } else {
@@ -814,7 +791,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
   );
 
   void _resetFilters() => setState(() {
-    _day = DateUtils.dateOnly(timetableNow(widget.clock()));
+    _weekStart = timetableWeekStart(timetableNow(widget.clock()));
     _phase = null;
     _goalId = null;
     _pastUnstarted = false;

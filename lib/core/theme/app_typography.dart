@@ -61,6 +61,14 @@ abstract final class AppTypography {
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
   );
+
+  /// 密集周表的星期和日期；保留系统缩放，完整信息由日期入口提供。
+  static const calendarLabel = TextStyle(
+    fontSize: 11,
+    height: 14 / 11,
+    fontWeight: FontWeight.w500,
+    color: AppColors.textSecondary,
+  );
   // 操作文字继承按钮前景色，不在文字角色中固定品牌色。
   static const primaryAction = TextStyle(
     fontSize: 14,
