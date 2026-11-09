@@ -6,10 +6,18 @@ class _MessageBubble extends StatelessWidget {
     required this.message,
     required this.isUser,
     this.visibleContent,
+    this.streaming = false,
+    this.markdownSlice,
+    this.firstSlice = true,
+    this.lastSlice = true,
   });
   final AgentMessage message;
   final bool isUser;
   final List<ContentBlock>? visibleContent;
+  final bool streaming;
+  final AssistantMarkdownSlice? markdownSlice;
+  final bool firstSlice;
+  final bool lastSlice;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -37,8 +45,11 @@ class _MessageBubble extends StatelessWidget {
                   ? colors.primaryContainer
                   : colors.surfaceContainerLow,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppLayout.radiusLg),
-                side: isUser
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(firstSlice ? AppLayout.radiusLg : 0),
+                  bottom: Radius.circular(lastSlice ? AppLayout.radiusLg : 0),
+                ),
+                side: isUser || markdownSlice != null
                     ? BorderSide.none
                     : const BorderSide(color: AppColors.hairline),
               ),
@@ -47,16 +58,24 @@ class _MessageBubble extends StatelessWidget {
                   Padding(
                     padding: EdgeInsets.fromLTRB(
                       AppLayout.spaceLg,
-                      AppLayout.spaceMd,
+                      firstSlice ? AppLayout.spaceMd : 0,
                       AppLayout.spaceLg,
-                      !isUser && text.isNotEmpty ? 68 : AppLayout.spaceMd,
+                      lastSlice
+                          ? (!isUser && text.isNotEmpty
+                                ? 68
+                                : AppLayout.spaceMd)
+                          : AppLayout.spaceSm,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (text.isNotEmpty)
                           if (!isUser)
-                            AssistantMarkdown(text: text)
+                            AssistantMarkdown(
+                              text: text,
+                              streaming: streaming,
+                              slice: markdownSlice,
+                            )
                           else
                             SelectableText(
                               text,
@@ -94,23 +113,14 @@ class _MessageBubble extends StatelessWidget {
                                     : colors.primary,
                               ),
                               children: [
-                                ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxHeight: 240,
-                                  ),
-                                  child: SingleChildScrollView(
-                                    child: SelectableText(
-                                      file.text,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyLarge
-                                          ?.copyWith(
-                                            color: isUser
-                                                ? colors.onPrimaryContainer
-                                                : colors.onSurface,
-                                          ),
-                                    ),
-                                  ),
+                                SelectableText(
+                                  file.text,
+                                  style: Theme.of(context).textTheme.bodyLarge
+                                      ?.copyWith(
+                                        color: isUser
+                                            ? colors.onPrimaryContainer
+                                            : colors.onSurface,
+                                      ),
                                 ),
                               ],
                             ),
@@ -124,7 +134,7 @@ class _MessageBubble extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (!isUser && text.isNotEmpty)
+                  if (!isUser && text.isNotEmpty && lastSlice)
                     Positioned(
                       right: 10,
                       bottom: 10,
@@ -164,46 +174,6 @@ class _CopyReplyButton extends StatelessWidget {
         context,
       ).showSnackBar(SnackBar(content: Text(feedback)));
     },
-  );
-}
-
-class _StreamingBubble extends StatelessWidget {
-  const _StreamingBubble({super.key, required this.text});
-  final String text;
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) => Align(
-      alignment: Alignment.centerLeft,
-      child: SizedBox(
-        // 生成中和生成后的回答使用同一阅读宽度，避免结束时横向跳变。
-        width: constraints.maxWidth.clamp(0, 860),
-        child: Material(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppLayout.spaceMd,
-              vertical: AppLayout.spaceMd,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 逐 token 变化时只排版纯文本；Markdown 解析留给完成后的正式消息。
-                if (text.isNotEmpty)
-                  RepaintBoundary(
-                    child: Text(
-                      text,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge?.copyWith(height: 1.5),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
   );
 }
 

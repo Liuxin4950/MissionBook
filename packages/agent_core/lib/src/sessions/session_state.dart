@@ -26,6 +26,9 @@ final class SessionState {
   int _nextSequence = 0;
   SessionUsage _sessionUsage = const SessionUsage();
   SessionUsage get sessionUsage => _sessionUsage;
+  final List<InterruptedModelAttempt> _interruptedAttempts = [];
+  List<InterruptedModelAttempt> get interruptedAttempts =>
+      List.unmodifiable(_interruptedAttempts);
   final List<AgentMessage> _transcript = [];
   final List<AgentMessage> _context = [];
   final Map<String, AgentMessage> _knownMessages = {};
@@ -89,6 +92,7 @@ final class SessionState {
         openTurnId = original.openTurnId;
         lastStopReason = original.lastStopReason;
         _transcript.addAll(original._transcript);
+        _interruptedAttempts.addAll(original._interruptedAttempts);
         _context.addAll(original._context);
         _knownMessages.addAll(original._knownMessages);
         _pending.addAll(original._pending);
@@ -262,7 +266,29 @@ final class SessionState {
         }
       case 'usage_reported':
         _applyUsage(data);
-      case 'request_failed' || 'storage_tail_recovered':
+      case 'request_failed':
+        final text = data['partialText'] as String? ?? '';
+        final thinking = data['partialThinking'] as String? ?? '';
+        final user = _transcript.whereType<UserMessage>().lastOrNull;
+        if (user != null &&
+            (text.isNotEmpty || thinking.isNotEmpty) &&
+            data['purpose'] == ModelRequestPurpose.conversation.name) {
+          _interruptedAttempts.add(
+            InterruptedModelAttempt(
+              id: '$id:attempt:${record.sequence}',
+              userMessageId: user.id,
+              messageIndex: _transcript.reversed
+                  .takeWhile((m) => m is! UserMessage)
+                  .whereType<AssistantMessage>()
+                  .length,
+              text: text,
+              thinking: thinking,
+              message: data['message'] as String? ?? '本次输出未完成',
+              willRetry: data['willRetry'] == true,
+            ),
+          );
+        }
+      case 'storage_tail_recovered':
         break;
       default:
         if (!record.ignorable) {
@@ -352,6 +378,7 @@ final class SessionState {
     .._nextSequence = _nextSequence
     .._sessionUsage = _sessionUsage
     .._transcript.addAll(_transcript)
+    .._interruptedAttempts.addAll(_interruptedAttempts)
     .._context.addAll(_context)
     .._knownMessages.addAll(_knownMessages)
     .._pending.addAll(_pending)
@@ -362,4 +389,24 @@ final class SessionState {
     .._unknown.addAll(_unknown)
     .._resolved.addAll(_resolved)
     .._requestSpecs.addAll(_requestSpecs);
+}
+
+/// 中断尝试仅用于回看，不作为已完成消息或后续模型输入。
+final class InterruptedModelAttempt {
+  const InterruptedModelAttempt({
+    required this.id,
+    required this.userMessageId,
+    required this.messageIndex,
+    required this.text,
+    required this.thinking,
+    required this.message,
+    required this.willRetry,
+  });
+  final String id;
+  final String userMessageId;
+  final int messageIndex;
+  final String text;
+  final String thinking;
+  final String message;
+  final bool willRetry;
 }

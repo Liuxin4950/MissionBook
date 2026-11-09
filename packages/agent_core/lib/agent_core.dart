@@ -16,3 +16,4 @@ export 'src/context/context_compactor.dart';
 export 'src/sessions/agent_runtime.dart';
 export 'src/sessions/session_store.dart' hide validateSessionId;
 export 'src/sessions/session_usage.dart';
+export 'src/sessions/session_state.dart' show InterruptedModelAttempt;

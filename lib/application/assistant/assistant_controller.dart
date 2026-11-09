@@ -64,6 +64,12 @@ class AssistantReference {
   final String title;
 }
 
+class AssistantUnsentDraft {
+  const AssistantUnsentDraft(this.text, this.attachments);
+  final String text;
+  final List<AssistantAttachment> attachments;
+}
+
 enum AssistantOperationStatus {
   waitingConfirmation,
   running,
@@ -216,6 +222,8 @@ class AssistantController extends ChangeNotifier {
   List<ScheduledMission>? _localSchedule;
   String? _localScheduleDate;
   AssistantReference? _reference;
+  String? _unavailableReference;
+  String? get unavailableReference => _unavailableReference;
   String? _errorMessage;
   String? _lastUserInput;
   static const _idleActivity = SessionActivity(
@@ -228,6 +236,24 @@ class AssistantController extends ChangeNotifier {
   /// 模型逐 token 推送的正文/思考只更新这里；正在生成的区域单独订阅，
   /// 页面其余部分只在结构变化时重建，避免整页按帧重建。
   final liveActivity = ValueNotifier<SessionActivity>(_idleActivity);
+  final _unsentDrafts = <String, List<AssistantUnsentDraft>>{};
+  List<AssistantUnsentDraft> get unsentDrafts =>
+      List.unmodifiable(_unsentDrafts[draftKey] ?? const []);
+  void retainUnsentDraft(String key, AssistantUnsentDraft draft) {
+    if (!_acceptsDraft(key)) return;
+    (_unsentDrafts[key] ??= []).add(draft);
+    _notifyListeners();
+  }
+
+  AssistantUnsentDraft? takeUnsentDraft() {
+    final drafts = _unsentDrafts[draftKey];
+    if (drafts == null || drafts.isEmpty) return null;
+    final draft = drafts.removeAt(0);
+    if (drafts.isEmpty) _unsentDrafts.remove(draftKey);
+    _notifyListeners();
+    return draft;
+  }
+
   final _drafts = <String?, String>{};
   final _attachmentDrafts = <String?, List<AssistantAttachment>>{};
   List<AssistantAttachment> attachmentsFor(String? id) =>
@@ -492,6 +518,8 @@ class AssistantController extends ChangeNotifier {
       List.unmodifiable(_conversations);
   List<AgentMessage> get transcript => _transcript;
   SessionActivity get activity => _activity;
+  List<InterruptedModelAttempt> get interruptedAttempts =>
+      _session?.interruptedAttempts ?? const [];
   SessionUsage get sessionUsage =>
       _session?.sessionUsage ?? const SessionUsage();
   List<AssistantOperation> get operations =>
@@ -512,6 +540,12 @@ class AssistantController extends ChangeNotifier {
       _sessions.openNodeReference(nodeId);
 
   Future<void> openGlobalConversation() => _sessions.openGlobalConversation();
+
+  /// 系统入口接续当前会话；等待正在进行的导航，不抢占模型或切换对象。
+  Future<void> prepareExternalEntry() async {
+    await initialize();
+    await _sessions._navigate(() async {});
+  }
 
   Future<void> startNewSession({bool clearReference = true}) =>
       _sessions.startNewSession(clearReference: clearReference);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/presentation/assistant/shared/assistant_markdown.dart';
+import 'package:mission_book/presentation/assistant/shared/assistant_thinking.dart';
 import 'package:mission_book/presentation/assistant/shared/assistant_markdown_cache.dart';
 
 void main() {
@@ -39,7 +40,7 @@ void main() {
     expect(cache.estimatedWeight, 0);
   });
 
-  testWidgets('长 Markdown 使用惰性列表且保留 GFM 块内容', (tester) async {
+  testWidgets('长 Markdown 随外层页面自然展开且保留 GFM 块内容', (tester) async {
     final filler = List.filled(20, '说明').join();
     final lastParagraph = '正文段落 99 $filler';
     final text = [
@@ -66,18 +67,22 @@ void main() {
         home: Scaffold(
           body: Padding(
             padding: const EdgeInsets.all(16),
-            child: AssistantMarkdown(text: text),
+            child: SingleChildScrollView(child: AssistantMarkdown(text: text)),
           ),
         ),
       ),
     );
 
-    expect(find.byType(ListView), findsOneWidget);
+    expect(find.byType(ListView), findsNothing);
     expect(
       find.byWidgetPredicate(
-        (widget) => widget is Scrollbar && widget.thumbVisibility == true,
+        (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
       ),
       findsOneWidget,
+    );
+    expect(
+      tester.getSize(find.byType(AssistantMarkdown)).height,
+      greaterThan(560),
     );
     expect(find.text('同步'), findsOneWidget);
     expect(find.text('子项'), findsOneWidget);
@@ -106,7 +111,9 @@ void main() {
     );
     expect(find.text('无法打开该链接，可以复制后查看'), findsOneWidget);
 
-    final list = find.byType(ListView);
+    final list = find.byWidgetPredicate(
+      (w) => w is SingleChildScrollView && w.scrollDirection == Axis.vertical,
+    );
     await tester.drag(list, const Offset(0, -10000));
     await tester.pumpAndSettle();
     expect(
@@ -114,6 +121,44 @@ void main() {
         (widget) =>
             widget is RichText &&
             widget.text.toPlainText().contains(lastParagraph),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('思考展开撑开页面，过程区域没有独立纵向滚动', (tester) async {
+    final thought = List.generate(50, (index) => '思考段落 $index\n\n').join();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AssistantProcess(
+              key: const ValueKey('process-height'),
+              running: true,
+              needsAttention: false,
+              label: '正在思考',
+              operationCount: 0,
+              children: [
+                AssistantThinking(
+                  key: const ValueKey('thought-height'),
+                  text: thought,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final before = tester.getSize(find.byType(AssistantProcess)).height;
+    await tester.tap(find.byType(AssistantThinking));
+    await tester.pump();
+    expect(
+      tester.getSize(find.byType(AssistantProcess)).height,
+      greaterThan(before + 240),
+    );
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
       ),
       findsOneWidget,
     );

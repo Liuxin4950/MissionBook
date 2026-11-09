@@ -103,25 +103,32 @@ class _AppShellState extends State<AppShell> {
   }
 
   bool _consumingCapture = false;
+  bool _captureRequested = false;
   Uint8List? _acceptedCapture;
   Future<void> _consumePendingCapture() async {
-    if (_consumingCapture) return;
+    if (_consumingCapture) {
+      _captureRequested = true;
+      return;
+    }
     _consumingCapture = true;
     try {
-      final bytes = await _overlayChannel.invokeMethod<Uint8List>(
-        'consumePendingCapture',
-      );
-      if (bytes != null && mounted) {
-        final accepted =
-            listEquals(_acceptedCapture, bytes) ||
-            await _assistantEntry.currentState?.openCapturedScreen(bytes) ==
-                true;
-        if (accepted == true) {
-          _acceptedCapture = bytes;
-          await _overlayChannel.invokeMethod<void>('acknowledgeCapture');
-          _acceptedCapture = null;
+      do {
+        _captureRequested = false;
+        final bytes = await _overlayChannel.invokeMethod<Uint8List>(
+          'consumePendingCapture',
+        );
+        if (bytes != null && mounted) {
+          final accepted =
+              listEquals(_acceptedCapture, bytes) ||
+              await _assistantEntry.currentState?.openCapturedScreen(bytes) ==
+                  true;
+          if (accepted == true) {
+            _acceptedCapture = bytes;
+            await _overlayChannel.invokeMethod<void>('acknowledgeCapture');
+            _acceptedCapture = null;
+          }
         }
-      }
+      } while (_captureRequested && mounted);
     } on PlatformException {
       if (mounted) {
         ScaffoldMessenger.of(

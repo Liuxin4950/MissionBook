@@ -4,6 +4,12 @@ import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
 import 'assistant_markdown.dart';
 
+/// 用户正在主动阅读，外层聊天应暂停跟随新增内容。
+class AssistantExpansionNotification extends Notification {
+  const AssistantExpansionNotification(this.expanded);
+  final bool expanded;
+}
+
 /// 思考是处理过程中的一行；默认收起，预览与正文不共用回答卡片。
 class AssistantThinking extends StatefulWidget {
   const AssistantThinking({
@@ -20,6 +26,29 @@ class AssistantThinking extends StatefulWidget {
 
 class _AssistantThinkingState extends State<AssistantThinking> {
   bool _expanded = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.key != null) {
+      _expanded =
+          PageStorage.maybeOf(
+                context,
+              )?.readState(context, identifier: widget.key)
+              as bool? ??
+          _expanded;
+    }
+  }
+
+  void _toggle() {
+    setState(() => _expanded = !_expanded);
+    if (widget.key != null) {
+      PageStorage.maybeOf(
+        context,
+      )?.writeState(context, _expanded, identifier: widget.key);
+    }
+    AssistantExpansionNotification(_expanded).dispatch(context);
+  }
 
   String get _preview {
     final paragraphs = widget.text.trim().split(RegExp(r'\n\s*\n'));
@@ -38,7 +67,7 @@ class _AssistantThinkingState extends State<AssistantThinking> {
         Semantics(
           expanded: _expanded,
           child: TextButton(
-            onPressed: () => setState(() => _expanded = !_expanded),
+            onPressed: _toggle,
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,
               minimumSize: const Size(0, AppLayout.touchTargetMin),
@@ -74,15 +103,11 @@ class _AssistantThinkingState extends State<AssistantThinking> {
               left: AppLayout.iconSm + AppLayout.spaceSm,
               bottom: AppLayout.spaceSm,
             ),
-            child: widget.streaming
-                // 流式思考每几十毫秒变化一次，持续解析 Markdown 会拖垮整轮帧率。
-                ? Text(
-                    widget.text,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(height: 1.5),
-                  )
-                : AssistantMarkdown(text: widget.text, compact: true),
+            child: AssistantMarkdown(
+              text: widget.text,
+              compact: true,
+              streaming: widget.streaming,
+            ),
           ),
       ],
     );
@@ -115,22 +140,24 @@ class _AssistantProcessState extends State<AssistantProcess> {
   late bool _expanded =
       widget.initiallyExpanded || widget.running || widget.needsAttention;
   late bool _manuallyToggled = widget.initiallyExpanded;
-  final _scroll = ScrollController();
-  bool _followOutput = true;
-
-  void _followLatest() {
-    if (!_expanded || !_followOutput || !widget.running) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _scroll.hasClients && _followOutput) {
-        _scroll.jumpTo(_scroll.position.maxScrollExtent);
-      }
-    });
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final saved =
+        PageStorage.maybeOf(context)?.readState(context, identifier: widget.key)
+            as bool?;
+    if (saved != null) {
+      _expanded = saved;
+      _manuallyToggled = true;
+    }
   }
 
   @override
   void didUpdateWidget(covariant AssistantProcess oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.needsAttention && !oldWidget.needsAttention) {
+    if (widget.initiallyExpanded && !oldWidget.initiallyExpanded) {
+      _expanded = true;
+    } else if (widget.needsAttention && !oldWidget.needsAttention) {
       _expanded = true;
     } else if (oldWidget.running &&
         !widget.running &&
@@ -138,37 +165,46 @@ class _AssistantProcessState extends State<AssistantProcess> {
         !widget.needsAttention) {
       _expanded = false;
     }
-    _followLatest();
-  }
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final styles = Theme.of(context).textTheme;
-    final body = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: widget.children,
+    final body = NotificationListener<AssistantExpansionNotification>(
+      onNotification: (notification) {
+        if (notification.expanded) {
+          _manuallyToggled = true;
+          if (widget.key != null) {
+            PageStorage.maybeOf(
+              context,
+            )?.writeState(context, true, identifier: widget.key);
+          }
+        }
+        return false;
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: widget.children,
+      ),
     );
-    final availableHeight =
-        MediaQuery.sizeOf(context).height -
-        MediaQuery.viewInsetsOf(context).bottom;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Semantics(
           expanded: _expanded,
           child: TextButton(
-            onPressed: () => setState(() {
-              _expanded = !_expanded;
-              _manuallyToggled = true;
-              _followOutput = widget.running;
-              _followLatest();
-            }),
+            onPressed: () {
+              setState(() {
+                _expanded = !_expanded;
+                _manuallyToggled = true;
+              });
+              if (widget.key != null) {
+                PageStorage.maybeOf(
+                  context,
+                )?.writeState(context, _expanded, identifier: widget.key);
+              }
+              AssistantExpansionNotification(_expanded).dispatch(context);
+            },
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,
               minimumSize: const Size(0, AppLayout.touchTargetMin),
@@ -206,29 +242,7 @@ class _AssistantProcessState extends State<AssistantProcess> {
               border: Border(left: BorderSide(color: AppColors.hairline)),
             ),
             padding: const EdgeInsets.only(left: AppLayout.spaceSm),
-            child: widget.needsAttention
-                ? body
-                : ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: (availableHeight * .35).clamp(
-                        AppLayout.touchTargetMin * 2,
-                        AppLayout.touchTargetMin * 5,
-                      ),
-                    ),
-                    child: NotificationListener<UserScrollNotification>(
-                      onNotification: (_) {
-                        if (_scroll.hasClients) {
-                          _followOutput =
-                              _scroll.position.extentAfter < AppLayout.spaceXxl;
-                        }
-                        return true;
-                      },
-                      child: SingleChildScrollView(
-                        controller: _scroll,
-                        child: body,
-                      ),
-                    ),
-                  ),
+            child: body,
           ),
       ],
     );

@@ -21,8 +21,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
-            android:taskAffinity=""
+            android:launchMode="singleTask"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
@@ -42,7 +41,10 @@
             </intent-filter>
         </activity>
         <activity android:name=".AssistantCaptureConsentActivity"
-            android:exported="false" android:theme="@style/AssistantCaptureTheme" />
+            android:exported="false"
+            android:taskAffinity="${applicationId}.capture"
+            android:excludeFromRecents="true"
+            android:theme="@style/AssistantCaptureTheme" />
         <service android:name=".PlannedExecutionService" android:exported="false"
             android:foregroundServiceType="shortService" />
         <service android:name=".AssistantOverlayService" android:exported="false"

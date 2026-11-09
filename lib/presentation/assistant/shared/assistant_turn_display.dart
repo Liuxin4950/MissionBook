@@ -17,3 +17,32 @@ List<AssistantTurnPart> assistantTurnParts(
     for (var index = 0; index < message.content.length; index++)
       AssistantTurnPart(message, message.content[index], index),
 ];
+
+/// 连续的过程块才合并；不同请求和回答之间保持原始顺序。
+class AssistantTurnSection {
+  const AssistantTurnSection(this.key, this.process, this.parts);
+  final String key;
+  final bool process;
+  final List<AssistantTurnPart> parts;
+}
+
+List<AssistantTurnSection> assistantTurnSections(
+  AssistantMessage message,
+  String requestKey,
+) {
+  final sections = <AssistantTurnSection>[];
+  for (final part in assistantTurnParts([message])) {
+    final process = !part.isReply;
+    if (sections.isEmpty || sections.last.process != process) {
+      sections.add(
+        AssistantTurnSection(
+          '$requestKey:section:${sections.length}',
+          process,
+          [],
+        ),
+      );
+    }
+    sections.last.parts.add(part);
+  }
+  return sections;
+}

@@ -1,7 +1,6 @@
 package chat.liuxin.mission_book
 
 import android.app.Activity
-import android.app.ActivityManager
 import android.content.Context
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
@@ -23,14 +22,7 @@ class AssistantCaptureConsentActivity : Activity() {
             val path = intent?.getStringExtra(MainActivity.EXTRA_CAPTURE_PATH)
             if (path != null) {
                 try {
-                    val tasks = getSystemService(ActivityManager::class.java).appTasks
-                    val mainTask = tasks.firstOrNull {
-                        it.taskInfo.baseActivity?.className == MainActivity::class.java.name
-                    }
-                    mainTask?.moveToFront()
-                    startActivity(Intent(this@AssistantCaptureConsentActivity, MainActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                        .putExtra(MainActivity.EXTRA_CAPTURE_PATH, path))
+                    startActivity(MainActivity.assistantIntent(this@AssistantCaptureConsentActivity, path))
                 } catch (error: Exception) {
                     Log.e(TAG, "打开助手失败", error)
                     Toast.makeText(this@AssistantCaptureConsentActivity, "截图已保留，请打开 MissionBook 重试", Toast.LENGTH_LONG).show()

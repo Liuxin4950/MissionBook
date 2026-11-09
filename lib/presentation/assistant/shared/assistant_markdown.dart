@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,55 +8,65 @@ import '../../../core/theme/app_layout.dart';
 import 'assistant_markdown_cache.dart';
 import 'assistant_markdown_chart.dart';
 
+/// 外层聊天列表持有的一个 Markdown 块，复用整篇解析结果。
+class AssistantMarkdownSlice {
+  const AssistantMarkdownSlice(this.nodes);
+  final List<md.Node> nodes;
+}
+
 /// 模型正文按 Markdown 显示；链接由用户点击后打开，图片链接不自动读取文件。
 class AssistantMarkdown extends StatefulWidget {
   const AssistantMarkdown({
     super.key,
     required this.text,
     this.compact = false,
+    this.streaming = false,
+    this.slice,
   });
   final String text;
   final bool compact;
+  final bool streaming;
+  final AssistantMarkdownSlice? slice;
+
+  static List<AssistantMarkdownSlice> slices(String text) => [
+    for (final node in _assistantMarkdownAstCache.parse(text))
+      AssistantMarkdownSlice([node]),
+  ];
 
   @override
   State<AssistantMarkdown> createState() => _AssistantMarkdownState();
 }
 
 final _assistantMarkdownAstCache = AssistantMarkdownAstCache();
-const _longReplyLength = 4000;
 
 class _AssistantMarkdownState extends State<AssistantMarkdown> {
   List<md.Node>? _nodes;
   MarkdownStyleSheet? _styleSheet;
   String? _renderedText;
   bool? _renderedCompact;
-  final ScrollController _longReplyScroll = ScrollController();
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _styleSheet = null;
     _resetRenderedContent();
   }
 
   @override
   void didUpdateWidget(covariant AssistantMarkdown oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text || oldWidget.compact != widget.compact) {
+    if (oldWidget.text != widget.text ||
+        oldWidget.compact != widget.compact ||
+        oldWidget.slice != widget.slice) {
+      if (oldWidget.compact != widget.compact) _styleSheet = null;
       _resetRenderedContent();
     }
   }
 
   void _resetRenderedContent() {
-    _nodes = null;
-    _styleSheet = null;
+    // 保留上一版节点，流式更新后复用未变化的块及其链接状态。
     _renderedText = null;
     _renderedCompact = null;
-  }
-
-  @override
-  void dispose() {
-    _longReplyScroll.dispose();
-    super.dispose();
   }
 
   @override
@@ -66,17 +74,32 @@ class _AssistantMarkdownState extends State<AssistantMarkdown> {
     if (_nodes == null ||
         _renderedText != widget.text ||
         _renderedCompact != widget.compact) {
-      _nodes = _assistantMarkdownAstCache.parse(widget.text);
-      _styleSheet = _createStyleSheet(context);
+      final parsed =
+          widget.slice?.nodes ??
+          _assistantMarkdownAstCache.parse(
+            widget.text,
+            retain: !widget.streaming,
+          );
+      final previous = _nodes;
+      _nodes = [
+        for (var index = 0; index < parsed.length; index++)
+          if (previous != null &&
+              index < previous.length &&
+              _nodeIdentity(previous[index]) == _nodeIdentity(parsed[index]))
+            previous[index]
+          else
+            parsed[index],
+      ];
+      _styleSheet ??= _createStyleSheet(context);
       _renderedText = widget.text;
       _renderedCompact = widget.compact;
     }
 
     final nodes = _nodes!;
     final styleSheet = _styleSheet!;
-    final markdown = _isLongReply(nodes)
-        ? _buildLongReply(context, nodes, styleSheet)
-        : _buildBody(nodes, styleSheet);
+    final markdown = _buildBody(nodes, styleSheet);
+    // 切片的跨块选择由聊天主列表的 SelectionArea 统一承载。
+    if (widget.slice != null) return RepaintBoundary(child: markdown);
     return RepaintBoundary(
       child: SelectionArea(
         contextMenuBuilder: (context, state) =>
@@ -119,9 +142,9 @@ class _AssistantMarkdownState extends State<AssistantMarkdown> {
     );
   }
 
-  bool _isLongReply(List<md.Node> nodes) =>
-      !widget.compact &&
-      (widget.text.length >= _longReplyLength || nodes.length >= 16);
+  String _nodeIdentity(md.Node node) => node is md.Element
+      ? '${node.tag}:${node.attributes}:${[for (final child in node.children ?? <md.Node>[]) _nodeIdentity(child)]}'
+      : node.textContent;
 
   Widget _buildBody(List<md.Node> nodes, MarkdownStyleSheet styleSheet) {
     if (nodes.length == 1) return _block(nodes.single, styleSheet, 0);
@@ -132,33 +155,6 @@ class _AssistantMarkdownState extends State<AssistantMarkdown> {
         for (var index = 0; index < nodes.length; index++)
           _block(nodes[index], styleSheet, index),
       ],
-    );
-  }
-
-  Widget _buildLongReply(
-    BuildContext context,
-    List<md.Node> nodes,
-    MarkdownStyleSheet styleSheet,
-  ) {
-    final maxHeight = math.min(
-      560.0,
-      math.max(160.0, MediaQuery.sizeOf(context).height * .62),
-    );
-    return SizedBox(
-      height: maxHeight,
-      child: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-        child: Scrollbar(
-          controller: _longReplyScroll,
-          thumbVisibility: true,
-          child: ListView.builder(
-            controller: _longReplyScroll,
-            padding: EdgeInsets.zero,
-            itemCount: nodes.length,
-            itemBuilder: (_, index) => _block(nodes[index], styleSheet, index),
-          ),
-        ),
-      ),
     );
   }
 

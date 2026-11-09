@@ -51,8 +51,34 @@ class AppExpansionTile extends StatefulWidget {
 class _AppExpansionTileState extends State<AppExpansionTile> {
   late bool _expanded = widget.initiallyExpanded;
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.key is PageStorageKey) {
+      _expanded =
+          PageStorage.maybeOf(
+                context,
+              )?.readState(context, identifier: widget.key)
+              as bool? ??
+          _expanded;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AppExpansionTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initiallyExpanded && !oldWidget.initiallyExpanded) {
+      _expanded = true;
+    }
+  }
+
   void _toggle() {
     setState(() => _expanded = !_expanded);
+    if (widget.key is PageStorageKey) {
+      PageStorage.maybeOf(
+        context,
+      )?.writeState(context, _expanded, identifier: widget.key);
+    }
     widget.onExpansionChanged?.call(_expanded);
   }
 

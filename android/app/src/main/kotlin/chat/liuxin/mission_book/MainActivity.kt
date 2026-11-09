@@ -7,6 +7,7 @@ import android.provider.Settings
 import android.util.Log
 import android.app.Activity
 import android.os.Bundle
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -494,6 +495,14 @@ class MainActivity : FlutterActivity() {
     }
 
     companion object {
+        // 所有悬浮入口共用同一个主 Activity；由 singleTask 接收 onNewIntent。
+        fun assistantIntent(context: Context, capturePath: String? = null): Intent =
+            Intent(context, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                if (capturePath != null) putExtra(EXTRA_CAPTURE_PATH, capturePath)
+                else putExtra(EXTRA_OPEN_ASSISTANT, true)
+            }
+
         const val MAX_ATTACHMENT_BYTES = 20L * 1024L * 1024L
         const val MAX_BACKUP_BYTES = 256L * 1024L * 1024L
         const val MAX_GOAL_JSON_BYTES = 32L * 1024L * 1024L

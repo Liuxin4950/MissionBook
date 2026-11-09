@@ -282,7 +282,7 @@ void main() {
     await tester.runAsync(fixture.dispose);
   }, skip: !_enabled);
 
-  testWidgets('聊天长回复回收后使用惰性块列表并复用有界 AST 缓存', (tester) async {
+  testWidgets('聊天长回复复用主滚动并按可见块构建，回收后复用 AST', (tester) async {
     _phoneViewport(tester);
     final fixture = PerformanceAuditFixture();
     await tester.runAsync(() async {
@@ -297,14 +297,10 @@ void main() {
       _host(AssistantPage(controller: fixture.assistant!, showBack: true)),
     );
     await tester.pumpAndSettle();
-    final reply = find.byKey(const ValueKey('global-assistant-19:0'));
-    final markdown = find.descendant(
-      of: reply,
-      matching: find.byType(AssistantMarkdown),
-    );
+    final markdown = find.byType(AssistantMarkdown).last;
     expect(
-      find.descendant(of: reply, matching: find.byType(ListView)),
-      findsOneWidget,
+      find.descendant(of: markdown, matching: find.byType(ListView)),
+      findsNothing,
     );
     final original = tester.state(markdown);
     final scroll = tester

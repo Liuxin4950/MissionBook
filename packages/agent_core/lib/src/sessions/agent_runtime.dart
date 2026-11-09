@@ -227,6 +227,8 @@ final class AgentSession {
   Map<String, ToolResultMessage> get unknownOutcomes => _state.unknownOutcomes;
   Map<String, ToolOutput> get resolvedOutcomes => _state.resolvedOutcomes;
   List<AgentMessage> get transcript => _state.transcript;
+  List<InterruptedModelAttempt> get interruptedAttempts =>
+      _state.interruptedAttempts;
   int get transcriptLength => _state.transcriptLength;
   String? get lastTranscriptMessageId => _state.lastTranscriptMessageId;
   List<AgentMessage> get contextMessages => _state.contextMessages;
@@ -595,8 +597,11 @@ final class AgentSession {
         }
       case ModelAttemptFailed():
         // 摘要请求也使用该事件；正文请求开始后才可能置为 true。
+        final conversation = _modelRequestRunning;
         _modelRequestRunning = false;
         await _record('request_failed', {
+          'purpose': conversation ? 'conversation' : 'summary',
+          if (conversation) 'partialThinking': _partialThinking.toString(),
           'step': event.step,
           'attempt': event.attempt,
           'code': event.failure.code,

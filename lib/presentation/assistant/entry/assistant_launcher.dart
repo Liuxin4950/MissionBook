@@ -10,10 +10,7 @@ import 'package:flutter/services.dart';
 import '../../../core/theme/colors.dart';
 import '../../../application/assistant/assistant_controller.dart';
 import '../../../application/assistant/assistant_attachment.dart';
-import '../shared/assistant_markdown.dart';
-import '../shared/assistant_thinking.dart';
-import '../shared/assistant_turn_display.dart';
-import '../operations/assistant_operation_card.dart';
+import '../shared/assistant_turn_content.dart';
 import '../shared/assistant_voice_status.dart';
 import '../shared/assistant_avatar.dart';
 import 'assistant_scope.dart';
@@ -126,7 +123,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     _opening = true;
     try {
       _selectedNodeId = null;
-      await _prepare().timeout(const Duration(seconds: 5));
+      await _scope!.controller.prepareExternalEntry();
       if (!mounted) return;
       _bubbleIdentity = _scope!.controller.draftKey;
       _sentMessage = null;
@@ -151,19 +148,12 @@ class AssistantLauncherState extends State<AssistantLauncher> {
         'screen-${DateTime.now().millisecondsSinceEpoch}.jpg',
         bytes,
       );
-      await _scope!.controller.initialize();
-      if (!mounted) return false;
-      // 已有聊天页时接续当前草稿，避免为截图重复切换会话。
-      final conversationOpen = assistantConversationIsOpen(context);
-      if (!_opening && !conversationOpen) {
-        _selectedNodeId = null;
-        await _prepare();
-      }
+      await _scope!.controller.prepareExternalEntry();
       if (!mounted) return false;
       _scope!.controller.addCapturedAttachment(screenshot);
       _bubbleIdentity = _scope!.controller.draftKey;
       _sentMessage = null;
-      if (!_opening && !conversationOpen) unawaited(_expand());
+      unawaited(_expand());
       return true;
     } catch (error) {
       if (mounted) {
@@ -328,7 +318,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     if (_opening) return;
     _opening = true;
     try {
-      await _prepare().timeout(const Duration(seconds: 5));
+      await _prepare();
       _selectedNodeId = null;
       if (!mounted) return;
       _menu = false;
@@ -632,76 +622,33 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     final operations = controller.operations
         .where((o) => callIds.contains(o.callId))
         .toList();
-    final waiting = operations.any(
-      (o) => o.status == AssistantOperationStatus.waitingConfirmation,
-    );
     final reply = messages
         .where((m) => m.text.trim().isNotEmpty)
         .map((m) => m.text)
         .join('\n\n');
-    final live =
-        start >= 0 &&
-        controller.activity.turnUserMessageId == _sentMessage?.id &&
-        controller.activity.modelRequestRunning;
-    final streaming = live ? controller.activity.text : '';
-    final process = <Widget>[];
-    final replies = <Widget>[];
-    for (final part in assistantTurnParts(messages)) {
-      final block = part.block;
-      if (block is ThinkingBlock && block.text.trim().isNotEmpty) {
-        process.add(
-          AssistantThinking(key: ValueKey(part.key), text: block.text),
-        );
-      } else if (block is ToolCallBlock) {
-        final operation = operations
-            .where((item) => item.callId == block.id)
-            .firstOrNull;
-        if (operation == null) continue;
-        process.add(
-          TextButton.icon(
-            key: ValueKey(block.id),
-            onPressed: () => _expand(operationCallId: block.id),
-            icon: Icon(
-              operation.status == AssistantOperationStatus.succeeded
-                  ? Icons.check_circle_outline
-                  : Icons.receipt_long_outlined,
-              size: AppLayout.iconSm,
-            ),
-            label: Text(
-              '${assistantToolLabel(block.name)} · ${assistantOperationStatusLabel(operation.status, compact: true)}',
-            ),
-          ),
-        );
-      } else if (block is TextBlock && block.text.trim().isNotEmpty) {
-        final content = AssistantMarkdown(
-          text: block.text,
-          compact: !part.isReply,
-        );
-        if (part.isReply) {
-          replies.add(content);
+    final timeline = AssistantTurnContent(
+      identity: _sentMessage?.id ?? 'voice',
+      messages: messages,
+      attempts: controller.interruptedAttempts
+          .where((item) => item.userMessageId == _sentMessage?.id)
+          .toList(),
+      operations: {
+        for (final operation in operations) operation.callId: operation,
+      },
+      controller: controller,
+      activity: controller.activity,
+      running:
+          controller.isRunning &&
+          controller.activity.turnUserMessageId == _sentMessage?.id,
+      onOpenReference: (type, id) {
+        if (type == 'goal') {
+          unawaited(openAssistantGoal(context, id));
         } else {
-          process.add(content);
+          unawaited(openAssistantMission(context, id));
         }
-      }
-    }
-    if (live && controller.activity.thinking.isNotEmpty) {
-      process.add(
-        AssistantThinking(
-          key: ValueKey('live-thinking-${controller.activity.requestSerial}'),
-          text: controller.activity.thinking,
-          streaming: true,
-        ),
-      );
-    }
-    // 流式预览只做纯文本排版，完整 Markdown 留给会话页完成后的消息。
-    if (streaming.isNotEmpty) {
-      replies.add(
-        Text(
-          streaming,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
-        ),
-      );
-    }
+      },
+      onOpenOperation: (id) => _expand(operationCallId: id),
+    );
     final text = Theme.of(context).textTheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -838,54 +785,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
                       ),
                     ),
                   const SizedBox(height: AppLayout.spaceMd),
-                  if (process.isNotEmpty || live)
-                    AssistantProcess(
-                      key: ValueKey('process-${_sentMessage?.id}'),
-                      running: controller.isRunning,
-                      needsAttention:
-                          waiting ||
-                          operations.any(
-                            (operation) =>
-                                operation.status ==
-                                    AssistantOperationStatus.failed ||
-                                operation.status ==
-                                    AssistantOperationStatus.unknown,
-                          ),
-                      label: waiting
-                          ? '等待确认操作'
-                          : controller.isRunning
-                          ? '正在处理'
-                          : '处理过程',
-                      operationCount: callIds.length,
-                      children: process,
-                    ),
-                  for (final content in replies)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppLayout.spaceSm),
-                      child: content,
-                    ),
-                  if (controller.isRunning && process.isEmpty && !live)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppLayout.spaceSm),
-                      child: Row(
-                        children: [
-                          if (!waiting)
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          if (!waiting)
-                            const SizedBox(width: AppLayout.spaceSm),
-                          Expanded(
-                            child: Text(
-                              waiting ? '等待你确认，本次操作尚未执行' : '正在回复…',
-                              style: text.bodySmall,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  timeline,
                   if (controller.errorMessage != null) ...[
                     const SizedBox(height: AppLayout.spaceSm),
                     Text(

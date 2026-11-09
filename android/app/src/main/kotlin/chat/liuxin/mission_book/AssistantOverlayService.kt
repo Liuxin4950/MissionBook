@@ -192,12 +192,8 @@ class AssistantOverlayService : Service() {
 
     private fun openAssistant() {
         removeBubble()
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            val capture = getSharedPreferences(PREFS, MODE_PRIVATE).getString(MainActivity.EXTRA_CAPTURE_PATH, null)
-            if (capture != null) putExtra(MainActivity.EXTRA_CAPTURE_PATH, capture)
-            else putExtra(MainActivity.EXTRA_OPEN_ASSISTANT, true)
-        }
+        val capture = getSharedPreferences(PREFS, MODE_PRIVATE).getString(MainActivity.EXTRA_CAPTURE_PATH, null)
+        val intent = MainActivity.assistantIntent(this, capture)
         try { startActivity(intent) }
         catch (error: Exception) { reportOverlayFailure("无法打开助手", error); showBubble() }
     }

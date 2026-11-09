@@ -919,6 +919,120 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  assistantTest('对象会话运行时从系统截图进入，接续原会话并显示附件', (tester) async {
+    await mount(
+      tester,
+      ScriptedModel([
+        (_) => toolResponse('capture-running', 'getSchedule', {}),
+        (_) => textResponse('完成'),
+      ]),
+    );
+    await tester.runAsync(() => assistant.openMissionReference(missionId));
+    final launcher = tester.state<AssistantLauncherState>(
+      find.byType(AssistantLauncher).first,
+    );
+    // 默认权限让工具暂停在确认阶段，确保截图发生在本轮运行期间。
+    await tester.runAsync(
+      () => assistant.setPermissionMode(AssistantPermissionMode.standard),
+    );
+    final run = assistant.send('查询当前任务');
+    await pumpUntil(
+      tester,
+      () => assistant.operations.any(
+        (item) => item.status == AssistantOperationStatus.waitingConfirmation,
+      ),
+    );
+    final original = assistant.currentSessionId;
+    final bytes = Uint8List.fromList(
+      img.encodeJpg(img.Image(width: 8, height: 8)),
+    );
+    expect(
+      await tester.runAsync(() => launcher.openCapturedScreen(bytes)),
+      true,
+    );
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    expect(assistant.currentSessionId, original);
+    expect(assistant.reference?.id, missionId);
+    expect(assistant.attachmentsFor(assistant.draftKey), hasLength(1));
+    expect(find.byType(AssistantPage), findsOneWidget);
+    assistant.stop();
+    await tester.runAsync(() => run);
+    await tester.pumpAndSettle();
+  });
+
+  assistantTest('截图返回恢复被详情路由遮挡的原聊天且保留输入', (tester) async {
+    await mount(tester, ScriptedModel([]));
+    final launcher = tester.state<AssistantLauncherState>(
+      find.byType(AssistantLauncher).first,
+    );
+    final bytes = Uint8List.fromList(
+      img.encodeJpg(img.Image(width: 8, height: 8)),
+    );
+    expect(
+      await tester.runAsync(() => launcher.openCapturedScreen(bytes)),
+      true,
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('assistant-input')), '保留草稿');
+    final navigator = tester.state<NavigatorState>(
+      find.byType(Navigator).first,
+    );
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: Text('遮挡页面')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('遮挡页面'), findsOneWidget);
+    expect(
+      await tester.runAsync(() => launcher.openCapturedScreen(bytes)),
+      true,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('遮挡页面'), findsNothing);
+    expect(find.text('保留草稿'), findsOneWidget);
+    expect(find.byType(AssistantPage), findsOneWidget);
+    expect(assistant.attachmentsFor(assistant.draftKey), hasLength(2));
+  });
+
+  assistantTest('截图返回不绕过未保存编辑的返回保护', (tester) async {
+    await mount(tester, ScriptedModel([]));
+    final launcher = tester.state<AssistantLauncherState>(
+      find.byType(AssistantLauncher).first,
+    );
+    final bytes = Uint8List.fromList(
+      img.encodeJpg(img.Image(width: 8, height: 8)),
+    );
+    expect(
+      await tester.runAsync(() => launcher.openCapturedScreen(bytes)),
+      true,
+    );
+    await tester.pumpAndSettle();
+    final navigator = tester.state<NavigatorState>(
+      find.byType(Navigator).first,
+    );
+    navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => const PopScope(
+          canPop: false,
+          child: Scaffold(body: Text('尚未保存的编辑')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      await tester.runAsync(() => launcher.openCapturedScreen(bytes)),
+      true,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('尚未保存的编辑'), findsOneWidget);
+    expect(assistant.attachmentsFor(assistant.draftKey), hasLength(2));
+    expect(find.byType(AssistantPage, skipOffstage: false), findsOneWidget);
+  });
+
   assistantTest('附件菜单只保留附件入口', (tester) async {
     await mount(tester, ScriptedModel([]));
     await tester.longPress(find.byKey(const Key('assistant-launcher')));

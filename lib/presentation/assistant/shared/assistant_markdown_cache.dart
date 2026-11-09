@@ -22,7 +22,7 @@ class AssistantMarkdownAstCache {
   int get entryCount => _entries.length;
   int get estimatedWeight => _weight;
 
-  List<md.Node> parse(String source) {
+  List<md.Node> parse(String source, {bool retain = true}) {
     final cached = _entries.remove(source);
     if (cached != null) {
       _entries[source] = cached;
@@ -35,7 +35,9 @@ class AssistantMarkdownAstCache {
     ).parseLines(const LineSplitter().convert(source));
     final nodes = _promoteChartFences(parsed);
     final weight = source.length + _countNodes(nodes) * 48;
-    if (source.length > maxSourceLength || weight > maxWeight) return nodes;
+    if (!retain || source.length > maxSourceLength || weight > maxWeight) {
+      return nodes;
+    }
 
     while (_entries.isNotEmpty &&
         (_entries.length >= maxEntries || _weight + weight > maxWeight)) {

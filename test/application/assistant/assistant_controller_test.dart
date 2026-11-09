@@ -44,6 +44,18 @@ class BackgroundModel implements AgentModel {
   }
 }
 
+class PausedDeleteStore extends DriftSessionStore {
+  PausedDeleteStore(super.database);
+  final entered = Completer<void>();
+  final release = Completer<void>();
+  @override
+  Future<void> delete(String id) async {
+    entered.complete();
+    await release.future;
+    await super.delete(id);
+  }
+}
+
 void main() {
   late AppDatabase database;
   late MissionService missions;
@@ -72,10 +84,11 @@ void main() {
   AssistantController makeController(
     AgentModel model, {
     Duration resumeGrace = const Duration(seconds: 20),
+    DriftSessionStore? sessionStore,
   }) {
     final result = AssistantController(
       unifiedReader: DriftUnifiedReader(database),
-      sessionStore: DriftSessionStore(database),
+      sessionStore: sessionStore ?? DriftSessionStore(database),
       settingsStore: settings,
       missions: missions,
       goals: goals,
@@ -831,5 +844,29 @@ void main() {
     expect(assistant.modelProfileId, 'deepseek');
     await assistant.selectModelProfile('deepseek-chat');
     expect(assistant.modelProfileId, 'deepseek-chat');
+  });
+  test('删除与切换串行，维护期间拒绝发送且最终会话一致', () async {
+    final store = PausedDeleteStore(database);
+    final assistant = makeController(
+      ScriptedModel([(_) => textResponse('第一条'), (_) => textResponse('第二条')]),
+      sessionStore: store,
+    );
+    await assistant.initialize();
+    await assistant.send('第一会话');
+    final first = assistant.currentSessionId!;
+    await assistant.startNewSession();
+    await assistant.send('第二会话');
+    final second = assistant.currentSessionId!;
+    await assistant.openConversation(first);
+    final deletion = assistant.deleteConversation(first);
+    await store.entered.future;
+    expect(assistant.isBusy, isTrue);
+    await expectLater(assistant.send('不能发到正在删除的会话'), throwsStateError);
+    final opening = assistant.openConversation(second);
+    store.release.complete();
+    await Future.wait([deletion, opening]);
+    expect(assistant.currentSessionId, second);
+    expect(assistant.isBusy, isFalse);
+    expect(assistant.conversations.map((item) => item.id), [second]);
   });
 }

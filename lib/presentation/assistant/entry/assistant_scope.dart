@@ -84,7 +84,13 @@ Future<void> openAssistant(
   }
 }
 
-final _conversationRoutes = Expando<Future<void>>();
+class _ConversationRoute {
+  _ConversationRoute(this.route, this.focusOperation);
+  final Route<void> route;
+  final ValueNotifier<String?> focusOperation;
+}
+
+final _conversationRoutes = Expando<_ConversationRoute>();
 
 bool assistantConversationIsOpen(BuildContext context) =>
     _conversationRoutes[Navigator.of(context, rootNavigator: true)] != null;
@@ -97,22 +103,50 @@ Future<void> showAssistantConversation(
 }) {
   final scope = AssistantScope.of(context);
   final navigator = Navigator.of(context, rootNavigator: true);
-  if (_conversationRoutes[navigator] != null) return Future.value();
-  final route = navigator
-      .push<void>(
-        MaterialPageRoute(
-          settings: const RouteSettings(name: '/assistant/conversation'),
-          builder: (_) => AssistantPage(
-            controller: scope.controller,
-            showBack: true,
-            initialText: initialText,
-            initialOperationCallId: initialOperationCallId,
-          ),
-        ),
-      )
-      .then<void>((_) {});
-  _conversationRoutes[navigator] = route;
-  return route.whenComplete(() => _conversationRoutes[navigator] = null);
+  final existing = _conversationRoutes[navigator];
+  if (existing != null && existing.route.isActive) {
+    // 截图返回时聊天可能被设置、预览或详情覆盖；恢复原路由及原草稿。
+    var protectedEditor = false;
+    navigator.popUntil((route) {
+      if (identical(route, existing.route)) return true;
+      if (route.popDisposition == RoutePopDisposition.doNotPop) {
+        protectedEditor = true;
+        return true;
+      }
+      return false;
+    });
+    if (protectedEditor) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('内容已保留在聊天草稿，完成当前编辑后可返回聊天')));
+    }
+    if (initialOperationCallId != null) {
+      existing.focusOperation.value = initialOperationCallId;
+    }
+    return Future.value();
+  }
+  final focusOperation = ValueNotifier(initialOperationCallId);
+  final page = MaterialPageRoute<void>(
+    settings: const RouteSettings(name: '/assistant/conversation'),
+    builder: (_) => ValueListenableBuilder<String?>(
+      valueListenable: focusOperation,
+      builder: (_, operation, _) => AssistantPage(
+        controller: scope.controller,
+        showBack: true,
+        initialText: initialText,
+        initialOperationCallId: operation,
+      ),
+    ),
+  );
+  final completed = navigator.push<void>(page).then<void>((_) {});
+  final entry = _ConversationRoute(page, focusOperation);
+  _conversationRoutes[navigator] = entry;
+  return completed.whenComplete(() {
+    focusOperation.dispose();
+    if (identical(_conversationRoutes[navigator], entry)) {
+      _conversationRoutes[navigator] = null;
+    }
+  });
 }
 
 Future<void> openAssistantMission(

@@ -59,6 +59,28 @@ class _AssistantComposer {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (controller.unsentDrafts.isNotEmpty)
+                  Row(
+                    children: [
+                      const Expanded(child: Text('有未发送成功的内容，已保留')),
+                      TextButton(
+                        onPressed: () {
+                          if (_page._input.text.isNotEmpty ||
+                              _page._attachments.isNotEmpty) {
+                            _showNotice('请先发送或保存当前草稿，再恢复未发送内容');
+                            return;
+                          }
+                          final draft = controller.takeUnsentDraft();
+                          if (draft == null) return;
+                          _page._input.text = draft.text;
+                          _page._update(
+                            () => _page._attachments.addAll(draft.attachments),
+                          );
+                        },
+                        child: const Text('恢复'),
+                      ),
+                    ],
+                  ),
                 if (_page._attachments.isNotEmpty)
                   SizedBox(
                     height: AppLayout.touchTargetMin,
@@ -153,8 +175,9 @@ class _AssistantComposer {
                   readOnly:
                       (_page._voice?.listening ?? false) ||
                       (_page._voice?.busy ?? false),
-                  onChanged: (_) {
+                  onChanged: (text) {
                     _page._recordingVoice = false;
+                    controller.saveDraft(_page._draftSession, text);
                   },
                   minLines: 1,
                   maxLines:
@@ -504,6 +527,7 @@ class _AssistantComposer {
       await _page._openSettings();
       return;
     }
+    final sourceDraft = widget.controller.draftKey;
     final files = List<AssistantAttachment>.of(_page._attachments);
     final message = UserMessage.withContent(
       content: [
@@ -518,14 +542,21 @@ class _AssistantComposer {
     widget.controller.saveAttachments(_page._draftSession, []);
     _page._followOutput = true;
     await widget.controller.sendMessage(message);
-    if (!mounted) return;
-    if (!widget.controller.transcript.any((item) => item.id == message.id) &&
-        _page._input.text.isEmpty &&
-        _page._attachments.isEmpty) {
-      _page._input.text = text;
-      _page._update(() => _page._attachments.addAll(files));
+    if (!widget.controller.transcript.any((item) => item.id == message.id)) {
+      if (mounted &&
+          widget.controller.draftKey == sourceDraft &&
+          _page._input.text.isEmpty &&
+          _page._attachments.isEmpty) {
+        _page._input.text = text;
+        _page._update(() => _page._attachments.addAll(files));
+      } else {
+        widget.controller.retainUnsentDraft(
+          sourceDraft,
+          AssistantUnsentDraft(text, List.unmodifiable(files)),
+        );
+      }
     }
-    if (_page._followOutput) _page._scrollToBottom();
+    if (mounted && _page._followOutput) _page._scrollToBottom();
   }
 
   Future<void> _toggleVoice() async {
@@ -618,21 +649,22 @@ class _AssistantComposer {
                   AssistantAttachment.maxCount - _page._attachments.length,
               onOversizedImage: _compressImage,
             );
-      if (files.isEmpty || !mounted || draftKey != widget.controller.draftKey) {
-        return;
-      }
-      if (_page._attachments.length + files.length >
-          AssistantAttachment.maxCount) {
+      if (files.isEmpty) return;
+      final current = mounted && draftKey == widget.controller.draftKey;
+      final target = current
+          ? _page._attachments
+          : widget.controller.attachmentsFor(draftKey);
+      if (target.length + files.length > AssistantAttachment.maxCount) {
         throw const FormatException('每条消息最多添加 12 个附件');
       }
-      if (_page._attachments.fold<int>(
+      if (target.fold<int>(
             files.fold<int>(0, (sum, file) => sum + file.bytes.length),
             (total, file) => total + file.bytes.length,
           ) >
           AssistantAttachment.maxTotalBytes) {
         throw const FormatException('本条消息附件合计不能超过 24 MiB');
       }
-      if (_page._attachments.fold<int>(
+      if (target.fold<int>(
             files.fold<int>(
               0,
               (sum, file) =>
@@ -646,7 +678,12 @@ class _AssistantComposer {
           AssistantAttachment.maxTextCharacters) {
         throw const FormatException('本条消息文本附件合计不能超过 32000 字符');
       }
-      _page._update(() => _page._attachments.addAll(files));
+      if (current) {
+        _page._update(() => _page._attachments.addAll(files));
+      } else {
+        widget.controller.saveAttachments(draftKey, [...target, ...files]);
+        if (mounted) _showNotice('附件已加入原会话草稿');
+      }
     } catch (error) {
       if (mounted) {
         _showNotice(userErrorMessage(error, fallback: '附件未能加入，请重新选择或检查文件'));

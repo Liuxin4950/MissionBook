@@ -24,11 +24,10 @@ import '../../widgets/app_top_bar.dart';
 import '../../missions/shared/mission_phase_display.dart';
 import '../history/assistant_history_page.dart';
 import '../shared/assistant_markdown.dart';
-import '../operations/assistant_operation_card.dart';
 import '../entry/assistant_scope.dart';
 import '../shared/assistant_reasoning_display.dart';
+import '../shared/assistant_turn_content.dart';
 import '../shared/assistant_thinking.dart';
-import '../shared/assistant_turn_display.dart';
 import '../settings/assistant_settings_page.dart';
 import '../shared/assistant_voice_status.dart';
 import '../../../core/theme/app_motion.dart';
@@ -68,6 +67,12 @@ class _AssistantPageState extends State<AssistantPage> {
   String? _draftSession;
   bool _followOutput = true;
   bool _scrollScheduled = false;
+  final _readingPositions = <String?, ({double offset, bool follow})>{};
+
+  void _pauseFollowing() {
+    if (_followOutput && mounted) setState(() => _followOutput = false);
+  }
+
   static const _contentWidth = AppLayout.dashboardMaxWidth;
   static const _sidebarWidth = 272.0; // 会话导航的内容宽度，不是页面间距。
   final _attachments = <AssistantAttachment>[];
@@ -78,6 +83,12 @@ class _AssistantPageState extends State<AssistantPage> {
   void _controllerChanged() {
     final id = widget.controller.draftKey;
     if (id != _draftSession) {
+      if (_scroll.hasClients) {
+        _readingPositions[_draftSession] = (
+          offset: _scroll.offset,
+          follow: _followOutput,
+        );
+      }
       if (_recordingVoice) {
         _recordingVoice = false;
         unawaited(_voice?.cancel());
@@ -89,7 +100,23 @@ class _AssistantPageState extends State<AssistantPage> {
       _attachments
         ..clear()
         ..addAll(widget.controller.attachmentsFor(id));
-      _followOutput = true;
+      final reading = _readingPositions[id];
+      _followOutput = reading?.follow ?? true;
+      if (!_followOutput && reading != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted ||
+              widget.controller.draftKey != id ||
+              !_scroll.hasClients) {
+            return;
+          }
+          _scroll.jumpTo(
+            reading.offset.clamp(
+              _scroll.position.minScrollExtent,
+              _scroll.position.maxScrollExtent,
+            ),
+          );
+        });
+      }
     }
     final files = widget.controller.attachmentsFor(id);
     if (!listEquals(_attachments, files)) {
@@ -141,6 +168,7 @@ class _AssistantPageState extends State<AssistantPage> {
           offset: _voicePrefix.length + text.length,
         ),
       );
+      widget.controller.saveDraft(_draftSession, _input.text);
     }
     setState(() {});
   }
@@ -207,6 +235,14 @@ class _AssistantPageState extends State<AssistantPage> {
                     ),
                   if (controller.reference != null)
                     _ReferenceBanner(controller: controller),
+                  if (controller.unavailableReference != null)
+                    Padding(
+                      padding: const EdgeInsets.all(AppLayout.spaceMd),
+                      child: Text(
+                        controller.unavailableReference!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
                   Expanded(
                     child:
                         controller.initializing && controller.transcript.isEmpty
@@ -402,11 +438,52 @@ class _AssistantPageState extends State<AssistantPage> {
     void appendTurn({bool running = false}) {
       final active =
           running && controller.activity.turnUserMessageId == turnKey;
-      if (messages.isEmpty && !active) return;
+      if (messages.isEmpty &&
+          !active &&
+          !controller.interruptedAttempts.any(
+            (attempt) => attempt.userMessageId == turnKey,
+          )) {
+        return;
+      }
+      if (!active &&
+          messages.any(
+            (message) => message.content.whereType<TextBlock>().any(
+              (block) => block.text.length >= 4000,
+            ),
+          )) {
+        children.addAll(
+          AssistantTurnContent(
+            identity: turnKey,
+            messages: List.of(messages),
+            attempts: controller.interruptedAttempts
+                .where((item) => item.userMessageId == turnKey)
+                .toList(),
+            operations: operations,
+            controller: controller,
+            focusOperationCallId: widget.initialOperationCallId,
+            onOpenReference: _openReference,
+            replyBuilder:
+                (message, block, key, streaming, slice, first, last) =>
+                    _MessageBubble(
+                      key: ValueKey(key),
+                      message: message,
+                      visibleContent: [block],
+                      isUser: false,
+                      streaming: streaming,
+                      markdownSlice: slice,
+                      firstSlice: first,
+                      lastSlice: last,
+                    ),
+          ).buildEntries(context, splitReplies: true),
+        );
+        messages = [];
+        return;
+      }
       children.add(
         _AssistantTurn(
           key: ValueKey('turn-$turnKey'),
           messages: List.of(messages),
+          userMessageId: turnKey,
           operations: operations,
           controller: controller,
           onOpenReference: _openReference,
@@ -439,32 +516,55 @@ class _AssistantPageState extends State<AssistantPage> {
       }
     }
     appendTurn(running: controller.isRunning);
-    return NotificationListener<UserScrollNotification>(
-      onNotification: (notification) {
-        if (_scroll.hasClients) {
-          _followOutput =
-              _scroll.position.pixels - _scroll.position.minScrollExtent < 120;
-        }
+    return NotificationListener<AssistantExpansionNotification>(
+      onNotification: (_) {
+        _pauseFollowing();
         return false;
       },
-      child: ListView.separated(
-        key: const Key('assistant-conversation-list'),
-        reverse: transcript.isNotEmpty,
-        controller: _scroll,
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: EdgeInsets.fromLTRB(
-          AppLayout.horizontalPadding(context),
-          16,
-          AppLayout.horizontalPadding(context),
-          20,
+      child: NotificationListener<UserScrollNotification>(
+        onNotification: (notification) {
+          if (notification.depth == 0 && _scroll.hasClients) {
+            _followOutput =
+                _scroll.position.pixels - _scroll.position.minScrollExtent < 24;
+          }
+          return false;
+        },
+        child: SelectionArea(
+          contextMenuBuilder: (context, state) =>
+              AdaptiveTextSelectionToolbar.buttonItems(
+                anchors: state.contextMenuAnchors,
+                buttonItems: state.contextMenuButtonItems
+                    .where((item) => item.type == ContextMenuButtonType.copy)
+                    .toList(),
+              ),
+          child: ListView.separated(
+            key: const Key('assistant-conversation-list'),
+            reverse: transcript.isNotEmpty,
+            controller: _scroll,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.fromLTRB(
+              AppLayout.horizontalPadding(context),
+              16,
+              AppLayout.horizontalPadding(context),
+              20,
+            ),
+            itemCount: children.length,
+            separatorBuilder: (_, index) {
+              final current =
+                  children[transcript.isNotEmpty
+                      ? children.length - 1 - index
+                      : index + 1];
+              if (current is _MessageBubble && !current.firstSlice) {
+                return const SizedBox.shrink();
+              }
+              return const SizedBox(height: AppLayout.spaceMd);
+            },
+            itemBuilder: (_, index) =>
+                children[transcript.isNotEmpty
+                    ? children.length - 1 - index
+                    : index],
+          ),
         ),
-        itemCount: children.length,
-        separatorBuilder: (_, index) =>
-            const SizedBox(height: AppLayout.spaceMd),
-        itemBuilder: (_, index) =>
-            children[transcript.isNotEmpty
-                ? children.length - 1 - index
-                : index],
       ),
     );
   }

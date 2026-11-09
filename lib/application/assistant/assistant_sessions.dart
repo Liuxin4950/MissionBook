@@ -120,6 +120,7 @@ class _AssistantSessions {
     );
     await _closeSession();
     _controller._reference = reference;
+    _controller._unavailableReference = null;
     if (matching.isNotEmpty) {
       await _openSession(matching.first.id);
     } else {
@@ -138,6 +139,7 @@ class _AssistantSessions {
 
   /// 空白会话只是界面草稿；首次有效消息发送时才创建持久会话。
   void _showEmptyConversation() {
+    _controller._unavailableReference = null;
     _controller._lastUserInput = null;
     _controller._errorMessage = null;
     _controller._localSchedule = null;
@@ -156,8 +158,10 @@ class _AssistantSessions {
     await _openSession(id);
   }
 
-  Future<void> deleteConversation(String id) async {
-    _ensureUsable();
+  Future<void> deleteConversation(String id) =>
+      _navigate(() => _deleteConversation(id));
+
+  Future<void> _deleteConversation(String id) async {
     if (isRunning) throw StateError('请先结束当前运行，再删除会话');
     if (_controller._session?.id == id) {
       await _closeSession();
@@ -165,6 +169,7 @@ class _AssistantSessions {
     }
     await _controller._sessionStore.delete(id);
     _controller._drafts.remove(id);
+    _controller._unsentDrafts.remove(id);
     _controller._attachmentDrafts.remove(id);
     await _refreshConversations();
     if (_controller._session == null && _controller._conversations.isNotEmpty) {
@@ -173,8 +178,10 @@ class _AssistantSessions {
     _controller._notifyListeners();
   }
 
-  Future<void> renameCurrentSession(String title) async {
-    _ensureUsable();
+  Future<void> renameCurrentSession(String title) =>
+      _navigate(() => _renameCurrentSession(title));
+
+  Future<void> _renameCurrentSession(String title) async {
     final session = _requireSession();
     if (isRunning) throw StateError('本轮结束后才能修改会话名称');
     await session.rename(title);
@@ -182,11 +189,13 @@ class _AssistantSessions {
     _refreshSnapshot();
   }
 
-  Future<void> renameConversation(String id, String title) async {
-    _ensureUsable();
+  Future<void> renameConversation(String id, String title) =>
+      _navigate(() => _renameConversation(id, title));
+
+  Future<void> _renameConversation(String id, String title) async {
     if (isRunning) throw StateError('本轮结束后才能修改会话名称');
     if (id == currentSessionId) {
-      await renameCurrentSession(title);
+      await _renameCurrentSession(title);
       return;
     }
     final session = await _controller._runtime!.openSession(id);
@@ -224,6 +233,7 @@ class _AssistantSessions {
       _refreshSnapshot();
       return null;
     }
+    final originDraftKey = _controller.draftKey;
     _controller._sending = true;
     _controller._sendCancelled = false;
     _controller._connectionInterrupted = false;
@@ -283,10 +293,26 @@ class _AssistantSessions {
           !session!.transcript.any((item) => item is UserMessage)) {
         // 输入预检或上下文准备失败时清理本次新建的空壳；模型失败但用户消息已保存则保留历史。
         final error = _controller._errorMessage;
+        final shellText = _controller.draftFor(createdSessionId);
+        final shellFiles = _controller.attachmentsFor(createdSessionId);
         try {
           await _closeSession();
           await _controller._sessionStore.delete(createdSessionId);
           await _refreshConversations();
+          _controller._drafts.remove(createdSessionId);
+          _controller._attachmentDrafts.remove(createdSessionId);
+          if (shellText.isNotEmpty || shellFiles.isNotEmpty) {
+            if (_controller.draftFor(originDraftKey).isEmpty &&
+                _controller.attachmentsFor(originDraftKey).isEmpty) {
+              _controller.saveDraft(originDraftKey, shellText);
+              _controller.saveAttachments(originDraftKey, shellFiles);
+            } else {
+              _controller.retainUnsentDraft(
+                originDraftKey,
+                AssistantUnsentDraft(shellText, shellFiles),
+              );
+            }
+          }
         } catch (cleanupError) {
           debugPrint('未发送空会话清理失败：$cleanupError');
         }
@@ -325,30 +351,44 @@ class _AssistantSessions {
       modelProfileId: _configuration.defaultModelProfile,
       summaryProfileId: _configuration.summaryModelProfile,
     );
-    if (reference != null) {
-      await _controller._sessionStore.attachReference(
-        session.id,
-        missionId: reference.type == AssistantReferenceType.mission
-            ? reference.id
-            : null,
-        goalId: reference.type == AssistantReferenceType.goal
-            ? reference.id
-            : reference.type == AssistantReferenceType.node
-            ? reference.goalId
-            : null,
-        nodeId: reference.type == AssistantReferenceType.node
-            ? reference.id
-            : null,
-      );
+    try {
+      if (reference != null) {
+        await _controller._sessionStore.attachReference(
+          session.id,
+          missionId: reference.type == AssistantReferenceType.mission
+              ? reference.id
+              : null,
+          goalId: reference.type == AssistantReferenceType.goal
+              ? reference.id
+              : reference.type == AssistantReferenceType.node
+              ? reference.goalId
+              : null,
+          nodeId: reference.type == AssistantReferenceType.node
+              ? reference.id
+              : null,
+        );
+      }
+      await _attachSession(session);
+      await _refreshConversations();
+    } catch (_) {
+      if (identical(_controller._session, session)) {
+        await _closeSession();
+      } else {
+        await session.close();
+      }
+      if (!session.transcript.any((message) => message is UserMessage)) {
+        await _controller._sessionStore.delete(session.id);
+      }
+      rethrow;
     }
-    await _attachSession(session);
-    await _refreshConversations();
   }
 
   Future<void> _openSession(String id) async {
     final runtime = _controller._runtime ?? (throw StateError('助手尚未初始化'));
     final session = await runtime.openSession(id);
     try {
+      _controller._reference = null;
+      _controller._unavailableReference = null;
       _controller._errorMessage = null;
       _controller._lastUserInput = null;
       _controller._localSchedule = null;
@@ -389,6 +429,14 @@ class _AssistantSessions {
             title: goal.title,
           );
         }
+      }
+      if (_controller._reference == null &&
+          summary != null &&
+          (summary.missionId != null ||
+              summary.goalId != null ||
+              summary.nodeId != null)) {
+        _controller._unavailableReference =
+            '原关联对象已不存在或无法读取，聊天记录仍保留；后续操作需要重新指定对象。';
       }
       await _attachSession(session);
     } catch (_) {
@@ -504,6 +552,8 @@ class _AssistantSessions {
       '宿主当前时间：${now.toIso8601String()}；默认排期时区：$defaultScheduleTimeZone。',
       if (reference != null)
         '用户显式引用${reference.label}：编号 ${reference.id}，名称 ${reference.title}，所属目标 ${reference.goalId ?? '无额外引用'}，节点 ${reference.nodeId ?? (reference.type == AssistantReferenceType.node ? reference.id : '无额外引用')}，页面路径 ${reference.path ?? reference.label}。需要最新内容时用对应工具读取。',
+      if (_controller._unavailableReference != null)
+        _controller._unavailableReference!,
       '只把这条上下文当作入口信息，不把它当作已完成操作或全部业务事实。',
     ].join('\n');
   }

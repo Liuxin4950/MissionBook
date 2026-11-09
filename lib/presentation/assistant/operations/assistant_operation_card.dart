@@ -69,11 +69,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                       padding: const EdgeInsets.symmetric(
                         vertical: AppLayout.spaceSm,
                       ),
-                      child: Text(
-                        jsonEncode(operation.input),
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      child: Text(jsonEncode(operation.input)),
                     ),
                   Wrap(
                     alignment: WrapAlignment.end,
@@ -100,6 +96,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
       return _ReadResultCard(
         operation: operation,
         onOpenReference: widget.onOpenReference,
+        initiallyExpanded: widget.initiallyExpanded,
       );
     }
     if (operation.status == AssistantOperationStatus.succeeded ||
@@ -218,7 +215,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
       ),
       clipBehavior: Clip.antiAlias,
       child: AppExpansionTile(
-        key: ValueKey('operation-result-${operation.callId}'),
+        key: PageStorageKey('operation-result-${operation.callId}'),
         initiallyExpanded: widget.initiallyExpanded,
         insetHeader: false,
         headerPadding: const EdgeInsets.symmetric(
@@ -537,9 +534,11 @@ class _ReadResultCard extends StatelessWidget {
   const _ReadResultCard({
     required this.operation,
     required this.onOpenReference,
+    this.initiallyExpanded = false,
   });
   final AssistantOperation operation;
   final void Function(String, String) onOpenReference;
+  final bool initiallyExpanded;
 
   @override
   Widget build(BuildContext context) {
@@ -558,6 +557,8 @@ class _ReadResultCard extends StatelessWidget {
       key: ValueKey('assistant-read-${operation.callId}'),
       padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
       child: AppExpansionTile(
+        key: PageStorageKey('read-${operation.callId}'),
+        initiallyExpanded: initiallyExpanded,
         insetHeader: false,
         headerPadding: const EdgeInsets.symmetric(
           horizontal: AppLayout.spaceMd,
@@ -651,6 +652,11 @@ class _ResultDetails extends StatelessWidget {
                   ),
             ],
           ),
+        if (decoded == null && operation.output?.isNotEmpty == true)
+          SelectableText(
+            operation.output!,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         if (decoded != null)
           if (inlineData)
             _rawData(context, decoded)
@@ -679,9 +685,8 @@ class _ResultDetails extends StatelessWidget {
           color: AppColors.surfaceMuted,
           borderRadius: BorderRadius.circular(AppLayout.radiusMd),
         ),
-        child: SelectableText(
-          _pretty(decoded),
-          style: Theme.of(context).textTheme.bodySmall,
+        child: _OperationRawData(
+          text: const JsonEncoder.withIndent('  ').convert(decoded),
         ),
       );
 
@@ -696,11 +701,34 @@ class _ResultDetails extends StatelessWidget {
       return null;
     }
   }
+}
 
-  static String _pretty(Map<String, Object?> value) {
-    final text = const JsonEncoder.withIndent('  ').convert(value);
-    return text.length > 6000 ? '${text.substring(0, 6000)}\n… 返回内容已截断' : text;
-  }
+class _OperationRawData extends StatefulWidget {
+  const _OperationRawData({required this.text});
+  final String text;
+  @override
+  State<_OperationRawData> createState() => _OperationRawDataState();
+}
+
+class _OperationRawDataState extends State<_OperationRawData> {
+  bool _full = false;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      SelectableText(
+        !_full && widget.text.length > 6000
+            ? '${widget.text.substring(0, 6000)}\n…'
+            : widget.text,
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      if (widget.text.length > 6000)
+        TextButton(
+          onPressed: () => setState(() => _full = !_full),
+          child: Text(_full ? '收起完整数据' : '显示完整数据'),
+        ),
+    ],
+  );
 }
 
 class AssistantProposalEditor extends StatefulWidget {
