@@ -46,12 +46,14 @@ final class ModelAttemptFailed extends AgentEvent {
     required this.willRetry,
     required this.partialText,
     required this.delay,
+    required this.purpose,
   });
   final int attempt;
   final AgentFailure failure;
   final bool willRetry;
   final String partialText; // 仅供显示中断的尝试，不加入模型消息历史。
   final Duration delay;
+  final ModelRequestPurpose purpose;
 }
 
 final class ModelUsageReported extends AgentEvent {

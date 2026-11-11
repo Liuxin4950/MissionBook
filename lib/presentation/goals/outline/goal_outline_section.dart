@@ -9,6 +9,7 @@ import 'dart:async';
 import '../../assistant/entry/assistant_launcher.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 
 import '../../../application/goals/goal_service.dart';
 import '../../../core/theme/colors.dart';
@@ -59,11 +60,6 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   final _directMissions = <String?, Future<List<MissionDetail>>>{};
   final _taskSections = <String, GlobalKey<GoalMissionsSectionState>>{};
 
-  Future<bool> prepareToCollapse({
-    String? subtreeId,
-    bool includeRoot = true,
-  }) => Future.value(true); // 执行草稿位于独立页面，折叠目录只影响这里的排版。
-
   final _collapsed = <String>{}; // 只保存界面折叠选择，不写入节点表。
   final _treeScroll = ScrollController();
   final _searchController = TextEditingController();
@@ -83,6 +79,8 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   }
 
   void _listen() {
+    _directMissions.clear();
+    _missionsByNode = null;
     _nodes = widget.active ? _load() : Future.value(_lastNodes ?? const []);
     _refreshWhenActive = !widget.active;
     _subscription = widget.service.changes.listen((_) => _refresh());
@@ -95,6 +93,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   void _loadMissions() {
     if (!widget.active) {
       _refreshWhenActive = true;
+      _missionsByNode ??= Future.value(const {});
       return;
     }
     _directMissions.clear();
@@ -206,7 +205,6 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
           confirmText: '归档',
         );
         if (!confirmed || !mounted) return;
-        if (!await prepareToCollapse(subtreeId: archive.id) || !mounted) return;
       }
       await operation(); // 回调由节点菜单提供，实际保存仍交给 GoalService 和仓储。
     } catch (error) {
@@ -286,6 +284,20 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
             )
             .toList();
         final children = <String?, List<GoalNode>>{};
+        final siblingsByParent = <String?, List<GoalNode>>{};
+        final activePositions = <String, int>{};
+        final activeCounts = <String?, int>{};
+        for (final node in nodes) {
+          (siblingsByParent[node.parentNodeId] ??= []).add(node);
+          if (node.archivedAt == null) {
+            activePositions[node.id] = activeCounts[node.parentNodeId] ?? 0;
+            activeCounts.update(
+              node.parentNodeId,
+              (count) => count + 1,
+              ifAbsent: () => 1,
+            );
+          }
+        }
         for (final node in shown) {
           (children[node.parentNodeId] ??= []).add(
             node,
@@ -486,7 +498,10 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                             for (final entry in entries)
                               _nodeRow(
                                 entry,
-                                nodes,
+                                siblingsByParent[entry.node.parentNodeId] ??
+                                    const [],
+                                activePositions[entry.node.id] ?? -1,
+                                activeCounts[entry.node.parentNodeId] ?? 0,
                                 byId,
                                 visibleChildren,
                                 entry.node.archivedAt != null,
@@ -533,7 +548,9 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
 
   Widget _nodeRow(
     _OutlineEntry entry,
-    List<GoalNode> all,
+    List<GoalNode> siblings,
+    int position,
+    int activeSiblingCount,
     Map<String, GoalNode> byId,
     Map<String?, List<GoalNode>> children,
     bool archived,
@@ -543,13 +560,6 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     final hasChildren = (children[node.id] ?? []).isNotEmpty;
     final searching = _query.trim().isNotEmpty;
     final collapsed = !searching && _collapsed.contains(node.id);
-    final siblings = all
-        .where((item) => item.parentNodeId == node.parentNodeId)
-        .toList();
-    final visibleSiblings = siblings
-        .where((item) => item.archivedAt == null)
-        .toList();
-    final position = visibleSiblings.indexWhere((item) => item.id == node.id);
     // 每层缩进与连接线使用同一尺寸；深树可横向浏览，不压平真实层级。
     final indent = entry.depth * step;
     Widget menuLabel(
@@ -645,13 +655,11 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                 ),
                 PopupMenuItem(
                   value: _NodeAction.down,
-                  enabled:
-                      position >= 0 && position < visibleSiblings.length - 1,
+                  enabled: position >= 0 && position < activeSiblingCount - 1,
                   child: menuLabel(
                     Icons.arrow_downward,
                     '下移',
-                    enabled:
-                        position >= 0 && position < visibleSiblings.length - 1,
+                    enabled: position >= 0 && position < activeSiblingCount - 1,
                   ),
                 ),
                 const PopupMenuDivider(),
@@ -720,10 +728,6 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
       ),
     );
     Future<void> toggleChildren() async {
-      if (!collapsed &&
-          !await prepareToCollapse(subtreeId: node.id, includeRoot: false)) {
-        return;
-      }
       if (!mounted) return;
       setState(() {
         if (collapsed) {
@@ -903,7 +907,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
   );
 
   Future<void> _switchArchive(bool show) async {
-    if (!await prepareToCollapse() || !mounted) return;
+    if (!mounted) return;
     setState(() {
       _showArchived = show;
       _query = '';
@@ -1006,5 +1010,8 @@ class _TreeGuidePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _TreeGuidePainter oldDelegate) => true;
+  bool shouldRepaint(covariant _TreeGuidePainter oldDelegate) =>
+      !listEquals(guides, oldDelegate.guides) ||
+      expanded != oldDelegate.expanded ||
+      step != oldDelegate.step;
 }

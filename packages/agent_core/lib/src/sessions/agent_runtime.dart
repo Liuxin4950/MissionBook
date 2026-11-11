@@ -597,8 +597,8 @@ final class AgentSession {
         }
       case ModelAttemptFailed():
         // 摘要请求也使用该事件；正文请求开始后才可能置为 true。
-        final conversation = _modelRequestRunning;
-        _modelRequestRunning = false;
+        final conversation = event.purpose == ModelRequestPurpose.conversation;
+        if (conversation) _modelRequestRunning = false;
         await _record('request_failed', {
           'purpose': conversation ? 'conversation' : 'summary',
           if (conversation) 'partialThinking': _partialThinking.toString(),

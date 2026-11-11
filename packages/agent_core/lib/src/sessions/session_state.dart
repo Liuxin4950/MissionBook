@@ -7,6 +7,7 @@ import '../tool.dart';
 import 'message_codec.dart';
 import 'session_store.dart';
 import 'session_usage.dart';
+import 'copy_on_write.dart';
 
 /// 从已提交日志推导会话；原始消息与发给模型的压缩投影分别维护。
 final class SessionState {
@@ -26,22 +27,22 @@ final class SessionState {
   int _nextSequence = 0;
   SessionUsage _sessionUsage = const SessionUsage();
   SessionUsage get sessionUsage => _sessionUsage;
-  final List<InterruptedModelAttempt> _interruptedAttempts = [];
+  CowList<InterruptedModelAttempt> _interruptedAttempts = CowList();
   List<InterruptedModelAttempt> get interruptedAttempts =>
       List.unmodifiable(_interruptedAttempts);
-  final List<AgentMessage> _transcript = [];
-  final List<AgentMessage> _context = [];
-  final Map<String, AgentMessage> _knownMessages = {};
-  final Map<String, ToolCallBlock> _pending = {};
-  final Set<String> _started = {};
-  final Map<String, ToolCallBlock> _executedCalls = {};
+  CowList<AgentMessage> _transcript = CowList();
+  CowList<AgentMessage> _context = CowList();
+  CowMap<String, AgentMessage> _knownMessages = CowMap();
+  CowMap<String, ToolCallBlock> _pending = CowMap();
+  CowSet<String> _started = CowSet();
+  CowMap<String, ToolCallBlock> _executedCalls = CowMap();
   Map<String, ToolCallBlock> get executedCalls =>
       Map.unmodifiable(_executedCalls);
-  final Set<String> _startedReadOnly = {};
-  final Set<String> _usedCallIds = {};
-  final Map<String, ToolResultMessage> _unknown = {};
-  final Map<String, ToolOutput> _resolved = {};
-  final Set<String> _requestSpecs = {};
+  CowSet<String> _startedReadOnly = CowSet();
+  CowSet<String> _usedCallIds = CowSet();
+  CowMap<String, ToolResultMessage> _unknown = CowMap();
+  CowMap<String, ToolOutput> _resolved = CowMap();
+  CowSet<String> _requestSpecs = CowSet();
   Map<String, ToolOutput> get resolvedOutcomes => Map.unmodifiable(_resolved);
   bool hasRequestSpec(String id) => _requestSpecs.contains(id);
   List<AgentMessage> get transcript => List.unmodifiable(_transcript);
@@ -362,7 +363,7 @@ final class SessionState {
   }
   SessionState({int seedDepth = 0}) : _seedDepth = seedDepth;
 
-  /// 浅复制只读消息和集合，供下一条记录的预校验；不重放整份日志。
+  /// O(1) 创建预校验分支，集合首次写入才复制；保存失败仍不污染原状态。
   SessionState copy() => SessionState(seedDepth: _seedDepth)
     .._id = _id
     ..title = title
@@ -377,18 +378,18 @@ final class SessionState {
     ..lastStopReason = lastStopReason
     .._nextSequence = _nextSequence
     .._sessionUsage = _sessionUsage
-    .._transcript.addAll(_transcript)
-    .._interruptedAttempts.addAll(_interruptedAttempts)
-    .._context.addAll(_context)
-    .._knownMessages.addAll(_knownMessages)
-    .._pending.addAll(_pending)
-    .._started.addAll(_started)
-    .._executedCalls.addAll(_executedCalls)
-    .._startedReadOnly.addAll(_startedReadOnly)
-    .._usedCallIds.addAll(_usedCallIds)
-    .._unknown.addAll(_unknown)
-    .._resolved.addAll(_resolved)
-    .._requestSpecs.addAll(_requestSpecs);
+    .._transcript = _transcript.fork()
+    .._interruptedAttempts = _interruptedAttempts.fork()
+    .._context = _context.fork()
+    .._knownMessages = _knownMessages.fork()
+    .._pending = _pending.fork()
+    .._started = _started.fork()
+    .._executedCalls = _executedCalls.fork()
+    .._startedReadOnly = _startedReadOnly.fork()
+    .._usedCallIds = _usedCallIds.fork()
+    .._unknown = _unknown.fork()
+    .._resolved = _resolved.fork()
+    .._requestSpecs = _requestSpecs.fork();
 }
 
 /// 中断尝试仅用于回看，不作为已完成消息或后续模型输入。

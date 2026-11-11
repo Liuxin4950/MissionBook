@@ -54,9 +54,16 @@ class _MissionQueries {
                   (row) => OrderingTerm.asc(row.id),
                 ]))
               .get();
-      final userRows = await (_repository.database.select(
-        _repository.database.userExecutionReports,
-      )..where((t) => t.missionId.isIn(ids))).get();
+      final userRows =
+          await (_repository.database.select(
+                  _repository.database.userExecutionReports,
+                )
+                ..where((t) => t.missionId.isIn(ids))
+                ..orderBy([
+                  (t) => OrderingTerm.asc(t.reportedAt),
+                  (t) => OrderingTerm.asc(t.id),
+                ]))
+              .get();
       final userByMission = <String, List<UserExecutionReport>>{};
       for (final r in userRows) {
         (userByMission[r.missionId] ??= []).add(userReportFromRow(r));
@@ -102,13 +109,6 @@ class _MissionQueries {
           policy: mission.verificationPolicy,
           criteria: plan.verificationCriteria,
           schedule: schedule,
-        );
-        deriveMissionPhase(
-          mission,
-          eventList,
-          failureList,
-          evidenceList,
-          schedule,
         );
         result.add(
           MissionDetail(
@@ -526,14 +526,16 @@ AND NOT EXISTS (
         criteria: executionPlan.verificationCriteria,
         schedule: schedule,
       );
-      deriveMissionPhase(mission, events, failures, evidence, schedule);
       // ⑤ 打包成一次查询结果，不新增一张详情表，也不向数据库写入阶段。
       final reportRows =
           await (_repository.database.select(
                   _repository.database.userExecutionReports,
                 )
                 ..where((t) => t.missionId.equals(missionId))
-                ..orderBy([(t) => OrderingTerm.asc(t.reportedAt)]))
+                ..orderBy([
+                  (t) => OrderingTerm.asc(t.reportedAt),
+                  (t) => OrderingTerm.asc(t.id),
+                ]))
               .get();
       return MissionDetail(
         userReports: reportRows.map(userReportFromRow).toList(),

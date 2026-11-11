@@ -95,7 +95,11 @@ void main() {
       expect(second.schedule.fixedStartAt, start);
       expect(second.schedule.timeZone, 'Asia/Shanghai');
       expect(second.schedule.plannedDurationMinutes, 45);
-      expect(second.schedule.changedAt, second.mission.updatedAt);
+      // 提案准备时刻与取得写锁后的版本时刻分开，不能再要求两者相同。
+      expect(
+        second.mission.updatedAt.isBefore(second.schedule.changedAt),
+        isFalse,
+      );
       final history = await rows('mission_schedule_revisions');
       for (final old in oldRows) {
         expect(history.singleWhere((row) => row['id'] == old['id']), old);

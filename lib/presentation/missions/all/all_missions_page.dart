@@ -155,7 +155,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     if (_opening) return;
     _opening = true;
     try {
-      await openDetailPane<void>(
+      final closed = openDetailPane<void>(
         context,
         label:
             detail.phase == MissionPhase.running ||
@@ -167,7 +167,11 @@ class _AllMissionsPageState extends State<AllMissionsPage>
             detail.phase == MissionPhase.running ||
                 (detail.phase == MissionPhase.paused ||
                     detail.phase == MissionPhase.reportPending)
-            ? MissionExecutionPage(detail: detail, service: widget.missions)
+            ? MissionExecutionPage(
+                detail: detail,
+                service: widget.missions,
+                clock: widget.clock,
+              )
             : detail.phase == MissionPhase.cancelled
             ? MissionDetailPage.fromHistory(
                 missionId: detail.mission.id,
@@ -177,6 +181,15 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 missionId: detail.mission.id,
                 missionService: widget.missions,
               ),
+      );
+      unawaited(
+        closed
+            .then((_) {
+              if (mounted) _refresh();
+            })
+            .catchError((Object error, StackTrace stack) {
+              debugPrint('全部任务详情关闭失败：${error.runtimeType}\n$stack');
+            }),
       );
     } finally {
       _opening = false;
@@ -386,9 +399,19 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                         start: _weekStart!,
                         records: all,
                         visible: matches,
-                        onOpen: (id) => _open(
-                          all.firstWhere((detail) => detail.mission.id == id),
-                        ),
+                        onOpen: (id) {
+                          final detail = all
+                              .where((detail) => detail.mission.id == id)
+                              .firstOrNull;
+                          if (detail != null) {
+                            unawaited(_open(detail));
+                          } else {
+                            _refresh();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('任务已变化，请从最新列表重新选择')),
+                            );
+                          }
+                        },
                         buildOtherRow: (detail) =>
                             _row(context, detail, embedded: true),
                         clock: widget.clock,

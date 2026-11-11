@@ -51,10 +51,6 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     if (_switchingOutline) return;
     _switchingOutline = true;
     try {
-      if (!await (_outlineKey.currentState?.prepareToCollapse() ??
-          Future.value(true))) {
-        return;
-      }
       if (mounted) {
         setState(
           () => _outlineGoal = _outlineGoal?.id == goal.id ? null : goal,
@@ -127,10 +123,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     if (_selectedStatus == value || _switchingOutline) return;
     _switchingOutline = true;
     try {
-      final canLeaveOutline =
-          await (_outlineKey.currentState?.prepareToCollapse() ??
-              Future.value(true));
-      if (!mounted || !canLeaveOutline) return;
+      if (!mounted) return;
       setState(() {
         _outlineGoal = null;
         _selectedStatus = value;

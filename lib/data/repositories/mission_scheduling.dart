@@ -172,58 +172,73 @@ class _MissionScheduling {
             );
         return (await _repository.findOperationReceipt(plan.id))!;
       });
-  Future<List<String>> reconcileScheduledMissions() =>
-      _repository.database.transaction(() async {
-        await _repository._acquireGlobalWrite();
-        final changed = await _stopDueScheduledMissions();
-        if ((await _repository.findActive()).any(
-          (detail) => detail.phase == MissionPhase.running,
-        )) {
-          return changed;
-        }
-        for (var attempt = 0; attempt < 64; attempt++) {
-          final checkedAt = _repository._now().millisecondsSinceEpoch;
-          final row = await _repository.database
-              .customSelect(
-                '''
+  Future<List<String>> reconcileScheduledMissions() async {
+    // 到期事实先独立提交；后面的自动开始失败不能撤销已完成的停止。
+    final stopped = await reconcileScheduledEnds();
+    final started = await _repository.database.transaction(() async {
+      await _repository._acquireGlobalWrite();
+      final changed = <String>[];
+      if ((await _repository.findActive()).any(
+        (detail) => detail.phase == MissionPhase.running,
+      )) {
+        return changed;
+      }
+      final skipped = <String>{};
+      for (var attempt = 0; attempt < 64; attempt++) {
+        final checkedAt = _repository._now().millisecondsSinceEpoch;
+        final row = await _repository.database
+            .customSelect(
+              '''
 SELECT m.id ${DriftMissionRepository._unstartedFixed}
  AND r.fixed_start_at <= ? AND r.fixed_start_at+r.planned_duration_minutes*60000 > ?
+ ${skipped.isEmpty ? '' : 'AND m.id NOT IN (${List.filled(skipped.length, '?').join(',')})'}
 ORDER BY r.fixed_start_at,m.id LIMIT 1
 ''',
-                variables: [Variable<int>(checkedAt), Variable<int>(checkedAt)],
-              )
-              .getSingleOrNull();
-          if (row == null) return changed;
-          final detail = await _repository.findDetail(row.read<String>('id'));
-          if (detail == null) throw const FormatException('到点任务缺失');
-          final startedAt = _repository._now();
-          final end = detail.schedule.fixedStartAt!.add(
-            Duration(minutes: detail.schedule.plannedDurationMinutes),
-          );
-          if (startedAt.isBefore(detail.schedule.fixedStartAt!) ||
-              !startedAt.isBefore(end)) {
-            continue;
-          }
-          try {
-            await _repository._execute(
-              ExecutionCommand(
-                id: 'scheduled-start-${detail.schedule.id}',
-                missionId: detail.mission.id,
-                expectedSequence: 0,
-                type: ExecutionEventType.start,
-                scheduleRevisionId: detail.schedule.id,
-              ),
-              occurredAt: detail.schedule.fixedStartAt,
-            );
-          } on ExecutionConflict {
-            // 异步重读期间可能刚好跨过结束时刻；跳过该候选，保留前面已到期的 STOP。
-            if (!_repository._now().isBefore(end)) continue;
-            rethrow;
-          }
-          return [...changed, detail.mission.id];
+              variables: [
+                Variable<int>(checkedAt),
+                Variable<int>(checkedAt),
+                for (final id in skipped) Variable<String>(id),
+              ],
+            )
+            .getSingleOrNull();
+        if (row == null) return changed;
+        final detail = await _repository.findDetail(row.read<String>('id'));
+        if (detail == null) throw const FormatException('到点任务缺失');
+        if (detail.phase != MissionPhase.notStarted) {
+          skipped.add(detail.mission.id);
+          continue;
         }
-        return changed;
-      });
+        final startedAt = _repository._now();
+        final end = detail.schedule.fixedStartAt!.add(
+          Duration(minutes: detail.schedule.plannedDurationMinutes),
+        );
+        if (startedAt.isBefore(detail.schedule.fixedStartAt!) ||
+            !startedAt.isBefore(end)) {
+          skipped.add(detail.mission.id);
+          continue;
+        }
+        try {
+          await _repository._execute(
+            ExecutionCommand(
+              id: 'scheduled-start-${detail.schedule.id}',
+              missionId: detail.mission.id,
+              expectedSequence: 0,
+              type: ExecutionEventType.start,
+              scheduleRevisionId: detail.schedule.id,
+            ),
+            occurredAt: detail.schedule.fixedStartAt,
+          );
+        } on ExecutionConflict {
+          // 异步重读期间可能刚好跨过结束时刻；跳过该候选，保留前面已到期的 STOP。
+          if (!_repository._now().isBefore(end)) continue;
+          rethrow;
+        }
+        return [...changed, detail.mission.id];
+      }
+      return changed;
+    });
+    return [...stopped, ...started];
+  }
 
   /// 调度唤醒和普通动作共用：先停止过期执行，再接受新的用户操作。
   /// 调度延迟不延长计时；只追加 STOP，不虚构用户完成报告。

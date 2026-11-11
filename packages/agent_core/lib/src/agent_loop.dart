@@ -379,8 +379,13 @@ final class AgentLoop {
     await publish(
       ToolExecutionStarted(step, executionCall, readOnly: tool.readOnly),
     ); // 保存失败时绝不执行工具。
+    final remaining = maxRunDuration - elapsed.elapsed;
+    if (remaining <= Duration.zero) token.cancel(deadlineExceeded: true);
+    // 当前进程确定尚未调用工具；即使 Started 已保存，也应正常结算成未执行。
+    if (token.isCancelled) {
+      return ToolOutput.failure('not_executed', '运行已取消，未执行本调用');
+    }
     try {
-      token.throwIfCancelled();
       // 通过检查和授权才执行实际函数；时间工具见 example/demo_tools.dart。
       return await Future.sync(
         () => tool.execute(
@@ -391,7 +396,7 @@ final class AgentLoop {
             sessionId: sessionId,
           ),
         ),
-      ).timeout(maxRunDuration - elapsed.elapsed);
+      ).timeout(remaining);
     } on ToolRejected catch (error) {
       return ToolOutput.failure(error.code, error.message);
     } on AgentCancelled {

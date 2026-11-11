@@ -14,6 +14,7 @@ import 'domain/notifications/reminder_request.dart';
 import 'application/notifications/execution_reminder.dart';
 import 'application/missions/mission_service.dart';
 import 'application/missions/planned_mission_scheduler.dart';
+import 'application/lifecycle/close_resources.dart';
 
 /// 无页面的后台入口；读取设置但不改提醒 JSON，避免与前台设置保存互相覆盖。
 Future<void> runPlannedMissionBackground() async {
@@ -25,7 +26,10 @@ Future<void> runPlannedMissionBackground() async {
   bool failed = false;
   try {
     final dir = await getApplicationSupportDirectory();
-    final store = ReminderStore(File('${dir.path}/reminders.json'));
+    final store = ReminderStore(
+      File('${dir.path}/reminders.json'),
+      recoverCorruption: false,
+    );
     await store.load();
     scheduler = PlannedMissionScheduler(
       missions: missions,
@@ -97,11 +101,23 @@ Future<void> runPlannedMissionBackground() async {
     await bridge.beginSync();
     await bridge.schedule(DateTime.now().add(const Duration(seconds: 30)));
   } finally {
-    await scheduler?.dispose();
-    await missions.dispose();
-    await database.close();
-    await PlannedAlarmBridge.channel.invokeMethod<void>('finished', {
-      'failed': failed,
-    });
+    await closeResources(
+      [
+        (name: 'scheduler', close: () async => scheduler?.dispose()),
+        (name: 'missions', close: missions.dispose),
+        (name: 'database', close: database.close),
+        (
+          name: 'finished',
+          close: () => PlannedAlarmBridge.channel.invokeMethod<void>(
+            'finished',
+            {'failed': failed},
+          ),
+        ),
+      ],
+      onError: (name, error, stack) {
+        failed = true;
+        debugPrint('后台资源释放失败 [$name]：${error.runtimeType}\n$stack');
+      },
+    );
   }
 }

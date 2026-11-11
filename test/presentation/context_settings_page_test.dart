@@ -263,13 +263,11 @@ void main() {
             conflictKey: '考试安排',
             updatedAt: testNow.millisecondsSinceEpoch,
             expiresAt: Value(
-              DateTime.now()
-                  .subtract(const Duration(days: 1))
-                  .millisecondsSinceEpoch,
+              testNow.subtract(const Duration(days: 1)).millisecondsSinceEpoch,
             ),
           ),
         );
-    await open(tester, const MemoryPage());
+    await open(tester, MemoryPage(clock: () => testNow));
     expect(find.text('考试周临时安排'), findsNothing);
     await tester.tap(find.text('包含过期'));
     await tester.pumpAndSettle();

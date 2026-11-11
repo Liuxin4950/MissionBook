@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +15,7 @@ import 'package:mission_book/domain/notifications/reminder_request.dart';
 
 /// 记录全部分发动作，测试按幂等键断言“调度不重复、补发只一次”。
 class _FakeDispatcher implements NotificationDispatcher {
+  Future<void> Function()? beforeSchedule;
   final scheduled = <String, ReminderRequest>{};
   final shown = <String>[];
   final cancelled = <int>[];
@@ -24,6 +26,7 @@ class _FakeDispatcher implements NotificationDispatcher {
 
   @override
   Future<void> schedule(ReminderRequest request) async {
+    await beforeSchedule?.call();
     scheduled[request.idempotencyKey] = request;
   }
 
@@ -74,6 +77,57 @@ void main() {
     await missions.dispose();
     await database.close();
     tempDir.deleteSync(recursive: true);
+  });
+
+  test('刷新失败与关闭重叠仍能释放流，关闭后不会重新刷新或接收动作', () async {
+    await missions.create(
+      title: '关闭边界',
+      scheduledDate: '2026-10-25',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 30,
+      timePolicy: TimePolicy.fixed,
+      fixedStartAt: now.add(const Duration(hours: 2)),
+    );
+    final entered = Completer<void>();
+    final release = Completer<void>();
+    dispatcher.beforeSchedule = () async {
+      entered.complete();
+      await release.future;
+    };
+    final starting = expectLater(service.start(), throwsStateError);
+    await entered.future;
+    final closing = service.dispose();
+    release.completeError(StateError('dispatch failed'));
+    await starting;
+    await closing;
+    dispatcher.beforeSchedule = () async =>
+        throw StateError('closed service must not schedule');
+    await service.start();
+    await service.refresh();
+    service.reportFailure('closed');
+    expect(service.takePendingUiActions(), isEmpty);
+  });
+
+  test('提醒 UI 队列有界并保留最新操作，重复刷新保持当前版本编号', () async {
+    await missions.create(
+      title: '稳定编号',
+      scheduledDate: '2026-10-25',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 30,
+      timePolicy: TimePolicy.fixed,
+      fixedStartAt: now.add(const Duration(hours: 2)),
+    );
+    await service.start();
+    final before = store.notificationIds;
+    await service.refresh();
+    await service.refresh();
+    expect(store.notificationIds, before);
+    for (var i = 0; i < 100; i++) {
+      service.reportFailure('message $i');
+    }
+    final pending = service.takePendingUiActions();
+    expect(pending, hasLength(64));
+    expect(pending.last.message, 'message 99');
   });
 
   Future<String> createFixed({

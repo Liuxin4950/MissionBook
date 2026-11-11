@@ -140,7 +140,7 @@ class DriftMissionRepository
   static const _unstartedFixed = '''
 FROM missions m JOIN mission_schedule_revisions r ON r.mission_id=m.id
 WHERE m.cancelled_at IS NULL AND r.time_policy='FIXED'
- AND NOT EXISTS(SELECT 1 FROM execution_events e WHERE e.mission_id=m.id AND e.type='START')
+ AND NOT EXISTS(SELECT 1 FROM execution_events e WHERE e.mission_id=m.id AND e.type IN ('START','END'))
  AND NOT EXISTS(SELECT 1 FROM mission_schedule_revisions newer
    WHERE newer.mission_id=m.id AND newer.revision_number>r.revision_number)
 ''';

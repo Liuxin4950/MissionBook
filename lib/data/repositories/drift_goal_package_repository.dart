@@ -209,20 +209,9 @@ LIMIT 1''', variables: args).getSingleOrNull();
     GoalImportOptions options,
     GoalImportCancellation cancellation,
   ) async {
-    for (var attempt = 0; ; attempt++) {
-      cancellation.check();
-      try {
-        return await _importOnce(stage, preview, options, cancellation);
-      } catch (error) {
-        final message = error.toString();
-        if (attempt >= 5 ||
-            (!message.contains('database is locked') &&
-                !message.contains('SQLITE_BUSY'))) {
-          rethrow;
-        }
-        await Future<void>.delayed(Duration(milliseconds: 25 * (1 << attempt)));
-      }
-    }
+    cancellation.check();
+    // BEGIN 的短暂竞争统一由 AppDatabase 在进入正文前恢复；不重放已运行的导入。
+    return _importOnce(stage, preview, options, cancellation);
   }
 
   Future<GoalImportResult> _importOnce(

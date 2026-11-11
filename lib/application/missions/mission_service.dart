@@ -41,10 +41,11 @@ import '../attachments/attachment_coordinator.dart';
 /// App 只创建一个 MissionService，页面通过方法名选择要做的事。
 /// 本类负责输入检查与业务对象组织；SQL、行转换和事务保存仍由仓储完成。
 class MissionService {
-  MissionMaintenanceRepository get _maintenance =>
-      repository is MissionMaintenanceRepository
-      ? repository as MissionMaintenanceRepository
-      : throw StateError('当前存储不支持任务维护');
+  MissionMaintenanceRepository get _maintenance {
+    final Object source = repository;
+    if (source is MissionMaintenanceRepository) return source;
+    throw StateError('当前存储不支持任务维护');
+  }
 
   Future<MissionMaintenanceProposal> prepareMaintenance({
     required MissionMaintenanceAction action,
@@ -213,11 +214,11 @@ class MissionService {
     String commandId, {
     DateTime? evidenceDeadlineAt,
   }) async {
-    final store = repository;
+    final Object store = repository;
     if (store is! MissionMakeupRepository) {
       throw UnsupportedError('当前仓储不支持现在补做');
     }
-    await (store as MissionMakeupRepository).startMakeup(
+    await store.startMakeup(
       original,
       commandId,
       evidenceDeadlineAt: evidenceDeadlineAt,
@@ -290,7 +291,14 @@ class MissionService {
 
   /// 自动执行也从本服务进入仓储；提交后通知各页面重读。
   Future<List<String>> reconcileScheduledMissions() async {
-    final changed = await repository.reconcileScheduledMissions();
+    late List<String> changed;
+    try {
+      changed = await repository.reconcileScheduledMissions();
+    } catch (_) {
+      // 仓储已独立提交到期 STOP；即使后续 START 失败，也让界面重读已提交事实。
+      _notify();
+      rethrow;
+    }
     if (changed.isNotEmpty) _notify();
     return changed;
   }
@@ -794,23 +802,21 @@ class MissionService {
   /// 计划卡传入完整提案，只检查排期；最终保存仍会在事务内重新检查。
   Future<List<ScheduleConflict>> checkPlan(ScheduleProposal plan) {
     _validatePlan(plan);
-    final source = repository;
+    final Object source = repository;
     if (source is! ScheduleProposalRepository) {
       throw StateError('当前任务存储不支持整份计划保存');
     }
-    return (source as ScheduleProposalRepository).checkPlan(plan);
+    return source.checkPlan(plan);
   }
 
   /// 一次提交只发一次页面刷新；事务失败时不产生部分任务或排期版本。
   Future<OperationReceiptInfo> applyPlan(ScheduleProposal plan) async {
-    final source = repository;
+    final Object source = repository;
     if (source is! ScheduleProposalRepository) {
       throw StateError('当前任务存储不支持整份计划保存');
     }
     _validatePlan(plan);
-    final receipt = await (source as ScheduleProposalRepository).applyPlan(
-      plan,
-    );
+    final receipt = await source.applyPlan(plan);
     if ((jsonDecode(receipt.resultJson) as Map)['status'] != 'blocked') {
       _notify();
     }

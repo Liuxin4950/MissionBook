@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'sqlite_errors.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'tables/execution_plans.dart';
@@ -78,6 +79,26 @@ class AppDatabase extends _$AppDatabase {
   // 当前开发结构：任务材料保存快照，来源记录独立维护。
   @override
   int get schemaVersion => 16;
+
+  @override
+  Future<T> transaction<T>(
+    Future<T> Function() action, {
+    bool requireNew = false,
+  }) async {
+    for (var attempt = 0; ; attempt++) {
+      var entered = false;
+      try {
+        return await super.transaction(() {
+          entered = true;
+          return action();
+        }, requireNew: requireNew);
+      } catch (error) {
+        // 只恢复 BEGIN 的竞争；正文或 COMMIT 已运行时绝不自动重放业务副作用。
+        if (entered || attempt >= 3 || !isSqliteBusy(error)) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: 25 * (1 << attempt)));
+      }
+    }
+  }
 
   @override
   MigrationStrategy get migration => MigrationStrategy(

@@ -172,7 +172,11 @@ class IoSpeechModelStore implements SpeechModelStore {
       _client = null;
       for (final file in files) {
         final partial = File('${directory.path}/${file.name}.part');
-        if (await partial.exists()) await partial.delete();
+        try {
+          if (await partial.exists()) await partial.delete();
+        } on FileSystemException {
+          // 清理失败不能遮蔽原下载错误；下次下载以截断方式重建同一 .part。
+        }
       }
     }
   }

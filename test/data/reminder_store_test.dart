@@ -46,6 +46,60 @@ void main() {
     });
   });
 
+  test('损坏 JSON 保留原件并持久恢复标记，系统重置确认后才结束恢复', () async {
+    const broken = '{broken-json';
+    await file.writeAsString(broken);
+    final store = ReminderStore(file);
+    await store.load();
+    expect(store.needsNotificationReset, isTrue);
+    expect(store.notificationIds, isEmpty);
+    final archive =
+        (await tempDir
+                    .list()
+                    .where((f) => f.path.contains('.corrupt-'))
+                    .toList())
+                .single
+            as File;
+    expect(await archive.readAsString(), broken);
+    final reopened = ReminderStore(file);
+    await reopened.load();
+    expect(reopened.needsNotificationReset, isTrue);
+    await reopened.completeNotificationReset();
+    final ready = ReminderStore(file);
+    await ready.load();
+    expect(ready.needsNotificationReset, isFalse);
+    expect(await ready.notificationIdOf('new'), 1);
+  });
+
+  test('重复编号和不完整配置按损坏恢复；后台读取不改写原件', () async {
+    for (final broken in [
+      '[]',
+      '{"notificationIds":{"a":1,"b":1},"nextNotificationId":2}',
+      '{"preferences":{"m":{"missionId":7}}}',
+    ]) {
+      await file.writeAsString(broken);
+      final background = ReminderStore(file, recoverCorruption: false);
+      await background.load();
+      expect(background.needsNotificationReset, isTrue);
+      expect(await file.readAsString(), broken);
+      final foreground = ReminderStore(file);
+      await foreground.load();
+      expect(foreground.needsNotificationReset, isTrue);
+    }
+  });
+
+  test('系统已撤销的键可回收，重新分配不重复使用旧数字', () async {
+    final store = ReminderStore(file);
+    final first = await store.notificationIdOf('old');
+    final kept = await store.notificationIdOf('kept');
+    await store.forgetNotificationIds(['old']);
+    expect(store.notificationIds, {'kept': kept});
+    final reopened = ReminderStore(file);
+    await reopened.load();
+    expect(await reopened.notificationIdOf('old'), greaterThan(first));
+    expect(await reopened.notificationIdOf('kept'), kept);
+  });
+
   test('并发分配与偏好写入串行落盘，文件有效且重启后一致', () async {
     final store = ReminderStore(file);
     await store.load();

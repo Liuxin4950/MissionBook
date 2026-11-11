@@ -150,7 +150,10 @@ class _MissionCommands {
                   (schedule.fixedStartAt != null))) {
         throw ArgumentError('排期提案与当前任务不一致');
       }
-      final now = schedule.changedAt.millisecondsSinceEpoch;
+      final capturedNow = _repository._now().millisecondsSinceEpoch;
+      final previousUpdate = current.mission.updatedAt.millisecondsSinceEpoch;
+      // 版本时间来自取得写锁后的时钟；回拨时也不倒退到已提交版本之前。
+      final now = capturedNow < previousUpdate ? previousUpdate : capturedNow;
       // 只在改归属时要求新目标/节点有效；原节点归档后仍允许保留原归属编辑标题。
       if (ownershipChanged) await _validateNewOwnership(newOwnership);
       if (scheduleChanged &&

@@ -151,9 +151,7 @@ void main() {
         expect(_errorCode(request.messages.last), 'not_found');
         return _reply('目标不存在，需要重新查询');
       },
-      tools: [
-        _tool((input, context) => const ToolOutput.success('不应执行')),
-      ],
+      tools: [_tool((input, context) => const ToolOutput.success('不应执行'))],
       authorize: (tool, call, token) =>
           const ToolDecision.deny('任务 m-1 不存在', code: 'not_found'),
     );
@@ -208,18 +206,12 @@ void main() {
       tool.validateInput({'minutes': 1, 'kind': 'other'}),
       '参数 kind 只能取 plan、record',
     );
-    expect(
-      tool.validateInput({'minutes': 'x'}),
-      '参数 minutes 类型应为 integer',
-    );
+    expect(tool.validateInput({'minutes': 'x'}), '参数 minutes 类型应为 integer');
     expect(
       tool.validateInput({'minutes': 1, 'items': <Object?>[]}),
       '参数 items 至少 1 项（收到 0 项）',
     );
-    expect(
-      tool.validateInput({'minutes': 1, 'extra': true}),
-      '不支持参数 extra',
-    );
+    expect(tool.validateInput({'minutes': 1, 'extra': true}), '不支持参数 extra');
     expect(
       tool.validateInput({
         'minutes': 1,
@@ -573,6 +565,37 @@ void main() {
       throwsUnsupportedError,
     );
     expect(() => call.input['new'] = true, throwsUnsupportedError);
+  });
+
+  test('保存 Started 期间取消，确定未调用的写工具结算为 not_executed', () async {
+    final token = CancellationToken();
+    var executed = false;
+    final agent = _agent(
+      (_, _) => _calls([_call('cancel-before-execute', 1)]),
+      tools: [
+        _tool((_, _) {
+          executed = true;
+          return const ToolOutput.success('unexpected');
+        }),
+      ],
+    );
+    final result = await agent.run(
+      input: '保存期间取消',
+      cancellation: token,
+      onEvent: (event) async {
+        if (event is ToolExecutionStarted) {
+          await Future<void>.delayed(Duration.zero);
+          token.cancel();
+        }
+      },
+    );
+    expect(executed, isFalse);
+    expect(result.reason, AgentStopReason.cancelled);
+    expect(
+      result.messages.whereType<ToolResultMessage>().single.errorCode,
+      'not_executed',
+    );
+    await agent.close();
   });
 }
 

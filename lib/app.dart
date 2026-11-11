@@ -1,5 +1,6 @@
 import 'application/attachments/attachment_coordinator.dart';
 import 'application/missions/evidence_deadline_scheduler.dart';
+import 'application/lifecycle/close_resources.dart';
 import 'application/errors/user_error_message.dart';
 import 'data/repositories/drift_memory_repository.dart';
 import 'application/memory/memory_service.dart';
@@ -123,6 +124,8 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
   // 系统提醒编排：装配层只负责创建与生命周期；业务规则在应用服务里。
   AppNotificationService? _notifications;
   bool _notificationsReady = false; // 通知服务是否初始化完成。
+  Future<void>? _notificationRetry;
+  bool _notificationQueueOverflowed = false;
   PlannedMissionScheduler? _plannedMissions; // 计划任务编排器，负责协调系统唤醒与任务执行。
   PlannedAlarmBridge? _plannedBridge; // 计划任务桥接，负责协调系统唤醒与任务执行。
   AndroidNotificationDispatcher? _androidDispatcher; // Android 通知分发器，负责发送通知。
@@ -203,6 +206,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       exporter: DatabaseBackupService(
         database: _database,
         readAttachment: _missionService.readEvidenceImage,
+        attachments: attachments,
       ),
       restorer: DatabaseBackupRestorer(
         database: _database,
@@ -290,6 +294,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     _evidenceDeadlines?.setForeground(foreground);
     if (foreground) {
       _analysis.wake();
+      if (!_notificationsReady && !kIsWeb) unawaited(_retryNotifications());
       // 回到前台对账一次提醒调度（§7.1：只整理提醒，不写业务事实）。
       unawaited(_refreshNotifications());
       unawaited(_plannedMissions?.refreshSafely());
@@ -314,7 +319,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
   }
 
   Future<void> _refreshNotifications() async {
-    if (_restoring) return;
+    if (_restoring || !_notificationsReady) return;
     try {
       if (_androidDispatcher != null) {
         _androidDispatcher!.updateExactAlarmPermission(
@@ -329,6 +334,19 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _retryNotifications() => _notificationRetry ??= (() async {
+    try {
+      // 首次初始化可能还在读取平台能力；等它结束后再决定是否恢复。
+      await _notificationInitialization;
+      if (!mounted || _restoring || _notificationsReady) return;
+      await _notifications?.dispose();
+      if (mounted && !_restoring) await _configureNotifications();
+    } catch (error, stack) {
+      debugPrint('提醒恢复失败：${error.runtimeType}\n$stack');
+      _notifications?.reportFailure('提醒恢复未完成，请稍后回到应用重试');
+    }
+  })().whenComplete(() => _notificationRetry = null);
+
   Future<void> _handleNotificationResponse(
     NotificationResponse response,
   ) async {
@@ -339,6 +357,10 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       return;
     }
     if (_notifications == null || !_notificationsReady) {
+      if (_pendingNotificationResponses.length >= 64) {
+        _pendingNotificationResponses.removeAt(0);
+        _notificationQueueOverflowed = true;
+      }
       _pendingNotificationResponses.add(response);
       return;
     }
@@ -389,9 +411,17 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       dispatcher = const UnsupportedNotificationDispatcher();
     }
     final dir = await getApplicationSupportDirectory();
+    final store = ReminderStore(File('${dir.path}/reminders.json'));
+    await store.load();
+    final recovered = store.needsNotificationReset;
+    if (recovered) {
+      // 编号表已损坏，先撤销旧通知再允许重新分配，避免旧编号误指向新任务。
+      await plugin.cancelAll();
+      await store.completeNotificationReset();
+    }
     final notifications = AppNotificationService(
       missions: _missionService,
-      store: ReminderStore(File('${dir.path}/reminders.json')),
+      store: store,
       dispatcher: dispatcher,
       now: DateTime.now,
     );
@@ -401,7 +431,16 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     }
     setState(() => _notifications = notifications);
     await notifications.start();
+    if (!mounted || _restoring) {
+      await notifications.dispose();
+      return;
+    }
     _notificationsReady = true;
+    if (recovered) notifications.reportFailure('提醒设置文件损坏，已保留原件并按当前任务重建提醒');
+    if (_notificationQueueOverflowed) {
+      _notificationQueueOverflowed = false;
+      notifications.reportFailure('提醒初始化期间操作过多，部分旧操作已丢弃，请核对当前任务');
+    }
     // 进程由通知启动时，初始化回调不会补发启动意图，必须显式读取。
     final launch = await plugin.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp == true &&
@@ -445,17 +484,64 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
   Future<void> _stopForRestore() async {
     // 先解绑旧工作区；重建后旧 State.dispose 不能清掉新工作区的通道监听。
     _plannedBridge?.dispose();
-    await _assistantVoice.cancel();
-    await _assistant.close();
-    await _analysis.dispose();
-    await _notificationInitialization;
-    await _evidenceDeadlines?.dispose();
-    await _plannedMissions?.dispose();
-    await _notifications?.dispose();
-    if (_plannedBridge != null) {
-      await _plannedBridge!.beginSync();
-      await _plannedBridge!.schedule(null);
-    }
+    final stopped = await closeResources([
+      (name: 'voice', close: _assistantVoice.cancel),
+      (name: 'assistant', close: _assistant.close),
+      (name: 'analysis', close: _analysis.dispose),
+      (
+        name: 'notification initialization',
+        close: () async => _notificationInitialization,
+      ),
+      (name: 'notification retry', close: () async => _notificationRetry),
+      (name: 'deadlines', close: () async => _evidenceDeadlines?.dispose()),
+      (
+        name: 'planned missions',
+        close: () async => _plannedMissions?.dispose(),
+      ),
+      (name: 'notifications', close: () async => _notifications?.dispose()),
+      (
+        name: 'system schedule',
+        close: () async {
+          await _plannedBridge?.beginSync();
+          await _plannedBridge?.schedule(null);
+        },
+      ),
+    ], onError: _logCloseFailure);
+    if (!stopped) throw StateError('后台服务未全部停止，未替换当前数据，请重试恢复');
+  }
+
+  void _logCloseFailure(String name, Object error, StackTrace stack) =>
+      debugPrint('资源释放失败 [$name]：${error.runtimeType}\n$stack');
+
+  Future<void> _closeWorkspace() async {
+    await closeResources([
+      (name: 'restore', close: () async => _restoreShutdown),
+      (name: 'voice', close: _assistantVoice.close),
+      (
+        name: 'notification initialization',
+        close: () async => _notificationInitialization,
+      ),
+      (name: 'notification retry', close: () async => _notificationRetry),
+      (name: 'deadlines', close: () async => _evidenceDeadlines?.dispose()),
+      (
+        name: 'planned missions',
+        close: () async => _plannedMissions?.dispose(),
+      ),
+      (name: 'notifications', close: () async => _notifications?.dispose()),
+      (name: 'assistant', close: _assistant.close),
+      (name: 'analysis', close: _analysis.dispose),
+      (
+        name: 'goal import',
+        close: () async => _goalService.packages?.dispose(),
+      ),
+      (name: 'missions', close: _missionService.dispose),
+      (name: 'goals', close: _goalService.dispose),
+      (name: 'assistant listeners', close: _assistant.dispose),
+      (name: 'voice listeners', close: _assistantVoice.dispose),
+      (name: 'motion', close: _motionSettings.dispose),
+      (name: 'database', close: _database.close),
+    ], onError: _logCloseFailure);
+    _pendingNotificationResponses.clear();
   }
 
   @override
@@ -535,29 +621,10 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _launchTimer?.cancel();
     if (_restoreShutdown == null) _plannedBridge?.dispose();
-    final deadlineClose = _evidenceDeadlines?.dispose();
-    final plannedClose = _plannedMissions?.dispose();
-    final notificationClose = _restoreShutdown == null
-        ? _notifications?.dispose()
-        : null;
     // Flutter 移除这个 State 时调用 dispose。
     // close 返回 Future，但 dispose 不能等待异步完成；
     // unawaited 明确表示在这里发起关闭，不等待它。
-    unawaited(_missionService.dispose());
-    unawaited(_goalService.dispose());
-    unawaited(_goalService.packages?.dispose());
-    _motionSettings.dispose();
-    _assistantVoice.dispose();
-    unawaited(
-      _assistant.close().then((_) async {
-        _assistant.dispose();
-        await _analysis.dispose();
-        await deadlineClose;
-        await plannedClose;
-        await notificationClose;
-        return _database.close();
-      }),
-    );
+    unawaited(_closeWorkspace());
     super.dispose();
   }
 }

@@ -481,11 +481,9 @@ class _MissionExecution {
     if (detail.phase == MissionPhase.cancelled) {
       throw ArgumentError('已取消任务不改写执行结果');
     }
-    final latest = await _repository._support.rows(
-      'SELECT id FROM user_execution_reports WHERE mission_id=? ORDER BY reported_at DESC,rowid DESC LIMIT 1',
-      [report.missionId],
-    );
-    if (report.supersedesId != (latest.isEmpty ? null : latest.single['id'])) {
+    // 更正当前替代链的尾项；时钟回拨不能把较早保存的旧声明重新选成最新。
+    final latest = detail.effectiveUserReport;
+    if (report.supersedesId != latest?.id) {
       throw const EvidenceConflict('时间声明已被更正，请刷新');
     }
     final ended = detail.events.any((e) => e.type == ExecutionEventType.end);

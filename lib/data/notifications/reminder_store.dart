@@ -42,9 +42,12 @@ class ReminderPreference implements contract.ReminderStatus {
 ///
 /// 本机调度状态保存在业务库之外；保存失败交给调用方提示和重试。
 class ReminderStore implements contract.ReminderStore {
-  ReminderStore(this.file);
+  ReminderStore(this.file, {this.recoverCorruption = true});
 
   final File file;
+  final bool recoverCorruption;
+  bool _needsNotificationReset = false;
+  bool get needsNotificationReset => _needsNotificationReset;
   final Map<String, ReminderPreference> _preferences = {};
   final Map<String, int> _notificationIds = {};
   final Set<String> _synchronizedMissions = {};
@@ -63,32 +66,75 @@ class ReminderStore implements contract.ReminderStore {
   @override
   Future<void> load() async {
     if (!await file.exists()) return;
-    final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    final contents = await file.readAsString();
+    try {
+      _loadJson(jsonDecode(contents) as Map<String, dynamic>);
+    } on FormatException {
+      await _recover(contents);
+    } on TypeError {
+      await _recover(contents);
+    }
+  }
+
+  void _loadJson(Map<String, dynamic> json) {
     final minutes = json['reminderLeadMinutes'] as int? ?? 10;
     if (!reminderLeadOptions.contains(minutes)) {
       throw const FormatException('计划任务提醒设置无效');
     }
+    final preferences = <String, ReminderPreference>{};
+    for (final entry
+        in (json['preferences'] as Map<String, dynamic>? ?? {}).entries) {
+      final preference = ReminderPreference.fromJson(
+        entry.value as Map<String, dynamic>,
+      );
+      if (preference.missionId != entry.key) {
+        throw const FormatException('提醒所属任务无效');
+      }
+      preferences[entry.key] = preference;
+    }
+    final ids = (json['notificationIds'] as Map<String, dynamic>? ?? {})
+        .cast<String, int>();
+    final nextId = json['nextNotificationId'] as int? ?? 1;
+    if (ids.values.any((id) => id <= 0 || id >= nextId) ||
+        ids.values.toSet().length != ids.length ||
+        nextId <= 0) {
+      throw const FormatException('通知编号分配表无效');
+    }
+    final synchronized = (json['synchronizedMissions'] as List? ?? const [])
+        .cast<String>();
+    final needsReset = json['needsNotificationReset'] as bool? ?? false;
     reminderLeadMinutes = minutes;
     _preferences.clear();
     _notificationIds.clear();
     _synchronizedMissions
       ..clear()
-      ..addAll(
-        (json['synchronizedMissions'] as List? ?? const []).cast<String>(),
-      );
-    for (final entry
-        in (json['preferences'] as Map<String, dynamic>? ?? {}).entries) {
-      _preferences[entry.key] = ReminderPreference.fromJson(
-        entry.value as Map<String, dynamic>,
-      );
-    }
-    _notificationIds.addAll({
-      for (final entry
-          in (json['notificationIds'] as Map<String, dynamic>? ?? {}).entries)
-        entry.key: entry.value as int,
-    });
-    _nextNotificationId = json['nextNotificationId'] as int? ?? 1;
+      ..addAll(synchronized);
+    _preferences.addAll(preferences);
+    _notificationIds.addAll(ids);
+    _nextNotificationId = nextId;
+    _needsNotificationReset = needsReset;
   }
+
+  Future<void> _recover(String contents) async {
+    // 后台只读取设置，不与前台竞争改写同一个 JSON 文件。
+    if (recoverCorruption) {
+      await File(
+        '${file.path}.corrupt-${DateTime.now().microsecondsSinceEpoch}',
+      ).writeAsString(contents, flush: true);
+    }
+    _preferences.clear();
+    _notificationIds.clear();
+    _synchronizedMissions.clear();
+    _nextNotificationId = 1;
+    reminderLeadMinutes = 10;
+    _needsNotificationReset = true;
+    if (recoverCorruption) await _save();
+  }
+
+  /// App 已全量撤销旧系统通知；失败时保留标记，下次启动继续恢复。
+  Future<void> completeNotificationReset() => _write<void>(() {
+    _needsNotificationReset = false;
+  });
 
   Future<void> _save() async {
     await file.parent.create(recursive: true);
@@ -104,6 +150,7 @@ class ReminderStore implements contract.ReminderStore {
         'notificationIds': _notificationIds,
         'synchronizedMissions': _synchronizedMissions.toList(),
         'nextNotificationId': _nextNotificationId,
+        'needsNotificationReset': _needsNotificationReset,
       }),
       flush: true,
     );
@@ -122,6 +169,7 @@ class ReminderStore implements contract.ReminderStore {
       final previousIds = Map<String, int>.of(_notificationIds);
       final previousNextId = _nextNotificationId;
       final previousLead = reminderLeadMinutes;
+      final previousReset = _needsNotificationReset;
       final previousSynchronized = Set<String>.of(_synchronizedMissions);
       try {
         final value = mutate();
@@ -136,6 +184,7 @@ class ReminderStore implements contract.ReminderStore {
           ..addAll(previousIds);
         _nextNotificationId = previousNextId;
         reminderLeadMinutes = previousLead;
+        _needsNotificationReset = previousReset;
         _synchronizedMissions
           ..clear()
           ..addAll(previousSynchronized);
@@ -184,7 +233,7 @@ class ReminderStore implements contract.ReminderStore {
   @override
   Map<String, int> get notificationIds => Map.unmodifiable(_notificationIds);
 
-  /// 幂等键 → 稳定 int 通知 id：同一键永远同 id，重排即覆盖。
+  /// 有效幂等键在重排中保持稳定编号；确认撤销后可回收键，数字不再复用。
   /// 新 id 必须保存成功后才返回，避免重启后重新分配撞号。
   @override
   Future<int> notificationIdOf(String idempotencyKey) async {
@@ -199,6 +248,16 @@ class ReminderStore implements contract.ReminderStore {
       final id = _nextNotificationId++;
       _notificationIds[idempotencyKey] = id;
       return id;
+    });
+  }
+
+  @override
+  Future<void> forgetNotificationIds(Iterable<String> keys) async {
+    final removing = keys.toSet();
+    await _writeQueue;
+    if (!removing.any(_notificationIds.containsKey)) return;
+    await _write<void>(() {
+      _notificationIds.removeWhere((key, _) => removing.contains(key));
     });
   }
 
@@ -249,7 +308,7 @@ class ReminderStore implements contract.ReminderStore {
     });
   }
 
-  /// 丢弃失效偏好（任务已开始/已取消/版本过期）并回收其通知 id 登记。
+  /// 丢弃送达偏好；通知键由分发端确认撤销后单独回收。
   @override
   Future<void> discard(String missionId) async {
     await _writeQueue;

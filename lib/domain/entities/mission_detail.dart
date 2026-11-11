@@ -18,16 +18,27 @@ class MissionEditConflict implements Exception {
 /// 【查询组合】一次任务详情查询的结果，供详情、执行和记录页共用。
 /// 仓储在同一读事务中组装，没有对应的独立数据库表。
 class MissionDetail {
-  const MissionDetail({
+  MissionDetail({
     required this.mission, // 任务本身：编号、标题、取消时刻和验证策略。
     required this.schedule, // 最新排期：安排哪天、几点、计划多久。
     required this.executionPlan, // 行动方案：具体目标和步骤。
-    this.events = const [], // 完整执行记录：开始、暂停等；无记录时为空列表。
-    this.failures = const [], // 失败事实；没有失败记录时为空列表。
-    this.evidence = const [], // 同一快照内的全部正式材料；页面草稿不参与阶段计算。
+    List<ExecutionEvent> events = const [], // 完整执行记录：开始、暂停等；无记录时为空列表。
+    List<FailureRecord> failures = const [], // 失败事实；没有失败记录时为空列表。
+    List<Evidence> evidence = const [], // 同一快照内的全部正式材料；页面草稿不参与阶段计算。
     this.ownershipInfo, // 同次查询读取的目标名称与路径，独立任务为 null。
-    this.userReports = const [],
-  });
+    List<UserExecutionReport> userReports = const [],
+  }) : events = List.unmodifiable(events),
+       failures = List.unmodifiable(failures),
+       evidence = List.unmodifiable(evidence),
+       userReports = List.unmodifiable(userReports) {
+    _phase = deriveMissionPhase(
+      mission,
+      this.events,
+      this.failures,
+      this.evidence,
+      schedule,
+    );
+  }
 
   final Mission mission;
   final MissionScheduleRevision schedule;
@@ -37,7 +48,11 @@ class MissionDetail {
   final List<FailureRecord> failures;
   final List<Evidence> evidence;
   final List<UserExecutionReport> userReports;
-  UserExecutionReport? get effectiveUserReport {
+  UserExecutionReport? get effectiveUserReport => _effectiveUserReport;
+  late final UserExecutionReport? _effectiveUserReport =
+      _findEffectiveUserReport();
+
+  UserExecutionReport? _findEffectiveUserReport() {
     final replaced = userReports
         .map((r) => r.supersedesId)
         .whereType<String>()
@@ -68,7 +83,10 @@ class MissionDetail {
   }
 
   // 默认只展示未被后续修正替代的材料；完整 evidence 保留供历史展开。
-  List<Evidence> get effectiveEvidence {
+  List<Evidence> get effectiveEvidence => _effectiveEvidence;
+  late final List<Evidence> _effectiveEvidence = _findEffectiveEvidence();
+
+  List<Evidence> _findEffectiveEvidence() {
     final replaced = {
       for (final item in evidence)
         if (item.supersedesEvidenceId != null) item.supersedesEvidenceId!,
@@ -101,8 +119,7 @@ class MissionDetail {
   /// 全站“完成记录/完成日期”判定统一走这两个属性，页面不再各自
   /// 重写“END 且 COMPLETED”的比较逻辑，防止口径分叉。
   bool get endReportedCompleted => completionReport != null;
-  // get 是按需计算的属性：读取 detail.phase 时，根据事实重新计算，结果不写回库。
-  // 排期提供材料截止等条件；START 是否发生仍只看已保存的执行事实。
-  MissionPhase get phase =>
-      deriveMissionPhase(mission, events, failures, evidence, schedule);
+  // 每份不可变快照只经唯一核心推导一次；查询到新事实时创建新快照，阶段不写回库。
+  late final MissionPhase _phase;
+  MissionPhase get phase => _phase;
 }

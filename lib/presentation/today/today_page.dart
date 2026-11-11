@@ -328,7 +328,8 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
           if (mounted) return _loadMissions();
         }),
       );
-    } catch (error) {
+    } catch (error, stack) {
+      debugPrint('任务打开失败：${error.runtimeType}\n$stack');
       if (mounted) {
         ScaffoldMessenger.of(
           context,

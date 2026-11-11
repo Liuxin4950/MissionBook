@@ -34,11 +34,24 @@ class AssistantOperationCard extends StatefulWidget {
 
 class _AssistantOperationCardState extends State<AssistantOperationCard> {
   bool _editing = false;
+  String? _parsedOutput;
+  Map<String, Object?>? _decodedOutput;
+  bool _parsed = false;
+
+  Map<String, Object?>? get _receipt {
+    final output = widget.operation.output;
+    if (!_parsed || !identical(output, _parsedOutput)) {
+      _parsed = true;
+      _parsedOutput = output;
+      _decodedOutput = _ResultDetails._decode(output);
+    }
+    return _decodedOutput;
+  }
 
   @override
   Widget build(BuildContext context) {
     final operation = widget.operation;
-    final receiptCounts = _ResultDetails._decode(operation.output)?['counts'];
+    final receiptCounts = _receipt?['counts'];
     final skippedCount = operation.historySkippedCount > 0
         ? operation.historySkippedCount
         : receiptCounts is Map
@@ -94,6 +107,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
         );
       }
       return _ReadResultCard(
+        decoded: _receipt,
         operation: operation,
         onOpenReference: widget.onOpenReference,
         initiallyExpanded: widget.initiallyExpanded,
@@ -195,6 +209,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                   operation.status !=
                       AssistantOperationStatus.waitingConfirmation)
                 _ResultDetails(
+                  decoded: _receipt,
                   operation: operation,
                   onOpenReference: widget.onOpenReference,
                 ),
@@ -246,6 +261,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
           ..._historySummary(operation, skippedCount),
           if (operation.output != null)
             _ResultDetails(
+              decoded: _receipt,
               operation: operation,
               onOpenReference: widget.onOpenReference,
             ),
@@ -266,7 +282,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
             avatar: const Icon(Icons.task_alt, size: AppLayout.iconSm),
             label: Text(switch (operation.status) {
               AssistantOperationStatus.succeeded =>
-                '${_ResultDetails._decode(operation.output)?['completedCount'] ?? 0} 项已补记',
+                '${_receipt?['completedCount'] ?? 0} 项已补记',
               AssistantOperationStatus.waitingConfirmation =>
                 '${operation.historyMissions.length} 项待补记',
               AssistantOperationStatus.running =>
@@ -532,11 +548,13 @@ class _WaitingActions extends StatelessWidget {
 
 class _ReadResultCard extends StatelessWidget {
   const _ReadResultCard({
+    required this.decoded,
     required this.operation,
     required this.onOpenReference,
     this.initiallyExpanded = false,
   });
   final AssistantOperation operation;
+  final Map<String, Object?>? decoded;
   final void Function(String, String) onOpenReference;
   final bool initiallyExpanded;
 
@@ -589,6 +607,7 @@ class _ReadResultCard extends StatelessWidget {
         ),
         children: [
           _ResultDetails(
+            decoded: decoded,
             operation: operation,
             onOpenReference: onOpenReference,
             inlineData: true,
@@ -601,17 +620,19 @@ class _ReadResultCard extends StatelessWidget {
 
 class _ResultDetails extends StatelessWidget {
   const _ResultDetails({
+    required this.decoded,
     required this.operation,
     required this.onOpenReference,
     this.inlineData = false,
   });
   final AssistantOperation operation;
+  final Map<String, Object?>? decoded;
   final void Function(String, String) onOpenReference;
   final bool inlineData;
 
   @override
   Widget build(BuildContext context) {
-    final decoded = _decode(operation.output);
+    final decoded = this.decoded;
     final references = decoded?['references'];
     final message = decoded?['message'] ?? operation.error;
     return Column(

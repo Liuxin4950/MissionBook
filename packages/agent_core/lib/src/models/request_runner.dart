@@ -90,6 +90,7 @@ final class ModelRequestRunner {
             willRetry: false,
             partialText: partialText.toString(),
             delay: Duration.zero,
+            purpose: request.purpose,
           ),
         );
         rethrow;
@@ -111,6 +112,7 @@ final class ModelRequestRunner {
             willRetry: willRetry,
             partialText: partialText.toString(),
             delay: delay,
+            purpose: request.purpose,
           ),
         );
         if (!willRetry) rethrow;

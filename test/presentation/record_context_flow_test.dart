@@ -20,13 +20,17 @@ import 'package:mission_book/presentation/records/list/records_page.dart';
 import 'package:mission_book/presentation/missions/execution/execution_report_button.dart';
 
 void main() {
+  final testNow = DateTime.utc(2026, 10, 25, 2);
   late AppDatabase db;
   late MissionService missions;
   late RecordService records;
   late AnalysisService analysis;
   setUp(() {
     db = AppDatabase(executor: NativeDatabase.memory());
-    missions = MissionService(DriftMissionRepository(db));
+    missions = MissionService(
+      DriftMissionRepository(db, clock: () => testNow),
+      clock: () => testNow,
+    );
     records = RecordService(
       DriftRecordRepository(db),
       missions,
@@ -63,7 +67,7 @@ void main() {
     );
     await missions.create(
       title: '关联任务',
-      scheduledDate: DateTime.now().toIso8601String().substring(0, 10),
+      scheduledDate: '2026-10-25',
       timeZone: 'Asia/Shanghai',
       plannedDurationMinutes: 30,
     );
@@ -140,7 +144,7 @@ void main() {
     final record = (await db.select(db.records).get()).single;
     await missions.create(
       title: '午餐任务',
-      scheduledDate: DateTime.now().toIso8601String().substring(0, 10),
+      scheduledDate: '2026-10-25',
       timeZone: 'Asia/Shanghai',
       plannedDurationMinutes: 30,
     );
@@ -187,10 +191,7 @@ void main() {
   testWidgets('补记入口明确确认完成与日期，无START计时，并可再次更正时间', (tester) async {
     await missions.create(
       title: '上午课程',
-      scheduledDate: DateTime.now()
-          .subtract(const Duration(days: 1))
-          .toIso8601String()
-          .substring(0, 10),
+      scheduledDate: '2026-10-24',
       timeZone: 'Asia/Shanghai',
       plannedDurationMinutes: 45,
     );

@@ -1,6 +1,8 @@
 import '../errors/user_error_message.dart';
 import 'dart:async';
 import 'execution_reminder.dart';
+import '../lifecycle/close_resources.dart';
+import 'package:flutter/foundation.dart';
 
 import 'notification_dispatcher.dart';
 import 'reminder_store.dart';
@@ -63,6 +65,8 @@ class AppNotificationService {
   StreamSubscription<void>? _changes;
   Future<void>? _refreshing;
   bool _refreshAgain = false;
+  bool _disposed = false;
+  Future<void>? _closing;
   Future<void> _actions = Future<void>.value();
   final _settingsChanges = StreamController<void>.broadcast();
   Stream<void> get settingsChanges => _settingsChanges.stream;
@@ -70,7 +74,9 @@ class AppNotificationService {
   bool get supportsScheduling => _dispatcher.supportsScheduling;
 
   Future<void> setReminderLeadMinutes(int minutes) async {
+    if (_disposed) throw StateError('提醒服务已关闭');
     await _store.setReminderLeadMinutes(minutes);
+    if (_disposed) return;
     _settingsChanges.add(null);
     try {
       await refresh();
@@ -94,14 +100,17 @@ class AppNotificationService {
   }
 
   void _emit(NotificationUiAction action) {
-    if (_uiActions.isClosed) return;
+    if (_disposed || _uiActions.isClosed) return;
+    if (_pendingUiActions.length >= 64) _pendingUiActions.removeAt(0);
     _pendingUiActions.add(action);
     _uiActions.add(action);
   }
 
   /// 挂接变更流并做一次启动对账；App 启动/回前台都调用它。
   Future<void> start() async {
+    if (_disposed) return;
     await _store.load();
+    if (_disposed) return;
     _settingsChanges.add(null);
     _changes ??= _missions.changes.listen((_) {
       unawaited(
@@ -115,6 +124,7 @@ class AppNotificationService {
 
   /// 对账 + 全量重排（幂等，重启安全）。只整理提醒，不写任何业务事实。
   Future<void> refresh() {
+    if (_disposed) return Future.value();
     _refreshAgain = true;
     return _refreshing ??= _runRefresh().whenComplete(() => _refreshing = null);
   }
@@ -129,6 +139,11 @@ class AppNotificationService {
         final execution = _store.notificationIds[_executionKey(id)];
         if (execution != null) await _dispatcher.cancel(execution);
         await _store.discard(id);
+        await _store.forgetNotificationIds(
+          _store.notificationIds.keys.where(
+            (key) => key.startsWith('mission-$id-'),
+          ),
+        );
       }
       final hasRunning = missions.any(
         (item) => item.phase == MissionPhase.running,
@@ -137,7 +152,7 @@ class AppNotificationService {
         await _syncOne(detail, hasRunning: hasRunning);
       }
       await _store.rememberSynchronizedMissions(current);
-    } while (_refreshAgain);
+    } while (_refreshAgain && !_disposed);
   }
 
   void reportFailure(String message) {
@@ -153,13 +168,17 @@ class AppNotificationService {
   Future<void> _cancelStartReminders(
     String missionId, {
     String? keepKey,
+    Set<String> retainedKeys = const {},
   }) async {
     final prefix = 'mission-$missionId-startReminder-';
+    final removed = <String>[];
     for (final entry in _store.notificationIds.entries) {
       if (entry.key.startsWith(prefix) && entry.key != keepKey) {
         await _dispatcher.cancel(entry.value);
+        if (!retainedKeys.contains(entry.key)) removed.add(entry.key);
       }
     }
+    await _store.forgetNotificationIds(removed);
   }
 
   Future<void> _syncOne(
@@ -191,12 +210,19 @@ class AppNotificationService {
     } else if (!started && !cancelled && scheduled != null && minutes >= 0) {
       keepReminderKey = _key(missionId, detail.schedule.id);
     }
-    await _cancelStartReminders(missionId, keepKey: keepReminderKey);
+    await _cancelStartReminders(
+      missionId,
+      keepKey: keepReminderKey,
+      retainedKeys: !started && !cancelled && scheduled != null
+          ? {_key(missionId, detail.schedule.id), waitingKey}
+          : const {},
+    );
     if (cancelled || ended) {
       // 已结束/已取消：开始提醒与执行通知一并清理（§7.2：END 后清理执行通知）。
-      await _store.discard(missionId);
       final executionId = _store.notificationIds[_executionKey(missionId)];
       if (executionId != null) await _dispatcher.cancel(executionId);
+      await _store.discard(missionId);
+      await _store.forgetNotificationIds([_executionKey(missionId)]);
       return;
     }
     if (started) {
@@ -266,6 +292,7 @@ class AppNotificationService {
     ReminderRequest request, {
     required String actionId,
   }) {
+    if (_disposed) return Future.value(NotificationActionResult.stale);
     final result = _actions.then(
       (_) => _handleAction(request, actionId: actionId),
     );
@@ -419,12 +446,23 @@ class AppNotificationService {
 
   String _executionKey(String missionId) => 'mission-$missionId-execution';
 
-  Future<void> dispose() async {
-    await _changes?.cancel();
+  Future<void> dispose() => _closing ??= _dispose();
+
+  Future<void> _dispose() async {
+    _disposed = true;
+    await closeResources(
+      [
+        (name: 'changes', close: () async => _changes?.cancel()),
+        (name: 'actions', close: () => _actions),
+        (name: 'refresh', close: () async => _refreshing),
+        (name: 'settings', close: _settingsChanges.close),
+        (name: 'ui', close: _uiActions.close),
+      ],
+      onError: (name, error, stack) {
+        debugPrint('提醒资源释放失败 [$name]：${error.runtimeType}\n$stack');
+      },
+    );
     _changes = null;
-    await _actions;
-    await _refreshing;
-    await _settingsChanges.close();
-    await _uiActions.close();
+    _pendingUiActions.clear();
   }
 }

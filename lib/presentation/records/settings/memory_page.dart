@@ -27,7 +27,8 @@ String _kindLabel(Object? kind) => switch (kind) {
 
 /// 日记本直接读取结构化记忆，保留来源、更正和忘记的业务规则。
 class MemoryPage extends StatefulWidget {
-  const MemoryPage({super.key});
+  const MemoryPage({super.key, this.clock = DateTime.now});
+  final DateTime Function() clock;
   @override
   State<MemoryPage> createState() => _MemoryPageState();
 }
@@ -74,7 +75,7 @@ class _MemoryPageState extends State<MemoryPage> {
       context: context,
       isDismissible: false,
       enableDrag: false,
-      builder: (_) => _MemoryEditor(entry: entry),
+      builder: (_) => _MemoryEditor(entry: entry, clock: widget.clock),
     );
     if (saved == true && mounted) load();
   }
@@ -129,7 +130,7 @@ class _MemoryPageState extends State<MemoryPage> {
   Widget memoryCard(Map<String, Object?> entry) {
     final expiry = entry['expires_at'] as int?;
     final expired =
-        expiry != null && expiry <= DateTime.now().millisecondsSinceEpoch;
+        expiry != null && expiry <= widget.clock().millisecondsSinceEpoch;
     final source = entry['source'] as String;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppLayout.spaceMd),
@@ -493,7 +494,8 @@ class _MemoryToolbar extends StatelessWidget {
 
 /// 编辑弹层自己持有输入控制器，关闭动画结束前不提前释放。
 class _MemoryEditor extends StatefulWidget {
-  const _MemoryEditor({this.entry});
+  const _MemoryEditor({this.entry, required this.clock});
+  final DateTime Function() clock;
   final Map<String, Object?>? entry;
   @override
   State<_MemoryEditor> createState() => _MemoryEditorState();
@@ -557,7 +559,7 @@ class _MemoryEditorState extends State<_MemoryEditor> {
   }
 
   Future<void> chooseExpiry() async {
-    final now = DateTime.now();
+    final now = widget.clock();
     final picked = await showAppDatePicker(
       context: context,
       initialDate: _expiry ?? now,

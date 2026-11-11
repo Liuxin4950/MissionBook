@@ -363,26 +363,46 @@ class AssistantLauncherState extends State<AssistantLauncher> {
   Future<void> _closeBubble() async {
     if (_transitioning) return;
     _transitioning = true;
-    _preserveVoiceDraft();
-    _recording = false;
-    _hide();
-    await _scope!.voice.cancel();
-    _transitioning = false;
+    try {
+      _preserveVoiceDraft();
+      _recording = false;
+      _hide();
+      await _scope!.voice.cancel();
+    } catch (error, stack) {
+      _reportTransitionError(error, stack);
+    } finally {
+      _transitioning = false;
+    }
   }
 
   Future<void> _expand({String? operationCallId}) async {
     if (_transitioning) return;
     _transitioning = true;
-    _preserveVoiceDraft();
-    if (_recording) await _scope!.voice.cancel();
-    _recording = false;
-    if (!mounted) return;
-    _hide();
-    _transitioning = false;
-    await showAssistantConversation(
-      context,
-      initialOperationCallId: operationCallId,
-    );
+    try {
+      _preserveVoiceDraft();
+      if (_recording) await _scope!.voice.cancel();
+      _recording = false;
+      if (!mounted) return;
+      _hide();
+      _transitioning = false;
+      await showAssistantConversation(
+        context,
+        initialOperationCallId: operationCallId,
+      );
+    } catch (error, stack) {
+      _reportTransitionError(error, stack);
+    } finally {
+      _transitioning = false;
+    }
+  }
+
+  void _reportTransitionError(Object error, StackTrace stack) {
+    debugPrint('助手入口切换失败：${error.runtimeType}\n$stack');
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('助手打开失败，草稿已保留，请重试')));
+    }
   }
 
   Future<void> _sendVoice() async {

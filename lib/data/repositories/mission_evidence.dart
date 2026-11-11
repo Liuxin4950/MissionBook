@@ -45,8 +45,12 @@ class _MissionEvidence {
         );
       },
     );
-    return result ??
-        _submissionResult((await _repository.findDetail(missionId))!);
+    if (result != null) return result!;
+    final current = await _repository.findDetail(missionId);
+    if (current == null) {
+      throw const EvidenceConflict('任务已被删除，请返回列表刷新；原提交不会重新执行');
+    }
+    return _submissionResult(current);
   }
 
   Future<EvidenceSubmissionResult> _attachRecordEvidence(

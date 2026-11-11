@@ -15,6 +15,58 @@ abstract interface class TokenEstimator {
 /// 按文本字符估算并预留余量；图片独立计数，base64 不参与文本 token 估算。
 final class ApproximateTokenEstimator implements TokenEstimator {
   const ApproximateTokenEstimator();
+  static final Map<String, int> _strings = <String, int>{};
+  static var _cachedCharacters = 0;
+
+  // JSON 字符串转义与权重按原文缓存；压缩试算复用旧消息时不反复遍历正文。
+  static int _stringWeight(String value) {
+    final cached = _strings.remove(value);
+    if (cached != null) {
+      _strings[value] = cached;
+      return cached;
+    }
+    var weight = 0;
+    for (final rune in jsonEncode(value).runes) {
+      weight += rune < 128
+          ? 4
+          : rune >= 0x3400 && rune <= 0x9fff
+          ? 8
+          : rune > 0xffff
+          ? 30
+          : 15;
+    }
+    if (value.length <= 8192) {
+      while (_strings.isNotEmpty &&
+          (_strings.length >= 256 ||
+              _cachedCharacters + value.length > 65536)) {
+        final first = _strings.keys.first;
+        _cachedCharacters -= first.length;
+        _strings.remove(first);
+      }
+      _strings[value] = weight;
+      _cachedCharacters += value.length;
+    }
+    return weight;
+  }
+
+  static int _jsonWeight(Object? value) {
+    if (value is String) return _stringWeight(value);
+    if (value is List) {
+      return 8 +
+          (value.isEmpty ? 0 : (value.length - 1) * 4) +
+          value.fold<int>(0, (sum, item) => sum + _jsonWeight(item));
+    }
+    if (value is Map<String, Object?>) {
+      return 8 +
+          (value.isEmpty ? 0 : (value.length - 1) * 4) +
+          value.entries.fold<int>(
+            0,
+            (sum, entry) =>
+                sum + _stringWeight(entry.key) + 4 + _jsonWeight(entry.value),
+          );
+    }
+    return jsonEncode(value).length * 4;
+  }
 
   @override
   int estimate(ModelProfile profile, ModelRequest request) {
@@ -51,20 +103,11 @@ final class ApproximateTokenEstimator implements TokenEstimator {
     final body = encodeModelRequest(profile, textRequest, stream: false);
     // 只估算模型实际接收的输入：系统提示、消息和工具定义。
     // max_tokens、stream、temperature 等控制参数不占输入 token。
-    final text = jsonEncode({
+    final weight = _jsonWeight({
       for (final key in ['system', 'messages', 'tools'])
         if (body.containsKey(key)) key: body[key],
     });
-    var estimated = 0.0;
-    for (final rune in text.runes) {
-      if (rune < 128) {
-        estimated += 0.4; // 官方英文近似 0.3，再留本地余量。
-      } else if (rune >= 0x3400 && rune <= 0x9fff) {
-        estimated += 0.8; // 官方中文近似 0.6；不把三个 UTF-8 字节算成三个 token。
-      } else {
-        estimated += rune > 0xffff ? 3 : 1.5;
-      }
-    }
-    return estimated.ceil() + imageTokens + messages.length * 8;
+    // 使用十分之一 token 的整数权重，避免多次累加浮点误差。
+    return (weight + 9) ~/ 10 + imageTokens + messages.length * 8;
   }
 }

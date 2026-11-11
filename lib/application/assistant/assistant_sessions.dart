@@ -538,7 +538,7 @@ class _AssistantSessions {
     if (_controller._changingConversation) throw StateError('正在切换会话，请稍候');
     if (_controller._configuring) throw StateError('正在保存助手设置，请稍候');
     if (!_controller._initialized && _controller._runtime == null) {
-      throw StateError('助手正在初始化，请稍候');
+      throw StateError(_controller._errorMessage ?? '助手正在初始化，请稍候');
     }
   }
 

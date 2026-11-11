@@ -14,6 +14,9 @@ abstract interface class ReminderStore {
   Future<void> setReminderLeadMinutes(int minutes);
   Future<void> rememberSynchronizedMissions(Set<String> ids);
   Future<int> notificationIdOf(String key);
+
+  /// 对应系统通知已成功撤销后，回收过期键；已分配的数字不重复使用。
+  Future<void> forgetNotificationIds(Iterable<String> keys);
   Future<void> markDelivered(String missionId);
   Future<void> markWaitingDelivered(String missionId);
   Future<void> register({

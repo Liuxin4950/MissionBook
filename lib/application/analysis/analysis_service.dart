@@ -1,6 +1,7 @@
 import '../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'analysis_preferences.dart';
 
 class AnalysisWork {
@@ -278,8 +279,9 @@ class AnalysisService {
         } on AnalysisUnavailable catch (e) {
           await store.fail(job, e.message, blocked: true);
           if (e.message.startsWith('未配置')) break;
-        } catch (_) {
+        } catch (error, stack) {
           // 不把供应商响应或凭据写入错误字段。
+          debugPrint('分析请求失败 [${job.scope.name}]：${error.runtimeType}\n$stack');
           await store.fail(job, '分析请求失败，请检查网络或模型配置后重试');
         }
         if (!_changes.isClosed) _changes.add(null);

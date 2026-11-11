@@ -100,6 +100,10 @@ class PlannedMissionScheduler {
     _timer?.cancel();
     _retryTimer?.cancel();
     await _changes?.cancel();
-    await _refreshing;
+    try {
+      await _refreshing;
+    } catch (_) {
+      // 刷新错误由调用者或 refreshSafely 处理；释放继续，不能阻断数据库关闭。
+    }
   }
 }
