@@ -240,8 +240,7 @@ class _AssistantComposer {
                             ),
                       itemBuilder: (_) => [
                         if (kIsWeb ||
-                            defaultTargetPlatform == TargetPlatform.android ||
-                            defaultTargetPlatform == TargetPlatform.iOS)
+                            defaultTargetPlatform == TargetPlatform.android)
                           _composerMenuItem(
                             'camera',
                             Icons.photo_camera_outlined,

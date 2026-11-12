@@ -1,6 +1,6 @@
 # MissionBook 协作入口
 
-先读 `docs/README.md`、`docs/架构/总览.md` 和涉及模块的总览，再核对源码。用户已明确旧领域文档存在过时与错误内容；早期需求、设计与课程资料已按主题归入 `docs/`（见 `docs/README.md`），仅供追溯，不能据其禁止新需求或回退当前行为。需求冲突按用户最新要求分析，现状依据真实代码与验证。
+先读 `docs/README.md`、`docs/架构/README.md` 和涉及模块的 README，再核对源码。用户已明确旧领域文档存在过时与错误内容；早期需求、设计与课程资料已按主题归入 `docs/`（见 `docs/README.md`），仅供追溯，不能据其禁止新需求或回退当前行为。需求冲突按用户最新要求分析，现状依据真实代码与验证。
 
 涉及事件、阶段或事务时，复用唯一时间线核心，核对完整 `deriveMissionPhase` 的生产调用。当前包含 STOP 和 reportPending；`derivePreEndMissionPhase` 仅是限定输入域的辅助入口，不能用枚举声明或纯规则测试冒充写入闭环完成。
 

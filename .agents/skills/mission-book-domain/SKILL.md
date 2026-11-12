@@ -11,13 +11,13 @@ metadata:
 
 ## 来源与边界
 
-这是项目辅助审查索引，不是 Dart/Flutter 官方规范，也不是冻结的产品规格。用户已明确旧领域文档部分过时或错误；用户最新决定优先。先读 `docs/README.md`、`docs/架构/总览.md` 与涉及模块，再核对当前源码和调用链。早期需求、设计与课程资料及本技能 references 的旧摘录仅供追溯，不能覆盖现行实现或阻止新需求。
+这是项目辅助审查索引，不是 Dart/Flutter 官方规范，也不是冻结的产品规格。用户已明确旧领域文档部分过时或错误；用户最新决定优先。先读 `docs/README.md`、`docs/架构/README.md` 与涉及模块，再核对当前源码和调用链。早期需求、设计与课程资料及本技能 references 的旧摘录仅供追溯，不能覆盖现行实现或阻止新需求。
 
 ## 当前检查入口
 
 - 事件、阶段与计时：`execution_event.dart`、`mission_phase.dart`、`execution_event_rules.dart`、`execution_time_rules.dart` 及 `MissionDetail`。
 - 任务写入：`MissionService`、`DriftMissionRepository` 及其 command / execution / scheduling / evidence 协作者。
-- 材料与记录：`docs/架构/前端/任务与材料/总览.md`；材料可以在执行前保存，关联已有记录要经过统一材料命令。
+- 材料与记录：`docs/架构/前端/任务与材料/README.md`；材料可以在执行前保存，关联已有记录要经过统一材料命令。
 - 助手与总结：`docs/架构/前端/助手与总结/总览.md`；已有 AI 能力需按真实代码审查，不能按旧“未来能力”排除。
 - 数据库：`AppDatabase.schemaVersion` 与当前建库结构，不假设固定八张表或旧版本。
 

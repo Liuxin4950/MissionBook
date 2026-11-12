@@ -13,7 +13,7 @@ flutter run -d web-server --web-hostname 127.0.0.1 --web-port 8085 --cross-origi
 
 编译完成后打开 [MissionBook 本机预览](http://127.0.0.1:8085)。终端保持运行，按 `q` 停止；修改 Dart 后可在终端按 `r` 热重载或 `R` 热重启。
 
-- `-d web-server` 明确选择浏览器服务，避免默认启动 Linux 桌面。
+- `-d web-server` 明确选择浏览器服务，不依赖默认设备选择。
 - `127.0.0.1:8085` 固定本机访问地址；服务仅绑定本机。
 - `--cross-origin-isolation` 提供浏览器文件存储和 Worker 所需的隔离响应头。
 - `--no-web-resources-cdn` 从本地服务加载 Flutter 渲染资源，减少预览时对外部 CDN 的依赖。
@@ -30,7 +30,7 @@ flowchart TD
   A[已有：创建 / 查询业务入口] --> R[已有：DriftMissionRepository]
   R --> D[已有：AppDatabase 与 schema v1]
   D --> N[已有：原生 SQLite 文件]
-  N --> P[Windows / Android / Linux 应用支持目录]
+  N --> P[Windows / Android 应用支持目录]
   D --> W[本轮接通：浏览器 Worker 与 SQLite WASM]
   W --> B[浏览器 OPFS 或 IndexedDB 存储]
 ```

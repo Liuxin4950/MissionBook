@@ -41,7 +41,7 @@ Windows 使用同一 v4 彩色母版，圆角透明轮廓与 Android 普通图�
 
 Android 已采用此版彩色图标。普通与圆形 PNG 导出五档 48/72/96/144/192 px；adaptive 前景导出 108/162/216/324/432 px。v26 与 v33 共用相同前景和背景引用。108 dp 图层中，72 dp 为系统裁切视口，中心直径 66 dp 圆为安全区；本版母图逐像素检查的最大不透明像素半径约 275.85 px，小于 330 px 的安全区半径。
 
-Android 13 单色主题与通知图标继续采用现有简化书本勾 `ic_notification`，以保留其单色表达和通知辨识度。Windows、Web、iOS、macOS 的平台入口暂未更换。
+Android 13 单色主题与通知图标继续采用现有简化书本勾 `ic_notification`，以保留其单色表达和通知辨识度。Windows、Web 的平台入口暂未更换；iOS/macOS 工程目录已于 2026-11-12 移除，不再提供平台入口。
 
 依据：[Android adaptive icons](https://developer.android.com/develop/ui/compose/system/icon_design_adaptive)。本次仅替换品牌图片与 Android 颜色资源，不涉及业务或学习课程变更。
 

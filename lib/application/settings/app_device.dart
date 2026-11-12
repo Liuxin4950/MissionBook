@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'local_profile.dart';
 export 'local_profile.dart';
 
-enum DevicePlatform { android, windows, ios, macos, linux, web, other }
+enum DevicePlatform { android, windows, web, other }
 
 /// 系统能力只描述查询结果，不把权限获准等同于提醒服务已经接通。
 class DeviceCapabilities {

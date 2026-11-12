@@ -44,12 +44,6 @@ class NativeAppDevice implements AppDevice {
         ? DevicePlatform.android
         : Platform.isWindows
         ? DevicePlatform.windows
-        : Platform.isIOS
-        ? DevicePlatform.ios
-        : Platform.isMacOS
-        ? DevicePlatform.macos
-        : Platform.isLinux
-        ? DevicePlatform.linux
         : DevicePlatform.other;
     if (!Platform.isAndroid && !Platform.isWindows) {
       return DeviceCapabilities(version: '当前平台无法读取版本', platform: platform);
