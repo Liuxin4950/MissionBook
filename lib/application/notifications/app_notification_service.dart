@@ -134,7 +134,17 @@ class AppNotificationService {
       _refreshAgain = false;
       final missions = await _missions.findReminderCandidates();
       final current = missions.map((detail) => detail.mission.id).toSet();
-      for (final id in _store.synchronizedMissions.difference(current)) {
+      final hasRunning = missions.any(
+        (item) => item.phase == MissionPhase.running,
+      );
+      // 候选查询有条数上限，落榜不等于任务消失：按编号重读真实事实，
+      // 只有确实已删除的才清理，其余继续同步，避免远期固定任务被撤销提醒。
+      final dropped = _store.synchronizedMissions.difference(current);
+      final revived = dropped.isEmpty
+          ? const <MissionDetail>[]
+          : await _missions.findDetailsByIds(dropped.toList());
+      final found = {for (final detail in revived) detail.mission.id};
+      for (final id in dropped.difference(found)) {
         await _cancelStartReminders(id);
         final execution = _store.notificationIds[_executionKey(id)];
         if (execution != null) await _dispatcher.cancel(execution);
@@ -145,13 +155,10 @@ class AppNotificationService {
           ),
         );
       }
-      final hasRunning = missions.any(
-        (item) => item.phase == MissionPhase.running,
-      );
-      for (final detail in missions) {
+      for (final detail in [...missions, ...revived]) {
         await _syncOne(detail, hasRunning: hasRunning);
       }
-      await _store.rememberSynchronizedMissions(current);
+      await _store.rememberSynchronizedMissions({...current, ...found});
     } while (_refreshAgain && !_disposed);
   }
 

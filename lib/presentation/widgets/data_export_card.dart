@@ -4,6 +4,7 @@ import '../../application/backup/backup_service.dart';
 import '../../application/settings/app_device.dart';
 import '../../core/theme/app_layout.dart';
 import '../../core/theme/colors.dart';
+import '../me/backup_scope_page.dart';
 import 'adaptive_sheet.dart';
 import 'app_section_card.dart';
 
@@ -18,18 +19,29 @@ class DataExportCard extends StatefulWidget {
 
 class _DataExportCardState extends State<DataExportCard> {
   bool _exporting = false;
+  bool _choosing = false;
   bool _backupFailed = false;
   String? _backupMessage;
 
   Future<void> _export() async {
-    if (_exporting) return;
+    if (_exporting || _choosing) return;
+    setState(() => _choosing = true);
+    final Set<BackupResource>? resources;
+    try {
+      resources = await Navigator.of(context).push<Set<BackupResource>>(
+        MaterialPageRoute(builder: (_) => const BackupScopePage()),
+      );
+    } finally {
+      if (mounted) setState(() => _choosing = false);
+    }
+    if (!mounted || resources == null) return;
     setState(() {
       _exporting = true;
       _backupFailed = false;
       _backupMessage = '正在准备数据与正式附件…';
     });
     try {
-      final bytes = await widget.backup.create();
+      final bytes = await widget.backup.create(resources: resources);
       if (!mounted) return;
       setState(() => _backupMessage = '备份已准备好，请选择保存位置');
       final stamp = DateTime.now().toUtc().toIso8601String().replaceAll(
@@ -77,9 +89,13 @@ class _DataExportCardState extends State<DataExportCard> {
                 ],
               ),
               const SizedBox(height: AppLayout.spaceLg),
-              _detail(sheetContext, '包含', '数据库完整快照、正式材料原件和已保存的助手会话。'),
+              _detail(
+                sheetContext,
+                '包含',
+                '数据库完整快照、正式材料原件和已保存的助手会话；导出前可勾选是否带走 API Key 与助手设置、本机资料与偏好、离线语音模型。',
+              ),
               const SizedBox(height: AppLayout.spaceMd),
-              _detail(sheetContext, '不含', 'API Key、未发送草稿、缓存、本机资料和提醒偏好。'),
+              _detail(sheetContext, '不含', '未发送草稿与缓存文件。'),
               const SizedBox(height: AppLayout.spaceMd),
               _detail(
                 sheetContext,
@@ -120,7 +136,7 @@ class _DataExportCardState extends State<DataExportCard> {
     final text = Theme.of(context).textTheme;
     final action = TextButton.icon(
       key: const Key('backup-export'),
-      onPressed: _exporting ? null : _export,
+      onPressed: _exporting || _choosing ? null : _export,
       style: TextButton.styleFrom(
         textStyle: text.labelMedium,
         minimumSize: const Size(0, AppLayout.touchTargetMin),

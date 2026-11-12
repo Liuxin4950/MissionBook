@@ -8,6 +8,10 @@ import 'package:mission_book/application/attachments/attachment_file_service.dar
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/backup/database_backup_restorer.dart';
 import 'package:mission_book/data/backup/database_backup_service.dart';
+import 'package:mission_book/application/backup/backup_service.dart';
+import 'package:mission_book/data/backup/local_resources_base.dart';
+import 'package:mission_book/data/backup/backup_archive.dart';
+import '../support/local_resources_fake.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
@@ -42,6 +46,22 @@ class RestoreFiles implements AttachmentStore {
 class _Picker implements ImageAttachmentPicker {
   @override
   Future<SelectedAttachment?> pick() async => null;
+}
+
+/// 把中央目录中指定条目伪装成 UNIX 符号链接（S_IFLNK | 0777，创建者版本 3）。
+Uint8List _asSymlink(Uint8List source, String name) {
+  final bytes = Uint8List.fromList(source);
+  final data = ByteData.sublistView(bytes);
+  for (var i = 0; i + 46 <= bytes.length; i++) {
+    if (data.getUint32(i, Endian.little) != 0x02014b50) continue;
+    final length = data.getUint16(i + 28, Endian.little);
+    if (i + 46 + length > bytes.length) continue;
+    if (utf8.decode(bytes.sublist(i + 46, i + 46 + length)) != name) continue;
+    data.setUint16(i + 4, 0x031e, Endian.little);
+    data.setUint32(i + 38, 0xa1ff0000, Endian.little);
+    return bytes;
+  }
+  throw StateError('备份中找不到条目 $name');
 }
 
 void main() {
@@ -333,6 +353,24 @@ void main() {
       );
     }
   });
+  test('符号链接条目在任何解压发生前被拒绝', () async {
+    // archive 对 UNIX 链接条目会在 decodeBytes 内立即 readBytes，
+    // 因此必须只读中央目录就拒绝，不能等解码后再看 symbolicLink。
+    final linked = _asSymlink(zip, 'manifest.json');
+    expect(
+      () => decodeBackupArchive(linked),
+      throwsA(isA<FormatException>()),
+    );
+    await expectLater(
+      importer.prepareRestore(linked),
+      throwsA(isA<FormatException>()),
+    );
+    expect(
+      (await targetMissions.findAllDetails()).single.mission.title,
+      '当前旧任务',
+    );
+  });
+
   test('备份中触发器仅作说明，不能安装或执行备份自带SQL', () async {
     final bytes = modifyZip(
       sql: (s) => s.replaceFirst(
@@ -348,5 +386,50 @@ void main() {
           .get(),
       isEmpty,
     );
+  });
+
+  test('恢复写回包内本机资源，未包含的类别保持目标设备值', () async {
+    final exported = FakeLocalResources();
+    final bytes = await DatabaseBackupService(
+      database: source,
+      readAttachment: sourceFiles.read,
+      localResources: exported,
+    ).create(resources: BackupResource.values.toSet());
+    final received = FakeLocalResources();
+    final restorer = DatabaseBackupRestorer(
+      database: target,
+      files: targetFiles,
+      attachments: targetMissions.attachments,
+      localResources: received,
+    );
+    final plan = await restorer.prepareRestore(bytes);
+    expect(plan.resources, BackupResource.values.toSet());
+    await restorer.restore(plan);
+    expect(received.applied, isNotNull);
+    expect(
+      received.applied!.keys,
+      containsAll([localResourcesEntry, '${speechEntryPrefix}model.int8.onnx']),
+    );
+    expect(
+      received.applied!['${speechEntryPrefix}model.int8.onnx'],
+      exported.model,
+    );
+
+    // 不含本机资源的旧备份照常恢复，类别为空且不写回任何设置。
+    final bare = await DatabaseBackupService(
+      database: source,
+      readAttachment: sourceFiles.read,
+    ).create(resources: const {});
+    final bareTarget = FakeLocalResources();
+    final bareRestorer = DatabaseBackupRestorer(
+      database: target,
+      files: targetFiles,
+      attachments: targetMissions.attachments,
+      localResources: bareTarget,
+    );
+    final barePlan = await bareRestorer.prepareRestore(bare);
+    expect(barePlan.resources, isEmpty);
+    await bareRestorer.restore(barePlan);
+    expect(bareTarget.applied, isEmpty);
   });
 }

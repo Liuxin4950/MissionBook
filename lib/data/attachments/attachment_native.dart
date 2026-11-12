@@ -116,6 +116,7 @@ class NativeAttachmentStore implements AttachmentStore {
       await file.writeAsBytes(bytes, flush: true);
     } catch (_) {
       // 文件属于本次尚未返回的准备操作，失败只回收自己的不完整副本。
+      // 数据库引用在本次返回之后才写入，因此半截副本不会被任何事实引用。
       try {
         await file.delete();
       } catch (_) {

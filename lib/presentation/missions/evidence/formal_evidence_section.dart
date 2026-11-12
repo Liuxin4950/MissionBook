@@ -162,21 +162,25 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
     if (_busy || (_draft != null && !await _confirmDiscard()) || !mounted) {
       return;
     }
-    if (original.attachmentStorageKey == null) {
-      final draft = widget.service.createTextEvidence(
-        original.content ?? '',
-        type: original.type,
-        supersedesEvidenceId: original.id,
-      );
-      setState(() {
-        _original = original;
-        _draft = draft;
-        _content = TextEditingController(text: draft.content);
-        _error = null;
-      });
+    if (original.attachmentStorageKey != null && !_attachmentsReady) return;
+    // 文字和附件都先沿用原材料进入草稿：说明可以直接改，
+    // 换文件是草稿内的独立动作，不再强迫用户为了改一句话重选一次附件。
+    final draft = widget.service.draftCorrection(original);
+    setState(() {
+      _original = original;
+      _draft = draft;
+      _content = TextEditingController(text: draft.content);
+      _error = null;
+    });
+  }
+
+  /// 更换附件：保留用户已经改过的说明，上一版草稿交给协调器判断能否清理。
+  Future<void> _replaceAttachment() async {
+    final original = _original;
+    final previous = _draft;
+    if (_busy || original == null || previous == null || !_attachmentsReady) {
       return;
     }
-    if (!_attachmentsReady) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -197,18 +201,21 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
         }
         return;
       }
-      if (picked != null) {
-        final draft = picked.copyWithContent(original.content);
-        setState(() {
-          _original = original;
-          _draft = draft;
-          _content = TextEditingController(text: draft.content);
-        });
-      }
+      if (picked == null) return;
+      final content = _content?.text;
+      setState(() {
+        _draft = picked.copyWithContent(
+          content == null || content.trim().isEmpty ? null : content,
+        );
+      });
+      await widget.service.discardEvidenceDrafts([previous]);
     } catch (error) {
       if (mounted) {
         setState(
-          () => _error = userErrorMessage(error, fallback: '选择替代附件失败，请重新选择'),
+          () => _error = userErrorMessage(
+            error,
+            fallback: '选择替代附件失败，请重新选择',
+          ),
         );
       }
     } finally {
@@ -444,10 +451,10 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
         if (draft.type == ContentType.image)
           _image(
             draft.attachmentStorageKey!,
-            draft.attachmentFileName ?? '替代图片',
+            draft.attachmentFileName ?? '图片材料',
           ),
         if (draft.type == ContentType.file)
-          Text('替代文件：${draft.attachmentFileName}'),
+          Text('附件：${draft.attachmentFileName}'),
         const SizedBox(height: AppLayout.spaceSm),
         TextField(
           key: const Key('evidence-correction-content'),
@@ -474,6 +481,17 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
               onPressed: _busy ? null : () => unawaited(_confirmDiscard()),
               child: const Text('丢弃草稿'),
             ),
+            if (draft.attachmentStorageKey != null)
+              TextButton.icon(
+                key: const Key('evidence-correction-replace'),
+                onPressed: _busy || _pending != null
+                    ? null
+                    : _replaceAttachment,
+                icon: const Icon(Icons.swap_horiz, size: AppLayout.iconSm),
+                label: Text(
+                  draft.type == ContentType.image ? '更换图片' : '更换文件',
+                ),
+              ),
           ],
         ),
       ],

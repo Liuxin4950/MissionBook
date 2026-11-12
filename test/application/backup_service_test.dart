@@ -6,6 +6,10 @@ import 'package:archive/archive.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/data/backup/database_backup_service.dart';
+import 'package:mission_book/application/backup/backup_service.dart';
+import 'package:mission_book/data/backup/backup_archive.dart';
+import 'package:mission_book/data/backup/local_resources_base.dart';
+import '../support/local_resources_fake.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/attachments/attachment_coordinator.dart';
@@ -326,5 +330,69 @@ void main() {
     await backup;
     await cleanup;
     expect(cleaned, isTrue);
+  });
+
+  test('导出按勾选携带本机资源，清单如实记录且默认不含模型', () async {
+    final resources = FakeLocalResources();
+    final backup = DatabaseBackupService(
+      database: db,
+      readAttachment: (key) async => Uint8List.fromList([1]),
+      localResources: resources,
+    );
+    final zip = ZipDecoder().decodeBytes(await backup.create(), verify: true);
+    final names = zip.files.map((file) => file.name).toSet();
+    expect(resources.requested, defaultBackupResources);
+    expect(names, contains(localResourcesEntry));
+    expect(names.where((name) => name.startsWith(speechEntryPrefix)), isEmpty);
+    final manifest =
+        jsonDecode(
+              utf8.decode(zip.findFile('manifest.json')!.content as List<int>),
+            )
+            as Map;
+    expect(manifest['resources'], ['assistantSettings', 'localPreferences']);
+    final local =
+        jsonDecode(
+              utf8.decode(
+                zip.findFile(localResourcesEntry)!.content as List<int>,
+              ),
+            )
+            as Map;
+    expect(
+      (local['assistantSettings'] as Map)['assistant_credential_DEEPSEEK_API_KEY'],
+      'sk-测试密钥',
+    );
+    expect(local['localProfile'], '{"name":"本机资料"}');
+  });
+
+  test('全不勾选时不写本机资源，勾选模型才带模型原件', () async {
+    final resources = FakeLocalResources();
+    final backup = DatabaseBackupService(
+      database: db,
+      readAttachment: (key) async => Uint8List.fromList([1]),
+      localResources: resources,
+    );
+    final bare = ZipDecoder().decodeBytes(
+      await backup.create(resources: const {}),
+      verify: true,
+    );
+    expect(bare.files.map((file) => file.name), isNot(contains(localResourcesEntry)));
+    expect(
+      (jsonDecode(utf8.decode(bare.findFile('manifest.json')!.content as List<int>))
+          as Map)['resources'],
+      isEmpty,
+    );
+
+    final full = ZipDecoder().decodeBytes(
+      await backup.create(resources: BackupResource.values.toSet()),
+      verify: true,
+    );
+    expect(
+      full.findFile('${speechEntryPrefix}model.int8.onnx')!.content,
+      resources.model,
+    );
+    final decoded = decodeBackupArchive(
+      Uint8List.fromList(ZipEncoder().encode(full)),
+    );
+    expect((decoded['resourceKinds'] as List).toSet(), BackupResource.values.toSet());
   });
 }

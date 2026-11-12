@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart'
     show debugPrint, debugPrintStack, kDebugMode;
+import 'package:image/image.dart' as img;
 import 'package:uuid/uuid.dart';
 
 /// 图片已复制到应用存储后的结果；调用者把这些值放进材料草稿。
@@ -62,6 +63,9 @@ class AttachmentFileService {
        _nextId = nextId ?? const Uuid().v4;
 
   static const maxBytes = 20 * 1024 * 1024;
+
+  /// 与助手图片一致的像素上限；超出后即使字节很小也会分配过大位图。
+  static const maxImagePixels = 40000000;
   final AttachmentStore _store;
   final ImageAttachmentPicker _picker;
   final FileAttachmentPicker? _filePicker;
@@ -168,6 +172,19 @@ class AttachmentFileService {
   }
 
   Future<void> _validateDecodableImage(Uint8List bytes) async {
+    // 字节上限不能约束像素：小体积超大尺寸 PNG 仍会按原始分辨率分配位图。
+    // 与助手图片同一口径先读首帧信息；image 包自身对超大尺寸也会抛异常，
+    // 两种情况都明确拒绝，不交给平台按原始分辨率解码。
+    var pixels = 0;
+    try {
+      final info = img.findDecoderForData(bytes)?.startDecode(bytes);
+      pixels = info == null ? 0 : info.width * info.height;
+    } catch (_) {
+      throw ArgumentError('图片像素过大或无法读取，请裁剪后重新选择');
+    }
+    if (pixels > maxImagePixels) {
+      throw ArgumentError('图片像素过大，请先裁剪后再选择');
+    }
     ui.Codec? codec;
     try {
       // Web 的 encoded ImageDescriptor 不提供 width/height；直接使用共用解码入口。

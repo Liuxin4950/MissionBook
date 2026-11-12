@@ -482,6 +482,65 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('图片材料可只改说明沿用原件，也可更换图片', (tester) async {
+    final detail = await create(pending: true);
+    await tester.pumpWidget(
+      app(
+        Scaffold(
+          body: SingleChildScrollView(
+            child: MissionEvidenceSection(
+              detail: detail,
+              service: service,
+              initiallyExpanded: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tap(tester, 'evidence-add-image');
+    await tap(tester, 'evidence-submit');
+    final saved = (await repository.findDetail(detail.mission.id))!;
+    final image = saved.evidence.single;
+    final originalKey = image.attachmentStorageKey!;
+    expect(images.files.keys, [originalKey]);
+
+    // 只改说明不再强制重选文件，草稿直接沿用原件。
+    await tap(tester, 'evidence-correct-${image.id}');
+    expect(
+      find.byKey(const Key('evidence-correction-replace')),
+      findsOneWidget,
+    );
+    expect(images.files.keys, [originalKey]);
+    await tester.enterText(
+      find.byKey(const Key('evidence-correction-content')),
+      '补充说明',
+    );
+    await tap(tester, 'evidence-correction-save');
+    final corrected = (await repository.findDetail(detail.mission.id))!;
+    expect(corrected.evidence, hasLength(2));
+    final effective = corrected.effectiveEvidence.single;
+    expect(effective.content, '补充说明');
+    expect(effective.attachmentStorageKey, originalKey);
+    expect(corrected.phase, MissionPhase.closed);
+    // 原件仍被已提交材料引用，没有被当作草稿清理。
+    expect(images.files.keys, [originalKey]);
+
+    // 更换图片后新附件有自己的原件，旧原件仍被上一版材料引用。
+    await tap(tester, 'evidence-correct-${effective.id}');
+    await tap(tester, 'evidence-correction-replace');
+    await tap(tester, 'evidence-correction-save');
+    final replaced = (await repository.findDetail(detail.mission.id))!;
+    expect(replaced.evidence, hasLength(3));
+    expect(
+      replaced.effectiveEvidence.single.attachmentStorageKey,
+      isNot(originalKey),
+    );
+    expect(images.files, hasLength(2));
+    expect(images.files.containsKey(originalKey), isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final inHistory in [true, false]) {
     testWidgets('${inHistory ? '历史小图' : '记录双列'}直接点击放大，关闭后材料和执行事实保留', (
       tester,

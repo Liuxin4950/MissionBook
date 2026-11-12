@@ -5,16 +5,30 @@ import '../../domain/entities/evidence.dart';
 import '../local/app_database.dart';
 
 /// 新材料创建记录；关联记录保留来源身份，两条入口均保存提交时的内容快照。
+/// sharedAttachment 用于只改说明的附件修正：沿用原件，不新建来源记录，
+/// 因为 records.attachment_storage_key 唯一，同一原件不能被两条记录同时持有。
 Future<void> insertEvidence(
   AppDatabase database,
   Evidence item, {
   String? existingRecordId,
+  bool sharedAttachment = false,
 }) async {
   final payload = evidenceToCompanion(item);
   final mission = await (database.select(
     database.missions,
   )..where((t) => t.id.equals(item.missionId))).getSingle();
-  if (existingRecordId == null) {
+  if (existingRecordId != null) {
+    final record = await (database.select(
+      database.records,
+    )..where((row) => row.id.equals(existingRecordId))).getSingleOrNull();
+    if (record == null ||
+        !sameEvidenceInput(
+          evidenceDraftFromRecord(record, id: item.id),
+          item,
+        )) {
+      throw const EvidenceConflict('记录内容已变化，请重新读取后关联');
+    }
+  } else if (!sharedAttachment) {
     await database
         .into(database.records)
         .insert(
@@ -34,21 +48,14 @@ Future<void> insertEvidence(
             goalNodeId: Value(mission.goalNodeId),
           ),
         );
-  } else {
-    final record = await (database.select(
-      database.records,
-    )..where((row) => row.id.equals(existingRecordId))).getSingleOrNull();
-    if (record == null ||
-        !sameEvidenceInput(
-          evidenceDraftFromRecord(record, id: item.id),
-          item,
-        )) {
-      throw const EvidenceConflict('记录内容已变化，请重新读取后关联');
-    }
   }
-  await database
-      .into(database.evidenceRecords)
-      .insert(payload.copyWith(recordId: Value(existingRecordId ?? item.id)));
+  await database.into(database.evidenceRecords).insert(
+    payload.copyWith(
+      recordId: Value(
+        sharedAttachment ? null : (existingRecordId ?? item.id),
+      ),
+    ),
+  );
 }
 
 /// 存储层把稳定文本/UTC 毫秒转换成业务类型，未知值立即报错。

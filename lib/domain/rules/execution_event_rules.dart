@@ -334,7 +334,7 @@ _ExecutionState _replayExecutionHistory(
             state != _ExecutionState.running &&
             state != _ExecutionState.paused &&
             state != _ExecutionState.stopped) {
-          throw ArgumentError('只有执行中或暂停的任务才能结束');
+          throw ArgumentError('只有执行中、暂停或已到点停止的任务才能结束');
         }
         state = _ExecutionState.ended;
         break;

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:archive/archive.dart' show getCrc32;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/attachments/attachment_file_service.dart';
 import 'package:mission_book/data/attachments/attachment_native.dart';
@@ -196,4 +197,46 @@ void main() {
     await service(null).delete(missing);
     expect(await store.listKeys(), isEmpty);
   });
+
+  test('小体积超大尺寸图片按像素上限拒绝，不落盘也不分配位图', () async {
+    // 64M 像素落在本应用上限之上、image 包自身上限之下，由本应用守卫拒绝。
+    final bytes = _oversizedPngHeader(8000, 8000);
+    expect(bytes.length, lessThan(1024));
+    await expectLater(
+      service(selection(bytes)).pickAndPrepare('mission-a'),
+      throwsA(isA<ArgumentError>()),
+    );
+    expect(await store.listKeys(), isEmpty);
+
+    // 超过 image 包自身尺寸上限时同样明确拒绝，不把原始异常抛给用户。
+    await expectLater(
+      service(selection(_oversizedPngHeader(100000, 100000)))
+          .pickAndPrepare('mission-a'),
+      throwsA(isA<ArgumentError>()),
+    );
+    expect(await store.listKeys(), isEmpty);
+  });
+}
+
+/// 只构造 PNG 签名与 IHDR：声明超大尺寸但字节极小，
+/// 用来验证字节上限拦不住、必须按像素拒绝的路径。
+Uint8List _oversizedPngHeader(int width, int height) {
+  Uint8List u32(int value) {
+    final bytes = Uint8List(4);
+    ByteData.sublistView(bytes).setUint32(0, value, Endian.big);
+    return bytes;
+  }
+
+  final chunk = <int>[
+    ...'IHDR'.codeUnits,
+    ...u32(width),
+    ...u32(height),
+    8, 2, 0, 0, 0, // 8 位真彩色，无压缩/滤波/隔行
+  ];
+  return Uint8List.fromList([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ...u32(13),
+    ...chunk,
+    ...u32(getCrc32(chunk)),
+  ]);
 }

@@ -213,14 +213,23 @@ class PlannedExecutionService : Service() {
 
 class PlannedExecutionJob : JobService() {
     private var worker: PlanWorker? = null
+    private var pending: JobParameters? = null
     override fun onStartJob(params: JobParameters): Boolean {
-        worker = PlanWorker(applicationContext) { worker = null; jobFinished(params, false) }
-            .also { it.start() }
+        // 同一作业重复下发时不覆盖正在运行的引擎；完成回调用最新参数结束作业。
+        pending = params
+        if (worker == null) {
+            worker = PlanWorker(applicationContext) {
+                worker = null
+                pending?.let { jobFinished(it, false) }
+                pending = null
+            }.also { it.start() }
+        }
         return true
     }
     override fun onStopJob(params: JobParameters): Boolean {
         worker?.cancel()
         worker = null
+        pending = null
         return true
     }
 }

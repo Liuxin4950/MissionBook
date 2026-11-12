@@ -45,7 +45,7 @@ class DataBackupPage extends StatelessWidget {
                     ),
                     const SizedBox(height: AppLayout.spaceSm),
                     Text(
-                      '不含 API Key、未发送草稿、缓存及本机设置（模型、语音、资料与提醒）。恢复时保留当前设备设置；新安装后需重新配置。',
+                      '导出前可选择是否带走 API Key 与助手设置、本机资料与偏好、离线语音模型。恢复时包内存在的资源会一并写回，未包含的类别保留当前设备值。',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],

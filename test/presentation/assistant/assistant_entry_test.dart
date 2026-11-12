@@ -391,6 +391,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(export);
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('backup-scope-confirm')));
+      await tester.pumpAndSettle();
       expect(find.text('已取消保存，可以随时重新导出'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await capture(tester, 'settings-export-${width.toInt()}');

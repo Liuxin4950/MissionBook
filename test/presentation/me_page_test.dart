@@ -12,9 +12,13 @@ class _Backup implements BackupExporter {
   int calls = 0;
   Completer<Uint8List>? pending;
   bool fail = false;
+  Set<BackupResource>? lastResources;
   @override
-  Future<Uint8List> create() async {
+  Future<Uint8List> create({
+    Set<BackupResource> resources = defaultBackupResources,
+  }) async {
     calls++;
+    lastResources = resources;
     if (fail) throw StateError('测试：缺失附件');
     return pending?.future ?? Uint8List.fromList([1, 2, 3]);
   }
@@ -98,40 +102,75 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('导出等待阻止重复操作，取消不显示成功，失败后可以重试保存', (tester) async {
+  testWidgets('导出先选范围，等待阻止重复操作，取消不显示成功，失败后可以重试保存', (tester) async {
+    Future<void> startExport({bool pending = false}) async {
+      final export = find.byKey(const Key('backup-export'));
+      await tester.ensureVisible(export);
+      await tester.pumpAndSettle();
+      await tester.tap(export);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('backup-scope-confirm')));
+      // 导出未完成时进度指示器持续动画，只能定帧推进，不能等 settle。
+      if (pending) {
+        await tester.pump();
+        await tester.pump();
+      } else {
+        await tester.pumpAndSettle();
+      }
+    }
+
     backup.pending = Completer<Uint8List>();
     await open(tester);
     await tester.ensureVisible(find.byKey(const Key('settings-backup-entry')));
     await tester.tap(find.byKey(const Key('settings-backup-entry')));
     await tester.pumpAndSettle();
+
+    // 返回放弃选择时不导出，也不留下成功提示。
     final export = find.byKey(const Key('backup-export'));
     await tester.ensureVisible(export);
+    await tester.tap(export);
     await tester.pumpAndSettle();
-    await tester.tap(export);
-    await tester.pump();
-    await tester.ensureVisible(export);
-    await tester.pump();
-    await tester.tap(export);
-    await tester.pump();
+    expect(find.byKey(const Key('backup-scope-confirm')), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(backup.calls, 0);
+
+    await startExport(pending: true);
     expect(backup.calls, 1);
+    expect(backup.lastResources, defaultBackupResources);
     expect(tester.widget<ButtonStyleButton>(export).onPressed, isNull);
     backup.pending!.complete(Uint8List.fromList([1, 2, 3]));
     await tester.pumpAndSettle();
     expect(find.text('已取消保存，可以随时重新导出'), findsOneWidget);
     backup.pending = null;
     backup.fail = true;
-    await tester.ensureVisible(export);
-    await tester.pumpAndSettle();
-    await tester.tap(export);
-    await tester.pumpAndSettle();
+    await startExport();
     expect(find.textContaining('导出失败'), findsOneWidget);
     backup.fail = false;
     device.saved = '已保存到 下载\nMissionBook.zip';
-    await tester.ensureVisible(export);
-    await tester.tap(export);
-    await tester.pumpAndSettle();
+    await startExport();
     expect(find.text('已保存到 下载\nMissionBook.zip'), findsOneWidget);
     expect(backup.calls, 3);
+  });
+
+  testWidgets('导出范围可勾选模型与取消密钥，选择结果传给导出器', (tester) async {
+    await open(tester);
+    await tester.ensureVisible(find.byKey(const Key('settings-backup-entry')));
+    await tester.tap(find.byKey(const Key('settings-backup-entry')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('backup-export')));
+    await tester.tap(find.byKey(const Key('backup-export')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('backup-scope-speechModel')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('backup-scope-assistantSettings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('backup-scope-confirm')));
+    await tester.pumpAndSettle();
+    expect(backup.lastResources, {
+      BackupResource.localPreferences,
+      BackupResource.speechModel,
+    });
   });
 
   testWidgets('窄屏大字下缺失的两个权限仍可操作', (tester) async {
@@ -317,7 +356,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('本地备份说明'), findsOneWidget);
     expect(find.textContaining('数据库完整快照'), findsOneWidget);
-    expect(find.text('API Key、未发送草稿、缓存、本机资料和提醒偏好。'), findsOneWidget);
+    expect(find.text('未发送草稿与缓存文件。'), findsOneWidget);
     expect(find.text('当前只支持导出，应用内暂不支持导入恢复。'), findsOneWidget);
     await tester.tap(find.byKey(const Key('backup-info-close')));
     await tester.pumpAndSettle();

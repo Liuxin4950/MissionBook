@@ -14,15 +14,22 @@ class _MissionScheduling {
         .where((item) => item.schedule.fixedStartAt != null)
         .toList();
     if (fixed.isEmpty) return scheduleProposalConflicts(plan, occupied);
+    // 占用窗口与 fixedTimeSlotEnd 同口径：已保存的 EXTEND 会顺延结束时刻，
+    // 只按计划时长比较会把正在延长的固定任务时段当成空闲。
+    const extension =
+        "COALESCE((SELECT SUM(e.granted_duration_minutes) FROM execution_events e "
+        "WHERE e.mission_id = m.id AND e.type = 'EXTEND'), 0)";
     // 一次读取与任一提案时段相交的当前安排；不能静默隐藏第四项及后续冲突。
     final windows = List.filled(
       fixed.length,
-      '(s.fixed_start_at < ? AND s.fixed_start_at + s.planned_duration_minutes * 60000 > ?)',
+      '(s.fixed_start_at < ? AND s.fixed_start_at + '
+          '(s.planned_duration_minutes + $extension) * 60000 > ?)',
     ).join(' OR ');
     final rows = await _repository.database
         .customSelect(
           '''
-        SELECT m.id, substr(m.title, 1, 120) AS title, s.fixed_start_at AS conflict_start, s.planned_duration_minutes AS conflict_minutes
+        SELECT m.id, substr(m.title, 1, 120) AS title, s.fixed_start_at AS conflict_start,
+          s.planned_duration_minutes + $extension AS conflict_minutes
         FROM missions m JOIN mission_schedule_revisions s ON s.mission_id = m.id
         WHERE m.cancelled_at IS NULL AND s.fixed_start_at IS NOT NULL
           AND NOT EXISTS (SELECT 1 FROM mission_schedule_revisions newer

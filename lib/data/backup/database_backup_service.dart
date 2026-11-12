@@ -7,6 +7,7 @@ import '../../application/backup/backup_service.dart';
 import '../../application/attachments/attachment_coordinator.dart';
 import '../local/app_database.dart';
 import '../repositories/drift_mission_repository.dart';
+import 'local_resources.dart';
 
 /// 事务只捕获数据库快照；附件在共享互斥保护下读取，编码和压缩不占写锁。
 class DatabaseBackupService implements BackupExporter {
@@ -14,19 +15,23 @@ class DatabaseBackupService implements BackupExporter {
     required this.database,
     required this.readAttachment,
     this.attachments,
+    this.localResources,
   });
   final AppDatabase database;
   final Future<Uint8List> Function(String key) readAttachment;
   final AttachmentCoordinator? attachments;
+  final LocalResourceStore? localResources;
 
   @override
-  Future<Uint8List> create() async {
-    final files =
-        await (attachments?.synchronized(_collectFiles) ?? _collectFiles());
+  Future<Uint8List> create({
+    Set<BackupResource> resources = defaultBackupResources,
+  }) async {
+    final files = await (attachments?.synchronized(() => _collectFiles(resources)) ??
+        _collectFiles(resources));
     return compute(_encode, files);
   }
 
-  Future<Map<String, Uint8List>> _collectFiles() async {
+  Future<Map<String, Uint8List>> _collectFiles(Set<BackupResource> resources) async {
     final snapshot = await database.transaction(() async {
       final schema = await database
           .customSelect(
@@ -127,6 +132,22 @@ class DatabaseBackupService implements BackupExporter {
     for (final key in references) {
       result[key] = await readAttachment(key);
     }
+    final local =
+        await localResources?.collect(resources) ?? const <String, Uint8List>{};
+    result.addAll(local);
+    final localSections = local.containsKey(localResourcesEntry)
+        ? jsonDecode(utf8.decode(local[localResourcesEntry]!)) as Map
+        : const <String, Object?>{};
+    final included = <String>[
+      if (localSections.containsKey('assistantSettings'))
+        BackupResource.assistantSettings.name,
+      if (localSections.containsKey('localProfile') ||
+          localSections.containsKey('motion') ||
+          localSections.containsKey('reminders'))
+        BackupResource.localPreferences.name,
+      if (local.keys.any((name) => name.startsWith(speechEntryPrefix)))
+        BackupResource.speechModel.name,
+    ];
     result['manifest.json'] = Uint8List.fromList(
       utf8.encode(
         const JsonEncoder.withIndent('  ').convert({
@@ -139,19 +160,14 @@ class DatabaseBackupService implements BackupExporter {
               .where((key) => key.startsWith('attachments/'))
               .toList(),
           'readableConversations': 'assistant-conversations.json',
-          'excludes': [
-            'apiKeys',
-            'drafts',
-            'temporaryFiles',
-            'notificationMetadata',
-            'localProfile',
-          ],
+          'resources': included,
+          'excludes': ['drafts', 'temporaryFiles', 'notificationMetadata'],
         }),
       ),
     );
     result['README.txt'] = Uint8List.fromList(
       utf8.encode(
-        'Mission Book 本地备份\n\ndatabase.sql 是一致事务内导出的 SQLite 完整逻辑快照，包含全部应用表、索引、触发器及数据库版本。\nattachments/ 保存记录、任务材料与撤销历史引用的原件。\nassistant-conversations.json 提供同一快照中的会话索引和完整原始日志，包括已发送消息、引用、附件内容及工具结果。\nmanifest.json 记录格式、导出时间与附件清单。\n在应用的数据备份页选择 ZIP，核对范围并确认后可恢复全部业务数据。\n不含 API Key、未发送草稿、缓存、模型/语音设置、本机资料及提醒偏好；恢复会保留目标设备的本机设置，新安装后需重新配置。\n',
+        'Mission Book 本地备份\n\ndatabase.sql 是一致事务内导出的 SQLite 完整逻辑快照，包含全部应用表、索引、触发器及数据库版本。\nattachments/ 保存记录、任务材料与撤销历史引用的原件。\nassistant-conversations.json 提供同一快照中的会话索引和完整原始日志，包括已发送消息、引用、附件内容及工具结果。\nlocal-resources.json 按导出时的勾选保存 API Key、助手设置、本机资料、页面动效与提醒偏好。\nspeech/ 仅在勾选离线语音模型时出现，保存已下载并通过校验的模型原件。\nmanifest.json 记录格式、导出时间、附件清单与本次带走的本机资源。\n在应用的数据备份页选择 ZIP，核对范围并确认后可恢复全部业务数据；包内存在的本机资源会一并写回，未包含的类别保留目标设备当前值。\n不含未发送草稿与缓存文件。\n',
       ),
     );
     return result;

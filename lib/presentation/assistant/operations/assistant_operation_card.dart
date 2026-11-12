@@ -76,7 +76,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                 children: [
                   _Header(operation: operation),
                   const SizedBox(height: AppLayout.spaceSm),
-                  const Text('默认权限下，查询应用数据也需要你确认。查询结果会提供给当前模型。'),
+                  const Text('询问权限下，查询应用数据也需要你确认。查询结果会提供给当前模型。'),
                   if (operation.input.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(

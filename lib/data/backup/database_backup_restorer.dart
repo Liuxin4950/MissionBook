@@ -11,6 +11,7 @@ import '../local/app_database.dart';
 import '../repositories/drift_mission_repository.dart';
 import 'backup_archive.dart';
 import 'backup_validation_database.dart';
+import 'local_resources.dart';
 
 typedef _Rows = Map<String, List<Map<String, Object?>>>;
 
@@ -19,10 +20,12 @@ class _PreparedRestore extends BackupRestorePlan {
     required this.owner,
     required this.rows,
     required this.files,
+    required this.resourceFiles,
     required this.fingerprint,
     required super.exportedAt,
     required super.counts,
     required super.currentCounts,
+    required super.resources,
   }) : super(
          attachmentCount: files.length,
          attachmentBytes: files.values.fold(
@@ -33,6 +36,7 @@ class _PreparedRestore extends BackupRestorePlan {
   final DatabaseBackupRestorer owner;
   final _Rows rows;
   final Map<String, Uint8List> files;
+  final Map<String, Uint8List> resourceFiles;
   final String fingerprint;
   bool used = false;
 }
@@ -43,10 +47,12 @@ class DatabaseBackupRestorer implements BackupRestorer {
     required this.database,
     required this.files,
     required this.attachments,
+    this.localResources,
   });
   final AppDatabase database;
   final AttachmentStore files;
   final AttachmentCoordinator attachments;
+  final LocalResourceStore? localResources;
 
   @override
   Future<BackupRestorePlan> prepareRestore(Uint8List bytes) async {
@@ -125,6 +131,8 @@ class DatabaseBackupRestorer implements BackupRestorer {
         owner: this,
         rows: rows,
         files: sourceFiles,
+        resourceFiles: (payload['resources'] as Map).cast<String, Uint8List>(),
+        resources: (payload['resourceKinds'] as List).cast<BackupResource>().toSet(),
         fingerprint: await _fingerprint(),
         exportedAt: DateTime.parse(payload['exportedAt'] as String),
         counts: Map.unmodifiable(
@@ -168,6 +176,14 @@ class DatabaseBackupRestorer implements BackupRestorer {
         });
         committed = true;
         plan.used = true;
+        // 业务数据已提交；本机资源写回失败不能谎报"原数据已保留"。
+        try {
+          await localResources?.apply(plan.resourceFiles);
+        } catch (error) {
+          throw StateError(
+            '业务数据已恢复，但本机资源写回失败：$error。请重新校验这份备份再恢复一次，或手动配置助手与本机偏好。',
+          );
+        }
         return BackupRestoreResult(plan.counts, written.length);
       } finally {
         if (!committed) {

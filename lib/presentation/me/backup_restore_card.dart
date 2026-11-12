@@ -75,7 +75,7 @@ class _BackupRestoreCardState extends State<BackupRestoreCard> {
       context: context,
       title: '用备份替换当前数据？',
       message:
-          '将恢复 ${plan.counts['missions'] ?? 0} 项任务、${plan.counts['records'] ?? 0} 条记录、${plan.counts['assistant_sessions'] ?? 0} 个会话及 ${plan.attachmentCount} 个附件。当前业务数据会被替换，API Key、本机资料和提醒偏好保留。确认前可先导出当前数据。',
+          '将恢复 ${plan.counts['missions'] ?? 0} 项任务、${plan.counts['records'] ?? 0} 条记录、${plan.counts['assistant_sessions'] ?? 0} 个会话及 ${plan.attachmentCount} 个附件。当前业务数据会被替换。${plan.resources.isEmpty ? 'API Key、本机资料和提醒偏好保留当前设备值。' : '包内的${plan.resources.map((r) => r.label).join('、')}会一并写回并替换当前值。'}确认前可先导出当前数据。',
       cancelText: '保留当前数据',
       confirmText: '替换并恢复',
     );
@@ -121,6 +121,16 @@ class _BackupRestoreCardState extends State<BackupRestoreCard> {
     final plan = _plan;
     return PopScope<void>(
       canPop: !_busy && !_confirming,
+      onPopInvokedWithResult: (didPop, _) {
+        // 校验或恢复期间返回键被拦截，必须给出原因，不能静默无响应。
+        if (!didPop && mounted) {
+          setState(
+            () => _message = _restoring
+                ? '正在恢复数据，请等待完成后再返回'
+                : '正在校验备份，请等待完成后再返回',
+          );
+        }
+      },
       child: AppSectionCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -164,6 +174,13 @@ class _BackupRestoreCardState extends State<BackupRestoreCard> {
                 ),
               Text(
                 '附件：${plan.attachmentCount} 个 · ${(plan.attachmentBytes / 1048576).toStringAsFixed(1)} MiB',
+                style: text.bodyMedium,
+              ),
+              const SizedBox(height: AppLayout.spaceXs),
+              Text(
+                plan.resources.isEmpty
+                    ? '本机资源：未包含，保留当前设备设置'
+                    : '本机资源：${plan.resources.map((r) => r.label).join('、')}',
                 style: text.bodyMedium,
               ),
               const SizedBox(height: AppLayout.spaceLg),

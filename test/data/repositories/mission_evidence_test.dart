@@ -794,4 +794,78 @@ void main() {
     expect(saved.phase, MissionPhase.closed);
     expect(saved.failures, isEmpty);
   });
+
+  test('附件材料只改说明沿用原件，换文件才新建来源记录', () async {
+    await seed('attach-fix', VerificationPolicy.optionalEvidence);
+    await finish('attach-fix', submitOptionalEvidence: true);
+    const key = 'attachments/attach-fix/photo.jpg';
+    await repository.submitEvidence(
+      EvidenceSubmission(
+        id: 'batch-attach',
+        missionId: 'attach-fix',
+        items: const [
+          EvidenceDraft(
+            id: 'image-a',
+            type: ContentType.image,
+            source: ContentSource.fileSystem,
+            attachmentStorageKey: key,
+            attachmentFileName: '照片.jpg',
+            attachmentMimeType: 'image/jpeg',
+            content: '原说明',
+          ),
+        ],
+      ),
+    );
+    expect(await database.select(database.records).get(), hasLength(1));
+
+    now = now.add(const Duration(minutes: 5));
+    const captionOnly = EvidenceCorrection(
+      missionId: 'attach-fix',
+      item: EvidenceDraft(
+        id: 'image-b',
+        type: ContentType.image,
+        source: ContentSource.fileSystem,
+        attachmentStorageKey: key,
+        attachmentFileName: '照片.jpg',
+        attachmentMimeType: 'image/jpeg',
+        content: '只改说明',
+        supersedesEvidenceId: 'image-a',
+      ),
+    );
+    final saved = await repository.correctEvidence(captionOnly);
+    expect(saved.supersedesEvidenceId, 'image-a');
+    expect((await repository.correctEvidence(captionOnly)).id, 'image-b');
+
+    final afterCaption = await detail('attach-fix');
+    expect(afterCaption.evidence, hasLength(2));
+    expect(afterCaption.effectiveEvidence.single.id, 'image-b');
+    expect(afterCaption.effectiveEvidence.single.content, '只改说明');
+    expect(afterCaption.evidence.last.sourceRecordId, isNull);
+    expect(afterCaption.phase, MissionPhase.closed);
+    // 沿用原件不产生新的来源记录，原记录仍持有同一附件键。
+    final records = await database.select(database.records).get();
+    expect(records, hasLength(1));
+    expect(records.single.attachmentStorageKey, key);
+
+    now = now.add(const Duration(minutes: 5));
+    final replaced = await repository.correctEvidence(
+      const EvidenceCorrection(
+        missionId: 'attach-fix',
+        item: EvidenceDraft(
+          id: 'image-c',
+          type: ContentType.image,
+          source: ContentSource.fileSystem,
+          attachmentStorageKey: 'attachments/attach-fix/other.jpg',
+          attachmentFileName: '新照片.jpg',
+          attachmentMimeType: 'image/jpeg',
+          supersedesEvidenceId: 'image-b',
+        ),
+      ),
+    );
+    expect(replaced.attachmentStorageKey, 'attachments/attach-fix/other.jpg');
+    final afterReplace = await detail('attach-fix');
+    expect(afterReplace.evidence, hasLength(3));
+    expect(afterReplace.effectiveEvidence.single.id, 'image-c');
+    expect(await database.select(database.records).get(), hasLength(2));
+  });
 }

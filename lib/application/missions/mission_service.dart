@@ -500,6 +500,20 @@ class MissionService {
     return result;
   });
 
+  /// 从已提交的正式材料准备修正草稿：沿用原附件与说明，只改说明时不复制文件；
+  /// 需要换文件由页面另行选择，新附件才有自己的原件。
+  EvidenceDraft draftCorrection(Evidence original) => EvidenceDraft(
+    id: uuid.v4(),
+    type: original.type,
+    source: original.source,
+    content: original.content,
+    attachmentStorageKey: original.attachmentStorageKey,
+    attachmentFileName: original.attachmentFileName,
+    attachmentMimeType: original.attachmentMimeType,
+    capturedAt: original.capturedAt,
+    supersedesEvidenceId: original.id,
+  );
+
   EvidenceCorrection prepareEvidenceCorrection({
     required MissionDetail detail,
     required Evidence original,

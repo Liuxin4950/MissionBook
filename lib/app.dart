@@ -48,6 +48,7 @@ import 'data/goal_import/goal_file_picker_platform.dart' as goal_file_platform;
 import 'application/backup/backup_service.dart';
 import 'data/backup/database_backup_service.dart';
 import 'data/backup/database_backup_restorer.dart';
+import 'data/backup/local_resources.dart';
 import 'data/settings/app_device_platform.dart';
 import 'application/settings/app_device.dart';
 import 'application/notifications/app_notification_service.dart';
@@ -154,6 +155,15 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       ),
     );
     _missionService = MissionService(repository, attachments: attachments);
+    // 启动即回收无引用原件：崩溃或取消留下的副本不必等用户下次打开编辑器才清理。
+    // 协调器只执行一次并与提交互斥；失败只记录，不影响启动和后续准备。
+    unawaited(() async {
+      try {
+        await attachments.initialize();
+      } catch (error) {
+        debugPrint('启动清理无引用附件失败：$error');
+      }
+    }());
     final packages = GoalPackageImportService(
       stage: GoalImportDatabase(),
       repository: DriftGoalPackageRepository(_database),
@@ -207,11 +217,13 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
         database: _database,
         readAttachment: _missionService.readEvidenceImage,
         attachments: attachments,
+        localResources: createLocalResourceStore(),
       ),
       restorer: DatabaseBackupRestorer(
         database: _database,
         files: attachmentStore,
         attachments: attachments,
+        localResources: createLocalResourceStore(),
       ),
       runRestore: _runRestore,
     );

@@ -4,7 +4,9 @@ import 'package:mission_book/application/settings/app_device.dart';
 
 class TestBackup implements BackupExporter {
   @override
-  Future<Uint8List> create() async => Uint8List(0);
+  Future<Uint8List> create({
+    Set<BackupResource> resources = defaultBackupResources,
+  }) async => Uint8List(0);
 }
 
 class TestAppDevice implements AppDevice {

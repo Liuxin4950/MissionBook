@@ -253,8 +253,9 @@ class _MissionEvidence {
       if (original.length != 1 || original.single.type != draft.type) {
         throw const EvidenceConflict('原材料已被修正或类型不同，请读取最新记录');
       }
+      final source = original.single;
       final now = _repository._now();
-      if (now.isBefore(original.single.submittedAt)) {
+      if (now.isBefore(source.submittedAt)) {
         throw const EvidenceConflict('系统时间早于原材料，请校正后重试');
       }
       final saved = Evidence(
@@ -271,7 +272,14 @@ class _MissionEvidence {
         capturedAt: draft.capturedAt,
         supersedesEvidenceId: draft.supersedesEvidenceId,
       );
-      await insertEvidence(_repository.database, saved);
+      // 只改说明时附件键不变，沿用原件而不新建来源记录；换了文件才各自持有原件。
+      await insertEvidence(
+        _repository.database,
+        saved,
+        sharedAttachment:
+            draft.attachmentStorageKey != null &&
+            draft.attachmentStorageKey == source.attachmentStorageKey,
+      );
       return saved;
     });
   }
@@ -314,8 +322,10 @@ class _MissionEvidence {
         for (final id in candidates) {
           final detail = (await _repository.findDetail(id))!;
           // 真实阶段仍由唯一推演核心判定：只有“待补材料且已过截止”才写超时事实。
+          // 与提交材料同一口径：时钟回拨不能写出早于结束事实的落库时刻。
           if (detail.phase == MissionPhase.evidencePending &&
-              !now.isBefore(detail.schedule.evidenceDeadlineAt!)) {
+              !now.isBefore(detail.schedule.evidenceDeadlineAt!) &&
+              !now.isBefore(detail.events.last.occurredAt)) {
             await _insertEvidenceDeadline(detail, detail.events.last, now);
             count++;
           }
@@ -360,23 +370,22 @@ class _MissionEvidence {
   Future<List<MissionDetail>> findPendingEvidence() =>
       _repository._queries.findPendingEvidence();
   Future<Set<String>> referencedAttachmentKeys() async {
+    // 归档键同样在 SQL 内提取：不把整份撤销归档（含全部事件与记录）搬进 Dart 再解码。
     final rows = await _repository.database
         .customSelect(
           'SELECT attachment_storage_key AS k FROM records WHERE attachment_storage_key IS NOT NULL '
-          'UNION SELECT attachment_storage_key FROM evidence_records WHERE attachment_storage_key IS NOT NULL',
+          'UNION SELECT attachment_storage_key FROM evidence_records WHERE attachment_storage_key IS NOT NULL '
+          "UNION SELECT json_extract(e.value, '\$.attachment_storage_key') AS k "
+          "FROM operation_receipts r, json_each(r.result_json, '\$.evidence_records') e "
+          "WHERE r.kind = 'missionExecutionArchive' "
+          "AND json_extract(e.value, '\$.attachment_storage_key') IS NOT NULL",
+          readsFrom: {
+            _repository.database.records,
+            _repository.database.evidenceRecords,
+            _repository.database.operationReceipts,
+          },
         )
         .get();
-    final keys = {for (final row in rows) row.read<String>('k')};
-    final archives = await (_repository.database.select(
-      _repository.database.operationReceipts,
-    )..where((t) => t.kind.equals('missionExecutionArchive'))).get();
-    for (final archive in archives) {
-      final data = jsonDecode(archive.resultJson) as Map;
-      for (final evidence in data['evidence_records'] as List) {
-        final key = (evidence as Map)['attachment_storage_key'];
-        if (key is String) keys.add(key);
-      }
-    }
-    return keys;
+    return {for (final row in rows) row.read<String>('k')};
   }
 }

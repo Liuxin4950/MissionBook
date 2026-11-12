@@ -2,42 +2,77 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import '../../application/attachments/attachment_file_service.dart';
+import '../../application/backup/backup_service.dart';
+import '../speech/speech_model_store_base.dart';
+import 'local_resources_base.dart';
 
-const maxBackupBytes = 256 * 1024 * 1024;
-const maxExpandedBackupBytes = 512 * 1024 * 1024;
+/// 勾选离线语音模型时包内会多出约 228 MiB 原件，上限按此放宽；
+/// 展开总量仍有硬上限，解压炸弹不会无界增长。
+const maxBackupBytes = 768 * 1024 * 1024;
+const maxExpandedBackupBytes = 1024 * 1024 * 1024;
 
 /// 读取本应用已有 ZIP；只把受限 INSERT 字面量解析为值，从不执行备份 SQL。
 Map<String, Object?> decodeBackupArchive(Uint8List bytes) {
   if (bytes.isEmpty || bytes.length > maxBackupBytes) {
-    throw const FormatException('请选择非空且不超过 256 MiB 的 MissionBook ZIP 备份');
+    throw const FormatException('请选择非空且不超过 768 MiB 的 MissionBook ZIP 备份');
   }
-  final decoder = ZipDecoder();
-  final archive = decoder.decodeBytes(bytes);
+  // 先只读中央目录，不解压任何条目：archive 对 UNIX 符号链接条目会立即 readBytes，
+  // 等 decodeBytes 返回再检查就已经来不及，声明大小防护会被链接条目绕过。
+  final directory = ZipDirectory();
+  try {
+    directory.read(InputMemoryStream(bytes));
+  } on RangeError {
+    throw const FormatException('备份 ZIP 目录被截断');
+  }
+  if (directory.fileHeaders.length > 20000) {
+    throw const FormatException('备份文件数量过多');
+  }
   final names = <String>{};
-  var expanded = 0;
-  for (final header in decoder.directory.fileHeaders) {
+  for (final header in directory.fileHeaders) {
     if (!names.add(header.filename)) throw const FormatException('备份包含重复文件');
+    final name = header.filename;
+    if (name.endsWith('/') || name.endsWith('\\')) {
+      throw const FormatException('备份不能包含目录或链接');
+    }
+    // UNIX 创建者版本 3，且高 16 位的文件类型为 S_IFLNK。
+    if (header.versionMadeBy >> 8 == 3 &&
+        (header.externalFileAttributes >> 16) & 0xf000 == 0xa000) {
+      throw const FormatException('备份不能包含目录或链接');
+    }
   }
-  if (archive.length > 20000) throw const FormatException('备份文件数量过多');
+  final archive = ZipDecoder().decodeBytes(bytes);
+  var expanded = 0;
   final files = <String, Uint8List>{};
   for (final file in archive) {
     final name = file.name;
     if (!file.isFile || file.symbolicLink != null) {
       throw const FormatException('备份不能包含目录或链接');
     }
+    final isSpeech = name.startsWith(speechEntryPrefix);
     if (!{
       'manifest.json',
       'database.sql',
       'assistant-conversations.json',
       'README.txt',
-    }.contains(name)) {
+      localResourcesEntry,
+    }.contains(name) &&
+        !isSpeech) {
       validateAttachmentKey(name);
+    }
+    // 模型条目只认固定清单内的文件名，不能借前缀写入其他位置。
+    if (isSpeech &&
+        !senseVoiceFiles.any(
+          (model) => model.name == name.substring(speechEntryPrefix.length),
+        )) {
+      throw const FormatException('备份包含未知的语音模型文件');
     }
     expanded += file.size;
     final limit = name.startsWith('attachments/')
         ? AttachmentFileService.maxBytes
-        : name == 'manifest.json'
-        ? 1024 * 1024
+        : isSpeech
+        ? 512 * 1024 * 1024
+        : name == 'manifest.json' || name == localResourcesEntry
+        ? 4 * 1024 * 1024
         : 128 * 1024 * 1024;
     if (file.size < 0 ||
         file.size > limit ||
@@ -51,6 +86,8 @@ Map<String, Object?> decodeBackupArchive(Uint8List bytes) {
     // 可阅读日志和说明不参与恢复，避免把重复副本传回工作区。
     if (name == 'manifest.json' ||
         name == 'database.sql' ||
+        name == localResourcesEntry ||
+        isSpeech ||
         name.startsWith('attachments/')) {
       files[name] = content;
     }
@@ -96,11 +133,37 @@ Map<String, Object?> decodeBackupArchive(Uint8List bytes) {
       int.parse(versions.single[1]!) != decoded['databaseVersion']) {
     throw const FormatException('数据库版本标记与备份清单不一致');
   }
+  final resourceFiles = <String, Uint8List>{
+    for (final entry in files.entries)
+      if (entry.key == localResourcesEntry ||
+          entry.key.startsWith(speechEntryPrefix))
+        entry.key: entry.value,
+  };
+  // 类别按包内真实内容判定，不采信清单自述；旧备份没有这些条目时自然为空。
+  final Object? localSections = resourceFiles.containsKey(localResourcesEntry)
+      ? jsonDecode(utf8.decode(resourceFiles[localResourcesEntry]!))
+      : null;
+  if (localSections != null && localSections is! Map) {
+    throw const FormatException('本机资源清单无效');
+  }
+  final kinds = <BackupResource>[
+    if (localSections is Map && localSections.containsKey('assistantSettings'))
+      BackupResource.assistantSettings,
+    if (localSections is Map &&
+        (localSections.containsKey('localProfile') ||
+            localSections.containsKey('motion') ||
+            localSections.containsKey('reminders')))
+      BackupResource.localPreferences,
+    if (resourceFiles.keys.any((name) => name.startsWith(speechEntryPrefix)))
+      BackupResource.speechModel,
+  ];
   return {
     'version': decoded['databaseVersion'],
     'exportedAt': exportedAt.toUtc().toIso8601String(),
     'tables': parseBackupSql(sqlText),
     'attachments': attachments,
+    'resources': resourceFiles,
+    'resourceKinds': kinds,
   };
 }
 

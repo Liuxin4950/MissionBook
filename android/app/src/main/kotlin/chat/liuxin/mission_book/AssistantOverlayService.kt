@@ -240,17 +240,8 @@ class AssistantOverlayService : Service() {
         }
         val pending = prefs.getString(MainActivity.EXTRA_CAPTURE_PATH, null) != null
         option(if (pending) "截图已就绪 · 打开助手" else "打开 AI 助手", R.drawable.assistant_chat, pending) { openAssistant() }
-        option("截屏提问", R.drawable.assistant_capture, true) {
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(CAPTURE_PENDING_KEY, true).apply()
-            removeBubble()
-            try {
-                startActivity(Intent(this, AssistantCaptureConsentActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            } catch (error: Exception) {
-                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(CAPTURE_PENDING_KEY, false).apply()
-                reportOverlayFailure("无法打开系统截屏授权", error)
-                showBubble()
-            }
-        }
+        option("截屏提问", R.drawable.assistant_capture) { startCapture(false) }
+        option("长截图提问", R.drawable.assistant_capture) { startCapture(true) }
         option("关闭悬浮入口", R.drawable.assistant_close) {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(ENABLED_KEY, false).apply()
             stopSelf()
@@ -284,6 +275,20 @@ class AssistantOverlayService : Service() {
         } catch (error: Exception) {
             if (menu === panel) removeMenu() else menu = null
             reportOverlayFailure("无法显示助手快捷菜单", error)
+        }
+    }
+
+    private fun startCapture(longCapture: Boolean) {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(CAPTURE_PENDING_KEY, true).apply()
+        removeBubble()
+        try {
+            startActivity(Intent(this, AssistantCaptureConsentActivity::class.java)
+                .putExtra(AssistantScreenCaptureService.EXTRA_LONG_CAPTURE, longCapture)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (error: Exception) {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(CAPTURE_PENDING_KEY, false).apply()
+            reportOverlayFailure("无法打开系统截屏授权", error)
+            showBubble()
         }
     }
 

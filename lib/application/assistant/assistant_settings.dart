@@ -4,9 +4,9 @@ import 'package:agent_core/agent_core.dart';
 
 /// 宿主决定哪些操作等用户确认；模型和附件都不能改变这一选择。
 enum AssistantPermissionMode {
-  standard('默认权限', '每次工具查询和修改都先确认'),
-  relaxed('宽松权限', '查询直接执行；创建、修改和执行任务仍需确认'),
-  full('完整权限', '当前已接入的查询与修改自动执行');
+  standard('询问', '每次查询和修改都先问我'),
+  relaxed('自动', '查询自动执行；创建、修改和执行任务先问我'),
+  full('完全', '查询与修改全部自动执行，AI 拥有最高操作权限');
 
   const AssistantPermissionMode(this.label, this.description);
   final String label;

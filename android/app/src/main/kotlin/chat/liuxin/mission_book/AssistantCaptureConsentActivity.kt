@@ -16,11 +16,15 @@ import android.widget.Toast
 
 @Suppress("DEPRECATION")
 class AssistantCaptureConsentActivity : Activity() {
+    private var longCapture = false
+    private var captureStarted = false
+    private var captureCompleted = false
     private val handler = Handler(Looper.getMainLooper())
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val path = intent?.getStringExtra(MainActivity.EXTRA_CAPTURE_PATH)
             if (path != null) {
+                captureCompleted = true
                 try {
                     startActivity(MainActivity.assistantIntent(this@AssistantCaptureConsentActivity, path))
                 } catch (error: Exception) {
@@ -41,8 +45,25 @@ class AssistantCaptureConsentActivity : Activity() {
         super.onDestroy()
     }
 
+    override fun onBackPressed() {
+        if (longCapture && captureStarted && !captureCompleted) {
+            try {
+                startService(Intent(this, AssistantScreenCaptureService::class.java)
+                    .setAction(AssistantScreenCaptureService.ACTION_CANCEL_CAPTURE))
+            } catch (error: Exception) {
+                Log.w(TAG, "取消长截图服务失败", error)
+            }
+        }
+        super.onBackPressed()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        longCapture = intent.getBooleanExtra(AssistantScreenCaptureService.EXTRA_LONG_CAPTURE, false)
+        if (longCapture) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+            window.attributes = window.attributes.apply { alpha = 0f }
+        }
         val filter = IntentFilter(AssistantScreenCaptureService.ACTION_CAPTURE_READY)
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
         else registerReceiver(receiver, filter)
@@ -77,15 +98,17 @@ class AssistantCaptureConsentActivity : Activity() {
         val capture = Intent(this, AssistantScreenCaptureService::class.java).apply {
             putExtra(AssistantScreenCaptureService.EXTRA_RESULT_CODE, resultCode)
             putExtra(AssistantScreenCaptureService.EXTRA_RESULT_DATA, data)
+            putExtra(AssistantScreenCaptureService.EXTRA_LONG_CAPTURE, longCapture)
         }
         try {
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(capture) else startService(capture)
+            captureStarted = true
         } catch (error: Exception) {
             Log.e(TAG, "截屏服务启动失败", error)
             cancelCapture("截屏服务启动失败")
             return
         }
-        handler.postDelayed({ cancelCapture("截屏超时，请重试") }, 10000)
+        if (!longCapture) handler.postDelayed({ cancelCapture("截屏超时，请重试") }, 10000)
     }
 
     private fun cancelCapture(reason: String?) {
