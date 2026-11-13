@@ -17,6 +17,8 @@ const memoryVersionFields = [
 
 /// 记忆维护独立于生活记录，页面与 AI 通过 MemoryService 共用此事务入口。
 abstract interface class MemoryRepository {
+  /// 更正、遗忘及已到期条目的版本；使用统计不会使旧回答失效。
+  Future<String> contextRevision();
   Future<Map<String, Object?>> queryMemory({
     String? goalId,
     String? search,

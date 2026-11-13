@@ -490,6 +490,9 @@ void main() {
       entry('stable', '每天上午学习', layer: 'identity', topic: '学习时间'),
     );
     await repository.saveMemory(
+      entry('unrelated-stable', '我喜欢简洁回答', layer: 'identity', topic: '表达偏好'),
+    );
+    await repository.saveMemory(
       entry('goal', '这个目标是为了三个月后通过考试', topic: '目标动机', goalId: goal.id),
     );
     await repository.saveMemory(
@@ -515,7 +518,7 @@ void main() {
       for (final item in blocks[key] as List? ?? const [])
         (item as Map)['content'] as String,
     ];
-    expect(contents('stable'), contains('每天上午学习'));
+    expect([...contents('stable'), ...contents('topic')], contains('每天上午学习'));
     expect(contents('goal'), contains('这个目标是为了三个月后通过考试'));
     expect(contents('topic'), contains('上午学习需要安静环境'));
     expect(contents('unverified'), contains('用户可能更喜欢早晨'));
@@ -583,6 +586,7 @@ void main() {
     final empty = await failing.assemble();
     expect(empty.isEmpty, true);
     expect(empty.injected, isEmpty);
+    expect(empty.warning, MemoryContextAssembler.readWarning);
   });
 
   test('固定清单清理按需分页并逐条写版本', () async {

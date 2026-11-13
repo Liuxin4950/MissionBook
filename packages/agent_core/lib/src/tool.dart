@@ -47,6 +47,68 @@ final class ToolOutput {
   final String text; // 内容本身包含失败标记，不只依赖供应商的 is_error 字段。
   final bool isError;
   final String? errorCode;
+
+  static const maxTextBytes = 16 * 1024;
+
+  const ToolOutput._bounded(this.text, this.isError, this.errorCode);
+
+  /// 对超长结果提供 UTF-8 有界预览，保留执行状态和可重新读取的业务编号。
+  ToolOutput bounded() {
+    final bytes = utf8.encode(text);
+    if (bytes.length <= maxTextBytes) return this;
+    final envelope = <String, Object?>{
+      'ok': !isError,
+      'truncated': true,
+      'originalBytes': bytes.length,
+      'hint': '结果过长，仅返回预览。请缩小查询范围或按编号分段读取；已提交的写操作不要重复执行。',
+    };
+    try {
+      final value = jsonDecode(text);
+      if (value is Map<String, Object?>) {
+        for (final key in [
+          'status',
+          'saved',
+          'id',
+          'resultId',
+          'operationId',
+          'selectionId',
+          'missionId',
+          'goalId',
+          'nodeId',
+          'code',
+          'counts',
+        ]) {
+          if (value.containsKey(key) &&
+              utf8.encode(jsonEncode(value[key])).length <= 1024) {
+            envelope[key] = value[key];
+          }
+        }
+      }
+    } on FormatException {
+      // 普通文本也能降级为预览，写操作成功不会被误报为执行失败。
+    }
+    String prefix(int length) {
+      var end = length;
+      while (end > 0 && end < bytes.length && (bytes[end] & 0xc0) == 0x80) {
+        end--;
+      }
+      return utf8.decode(bytes.sublist(0, end));
+    }
+
+    var low = 0;
+    var high = maxTextBytes;
+    while (low < high) {
+      final middle = (low + high + 1) ~/ 2;
+      envelope['preview'] = prefix(middle);
+      if (utf8.encode(jsonEncode(envelope)).length <= maxTextBytes) {
+        low = middle;
+      } else {
+        high = middle - 1;
+      }
+    }
+    envelope['preview'] = prefix(low);
+    return ToolOutput._bounded(jsonEncode(envelope), isError, errorCode);
+  }
 }
 
 /// 交给工具的执行上下文；应用据此关联调用与自己的业务命令。
@@ -213,9 +275,7 @@ String _describeValidationError(
   for (var position = 0; position <= index; position++) {
     final offset = int.tryParse(parts[position]);
     current = offset != null
-        ? (current is List && offset < current.length
-              ? current[offset]
-              : null)
+        ? (current is List && offset < current.length ? current[offset] : null)
         : (current is Map<String, Object?> ? current[parts[position]] : null);
   }
   final id = current is Map ? current['itemId'] ?? current['id'] : null;
@@ -232,11 +292,7 @@ String _subject(Map<String, Object?> input, String path) {
   return field.leaf.isEmpty ? field.owner! : '${field.owner}的 ${field.leaf}';
 }
 
-String _memberName(
-  Map<String, Object?> input,
-  String path,
-  String name,
-) {
+String _memberName(Map<String, Object?> input, String path, String name) {
   final parts = path.split('/').where((part) => part.isNotEmpty).toList();
   // 同一条缺失会同时报在父路径和属性路径上；两者都归一到属性自身的名字。
   if (parts.isNotEmpty && parts.last == name) {

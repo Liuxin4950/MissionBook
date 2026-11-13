@@ -145,6 +145,25 @@ void main() {
     return blocks;
   }
 
+  test('话题命中的较早身份偏好优先注入，整句可以命中已有别名', () async {
+    await memory.save({
+      'id': 'older',
+      'content': '喜欢用番茄钟学习',
+      'topic': '专注方法',
+      'layer': 'identity',
+      'certainty': 'stated',
+      'sourceKind': 'user',
+      'aliases': ['专注计时'],
+    });
+    for (var i = 0; i < 25; i++) {
+      await save('new$i', layer: 'identity', content: '周末整理房间$i');
+    }
+    final result = await assembler.assemble(topic: '我的专注计时偏好是什么？');
+    final blocks = verify(result);
+    expect((blocks['topic'] as List).map((e) => e['id']), contains('older'));
+    expect(result.text, contains('喜欢用番茄钟学习'));
+  });
+
   test('无话题和无关话题每轮均供给全局 semantic，命中优先且候选有界', () async {
     await save('identity', layer: 'identity', content: '我喜欢简洁回答');
     await save('semantic', content: '我不吃花生', topic: '饮食');

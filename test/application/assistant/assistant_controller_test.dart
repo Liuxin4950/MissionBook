@@ -163,6 +163,7 @@ void main() {
       (_) => textResponse('第一答'),
       (_) => textResponse('第二答'),
       (_) => textResponse('第三答'),
+      (_) => textResponse('第四答'),
     ]);
     final ai = makeController(model, memory: memory);
     await ai.initialize();
@@ -180,6 +181,38 @@ void main() {
     expect(ai.errorMessage, isNull);
     expect(blocks(model.requests.last), isEmpty);
     expect(model.requests, hasLength(3));
+    expect(ai.memoryWarning, isNotNull);
+    memory.failing = false;
+    await ai.send('恢复后的问题');
+    expect(ai.memoryWarning, isNull);
+    expect(blocks(model.requests.last), hasLength(1));
+  });
+
+  test('直接采用记忆的旧回答在遗忘后不回流，原始对话仍可查看', () async {
+    final memory = MemoryService(DriftMemoryRepository(database));
+    await memory.save({
+      'id': 'private',
+      'content': '我的验收标记是赤杉6814',
+      'topic': '验收标记',
+      'layer': 'semantic',
+      'certainty': 'stated',
+      'sourceKind': 'user',
+    });
+    final model = ScriptedModel([
+      (_) => textResponse('你的标记是赤杉6814'),
+      (_) => textResponse('不知道'),
+    ]);
+    final ai = makeController(model, memory: memory);
+    await ai.initialize();
+    await ai.send('我的验收标记是什么');
+    await memory.forget('private');
+    await ai.send('现在还知道我的标记吗');
+    expect(
+      model.requests.last.messages.map((m) => m.text).join(),
+      isNot(contains('赤杉6814')),
+    );
+    expect(ai.transcript.map((m) => m.text).join(), contains('赤杉6814'));
+    expect(ai.errorMessage, isNull);
   });
 
   test('并发打开同一会话和切换全局入口不会重复持有运行时会话', () async {

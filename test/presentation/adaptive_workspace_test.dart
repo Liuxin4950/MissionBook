@@ -408,7 +408,9 @@ void main() {
     await open(tester, const Size(1280, 900));
     await tester.tap(find.byTooltip('目标'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('goal-create-import')));
+    await tester.tap(find.byKey(const Key('goal-more-filters')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('goal-import-menu')));
     await tester.pumpAndSettle();
     const draft = '{"尚未保存的目标草稿":true}';
     final input = find.byKey(const Key('goal-import-input'));

@@ -78,7 +78,7 @@ void main() {
 
   testWidgets('空列表→校验→保存→详情→返回列表→重建重读', (tester) async {
     await open(tester);
-    expect(find.text('从一个目标开始'), findsOneWidget);
+    expect(find.text('还没有目标'), findsOneWidget);
     await tap(tester, 'goal-create');
     await tap(tester, 'goal-save');
     expect(find.text('请填写目标名称'), findsOneWidget);
@@ -174,7 +174,7 @@ void main() {
     expect(tester.takeException(), isNull);
     await tap(tester, 'goal-filter-active');
     expect(find.byKey(const Key('goal-filter-dropped')), findsNothing);
-    expect(find.text('从一个目标开始'), findsOneWidget);
+    expect(find.text('还没有目标'), findsOneWidget);
   });
 
   testWidgets('目标分类空态与分类栏等宽，共用插画和标题对齐', (tester) async {
@@ -185,7 +185,7 @@ void main() {
       final card = find.byKey(const Key('goal-empty-state'));
       final original = tester.getRect(card);
       for (final (status, title) in [
-        ('active', '从一个目标开始'),
+        ('active', '还没有目标'),
         ('paused', '没有已搁置的目标'),
         ('achieved', '没有已达成的目标'),
       ]) {
@@ -195,24 +195,31 @@ void main() {
           heading.style,
           Theme.of(tester.element(find.text(title))).textTheme.titleMedium,
         );
-        expect(heading.textAlign, isNull);
+        expect(heading.textAlign, TextAlign.center);
         expect(tester.getRect(card).left, original.left);
         expect(tester.getRect(card).width, original.width);
-        expect(find.byKey(const Key('goal-waymarker-artwork')), findsOneWidget);
+        expect(
+          find.byKey(Key('goal-empty-illustration-$status')),
+          findsOneWidget,
+        );
         expect(tester.getTopLeft(filter).dy, top);
         expect(find.text('0 个目标'), findsOneWidget);
       }
       await tester.tap(find.byKey(const Key('goal-return-active')));
       await tester.pumpAndSettle();
-      expect(find.text('从一个目标开始'), findsOneWidget);
+      expect(find.text('还没有目标'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     }
   });
 
-  testWidgets('进行中空态保留导入和创建入口', (tester) async {
+  testWidgets('进行中空态只保留创建，导入从右上角菜单进入', (tester) async {
     await open(tester);
-    await tap(tester, 'goal-create-import');
+    expect(find.text('导入文件'), findsNothing);
+    expect(find.byKey(const Key('goal-create')), findsOneWidget);
+    expect(find.byKey(const Key('goal-import-menu')), findsNothing);
+    await tap(tester, 'goal-more-filters');
+    await tap(tester, 'goal-import-menu');
     final input = tester.widget<TextField>(
       find.byKey(const Key('goal-import-input')),
     );
@@ -265,7 +272,8 @@ void main() {
     for (final width in [390.0, 1366.0]) {
       await open(tester, width: width);
       if (find.byKey(const Key('goal-import-input')).evaluate().isEmpty) {
-        await tap(tester, 'goal-create-import');
+        await tap(tester, 'goal-more-filters');
+        await tap(tester, 'goal-import-menu');
       }
       await tester.enterText(find.byKey(const Key('goal-import-input')), draft);
       await tester.tap(find.byTooltip('返回'));
@@ -290,7 +298,8 @@ void main() {
       expect(find.byKey(const Key('goal-import-input')), findsNothing);
       await tap(tester, 'goal-filter-active');
       if (find.byKey(const Key('goal-import-input')).evaluate().isEmpty) {
-        await tap(tester, 'goal-create-import');
+        await tap(tester, 'goal-more-filters');
+        await tap(tester, 'goal-import-menu');
       }
       expect(
         tester

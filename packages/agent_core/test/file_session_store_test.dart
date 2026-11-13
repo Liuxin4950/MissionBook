@@ -12,6 +12,7 @@ import 'support/foundation_fixtures.dart';
 
 void main() {
   late Directory directory;
+  late Directory tempRoot;
   late String worker;
   setUpAll(() async {
     // 编译独立测试进程，避免 Windows 在父进程已加载 DLL 时再次覆盖同一个构建产物。
@@ -32,14 +33,15 @@ void main() {
     );
   });
   setUp(() async {
-    directory = await Directory.systemTemp.createTemp(
-      'agent-core-storage-test-',
-    );
+    // 本机系统临时目录拒绝独立原生程序写入，使用项目内隔离构建目录。
+    tempRoot = await Directory(
+      '.dart_tool/storage-tests',
+    ).absolute.create(recursive: true);
+    directory = await tempRoot.createTemp('agent-core-storage-test-');
   });
   tearDown(() async {
     final target = directory.absolute.path;
-    final tempRoot = Directory.systemTemp.absolute.path;
-    if (!target.startsWith('$tempRoot${Platform.pathSeparator}') ||
+    if (!target.startsWith('${tempRoot.path}${Platform.pathSeparator}') ||
         !directory.uri.pathSegments.any(
           (part) => part.startsWith('agent-core-storage-test-'),
         )) {

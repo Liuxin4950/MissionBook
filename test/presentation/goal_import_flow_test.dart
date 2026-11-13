@@ -23,9 +23,15 @@ class _Picker implements GoalFilePicker {
   @override
   Future<GoalImportSource?> pickSource() async {
     final value = bytes;
-    return value == null ? null : GoalImportSource(
-      name: '目标.json', length: value.length, openRead: () async* { yield value; },
-    );
+    return value == null
+        ? null
+        : GoalImportSource(
+            name: '目标.json',
+            length: value.length,
+            openRead: () async* {
+              yield value;
+            },
+          );
   }
 }
 
@@ -83,7 +89,8 @@ void main() {
 
   testWidgets('粘贴校验预览完整树，确认之前零写入，确认后原位显示正式目标', (tester) async {
     await open(tester);
-    await tap(tester, 'goal-create-import');
+    await tap(tester, 'goal-more-filters');
+    await tap(tester, 'goal-import-menu');
     await tester.enterText(find.byKey(const Key('goal-import-input')), outline);
     await tap(tester, 'goal-import-preview');
     expect(find.text('完整大纲 · 3 个节点'), findsOneWidget);
@@ -99,7 +106,8 @@ void main() {
 
   testWidgets('非法字段指出位置，取消文件选择保留粘贴内容，放弃预览不写入', (tester) async {
     await open(tester);
-    await tap(tester, 'goal-create-import');
+    await tap(tester, 'goal-more-filters');
+    await tap(tester, 'goal-import-menu');
     await tester.enterText(
       find.byKey(const Key('goal-import-input')),
       outline.replaceFirst('"key":"data"', '"key":"interface"'),
@@ -123,7 +131,8 @@ void main() {
   testWidgets('从文件读取后走同一预览与确认流程', (tester) async {
     picker.bytes = Uint8List.fromList(utf8.encode(outline));
     await open(tester);
-    await tap(tester, 'goal-create-import');
+    await tap(tester, 'goal-more-filters');
+    await tap(tester, 'goal-import-menu');
     await tap(tester, 'goal-import-file');
     expect(find.text('完整大纲 · 3 个节点'), findsOneWidget);
     expect(await goals.findAll(), isEmpty);
@@ -134,7 +143,8 @@ void main() {
     final repository = _UncertainImportRepository(db);
     goals = GoalService(repository, filePicker: picker);
     await open(tester);
-    await tap(tester, 'goal-create-import');
+    await tap(tester, 'goal-more-filters');
+    await tap(tester, 'goal-import-menu');
     await tester.enterText(find.byKey(const Key('goal-import-input')), outline);
     await tap(tester, 'goal-import-preview');
     repository.loseReply = true;

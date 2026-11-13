@@ -17,12 +17,12 @@ class AssistantToolResultFormatter {
   final tz.Location _location;
 
   ToolOutput format(ToolOutput output, {bool includeTimeContext = true}) {
-    if (output.isError) return output;
+    if (output.isError) return output.bounded();
     final Object? value;
     try {
       value = jsonDecode(output.text);
     } on FormatException {
-      return output;
+      return output.bounded();
     }
     final formatted = _value(value, _location);
     if (includeTimeContext && formatted is Map<String, Object?>) {
@@ -35,7 +35,7 @@ class AssistantToolResultFormatter {
         'format': 'ISO 8601，含时区偏移；日期字段为 YYYY-MM-DD；时长保留字段声明的单位',
       };
     }
-    return ToolOutput.success(jsonEncode(formatted));
+    return ToolOutput.success(jsonEncode(formatted)).bounded();
   }
 
   Object? _value(Object? value, tz.Location inherited) {

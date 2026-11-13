@@ -62,6 +62,7 @@ class _MemoryPageState extends State<MemoryPage> {
   String? _goalId;
   String? _layer;
   bool _showExpired = false, _retrying = false;
+  bool _filtersExpanded = false;
   String? _error;
   void load({bool reset = false}) {
     if (!mounted) return;
@@ -316,6 +317,9 @@ class _MemoryPageState extends State<MemoryPage> {
                           search: _search,
                           total: data['total'] as int,
                           showExpired: _showExpired,
+                          filtersExpanded: _filtersExpanded,
+                          onFiltersExpanded: (value) =>
+                              setState(() => _filtersExpanded = value),
                           layer: _layer,
                           goalId: _goalId,
                           goals: _goals == null ? null : _goalChoices,
@@ -362,68 +366,49 @@ class _MemoryPageState extends State<MemoryPage> {
                     ),
                   ),
                   if (items.isEmpty)
-                    SliverLayoutBuilder(
-                      builder: (context, constraints) => SliverToBoxAdapter(
-                        child: ConstrainedBox(
-                          // 扣掉搜索区的实际高度；内容超出剩余空间时自然滚动。
-                          constraints: BoxConstraints(
-                            minHeight:
-                                (constraints.viewportMainAxisExtent -
-                                        constraints.precedingScrollExtent)
-                                    .clamp(0.0, double.infinity),
-                          ),
-                          child: Align(
-                            alignment: const Alignment(0, -0.4),
-                            child: Padding(
-                              padding: padding.copyWith(top: 0),
-                              child: AppEmptyState(
-                                asset:
-                                    _offset == 0 && _search.text.trim().isEmpty
-                                    ? 'assets/illustrations/memory-notebook.png'
-                                    : null,
-                                horizontalWhenWide: true,
-                                title: _offset > 0
-                                    ? '这一页没有记忆'
-                                    : _search.text.trim().isNotEmpty
-                                    ? '没有找到相关记忆'
-                                    : '还没有记忆',
-                                details: Text(
-                                  _offset > 0
-                                      ? '返回上一页，继续查看。'
-                                      : _search.text.trim().isNotEmpty
-                                      ? '换个关键词，或查看全部记忆。'
-                                      : '偏好、小事，都可以记在这里。',
-                                ),
-                                actions: _offset > 0
-                                    ? OutlinedButton.icon(
-                                        onPressed: () {
-                                          _offset -= 20;
-                                          load();
-                                        },
-                                        icon: const Icon(Icons.chevron_left),
-                                        label: const Text('上一页'),
-                                      )
-                                    : _search.text.trim().isNotEmpty
-                                    ? OutlinedButton.icon(
-                                        onPressed: () {
-                                          _search.clear();
-                                          load(reset: true);
-                                        },
-                                        icon: const Icon(Icons.close_rounded),
-                                        label: const Text('清除搜索'),
-                                      )
-                                    : ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          minHeight: AppLayout.actionMinHeight,
-                                        ),
-                                        child: FilledButton.icon(
-                                          onPressed: edit,
-                                          icon: const Icon(Icons.add_rounded),
-                                          label: const Text('添加第一条记忆'),
-                                        ),
-                                      ),
-                              ),
-                            ),
+                    SliverPadding(
+                      padding: padding.copyWith(top: 0),
+                      sliver: SliverToBoxAdapter(
+                        child: AppSectionCard(
+                          key: const Key('memory-empty-state'),
+                          paperBackground: true,
+                          child: AppEmptyState(
+                            asset: _offset == 0 && _search.text.trim().isEmpty
+                                ? 'assets/illustrations/memory-notebook.png'
+                                : null,
+                            title: _offset > 0
+                                ? '这一页没有记忆'
+                                : _search.text.trim().isNotEmpty
+                                ? '没有找到相关记忆'
+                                : '还没有记忆',
+                            actions: _offset > 0
+                                ? OutlinedButton.icon(
+                                    onPressed: () {
+                                      _offset -= 20;
+                                      load();
+                                    },
+                                    icon: const Icon(Icons.chevron_left),
+                                    label: const Text('上一页'),
+                                  )
+                                : _search.text.trim().isNotEmpty
+                                ? OutlinedButton.icon(
+                                    onPressed: () {
+                                      _search.clear();
+                                      load(reset: true);
+                                    },
+                                    icon: const Icon(Icons.close_rounded),
+                                    label: const Text('清除搜索'),
+                                  )
+                                : ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      minHeight: AppLayout.actionMinHeight,
+                                    ),
+                                    child: FilledButton.icon(
+                                      onPressed: edit,
+                                      icon: const Icon(Icons.add_rounded),
+                                      label: const Text('添加记忆'),
+                                    ),
+                                  ),
                           ),
                         ),
                       ),
@@ -478,12 +463,14 @@ class _MemoryPageState extends State<MemoryPage> {
   );
 }
 
-/// 根据正文可用宽度与字号切换工具栏；不按整个窗口猜测面板宽度。
+/// 搜索常驻，筛选默认折叠；展开后根据正文宽度与字号排列条件。
 class _MemoryToolbar extends StatelessWidget {
   const _MemoryToolbar({
     required this.search,
     required this.total,
     required this.showExpired,
+    required this.filtersExpanded,
+    required this.onFiltersExpanded,
     required this.layer,
     required this.goalId,
     required this.goals,
@@ -497,6 +484,8 @@ class _MemoryToolbar extends StatelessWidget {
   final TextEditingController search;
   final int total;
   final bool showExpired;
+  final bool filtersExpanded;
+  final ValueChanged<bool> onFiltersExpanded;
   final String? layer;
   final String? goalId;
   final Future<List<Goal>>? goals;
@@ -594,51 +583,46 @@ class _MemoryToolbar extends StatelessWidget {
         '$total 条记忆',
         style: Theme.of(context).textTheme.bodyMedium,
       );
+      final activeFilters =
+          (showExpired ? 1 : 0) +
+          (layer == null ? 0 : 1) +
+          (goalId == null ? 0 : 1);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (inline) ...[
-            Row(
-              children: [
-                Expanded(child: field),
-                const SizedBox(width: AppLayout.spaceLg),
-                filter,
-              ],
+          field,
+          const SizedBox(height: AppLayout.spaceSm),
+          AppExpansionTile(
+            title: Text(
+              key: const Key('memory-filters'),
+              activeFilters == 0 ? '筛选' : '筛选（$activeFilters）',
             ),
-            if (goalFilter != null) ...[
+            leading: const Icon(Icons.filter_list_rounded),
+            insetHeader: false,
+            initiallyExpanded: filtersExpanded,
+            onExpansionChanged: onFiltersExpanded,
+            childrenPadding: const EdgeInsets.only(top: AppLayout.spaceSm),
+            children: [
+              Wrap(children: [filter]),
               const SizedBox(height: AppLayout.spaceMd),
-              Row(
-                children: [
-                  Expanded(child: layerFilter),
-                  const SizedBox(width: AppLayout.spaceMd),
-                  Expanded(child: goalFilter),
+              if (inline && goalFilter != null)
+                Row(
+                  children: [
+                    Expanded(child: layerFilter),
+                    const SizedBox(width: AppLayout.spaceMd),
+                    Expanded(child: goalFilter),
+                  ],
+                )
+              else ...[
+                layerFilter,
+                if (goalFilter != null) ...[
+                  const SizedBox(height: AppLayout.spaceMd),
+                  goalFilter,
                 ],
-              ),
-            ] else ...[
-              const SizedBox(height: AppLayout.spaceMd),
-              layerFilter,
+              ],
             ],
-            if (total > 0) ...[
-              const SizedBox(height: AppLayout.spaceMd),
-              count,
-            ],
-          ] else ...[
-            field,
-            const SizedBox(height: AppLayout.spaceMd),
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: AppLayout.spaceMd,
-              runSpacing: AppLayout.spaceSm,
-              children: [if (total > 0) count, filter],
-            ),
-            const SizedBox(height: AppLayout.spaceMd),
-            layerFilter,
-            if (goalFilter != null) ...[
-              const SizedBox(height: AppLayout.spaceMd),
-              goalFilter,
-            ],
-          ],
+          ),
+          if (total > 0) ...[const SizedBox(height: AppLayout.spaceSm), count],
         ],
       );
     },

@@ -35,6 +35,7 @@ final class ContextMessage extends AgentMessage {
     required this.source,
     required String text,
     this.pinned = false,
+    this.sourceRevision,
     super.id,
   }) : super(content: [TextBlock(text: text)]) {
     if (source.trim().isEmpty) throw ArgumentError('上下文必须标明来源');
@@ -42,6 +43,7 @@ final class ContextMessage extends AgentMessage {
 
   final String source;
   final bool pinned;
+  final String? sourceRevision; // 宿主事实版本；变化时失效依赖旧事实的回答。
 
   /// 兼容旧宿主日志；普通来源通知默认可压缩。
   bool get isPinned =>

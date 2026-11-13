@@ -444,6 +444,7 @@ final class AgentSession {
   Future<void> replaceContext({
     required String source,
     required String? text,
+    String? sourceRevision,
   }) async {
     await _mutate(() async {
       final previous = _state.contextMessages
@@ -454,15 +455,23 @@ final class AgentSession {
       final next = text?.trim() ?? '';
       if (previous.length == 1 &&
           previous.single.text == next &&
+          (previous.single as ContextMessage).sourceRevision ==
+              sourceRevision &&
           (previous.single as ContextMessage).isPinned) {
         return;
       }
       if (previous.isEmpty && next.isEmpty) return;
       final message = next.isEmpty
           ? null
-          : ContextMessage(source: source, text: next, pinned: true);
+          : ContextMessage(
+              source: source,
+              text: next,
+              pinned: true,
+              sourceRevision: sourceRevision,
+            );
       await _record('context_message_replaced', {
         'source': source,
+        'sourceRevision': ?sourceRevision,
         'previousIds': [for (final item in previous) item.id],
         if (message != null) 'message': encodeMessage(message),
       });
@@ -535,6 +544,7 @@ final class AgentSession {
     ToolOutput actual, {
     required String source,
   }) async {
+    actual = actual.bounded();
     await _mutate(() async {
       if (!unknownOutcomes.containsKey(callId)) {
         throw ArgumentError('没有该结果未知的调用');

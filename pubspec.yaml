@@ -65,6 +65,7 @@ flutter:
     - assets/branding/shuqi-avatar.png
     - assets/illustrations/journey-garden-v2.png
     - assets/illustrations/goal-waymarker.png
+    - assets/illustrations/goal-flag.png
     - assets/illustrations/goal-path.png
     - assets/illustrations/day-plan.png
     - assets/illustrations/assistant-notebook.png

@@ -115,6 +115,7 @@ final class AgentLoop {
     }
 
     Future<void> appendResult(ToolCallBlock call, ToolOutput output) async {
+      output = output.bounded();
       final result = ToolResultMessage(
         toolCallId: call.id,
         toolName: call.name,

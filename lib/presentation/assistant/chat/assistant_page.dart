@@ -243,6 +243,18 @@ class _AssistantPageState extends State<AssistantPage> {
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
+                  if (controller.memoryWarning != null)
+                    Semantics(
+                      key: const Key('assistant-memory-warning'),
+                      liveRegion: true,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppLayout.spaceMd),
+                        child: Text(
+                          controller.memoryWarning!,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ),
                   Expanded(
                     child:
                         controller.initializing && controller.transcript.isEmpty

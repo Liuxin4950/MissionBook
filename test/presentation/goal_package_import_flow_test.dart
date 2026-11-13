@@ -52,7 +52,9 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    await tap('goal-create-import');
+    await tap('goal-more-filters');
+
+    await tap('goal-import-menu');
     final input = File(
       'docs/设计/目标计划导入/examples/课标试运行.goal-package.v1.json',
     ).readAsStringSync();
@@ -109,7 +111,9 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      await tap('goal-create-import');
+      await tap('goal-more-filters');
+
+      await tap('goal-import-menu');
       await tap('goal-import-paste-toggle');
       for (final invalid in [
         '{',

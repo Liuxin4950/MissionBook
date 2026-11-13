@@ -27,6 +27,7 @@ import 'package:mission_book/presentation/records/settings/web_settings_page.dar
 import 'package:mission_book/presentation/records/analysis/analysis_settings_page.dart';
 import 'package:mission_book/presentation/records/shared/record_scope.dart';
 import 'package:mission_book/presentation/widgets/app_top_bar.dart';
+import 'package:mission_book/presentation/widgets/app_section_card.dart';
 
 class _WebSettings implements WebSettingsStore {
   String? value;
@@ -189,10 +190,10 @@ void main() {
     expect(find.byTooltip('添加记忆'), findsNothing);
     expect(find.text('共 0 条记忆'), findsNothing);
     expect(
-      tester.getSize(find.widgetWithText(FilledButton, '添加第一条记忆')).height,
+      tester.getSize(find.widgetWithText(FilledButton, '添加记忆')).height,
       greaterThanOrEqualTo(AppLayout.actionMinHeight),
     );
-    await tester.tap(find.text('添加第一条记忆'));
+    await tester.tap(find.text('添加记忆'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('memory-content')), '喜欢分步骤学习');
     await tester.ensureVisible(find.byKey(const Key('memory-save')));
@@ -200,10 +201,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('喜欢分步骤学习'), findsOneWidget);
     final saved = (await memory.query())['items'] as List;
-    expect(
-      saved.map((item) => (item as Map)['content']),
-      contains('喜欢分步骤学习'),
-    );
+    expect(saved.map((item) => (item as Map)['content']), contains('喜欢分步骤学习'));
     await close(tester);
   });
 
@@ -239,11 +237,13 @@ void main() {
       certainty: 'unverified',
     );
     await open(tester, const MemoryPage(), goals: goals, height: 1200);
-    expect(find.text('全部记忆'), findsOneWidget);
+    expect(find.text('全部记忆'), findsNothing);
     expect(find.textContaining('身份与稳定偏好'), findsWidgets);
     expect(find.textContaining('引用该目标时载入'), findsWidgets);
     expect(find.textContaining('待验证观察'), findsWidgets);
     expect(find.textContaining('未验证'), findsWidgets);
+    await tester.tap(find.byKey(const Key('memory-filters')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('全部记忆'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('目标甲').last);
@@ -256,16 +256,10 @@ void main() {
 
   testWidgets('日记本保存并回显同义别名', (tester) async {
     await open(tester, const MemoryPage());
-    await tester.tap(find.text('添加第一条记忆'));
+    await tester.tap(find.text('添加记忆'));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('memory-content')),
-      '我习惯早上跑步',
-    );
-    await tester.enterText(
-      find.byKey(const Key('memory-aliases')),
-      '晨跑，早上跑步',
-    );
+    await tester.enterText(find.byKey(const Key('memory-content')), '我习惯早上跑步');
+    await tester.enterText(find.byKey(const Key('memory-aliases')), '晨跑，早上跑步');
     await tester.ensureVisible(find.byKey(const Key('memory-save')));
     await tester.tap(find.byKey(const Key('memory-save')));
     await tester.pumpAndSettle();
@@ -301,30 +295,59 @@ void main() {
       height: 480,
       textScale: 2,
     );
-    await tester.ensureVisible(find.text('添加第一条记忆'));
+    await tester.ensureVisible(find.text('添加记忆'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('添加第一条记忆'));
+    await tester.tap(find.text('添加记忆'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('memory-content')), findsOneWidget);
     await close(tester);
   });
 
   for (final width in [413.0, 768.0, 1440.0]) {
-    testWidgets('日记在 $width 宽度按内容空间切换工具栏和空态', (tester) async {
+    testWidgets('日记在 $width 宽度使用顶部纸纹空态卡片并保留筛选', (tester) async {
       await open(tester, const MemoryPage(), width: width);
       final search = tester.getRect(find.byType(TextField));
-      final filter = tester.getRect(find.byType(FilterChip));
-      final picture = tester.getRect(find.byType(Image));
+      expect(find.byType(FilterChip), findsNothing);
+      expect(find.text('记忆层'), findsNothing);
+      final filters = find.byKey(const Key('memory-filters'));
+      expect(tester.getRect(filters).top, greaterThanOrEqualTo(search.bottom));
+      final card = find.byKey(const Key('memory-empty-state'));
+      final cardRect = tester.getRect(card);
+      expect(tester.widget<AppSectionCard>(card).paperBackground, isTrue);
+      expect(cardRect.left, closeTo(search.left, 1));
+      expect(cardRect.width, closeTo(search.width, 1));
+      expect(cardRect.top, lessThan(search.bottom + 100));
+      expect(cardRect.height, lessThan(400));
+      final picture = tester.getRect(find.byType(Image).first);
       final title = tester.getRect(find.text('还没有记忆'));
-      if (width < 600) {
-        expect(filter.top, greaterThanOrEqualTo(search.bottom));
-        expect(title.top, greaterThan(picture.bottom));
-      } else {
-        expect(filter.left, greaterThan(search.right));
-        expect(filter.center.dy, closeTo(search.center.dy, 1));
-        expect(title.left, greaterThan(picture.right));
-      }
-      expect(tester.getRect(find.text('添加第一条记忆')).bottom, lessThan(844));
+      expect(title.top, greaterThan(picture.bottom));
+      expect(title.center.dx, closeTo(cardRect.center.dx, 1));
+      tester.view.physicalSize = Size(width, 1100);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(card), cardRect);
+      tester.view.physicalSize = Size(width, 844);
+      await tester.pumpAndSettle();
+      await tester.tap(filters);
+      await tester.pumpAndSettle();
+      expect(find.byType(FilterChip), findsOneWidget);
+      expect(find.text('记忆层'), findsOneWidget);
+      await tester.tap(find.text('包含过期'));
+      await tester.pumpAndSettle();
+      expect(find.text('筛选（1）'), findsOneWidget);
+      expect(find.byType(FilterChip), findsOneWidget);
+      await tester.tap(filters);
+      await tester.pumpAndSettle();
+      expect(find.byType(FilterChip), findsNothing);
+      expect(find.text('筛选（1）'), findsOneWidget);
+      await tester.tap(filters);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<FilterChip>(find.byType(FilterChip)).selected,
+        isTrue,
+      );
+      await tester.tap(filters);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.text('添加记忆')).bottom, lessThan(844));
       expect(search.width, lessThanOrEqualTo(744));
       await close(tester);
     });
@@ -369,6 +392,8 @@ void main() {
         );
     await open(tester, MemoryPage(clock: () => testNow));
     expect(find.text('考试周临时安排'), findsNothing);
+    await tester.tap(find.byKey(const Key('memory-filters')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('包含过期'));
     await tester.pumpAndSettle();
     expect(find.text('考试周临时安排'), findsOneWidget);
@@ -388,7 +413,7 @@ void main() {
     await open(tester, const MemoryPage());
 
     failing.saveFailures = 1;
-    await tester.tap(find.text('添加第一条记忆'));
+    await tester.tap(find.text('添加记忆'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('memory-content')), '需要保留的偏好');
     await tester.ensureVisible(find.byKey(const Key('memory-save')));

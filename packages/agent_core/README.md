@@ -4,6 +4,8 @@ MissionBook 的独立 Dart Agent 基座。保留多供应商配置，当前优�
 
 当前实现与验收见 [FOUNDATION.md](FOUNDATION.md)、[VALIDATION.md](VALIDATION.md)。沿一次调用读代码，先看 [阅读路线](阅读路线.md)。
 
+工具输出通过 `ToolOutput.bounded()` 限制为 16 KiB UTF-8 文本，超长结果保留状态与业务编号并返回 JSON 预览。`replaceContext` 可提供 `sourceRevision`，宿主事实版本变化时清理依赖旧供给的模型回答与摘要；原始会话日志保留，版本随会话重开和导出导入恢复。
+
 ## 启动
 
 在 PowerShell 中：

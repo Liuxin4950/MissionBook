@@ -5,9 +5,16 @@ import 'memory_service.dart';
 
 /// 本轮注入的记忆与原因；供后续用户控制面展示，不参与事实判断。
 class MemoryContextResult {
-  const MemoryContextResult(this.text, this.injected);
+  const MemoryContextResult(
+    this.text,
+    this.injected, {
+    this.revision,
+    this.warning,
+  });
   final String text;
   final List<Map<String, Object?>> injected;
+  final String? revision; // 更正、遗忘及到期版本，用于清理旧回答的模型投影。
+  final String? warning; // 可呈现的降级原因，不包含数据库或文件异常正文。
   bool get isEmpty => text.isEmpty;
 }
 
@@ -28,9 +35,11 @@ class MemoryContextAssembler {
   static const observationTokenBudget = 90;
   static const entryMaxRunes = 160;
   static const briefMissionLimit = 8;
+  static const readWarning = '本轮记忆暂时无法读取，回答可能缺少已保存的个人信息。下次发送时会重试。';
 
   Future<MemoryContextResult> assemble({String? goalId, String? topic}) async {
     try {
+      final revision = await memory.contextRevision();
       final keyword = topic?.trim() ?? '';
       // 空目标键只匹配全局行，避免其他目标挤满稳定块的有界候选。
       final stableResult = await memory.query(
@@ -158,7 +167,7 @@ class MemoryContextAssembler {
       if (keyword.isNotEmpty) {
         fill(
           topicItems
-              .where((item) => confirmed(item) && item['layer'] != 'identity')
+              .where(confirmed)
               .map((item) => derived[item['id']] ?? item),
           topicTokenBudget,
           'topic',
@@ -239,13 +248,20 @@ class MemoryContextAssembler {
           blocks['goalBrief'] = brief;
         }
       }
+      if (revision != await memory.contextRevision()) {
+        return const MemoryContextResult('', [], warning: readWarning);
+      }
       if (blocks.isEmpty && !omitted) {
-        return const MemoryContextResult('', []);
+        return MemoryContextResult('', const [], revision: revision);
       }
       if (omitted) blocks['omitted'] = true;
-      return MemoryContextResult(jsonEncode(blocks), injected);
+      return MemoryContextResult(
+        jsonEncode(blocks),
+        injected,
+        revision: revision,
+      );
     } catch (_) {
-      return const MemoryContextResult('', []);
+      return const MemoryContextResult('', [], warning: readWarning);
     }
   }
 

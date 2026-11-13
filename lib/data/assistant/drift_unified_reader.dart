@@ -116,12 +116,12 @@ class DriftUnifiedReader implements UnifiedReader {
     String? goalId,
   }) async {
     final exact = await recordRepository.rows(
-      'SELECT id,title FROM $table WHERE id=? ${goalId == null ? '' : 'AND goal_id=?'}',
+      'SELECT id,substr(title,1,200) title,length(title) titleLength FROM $table WHERE id=? ${goalId == null ? '' : 'AND goal_id=?'}',
       [key, ?goalId],
     );
     if (exact.isNotEmpty) return {'id': exact.single['id']};
     final found = await recordRepository.rows(
-      'SELECT id,title FROM $table WHERE (id=? OR title=?) ${goalId == null ? '' : 'AND goal_id=?'} ORDER BY id LIMIT 21',
+      'SELECT id,substr(title,1,200) title,length(title) titleLength FROM $table WHERE (id=? OR title=?) ${goalId == null ? '' : 'AND goal_id=?'} ORDER BY id LIMIT 21',
       [key, key, ?goalId],
     );
     if (found.length != 1) {
@@ -215,7 +215,7 @@ class DriftUnifiedReader implements UnifiedReader {
               )).single['n']
               as int;
       final items = await recordRepository.rows(
-        '''${prefix}SELECT m.id,m.title,m.created_at AS createdAt,
+        '''${prefix}SELECT m.id,substr(m.title,1,200) title,length(m.title) titleLength,m.created_at AS createdAt,
         (SELECT scheduled_date FROM mission_schedule_revisions r WHERE r.mission_id=m.id ORDER BY revision_number DESC LIMIT 1) scheduledDate,
         (SELECT user_reported_result FROM execution_events e WHERE e.mission_id=m.id AND e.type='END') userReportedResult
         FROM missions m WHERE $condition ORDER BY m.created_at,m.id LIMIT 20 OFFSET ?''',
@@ -245,7 +245,7 @@ class DriftUnifiedReader implements UnifiedReader {
             )).single['n']
             as int;
     final nodes = await recordRepository.rows(
-      'SELECT id,title,parent_node_id AS parentNodeId,order_index AS orderIndex,archived_at AS archivedAt,created_at AS createdAt FROM goal_nodes WHERE $condition ORDER BY order_index,id LIMIT 20 OFFSET ?',
+      'SELECT id,substr(title,1,200) title,length(title) titleLength,parent_node_id AS parentNodeId,order_index AS orderIndex,archived_at AS archivedAt,created_at AS createdAt FROM goal_nodes WHERE $condition ORDER BY order_index,id LIMIT 20 OFFSET ?',
       [goalId, nodeId, offset],
     );
     for (final n in nodes) {

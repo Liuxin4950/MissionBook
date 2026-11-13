@@ -360,6 +360,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
               child: ListView(
                 padding: AppLayout.pagePadding(context),
                 children: [
+                  _buildPersonaSection(),
+                  const SizedBox(height: AppLayout.spaceLg),
                   if (RecordScope.maybeOf(context) != null) ...[
                     AppSectionCard(
                       padding: EdgeInsets.zero,
@@ -486,8 +488,6 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                       ],
                     ),
                   ),
-                  const SizedBox(height: AppLayout.spaceLg),
-                  _buildPersonaSection(),
                   const SizedBox(height: AppLayout.spaceLg),
                   _buildPermissionSection(),
                   if (!kIsWeb &&
@@ -824,15 +824,33 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
   );
 
   Widget _buildPermissionSection() => AppSectionCard(
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppLayout.spaceLg,
-      vertical: AppLayout.spaceMd,
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    padding: EdgeInsets.zero,
+    child: AppExpansionTile(
+      key: const Key('assistant-permission-section'),
+      insetHeader: false,
+      headerPadding: const EdgeInsets.symmetric(
+        horizontal: AppLayout.spaceLg,
+        vertical: AppLayout.spaceSm,
+      ),
+      leading: const Icon(
+        Icons.shield_outlined,
+        size: AppLayout.iconMd,
+        color: AppColors.textSecondary,
+      ),
+      title: Text('操作权限', style: Theme.of(context).textTheme.titleSmall),
+      subtitle: Text(
+        _permission.label,
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+      ),
+      childrenPadding: const EdgeInsets.fromLTRB(
+        AppLayout.spaceLg,
+        AppLayout.spaceSm,
+        AppLayout.spaceLg,
+        AppLayout.spaceLg,
+      ),
       children: [
-        Text('操作权限', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppLayout.spaceSm),
         for (final mode in AssistantPermissionMode.values)
           Padding(
             padding: EdgeInsets.zero,

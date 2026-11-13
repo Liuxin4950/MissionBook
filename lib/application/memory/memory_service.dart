@@ -4,6 +4,7 @@ import '../../domain/repositories/memory_repository.dart';
 class MemoryService {
   MemoryService(this.repository);
   final MemoryRepository repository;
+  Future<String> contextRevision() => repository.contextRevision();
   Future<Map<String, Object?>> query({
     String? goalId,
     String? search,
@@ -19,6 +20,7 @@ class MemoryService {
     offset: offset,
     limit: limit,
     includeExpired: includeExpired,
+    includeSourceText: candidateLimit == null,
     layer: layer,
     certainty: certainty,
     candidateLimit: candidateLimit,

@@ -654,6 +654,57 @@ void main() {
     });
   }
 
+  for (final (width, textScale) in [(320.0, 2.0), (1106.0, 1.0)]) {
+    assistantTest('角色置顶且操作权限默认折叠并可保存 $width', (tester) async {
+      await mount(
+        tester,
+        ScriptedModel([]),
+        width: width,
+        height: 956,
+        textScale: textScale,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
+          home: AssistantSettingsPage(controller: assistant),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('角色与风格')).dy,
+        lessThan(tester.getTopLeft(find.text('AI 模型')).dy),
+      );
+      final mode = find.byKey(const Key('assistant-permission-full'));
+      expect(mode, findsNothing);
+      await tester.ensureVisible(find.text('操作权限'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('操作权限'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(mode);
+      await tester.pumpAndSettle();
+      await tester.tap(mode);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('操作权限'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('操作权限'));
+      await tester.pumpAndSettle();
+      expect(mode, findsNothing);
+      expect(find.text('完全'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('assistant-save-settings')));
+      await pumpUntil(
+        tester,
+        () => assistant.permissionMode == AssistantPermissionMode.full,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   assistantTest('角色名称、回答风格和图标可以在设置里修改并保存', (tester) async {
     await mount(tester, ScriptedModel([]), width: 1106);
     await tester.pumpWidget(

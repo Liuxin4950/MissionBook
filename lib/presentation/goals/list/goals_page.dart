@@ -3,7 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../widgets/app_journey_hero.dart';
+import '../../widgets/app_empty_state.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/adaptive_columns.dart';
 import '../../widgets/detail_pane.dart';
@@ -471,56 +471,38 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
     onSelected: _selectStatus,
   );
 
-  Widget _empty(BuildContext context, {bool showImportAction = true}) {
+  Widget _empty(BuildContext context) {
     final active = _selectedStatus == GoalStatus.active;
     final title = active
-        ? '从一个目标开始'
+        ? '还没有目标'
         : _selectedStatus == GoalStatus.paused
         ? '没有已搁置的目标'
         : _selectedStatus == GoalStatus.achieved
         ? '没有已达成的目标'
         : '没有已放弃的目标';
-    return AppJourneyHero(
+    return AppSectionCard(
       key: const Key('goal-empty-state'),
-      title: title,
-      subtitle: switch (_selectedStatus) {
-        GoalStatus.active => '让想做的事，有一条清晰的路。',
-        GoalStatus.paused => '需要暂缓的目标会留在这里，准备好时再继续。',
-        GoalStatus.achieved => '达成的目标会留在这里，记录走过的路。',
-        GoalStatus.dropped => '放下的目标会留在这里，已有任务与记录仍会保留。',
-      },
-      illustrationKey: ValueKey(
-        'goal-empty-illustration-${_selectedStatus.name}',
+      paperBackground: true,
+      child: AppEmptyState(
+        asset: 'assets/illustrations/goal-flag.png',
+        title: title,
+        illustrationKey: ValueKey(
+          'goal-empty-illustration-${_selectedStatus.name}',
+        ),
+        actions: active
+            ? FilledButton.icon(
+                key: const Key('goal-create'),
+                onPressed: _create,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('创建目标'),
+              )
+            : TextButton.icon(
+                key: const Key('goal-return-active'),
+                onPressed: () => _selectStatus(GoalStatus.active),
+                icon: const Icon(Icons.arrow_back, size: AppLayout.iconSm),
+                label: const Text('查看进行中'),
+              ),
       ),
-      actions: active
-          ? Wrap(
-              spacing: AppLayout.spaceMd,
-              runSpacing: AppLayout.spaceSm,
-              children: [
-                FilledButton.icon(
-                  key: const Key('goal-create'),
-                  onPressed: _create,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('创建目标'),
-                ),
-                if (showImportAction)
-                  OutlinedButton.icon(
-                    key: const Key('goal-create-import'),
-                    onPressed: _openImport,
-                    icon: const Icon(
-                      Icons.upload_file_outlined,
-                      size: AppLayout.iconSm,
-                    ),
-                    label: const Text('导入文件'),
-                  ),
-              ],
-            )
-          : TextButton.icon(
-              key: const Key('goal-return-active'),
-              onPressed: () => _selectStatus(GoalStatus.active),
-              icon: const Icon(Icons.arrow_back, size: AppLayout.iconSm),
-              label: const Text('查看进行中'),
-            ),
     );
   }
 }

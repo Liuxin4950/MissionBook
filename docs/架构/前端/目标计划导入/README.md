@@ -34,6 +34,8 @@
 
 装配见 [app.dart](../../../../lib/app.dart)：`GoalPackageImportService(stage: GoalImportDatabase(), repository: DriftGoalPackageRepository(_database), onCommitted: ...)` 注入 `GoalService.packages`；提交成功后回调 `GoalService` 与 `MissionService` 的 `refreshAfterExternalCommit`。
 
+目标页的“进行中”分类通过右上角更多菜单中的“导入目标大纲”打开工作区，空态只保留创建目标。宽屏切换已有创建或导入草稿时继续经过现有离开确认。
+
 ## 两条导入路径
 
 ```text

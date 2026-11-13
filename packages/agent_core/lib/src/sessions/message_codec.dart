@@ -24,6 +24,8 @@ Map<String, Object?> encodeMessage(AgentMessage message) => {
       'role': 'context',
       'source': message.source,
       'pinned': message.pinned,
+      if (message.sourceRevision != null)
+        'sourceRevision': message.sourceRevision,
     },
     ContextSummaryMessage() => {
       'role': 'summary',
@@ -70,6 +72,7 @@ AgentMessage decodeMessage(Map<String, Object?> json) {
       source: readString(json, 'source'),
       text: textOnly(),
       pinned: json['pinned'] == null ? false : _bool(json['pinned']),
+      sourceRevision: _nullableString(json['sourceRevision']),
     ),
     'summary' => ContextSummaryMessage(
       id: id,

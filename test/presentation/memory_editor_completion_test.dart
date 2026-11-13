@@ -158,7 +158,7 @@ void main() {
     expect(find.textContaining('每轮从有界候选中'), findsOneWidget);
     Navigator.of(tester.element(find.textContaining('每轮从有界候选中'))).pop();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('添加第一条记忆'));
+    await tester.tap(find.text('添加记忆'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('memory-content')), '新增事实');
     await saveEditor(tester);

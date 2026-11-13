@@ -277,37 +277,11 @@ class _AssistantSessions {
         source: 'mission_book_context',
         text: _contextText(),
       );
-      final assembler = _controller._memoryAssembler;
-      if (assembler != null) {
-        var memoryText = '';
-        List<Map<String, Object?>> injected = const [];
-        try {
-          final loaded = await assembler.assemble(
-            goalId: _referenceGoalId,
-            topic: message.text,
-          );
-          injected = loaded.injected;
-          if (!loaded.isEmpty) {
-            memoryText =
-                '当前有效记忆（stable=核心身份与稳定偏好；goal=当前引用目标及任务 brief；'
-                'topic=本轮相关事实；unverified=观察或未确认，均不作事实；'
-                '用户更正优先）：${loaded.text}';
-          }
-        } catch (_) {
-          // 记忆只增强上下文；读取失败不阻断本轮，也不保留可能过期的旧块。
-          debugPrint('记忆上下文读取失败，已跳过本轮记忆');
-        }
-        _controller._lastMemoryInjection = const [];
-        await session.replaceContext(
-          source: 'mission_book_memory',
-          text: memoryText.isEmpty ? null : memoryText,
-        );
-        if (_controller._sendCancelled) return null;
-        _controller._lastMemoryInjection = injected;
-        _controller._memoryUsage?.record([
-          for (final item in injected) item['id'] as String,
-        ], injected: true);
-      }
+      await _refreshMemoryContext(
+        session,
+        topic: message.text,
+        recordUsage: true,
+      );
       if (_controller._sendCancelled) return null;
       final result = await session.sendMessage(message);
       _controller._errorMessage = _controller._connectionInterrupted
@@ -483,11 +457,60 @@ class _AssistantSessions {
     }
   }
 
+  /// 发送和手动压缩共用当前记忆读取，旧事实不会借压缩重新进入摘要。
+  Future<void> _refreshMemoryContext(
+    AgentSession session, {
+    String? topic,
+    bool recordUsage = false,
+  }) async {
+    final assembler = _controller._memoryAssembler;
+    if (assembler != null) {
+      var memoryText = '';
+      String? revision;
+      _controller._memoryWarning = null;
+      List<Map<String, Object?>> injected = const [];
+      try {
+        final loaded = await assembler.assemble(
+          goalId: _referenceGoalId,
+          topic: topic,
+        );
+        injected = loaded.injected;
+        revision = loaded.revision;
+        _controller._memoryWarning = loaded.warning;
+        if (!loaded.isEmpty) {
+          memoryText =
+              '当前有效记忆（stable=核心身份与稳定偏好；goal=当前引用目标及任务 brief；'
+              'topic=本轮相关事实；unverified=观察或未确认，均不作事实；'
+              '用户更正优先）：${loaded.text}';
+        }
+      } catch (_) {
+        // 记忆只增强上下文；读取失败不阻断本轮，也不保留可能过期的旧块。
+        debugPrint('记忆上下文读取失败，已跳过本轮记忆');
+        _controller._memoryWarning = MemoryContextAssembler.readWarning;
+      }
+      _controller._lastMemoryInjection = const [];
+      await session.replaceContext(
+        source: 'mission_book_memory',
+        text: memoryText.isEmpty ? null : memoryText,
+        sourceRevision: revision,
+      );
+      if (recordUsage && _controller._sendCancelled) return;
+      _controller._lastMemoryInjection = injected;
+      if (recordUsage) {
+        _controller._memoryUsage?.record([
+          for (final item in injected) item['id'] as String,
+        ], injected: true);
+      }
+    }
+  }
+
   Future<void> _attachSession(AgentSession session) async {
     await _controller._changes?.cancel();
     await _controller._events?.cancel();
     // 查询结果仅对当前轮有效；注册持久刷新策略，覆盖发送、继续和手动压缩。
-    await session.invalidateToolResults(toolNames: {'getMemory'});
+    await session.invalidateToolResults(
+      toolNames: {'getMemory', 'saveMemory', 'manageMemory', 'getOperation'},
+    );
     if (session.systemPrompt != _effectiveSystemPrompt) {
       await session.setSystemPrompt(_effectiveSystemPrompt);
     }
@@ -524,6 +547,8 @@ class _AssistantSessions {
     final session = _controller._session;
     _controller._session = null;
     _controller._transcript = const [];
+    _controller._memoryWarning = null;
+    _controller._lastMemoryInjection = const [];
     _controller._operations.clear();
     _controller._publishActivity(AssistantController._idleActivity);
     if (session != null) await session.close();

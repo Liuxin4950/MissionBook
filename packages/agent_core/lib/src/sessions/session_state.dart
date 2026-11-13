@@ -45,6 +45,7 @@ final class SessionState {
   CowSet<String> _usedCallIds = CowSet();
   CowMap<String, ToolResultMessage> _unknown = CowMap();
   CowMap<String, ToolOutput> _resolved = CowMap();
+  CowMap<String, String> _resolvedNoticeCalls = CowMap();
   CowSet<String> _requestSpecs = CowSet();
   bool _legacyCompaction = false;
   CowSet<String> _legacyContextIds = CowSet();
@@ -110,6 +111,7 @@ final class SessionState {
         _usedCallIds.addAll(original._usedCallIds);
         _unknown.addAll(original._unknown);
         _resolved.addAll(original._resolved);
+        _resolvedNoticeCalls.addAll(original._resolvedNoticeCalls);
         _requestSpecs.addAll(original._requestSpecs);
         outputTokens = original.outputTokens;
         reasoningEffort = original.reasoningEffort;
@@ -226,42 +228,7 @@ final class SessionState {
         }
         _refreshToolNames.addAll(names.cast<String>());
         final replacements = staleToolProjections(_refreshToolNames);
-        _projectionOverrides.addAll(replacements);
-        final invalidSummaries = _context
-            .whereType<ContextSummaryMessage>()
-            .where(
-              (summary) =>
-                  !summary.isSafe ||
-                  summary.summarizedMessageIds.any(replacements.containsKey),
-            )
-            .toList();
-        final restoreIds = invalidSummaries
-            .expand((summary) => summary.summarizedMessageIds)
-            .toSet();
-        final removedIds = invalidSummaries
-            .map((summary) => summary.id)
-            .toSet();
-        final visibleIds = _context.map((message) => message.id).toSet()
-          ..removeAll(removedIds);
-        // 在被失效摘要的位置恢复其原始历史；用户原话及无关业务不丢弃。
-        final restored = <AgentMessage>[];
-        for (final item in _context) {
-          if (removedIds.contains(item.id)) {
-            for (final original in _transcript) {
-              if (restoreIds.contains(original.id) &&
-                  !(original is ContextMessage && original.isPinned) &&
-                  visibleIds.add(original.id)) {
-                restored.add(_projectionOverrides[original.id] ?? original);
-              }
-            }
-          } else {
-            restored.add(_projectionOverrides[item.id] ?? item);
-          }
-        }
-        _context
-          ..clear()
-          ..addAll(restored);
-        validateConversation(_context);
+        _applyProjections(replacements);
       case 'context_message_replaced':
         if (openTurnId != null || _pending.isNotEmpty) {
           throw const FormatException('运行中或工具未结算时不能替换上下文');
@@ -283,10 +250,20 @@ final class SessionState {
           final decoded = decodeMessage(readObject(data['message']));
           if (decoded is! ContextMessage ||
               decoded.source != source ||
+              decoded.sourceRevision != data['sourceRevision'] ||
               _knownMessages.containsKey(decoded.id)) {
             throw const FormatException('无效上下文替换消息');
           }
           message = decoded;
+        }
+        // 内容选择随话题变化，事实版本只随更正、遗忘或到期变化。
+        // 版本相同的历史回答继续保留，版本变化时清理旧事实派生的回答及摘要。
+        final revision = data['sourceRevision'] as String?;
+        if (replaced.any(
+          (id) =>
+              (_knownMessages[id] as ContextMessage).sourceRevision != revision,
+        )) {
+          _applyProjections(_staleContextProjections(source, revision));
         }
         // 先取出保留项再清空；级联参数在 clear 之后求值会丢掉全部历史。
         final retained = [
@@ -336,6 +313,7 @@ final class SessionState {
           throw const FormatException('核对记录必须标明来源');
         }
         _addMessage(notice);
+        _resolvedNoticeCalls[notice.id] = callId;
         if (data['actual'] != null) {
           final actual = readObject(data['actual']);
           _resolved[callId] = actual['isError'] == true
@@ -494,6 +472,10 @@ final class SessionState {
   /// 仅变更模型投影；原日志、结果编号和工具配对始终保留。
   Map<String, AgentMessage> staleToolProjections(Set<String> names) {
     final replacements = <String, AgentMessage>{};
+    final staleCalls = {
+      for (final message in _transcript.whereType<ToolResultMessage>())
+        if (names.contains(message.toolName)) message.toolCallId,
+    };
     var dependsOnResult = false;
     for (final message in _transcript) {
       if (message is UserMessage) dependsOnResult = false;
@@ -510,21 +492,99 @@ final class SessionState {
           );
         }
       } else if (message is AssistantMessage &&
-          dependsOnResult &&
+          (dependsOnResult ||
+              message.toolCalls.any((call) => staleCalls.contains(call.id))) &&
           !_projectionOverrides.containsKey(message.id)) {
         // 同轮回答可能复述旧记忆；保留后续工具调用而移除文字和思考投影。
-        replacements[message.id] = AssistantMessage(
-          id: message.id,
-          provider: message.provider,
-          model: message.model,
-          content: [
-            const TextBlock(text: '[基于旧查询的模型说明已失效，请重新查询。]'),
-            ...message.toolCalls,
-          ],
+        replacements[message.id] = _staleAssistant(
+          message,
+          staleCalls: staleCalls,
         );
+      } else if (message is ContextMessage &&
+          names.contains(
+            _executedCalls[_resolvedNoticeCalls[message.id]]?.name,
+          )) {
+        dependsOnResult = true;
+        if (!_projectionOverrides.containsKey(message.id)) {
+          replacements[message.id] = ContextMessage(
+            id: message.id,
+            source: message.source,
+            text: '[旧工具核对结果已失效，需要当前事实时请重新查询。]',
+          );
+        }
       }
     }
     return replacements;
+  }
+
+  Map<String, AgentMessage> _staleContextProjections(
+    String source,
+    String? revision,
+  ) {
+    final replacements = <String, AgentMessage>{};
+    var stale = false;
+    for (final message in _transcript) {
+      if (message is ContextMessage && message.source == source) {
+        stale = message.sourceRevision != revision;
+      } else if (stale && message is AssistantMessage) {
+        replacements[message.id] = _staleAssistant(message);
+      }
+    }
+    return replacements;
+  }
+
+  AssistantMessage _staleAssistant(
+    AssistantMessage message, {
+    Set<String>? staleCalls,
+  }) => AssistantMessage(
+    id: message.id,
+    provider: message.provider,
+    model: message.model,
+    content: [
+      const TextBlock(text: '[依据旧记忆或工具结果生成的说明已失效，请重新核对当前事实。]'),
+      for (final call in message.toolCalls)
+        if (staleCalls == null || staleCalls.contains(call.id))
+          ToolCallBlock(id: call.id, name: call.name, input: const {})
+        else
+          call,
+    ],
+  );
+
+  /// 替换派生内容并展开受影响的摘要，原始用户消息保持原顺序。
+  void _applyProjections(Map<String, AgentMessage> replacements) {
+    _projectionOverrides.addAll(replacements);
+    final invalidSummaries = _context
+        .whereType<ContextSummaryMessage>()
+        .where(
+          (summary) =>
+              !summary.isSafe ||
+              summary.summarizedMessageIds.any(replacements.containsKey),
+        )
+        .toList();
+    final restoreIds = invalidSummaries
+        .expand((summary) => summary.summarizedMessageIds)
+        .toSet();
+    final removedIds = invalidSummaries.map((summary) => summary.id).toSet();
+    final visibleIds = _context.map((message) => message.id).toSet()
+      ..removeAll(removedIds);
+    final restored = <AgentMessage>[];
+    for (final item in _context) {
+      if (removedIds.contains(item.id)) {
+        for (final original in _transcript) {
+          if (restoreIds.contains(original.id) &&
+              !(original is ContextMessage && original.isPinned) &&
+              visibleIds.add(original.id)) {
+            restored.add(_projectionOverrides[original.id] ?? original);
+          }
+        }
+      } else {
+        restored.add(_projectionOverrides[item.id] ?? item);
+      }
+    }
+    _context
+      ..clear()
+      ..addAll(restored);
+    validateConversation(_context);
   }
 
   /// 回放结束后处理版本化失效：旧摘要的投影不带 supplyExcluded，需按原始对话重建。
@@ -581,6 +641,7 @@ final class SessionState {
     .._usedCallIds = _usedCallIds.fork()
     .._unknown = _unknown.fork()
     .._resolved = _resolved.fork()
+    .._resolvedNoticeCalls = _resolvedNoticeCalls.fork()
     .._requestSpecs = _requestSpecs.fork()
     .._legacyCompaction = _legacyCompaction
     .._legacyContextIds = _legacyContextIds.fork();

@@ -17,6 +17,16 @@ class DriftMemoryRepository extends DriftRepositorySupport
   // 只缓存有界候选；数据库写入、外部连接提交或排名边界失效都会重新查询。
   final _candidateCache = <String, _MemoryCandidates>{};
 
+  @override
+  Future<String> contextRevision() async {
+    final row = (await rows(
+      "SELECT (SELECT COUNT(*) FROM memory_versions WHERE change_kind IN ('update','forget')) changes, "
+      '(SELECT COUNT(*) FROM memory_items WHERE expires_at IS NOT NULL AND expires_at<=?) expired',
+      [clock().millisecondsSinceEpoch],
+    )).single;
+    return '${row['changes']}:${row['expired']}';
+  }
+
   static const _layerWeight = {
     'identity': 1.0,
     'semantic': 0.8,
@@ -349,7 +359,8 @@ class DriftMemoryRepository extends DriftRepositorySupport
       ]);
       clauses.add(
         'mi.topic_id IN (SELECT a.topic_id FROM memory_topic_aliases a '
-        "WHERE a.normalized_alias LIKE ${_literal(aliasPattern)} ESCAPE '\\')",
+        "WHERE a.normalized_alias LIKE ${_literal(aliasPattern)} ESCAPE '\\' "
+        'OR instr(${_literal(_normalize(keyword).toLowerCase())}, a.normalized_alias)>0)',
       );
       where.add('(${clauses.join(' OR ')})');
     }
@@ -366,6 +377,7 @@ class DriftMemoryRepository extends DriftRepositorySupport
         'SELECT ranked.* FROM ('
         'SELECT mi.*, t.canonical_name AS topic_name, t.kind AS topic_kind, '
         '(SELECT title FROM goals WHERE goals.id=mi.goal_id) AS goalTitle, '
+        'p.steps_json, p.trigger_context, '
         "(SELECT group_concat(a.alias, '，') FROM memory_topic_aliases a "
         'WHERE a.topic_id=mi.topic_id) AS topic_aliases, '
         'COALESCE(u.recall_count, 0) AS recall_count, '
@@ -377,6 +389,7 @@ class DriftMemoryRepository extends DriftRepositorySupport
         'mi.user_edited DESC, mi.updated_at DESC, mi.id ASC$candidateSql) candidates '
         'JOIN memory_items mi ON mi.id=candidates.id '
         'LEFT JOIN memory_topics t ON t.id=mi.topic_id '
+        'LEFT JOIN memory_procedures p ON p.item_id=mi.id '
         'LEFT JOIN memory_usage u ON u.item_id=mi.id) ranked';
     final cacheKey = jsonEncode([
       goalId,
@@ -429,14 +442,15 @@ class DriftMemoryRepository extends DriftRepositorySupport
     });
     if (canCache && !reusable && stamp == await _databaseStamp()) {
       // 有界 LRU，避免搜索词无限累积；调用方拿到的 Map 与缓存始终隔离。
-      _candidateCache.remove(cacheKey);
-      if (_candidateCache.length >= 16) {
-        _candidateCache.remove(_candidateCache.keys.first);
-      }
-      _candidateCache[cacheKey] = _MemoryCandidates(
-        stamp: stamp!,
-        nowMs: nowMs,
-        items: matched.map((item) => Map<String, Object?>.from(item)).toList(),
+      _cacheCandidates(
+        cacheKey,
+        _MemoryCandidates(
+          stamp: stamp!,
+          nowMs: nowMs,
+          items: matched
+              .map((item) => Map<String, Object?>.from(item))
+              .toList(),
+        ),
       );
     }
     final candidates = boundedCandidateLimit == null
@@ -447,6 +461,8 @@ class DriftMemoryRepository extends DriftRepositorySupport
       candidates.length,
       offset,
     );
+    // 有界上下文候选只需要事实，不读取日记本的原话与后台整理状态。
+    if (boundedCandidateLimit != null && !includeSourceText) return result;
     for (final entry
         in includeSourceText
             ? result['items'] as List<Map<String, Object?>>
@@ -488,6 +504,14 @@ class DriftMemoryRepository extends DriftRepositorySupport
 
   // ignore: invalid_use_of_internal_member
   bool get _outsideTransaction => identical(db.resolvedEngine, db);
+
+  void _cacheCandidates(String key, _MemoryCandidates value) {
+    _candidateCache.remove(key);
+    if (_candidateCache.length >= 16) {
+      _candidateCache.remove(_candidateCache.keys.first);
+    }
+    _candidateCache[key] = value;
+  }
 
   Future<String> _databaseStamp() async {
     final stamp = (await rows(
@@ -535,7 +559,8 @@ class DriftMemoryRepository extends DriftRepositorySupport
       : () {
           final key = _literal(keyword.toLowerCase());
           final aliasHit =
-              'mi.topic_id IN (SELECT sa.topic_id FROM memory_topic_aliases sa WHERE instr(lower(sa.alias), $key)>0)';
+              'mi.topic_id IN (SELECT sa.topic_id FROM memory_topic_aliases sa '
+              'WHERE instr(lower(sa.alias), $key)>0 OR instr($key, lower(sa.alias))>0)';
           final unitTerms = _searchUnits(keyword)
               .map(
                 (unit) =>
@@ -614,7 +639,9 @@ class DriftMemoryRepository extends DriftRepositorySupport
         .where((alias) => alias.isNotEmpty)
         .toList();
     if (aliases.any(
-          (alias) => alias.toLowerCase().contains(keyword.toLowerCase()),
+          (alias) =>
+              alias.toLowerCase().contains(keyword.toLowerCase()) ||
+              keyword.toLowerCase().contains(alias.toLowerCase()),
         ) ||
         (row['topic_name'] as String? ?? '').toLowerCase().contains(
           keyword.toLowerCase(),
@@ -1639,6 +1666,20 @@ class DriftMemoryRepository extends DriftRepositorySupport
   }) async {
     final now = clock().millisecondsSinceEpoch;
     final keyword = search?.trim() ?? '';
+    final cacheKey = jsonEncode(['derived', table, goalId, keyword, limit]);
+    final stamp = _outsideTransaction ? await _databaseStamp() : null;
+    final cached = stamp == null ? null : _candidateCache[cacheKey];
+    if (cached != null &&
+        cached.stamp == stamp &&
+        now >= cached.nowMs &&
+        !cached.items.any(
+          (item) =>
+              item['expires_at'] is int && (item['expires_at'] as int) <= now,
+        )) {
+      return cached.items
+          .map((item) => Map<String, Object?>.from(item))
+          .toList();
+    }
     final aliasPattern = '%${_escapeLike(keyword)}%';
     final args = <Object>[now];
     final where = <String>[
@@ -1654,11 +1695,17 @@ class DriftMemoryRepository extends DriftRepositorySupport
       where.add(
         "(mi.content LIKE ? ESCAPE '\\' OR t.canonical_name LIKE ? ESCAPE '\\' "
         'OR EXISTS(SELECT 1 FROM memory_topic_aliases a '
-        "WHERE a.topic_id=mi.topic_id AND a.normalized_alias LIKE ? ESCAPE '\\'))",
+        "WHERE a.topic_id=mi.topic_id AND (a.normalized_alias LIKE ? ESCAPE '\\' "
+        'OR instr(?, a.normalized_alias)>0)))',
       );
-      args.addAll([aliasPattern, aliasPattern, aliasPattern]);
+      args.addAll([
+        aliasPattern,
+        aliasPattern,
+        aliasPattern,
+        _normalize(keyword).toLowerCase(),
+      ]);
     }
-    return rows(
+    final result = await rows(
       'SELECT mi.*, t.canonical_name AS topic_name, $columns '
       'FROM memory_items mi JOIN $table e ON e.item_id=mi.id '
       'LEFT JOIN memory_topics t ON t.id=mi.topic_id '
@@ -1666,6 +1713,17 @@ class DriftMemoryRepository extends DriftRepositorySupport
       'ORDER BY mi.importance DESC, mi.updated_at DESC LIMIT ?',
       [...args, limit],
     );
+    if (stamp != null && stamp == await _databaseStamp()) {
+      _cacheCandidates(
+        cacheKey,
+        _MemoryCandidates(
+          stamp: stamp,
+          nowMs: now,
+          items: result.map((item) => Map<String, Object?>.from(item)).toList(),
+        ),
+      );
+    }
+    return result;
   }
 
   static String _normalize(String value) =>

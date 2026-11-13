@@ -209,6 +209,8 @@ class AssistantController extends ChangeNotifier {
   final AnalysisStore? _analysis;
   List<Map<String, Object?>> _lastMemoryInjection = const [];
   List<Map<String, Object?>> get lastMemoryInjection => _lastMemoryInjection;
+  String? _memoryWarning;
+  String? get memoryWarning => _memoryWarning;
   final AgentConfiguration? _baseConfiguration;
   final Map<String, AgentModel> _modelOverrides;
   final DateTime Function() _clock;
@@ -478,6 +480,7 @@ class AssistantController extends ChangeNotifier {
     _compacting = true;
     _notifyListeners();
     try {
+      await _sessions._refreshMemoryContext(session);
       return await session.compact();
     } finally {
       _compacting = false;

@@ -31,9 +31,7 @@ import 'package:mission_book/data/web/web_settings_store.dart';
 import '../support/assistant_fakes.dart';
 
 final _credential = Platform.environment['DEEPSEEK_API_KEY'];
-final _credentialMissing = (_credential?.isEmpty ?? true)
-    ? '需要临时测试凭据'
-    : false;
+final _credentialMissing = (_credential?.isEmpty ?? true) ? '需要临时测试凭据' : false;
 
 /// 只在断言失败信息里展示有限长度的模型原话，便于复核判定。
 String brief(String text) {
@@ -127,7 +125,7 @@ void main() {
     () async {
       await seedCommute();
       final ai = await start();
-      await ai.send('我上班一般怎么走？只根据你已知的我的信息回答，不要给通用建议。');
+      await checkedSend(ai, '我上班一般怎么走？只根据你已知的我的信息回答，不要给通用建议。');
 
       final injected = injectedMemoryText(ai);
       final answer = lastAssistantText(ai);
@@ -156,7 +154,7 @@ void main() {
         'topic': '起床时间',
       });
       final ai = await start();
-      await ai.send('请确认我是不是每天早上五点起床。如果只是猜测就直接说明不确定。');
+      await checkedSend(ai, '请确认我是不是每天早上五点起床。如果只是猜测就直接说明不确定。');
 
       final injected = injectedMemoryText(ai);
       final answer = lastAssistantText(ai);
@@ -186,9 +184,9 @@ void main() {
       await seedCommute();
       final ai = await start();
       // 长填充让手动压缩确实缩小上下文；否则小历史压缩会被判为无收益而返回 null。
-      await ai.send('请只回复"收到"，不要做别的事：${'背景资料。' * 400}');
-      await ai.send('第二句：今天先到这里。');
-      await ai.send('第三句：继续整理。');
+      await checkedSend(ai, '请只回复"收到"，不要做别的事：${'背景资料。' * 400}');
+      await checkedSend(ai, '第二句：今天先到这里。');
+      await checkedSend(ai, '第三句：继续整理。');
 
       final compaction = await ai.compactConversation();
       expect(compaction, isNotNull, reason: '手动压缩应产生一次真实摘要');
@@ -212,7 +210,7 @@ void main() {
         reason: '记忆块不得进入摘要输入',
       );
 
-      await ai.send('我上班一般怎么走？只根据你已知的我的信息回答。');
+      await checkedSend(ai, '我上班一般怎么走？只根据你已知的我的信息回答。');
       final answer = lastAssistantText(ai);
       expect(
         RegExp(r'42\s*路|四十二路').hasMatch(answer),
@@ -229,9 +227,9 @@ void main() {
     () async {
       await seedCommute();
       final ai = await start();
-      await ai.send('请只回复"收到"，不要做别的事：${'背景资料。' * 400}');
-      await ai.send('第二句：今天先到这里。');
-      await ai.send('第三句：继续整理。');
+      await checkedSend(ai, '请只回复"收到"，不要做别的事：${'背景资料。' * 400}');
+      await checkedSend(ai, '第二句：今天先到这里。');
+      await checkedSend(ai, '第三句：继续整理。');
 
       final compaction = await ai.compactConversation();
       expect(compaction, isNotNull, reason: '手动压缩应产生一次真实摘要');
@@ -241,7 +239,7 @@ void main() {
       ).hasMatch(compaction!.summary.text);
 
       await repository.forgetMemory('commute');
-      await ai.send('我上班一般怎么走？只根据你已知的我的信息回答，不知道就说不知道。');
+      await checkedSend(ai, '我上班一般怎么走？只根据你已知的我的信息回答，不知道就说不知道。');
 
       final forgotten = (await db.select(db.memoryItems).get())
           .singleWhere((row) => row.id == 'commute')
@@ -250,9 +248,7 @@ void main() {
         memory: memory,
       ).assemble(topic: '上班');
       final answer = lastAssistantText(ai);
-      final answerLeaks = RegExp(
-        r'42\s*路|四十二路|7\s*号线|七号线',
-      ).hasMatch(answer);
+      final answerLeaks = RegExp(r'42\s*路|四十二路|7\s*号线|七号线').hasMatch(answer);
       expect(forgotten, isTrue, reason: '前提：墓碑已写入');
       expect(
         liveContext.text,
@@ -293,11 +289,15 @@ void main() {
         'topic': '学习时段',
       });
       final ai = await start();
-      await ai.send('我什么时候学习效率更高？分别说明哪些是已确认的、哪些只是猜测。');
+      await checkedSend(ai, '我什么时候学习效率更高？分别说明哪些是已确认的、哪些只是猜测。');
 
       final injected = injectedMemoryText(ai);
       expect(injected, contains('"layer":"identity"'), reason: '前提：稳定事实按身份层注入');
-      expect(injected, contains('"layer":"observation"'), reason: '前提：观察按观察层注入');
+      expect(
+        injected,
+        contains('"layer":"observation"'),
+        reason: '前提：观察按观察层注入',
+      );
       final answer = lastAssistantText(ai);
       expect(answer, contains('晚上'), reason: '已确认事实应被陈述');
       expect(
@@ -334,7 +334,7 @@ void main() {
         });
       }
       final ai = await start();
-      await ai.send('请先用 getMemory 搜索“晨跑”核对我的晨跑习惯，再回答我晨跑的习惯还在吗。');
+      await checkedSend(ai, '请先用 getMemory 搜索“晨跑”核对我的晨跑习惯，再回答我晨跑的习惯还在吗。');
 
       final tools = ai.transcript
           .whereType<ToolResultMessage>()
@@ -357,10 +357,10 @@ void main() {
     timeout: const Timeout(Duration(minutes: 5)),
   );
 
-  // 能力 B：不提供任何别名，系统应自行把「晨跑」与「早上跑步」消解为同一主题。
-  // 当前实现的自动上下文不使用别名匹配，本用例预期失败，作为能力边界证据。
+  // 整句中的“习惯”可命中较早的身份记忆，命中后应进入话题块。
+  // 单独检索“晨跑”仍无字面命中，本用例不代表通用同义消解。
   test(
-    '[P1-别名召回-B] 未登记别名时自动同义消解（能力边界）',
+    '[P1-整句召回-B] 未登记别名时也能注入整句话题命中的较早偏好',
     () async {
       await memory.save({
         'id': 'run-auto',
@@ -381,7 +381,7 @@ void main() {
         });
       }
       final ai = await start();
-      await ai.send('我晨跑的习惯还在吗？');
+      await checkedSend(ai, '我晨跑的习惯还在吗？');
 
       final injected = injectedMemoryText(ai);
       final blocks = memoryBlocks(injected);
@@ -389,28 +389,21 @@ void main() {
         for (final item in (blocks?['stable'] as List? ?? const []))
           (item as Map<String, Object?>)['content'] as String,
       ];
-      expect(
-        stable,
-        isNot(contains('我习惯早上跑步')),
-        reason: '前提：目标记忆未被稳定块平凡注入',
-      );
+      expect(stable, isNot(contains('我习惯早上跑步')), reason: '前提：目标记忆未被稳定块平凡注入');
       expect(
         (await memory.query(search: '晨跑'))['items'] as List,
         isEmpty,
         reason: '前提：未登记别名时“晨跑”无字面命中',
       );
-      expect(
-        injected,
-        contains('早上跑步'),
-        reason: 'B 应自动消解同义写法；当前实现依赖显式别名',
-      );
+      expect(injected, contains('早上跑步'), reason: '整句话题命中的身份偏好应进入注入块');
     },
     skip: _credentialMissing,
     timeout: const Timeout(Duration(minutes: 5)),
   );
 }
 
-String lastAssistantText(AssistantController controller) => controller.transcript
+String lastAssistantText(AssistantController controller) => controller
+    .transcript
     .whereType<AssistantMessage>()
     .map((message) => message.text.trim())
     .where((text) => text.isNotEmpty)
@@ -429,4 +422,14 @@ Map<String, Object?>? memoryBlocks(String text) {
   if (index < 0) return null;
   final decoded = jsonDecode(text.substring(index + 1));
   return decoded is Map<String, Object?> ? decoded : null;
+}
+
+/// 每条真实请求都须正常结束，避免把工具调用前的中间说明当作最终答案。
+Future<void> checkedSend(AssistantController ai, String text) async {
+  final result = await ai.send(text);
+  expect(
+    result?.reason,
+    AgentStopReason.completed,
+    reason: '模型请求未完整完成 ${result?.failure?.code} ${ai.errorMessage}',
+  );
 }

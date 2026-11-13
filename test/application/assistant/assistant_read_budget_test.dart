@@ -29,7 +29,7 @@ class _PagedReader implements UnifiedReader {
     'nextOffset': offset + 20,
     'items': [
       for (var i = 0; i < 20; i++)
-        {'id': 'm${offset + i}', 'title': 'x' * 2500, 'phase': 'notStarted'},
+        {'id': 'm${offset + i}', 'title': 'x' * 500, 'phase': 'notStarted'},
     ],
     'hint': '仅本页',
   };
@@ -100,9 +100,13 @@ void main() {
       cancellation: CancellationToken(),
     );
     var characters = 0;
-    for (var offset = 0; offset < 60; offset += 20) {
+    for (var offset = 0; offset < 140; offset += 20) {
       final output = await query.execute({'offset': offset}, context);
       expect(output.isError, false);
+      expect(
+        utf8.encode(output.text).length,
+        lessThanOrEqualTo(ToolOutput.maxTextBytes),
+      );
       final page = jsonDecode(output.text) as Map;
       expect(page['offset'], offset);
       expect(page['nextOffset'], offset + 20);
