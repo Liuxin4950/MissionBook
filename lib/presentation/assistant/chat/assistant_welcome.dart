@@ -89,7 +89,7 @@ class _Welcome extends StatelessWidget {
                   ),
                   const SizedBox(height: AppLayout.spaceMd),
                   Text(
-                    '${persona.name} · ${persona.role.label} · ${persona.replyStyle.label}',
+                    '${persona.name} · ${persona.roleLabel} · ${persona.replyStyleLabel}',
                     style: text.bodySmall,
                   ),
                   const SizedBox(height: AppLayout.spaceSm),

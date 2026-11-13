@@ -705,6 +705,90 @@ void main() {
     });
   }
 
+  assistantTest('定位与风格参考可复制，窄屏自定义内容保存后回显', (tester) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+
+    await mount(
+      tester,
+      ScriptedModel([]),
+      width: 320,
+      height: 956,
+      textScale: 2,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(2)),
+          child: child!,
+        ),
+        home: AssistantSettingsPage(controller: assistant),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-persona-section')));
+    await tester.pumpAndSettle();
+    for (final (key, text) in [
+      ('assistant-persona-role', '协助我修改小说，保留我的原意。'),
+      ('assistant-reply-style', '每次先给结论，然后列两条要点。'),
+    ]) {
+      final entry = find.byKey(Key(key));
+      await tester.ensureVisible(entry);
+      await tester.pumpAndSettle();
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      expect(find.byType(ChoiceChip), findsNWidgets(6));
+      await tester.tap(find.byKey(const Key('persona-text-help')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('复制示例'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('复制示例'));
+      await tester.pump();
+      expect(copied, isNotEmpty);
+      await tester.ensureVisible(find.text('复制提示词'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('复制提示词'));
+      await tester.pump();
+      expect(copied, contains('MissionBook'));
+      expect(copied, contains('【填写'));
+      await tester.ensureVisible(find.text('知道了'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('知道了'));
+      await tester.pumpAndSettle();
+      final input = find.byKey(const Key('persona-text-input'));
+      await tester.enterText(input, '');
+      await tester.pump();
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('persona-text-done')))
+            .onPressed,
+        isNull,
+      );
+      await tester.enterText(input, text);
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('persona-text-done')));
+      await tester.pumpAndSettle();
+    }
+    await tester.tap(find.byKey(const Key('assistant-save-settings')));
+    await pumpUntil(tester, () => assistant.persona.customRole != null);
+    expect(assistant.persona.customRole, '协助我修改小说，保留我的原意。');
+    expect(assistant.persona.customReplyStyle, '每次先给结论，然后列两条要点。');
+    expect(tester.takeException(), isNull);
+  });
+
   assistantTest('角色名称、回答风格和图标可以在设置里修改并保存', (tester) async {
     await mount(tester, ScriptedModel([]), width: 1106);
     await tester.pumpWidget(
@@ -743,11 +827,22 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('耐心讲解').last);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('persona-text-done')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-persona-role')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('persona-text-input')),
+      '围绕我的写作目标，帮助我梳理提纲与修改文字。',
+    );
+    await tester.tap(find.byKey(const Key('persona-text-done')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('assistant-avatar-book')));
     await tester.pump();
     await tester.tap(find.byKey(const Key('assistant-save-settings')));
     await pumpUntil(tester, () => assistant.persona.name == '小书');
     expect(assistant.persona.replyStyle, AssistantReplyStyle.explanatory);
+    expect(assistant.persona.customRole, '围绕我的写作目标，帮助我梳理提纲与修改文字。');
     expect(assistant.persona.avatar, AssistantAvatar.book);
     expect(assistant.persona.userAddress, '小刘');
     expect(tester.takeException(), isNull);

@@ -361,6 +361,32 @@ void main() {
     expect(model.requests.last.systemPrompt, contains('小刘'));
   });
 
+  test('自定义角色和回答风格进入当前及重开会话的模型请求', () async {
+    final model = ScriptedModel([
+      (_) => textResponse('收到'),
+      (_) => textResponse('继续'),
+    ]);
+    final assistant = makeController(model);
+    await assistant.initialize();
+    const persona = AssistantPersona(
+      customRole: '协助我修改小说，先保留原意再提出修改。',
+      customReplyStyle: '每次先列两个要点，再给一个具体例子。',
+    );
+    await assistant.savePersona(persona);
+    await assistant.send('开始');
+    final id = assistant.currentSessionId!;
+    expect(model.requests.last.systemPrompt, contains(persona.customRole));
+    expect(
+      model.requests.last.systemPrompt,
+      contains(persona.customReplyStyle),
+    );
+    await assistant.startNewSession();
+    await assistant.openConversation(id);
+    await assistant.send('继续');
+    expect(model.requests.last.systemPrompt, contains(persona.customRole));
+    expect(model.requests.last.systemPrompt, contains('不能改变工具权限'));
+  });
+
   test('删除会话回收草稿；打开另一会话不沿用旧错误和迟到保存', () async {
     final model = ScriptedModel([
       (_) => throw StateError('模拟模型失败'),

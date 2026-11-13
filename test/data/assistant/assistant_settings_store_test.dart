@@ -103,6 +103,46 @@ void main() {
       AssistantRole.assistant,
     );
   });
+  test('自定义定位和风格独立持久化，旧配置与损坏字段可恢复', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    const store = SecureAssistantSettingsStore();
+    const persona = AssistantPersona(
+      name: '小书',
+      customRole: '帮助我练习写作。\n先讨论提纲，再逐段修改。',
+      customReplyStyle: '回答先给三个要点，再举一个例子。',
+    );
+    await store.savePersona(persona);
+    final restored = (await store.load()).persona;
+    expect(restored.customRole, persona.customRole);
+    expect(restored.customReplyStyle, persona.customReplyStyle);
+    expect(restored.roleInstruction, persona.customRole);
+    expect(restored.roleLabel, '自定义定位');
+    final legacy = AssistantPersona.fromJson({'name': '旧配置', 'role': 'coach'});
+    expect(legacy.customRole, isNull);
+    expect(legacy.roleInstruction, AssistantRole.coach.instruction);
+    final partial = AssistantPersona.fromJson({
+      'name': '小书',
+      'customRole': '无效\u0000内容',
+      'customReplyStyle': '只列要点',
+    });
+    expect(partial.name, '小书');
+    expect(partial.customRole, isNull);
+    expect(partial.customReplyStyle, '只列要点');
+    await expectLater(
+      store.savePersona(AssistantPersona(customRole: '长' * 2001)),
+      throwsArgumentError,
+    );
+    expect((await store.load()).persona.customRole, persona.customRole);
+    await store.savePersona(
+      const AssistantPersona(role: AssistantRole.writing),
+    );
+    expect((await store.load()).persona.customRole, isNull);
+    expect(
+      (await store.load()).persona.roleInstruction,
+      AssistantRole.writing.instruction,
+    );
+  });
+
   test('三档权限持久化，转写凭据独立', () async {
     FlutterSecureStorage.setMockInitialValues({});
     const store = SecureAssistantSettingsStore();

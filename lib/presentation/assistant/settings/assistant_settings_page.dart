@@ -10,7 +10,7 @@ import '../../records/settings/memory_page.dart';
 import '../../records/settings/web_settings_page.dart';
 import '../../records/analysis/analysis_settings_page.dart';
 import '../../records/shared/record_scope.dart';
-import '../../widgets/app_dropdown_form_field.dart';
+import 'assistant_persona_text_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -55,6 +55,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
   );
   late AssistantRole _role = widget.controller.persona.role;
   late AssistantReplyStyle _replyStyle = widget.controller.persona.replyStyle;
+  late String? _customRole = widget.controller.persona.customRole;
+  late String? _customReplyStyle = widget.controller.persona.customReplyStyle;
   late AssistantAvatar _avatar = widget.controller.persona.avatar;
   late String? _customAvatarBase64 =
       widget.controller.persona.customAvatarBase64;
@@ -193,6 +195,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
     _userAddress.text = controller.persona.userAddress;
     _role = controller.persona.role;
     _replyStyle = controller.persona.replyStyle;
+    _customRole = controller.persona.customRole;
+    _customReplyStyle = controller.persona.customReplyStyle;
     _avatar = controller.persona.avatar;
     _customAvatarBase64 = controller.persona.customAvatarBase64;
   }
@@ -246,6 +250,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       _userAddress.text.trim() != widget.controller.persona.userAddress ||
       _role != widget.controller.persona.role ||
       _replyStyle != widget.controller.persona.replyStyle ||
+      _customRole != widget.controller.persona.customRole ||
+      _customReplyStyle != widget.controller.persona.customReplyStyle ||
       _avatar != widget.controller.persona.avatar ||
       _customAvatarBase64 != widget.controller.persona.customAvatarBase64;
   AssistantPersona _readPersona() => AssistantPersona(
@@ -253,6 +259,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
     userAddress: _userAddress.text.trim(),
     role: _role,
     replyStyle: _replyStyle,
+    customRole: _customRole,
+    customReplyStyle: _customReplyStyle,
     avatar: _avatar,
     customAvatarBase64: _customAvatarBase64,
   );
@@ -540,6 +548,37 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
     );
   }
 
+  Future<void> _editPersonaText(AssistantPersonaTextKind kind) async {
+    final persona = _readPersona();
+    final isRole = kind == AssistantPersonaTextKind.role;
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => AssistantPersonaTextPage(
+          kind: kind,
+          initialText: isRole
+              ? persona.roleInstruction
+              : persona.replyStyleInstruction,
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    setState(() {
+      if (isRole) {
+        final preset = AssistantRole.values
+            .where((value) => value.instruction == result)
+            .firstOrNull;
+        _role = preset ?? _role;
+        _customRole = preset == null ? result : null;
+      } else {
+        final preset = AssistantReplyStyle.values
+            .where((value) => value.instruction == result)
+            .firstOrNull;
+        _replyStyle = preset ?? _replyStyle;
+        _customReplyStyle = preset == null ? result : null;
+      }
+    });
+  }
+
   Widget _buildPersonaSection() => AppSectionCard(
     padding: EdgeInsets.zero,
     child: AppExpansionTile(
@@ -557,7 +596,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       ),
       title: Text('角色与风格', style: Theme.of(context).textTheme.titleMedium),
       subtitle: Text(
-        '${_personaName.text.trim().isEmpty ? '书祺' : _personaName.text.trim()}\n${_role.label} · ${_replyStyle.label}',
+        '${_personaName.text.trim().isEmpty ? '书祺' : _personaName.text.trim()}\n${_readPersona().roleLabel} · ${_readPersona().replyStyleLabel}',
         style: Theme.of(
           context,
         ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
@@ -598,54 +637,24 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
           ],
         ),
         const SizedBox(height: AppLayout.spaceLg),
-        AdaptiveColumns(
-          minColumnWidth: 240,
-          maxColumns: 2,
-          children: [
-            AppDropdownFormField<AssistantRole>(
-              key: const Key('assistant-persona-role'),
-              isExpanded: true,
-              initialValue: _role,
-              decoration: InputDecoration(
-                labelText: '角色定位',
-                helperText: switch (_role) {
-                  AssistantRole.assistant => '整理目标与任务，明确下一步',
-                  AssistantRole.coach => '梳理学习思路，循序解释问题',
-                  AssistantRole.planner => '结合目标与时间，规划任务安排',
-                },
-                helperMaxLines: 3,
-              ),
-              items: [
-                for (final role in AssistantRole.values)
-                  DropdownMenuItem(value: role, child: Text(role.label)),
-              ],
-              onChanged: _saving || widget.controller.isBusy
-                  ? null
-                  : (value) => setState(() => _role = value ?? _role),
-            ),
-            AppDropdownFormField<AssistantReplyStyle>(
-              key: const Key('assistant-reply-style'),
-              isExpanded: true,
-              initialValue: _replyStyle,
-              decoration: InputDecoration(
-                labelText: '回答风格',
-                helperText: switch (_replyStyle) {
-                  AssistantReplyStyle.concise => '先给结论和下一步，按需展开',
-                  AssistantReplyStyle.explanatory => '循序解释原因、过程与结果',
-                  AssistantReplyStyle.supportive => '语气温和，提供具体的小步骤',
-                },
-                helperMaxLines: 3,
-              ),
-              items: [
-                for (final style in AssistantReplyStyle.values)
-                  DropdownMenuItem(value: style, child: Text(style.label)),
-              ],
-              onChanged: _saving || widget.controller.isBusy
-                  ? null
-                  : (value) =>
-                        setState(() => _replyStyle = value ?? _replyStyle),
-            ),
-          ],
+        AppSettingsRow(
+          key: const Key('assistant-persona-role'),
+          icon: Icons.badge_outlined,
+          title: '角色定位',
+          subtitle: _readPersona().roleLabel,
+          onTap: _saving || widget.controller.isBusy
+              ? null
+              : () => _editPersonaText(AssistantPersonaTextKind.role),
+        ),
+        const Divider(height: 1),
+        AppSettingsRow(
+          key: const Key('assistant-reply-style'),
+          icon: Icons.chat_bubble_outline_rounded,
+          title: '回答风格',
+          subtitle: _readPersona().replyStyleLabel,
+          onTap: _saving || widget.controller.isBusy
+              ? null
+              : () => _editPersonaText(AssistantPersonaTextKind.replyStyle),
         ),
         const SizedBox(height: AppLayout.spaceLg),
         Text('角色头像', style: Theme.of(context).textTheme.titleSmall),
