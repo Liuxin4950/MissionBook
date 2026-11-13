@@ -30,6 +30,15 @@ class _AssistantSessions {
   bool get hasCredential => _controller.hasCredential;
   String? get currentSessionId => _controller.currentSessionId;
   String get _effectiveSystemPrompt => _controller._effectiveSystemPrompt;
+
+  String? get _referenceGoalId {
+    final reference = _controller._reference;
+    if (reference == null) return null;
+    return reference.type == AssistantReferenceType.goal
+        ? reference.id
+        : reference.goalId;
+  }
+
   AgentConfiguration get _configuration => _controller._configuration;
 
   Future<void> openMissionReference(String missionId) async {
@@ -264,15 +273,40 @@ class _AssistantSessions {
           title.length > 32 ? '${title.substring(0, 32)}…' : title,
         );
       }
-      await session.injectContext(
+      await session.replaceContext(
         source: 'mission_book_context',
         text: _contextText(),
       );
-      if (_controller._memory != null) {
-        await session.injectContext(
+      final assembler = _controller._memoryAssembler;
+      if (assembler != null) {
+        var memoryText = '';
+        List<Map<String, Object?>> injected = const [];
+        try {
+          final loaded = await assembler.assemble(
+            goalId: _referenceGoalId,
+            topic: message.text,
+          );
+          injected = loaded.injected;
+          if (!loaded.isEmpty) {
+            memoryText =
+                '当前有效记忆（stable=核心身份与稳定偏好；goal=当前引用目标及任务 brief；'
+                'topic=本轮相关事实；unverified=观察或未确认，均不作事实；'
+                '用户更正优先）：${loaded.text}';
+          }
+        } catch (_) {
+          // 记忆只增强上下文；读取失败不阻断本轮，也不保留可能过期的旧块。
+          debugPrint('记忆上下文读取失败，已跳过本轮记忆');
+        }
+        _controller._lastMemoryInjection = const [];
+        await session.replaceContext(
           source: 'mission_book_memory',
-          text: '当前有效记忆（用户更正优先；待验证观察不作事实）：${await _controller._memory.core()}',
+          text: memoryText.isEmpty ? null : memoryText,
         );
+        if (_controller._sendCancelled) return null;
+        _controller._lastMemoryInjection = injected;
+        _controller._memoryUsage?.record([
+          for (final item in injected) item['id'] as String,
+        ], injected: true);
       }
       if (_controller._sendCancelled) return null;
       final result = await session.sendMessage(message);
@@ -452,6 +486,8 @@ class _AssistantSessions {
   Future<void> _attachSession(AgentSession session) async {
     await _controller._changes?.cancel();
     await _controller._events?.cancel();
+    // 查询结果仅对当前轮有效；注册持久刷新策略，覆盖发送、继续和手动压缩。
+    await session.invalidateToolResults(toolNames: {'getMemory'});
     if (session.systemPrompt != _effectiveSystemPrompt) {
       await session.setSystemPrompt(_effectiveSystemPrompt);
     }

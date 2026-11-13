@@ -31,12 +31,23 @@ final class UserMessage extends AgentMessage {
 
 /// 由宿主提供的背景资料，来源不会伪装成用户亲口说的话。
 final class ContextMessage extends AgentMessage {
-  ContextMessage({required this.source, required String text, super.id})
-    : super(content: [TextBlock(text: text)]) {
+  ContextMessage({
+    required this.source,
+    required String text,
+    this.pinned = false,
+    super.id,
+  }) : super(content: [TextBlock(text: text)]) {
     if (source.trim().isEmpty) throw ArgumentError('上下文必须标明来源');
   }
 
   final String source;
+  final bool pinned;
+
+  /// 兼容旧宿主日志；普通来源通知默认可压缩。
+  bool get isPinned =>
+      pinned ||
+      source == 'mission_book_context' ||
+      source == 'mission_book_memory';
 }
 
 /// 旧历史的模型摘要；保留被概括的消息编号，原始消息仍在会话日志。
@@ -44,11 +55,17 @@ final class ContextSummaryMessage extends AgentMessage {
   ContextSummaryMessage({
     required String text,
     required List<String> summarizedMessageIds,
+    this.safetyVersion = 0,
     super.id,
   }) : summarizedMessageIds = List.unmodifiable(summarizedMessageIds),
        super(content: [TextBlock(text: text)]);
 
   final List<String> summarizedMessageIds;
+
+  /// 1：排除可替换供给，并保留原始覆盖编号以支持依赖失效。
+  /// 缺省 0 的旧摘要不可信，不得作为新摘要输入。
+  final int safetyVersion;
+  bool get isSafe => safetyVersion == 1;
 }
 
 /// 模型返回的消息，可以同时包含文字、思考和多次工具调用。

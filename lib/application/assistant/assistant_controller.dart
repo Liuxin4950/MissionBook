@@ -1,5 +1,7 @@
 import 'assistant_prompt.dart';
 import '../errors/user_error_message.dart';
+import '../memory/memory_context.dart';
+import '../memory/memory_usage_recorder.dart';
 import '../memory/memory_service.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -158,7 +160,10 @@ class AssistantController extends ChangeNotifier {
        _settingsStore = settingsStore,
        _missions = missions,
        _goals = goals,
-       _memory = memory,
+       _memoryAssembler = memory == null
+           ? null
+           : MemoryContextAssembler(memory: memory, missions: missions),
+       _memoryUsage = memory == null ? null : MemoryUsageRecorder(memory),
        _analysis = analysis,
        _baseConfiguration = configuration,
        _modelOverrides = modelOverrides,
@@ -175,6 +180,7 @@ class AssistantController extends ChangeNotifier {
               records: records,
               missions: missions,
               memory: memory,
+              usageRecorder: _memoryUsage,
               analysis: analysis,
               web: web,
               analyze: analyzeOnDemand,
@@ -198,8 +204,11 @@ class AssistantController extends ChangeNotifier {
   final AssistantSettingsStore _settingsStore;
   final MissionService _missions;
   final GoalService _goals;
-  final MemoryService? _memory;
+  final MemoryContextAssembler? _memoryAssembler;
+  final MemoryUsageRecorder? _memoryUsage;
   final AnalysisStore? _analysis;
+  List<Map<String, Object?>> _lastMemoryInjection = const [];
+  List<Map<String, Object?>> get lastMemoryInjection => _lastMemoryInjection;
   final AgentConfiguration? _baseConfiguration;
   final Map<String, AgentModel> _modelOverrides;
   final DateTime Function() _clock;
@@ -686,6 +695,7 @@ class AssistantController extends ChangeNotifier {
     await _events?.cancel();
     await _closeSession();
     await _runtime?.close();
+    await _memoryUsage?.drain();
     _runtime = null;
   }
 

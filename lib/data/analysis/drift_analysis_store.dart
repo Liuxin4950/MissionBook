@@ -61,6 +61,12 @@ class DriftAnalysisStore implements AnalysisStore {
   });
   @override
   Future<AnalysisInput> input(AnalysisWork w) async {
+    if (w.scope == AnalysisScope.reflection) {
+      return AnalysisInput(
+        await DriftMemoryRepository(db).reflectionInput(),
+        const [],
+      );
+    }
     if (w.scope == AnalysisScope.memory) {
       final payload = await records.rows(
         'SELECT data,timestamp FROM assistant_session_records WHERE session_id=? AND sequence=?',
@@ -301,6 +307,59 @@ class DriftAnalysisStore implements AnalysisStore {
   }
 
   @override
+  Future<void> ensureReflectionJob() async {
+    await db.customStatement(
+      'INSERT INTO analysis_jobs(scope,target_id,source_version,status,attempts,available_at) '
+      "VALUES('reflection','global',1,'pending',0,?) "
+      'ON CONFLICT(scope,target_id) DO NOTHING',
+      [
+        DateTime.now().millisecondsSinceEpoch +
+            const Duration(minutes: 5).inMilliseconds,
+      ],
+    );
+  }
+
+  @override
+  Future<bool> completeReflection(AnalysisWork w, String json) async {
+    final decoded = jsonDecode(json);
+    final rawActions = decoded is Map ? decoded['actions'] : null;
+    final actions = rawActions is List
+        ? [
+            for (final raw in rawActions)
+              if (raw is Map) Map<String, Object?>.from(raw),
+          ]
+        : const <Map<String, Object?>>[];
+    return db.transaction(() async {
+      await records.lock();
+      final job = await records.rows(
+        'SELECT source_version,status FROM analysis_jobs WHERE scope=? AND target_id=?',
+        [w.scope.name, w.id],
+      );
+      if (job.isEmpty ||
+          job.single['source_version'] != w.version ||
+          job.single['status'] != (w.manual ? 'manual_running' : 'running')) {
+        return false;
+      }
+      await DriftMemoryRepository(db).applyReflection(
+        actions,
+        operationId:
+            'reflection:${w.id}:${DateTime.now().millisecondsSinceEpoch}',
+      );
+      await db.customStatement(
+        "UPDATE analysis_jobs SET status='pending',source_version=source_version+1,"
+        "attempts=0,error=NULL,available_at=? WHERE scope=? AND target_id=?",
+        [
+          DateTime.now().millisecondsSinceEpoch +
+              const Duration(hours: 6).inMilliseconds,
+          w.scope.name,
+          w.id,
+        ],
+      );
+      return true;
+    });
+  }
+
+  @override
   Future<bool> publish(
     AnalysisWork w,
     String content,
@@ -439,18 +498,32 @@ class DriftAnalysisStore implements AnalysisStore {
       );
       if (current.single['source_version'] != w.version) return;
       for (final raw in entries.take(5)) {
-        final e = Map<String, Object?>.from(raw as Map<String, dynamic>);
+        if (raw is! Map) continue;
+        final e = Map<String, Object?>.from(raw);
         final quote = e['quote'] as String?;
+        final content = e['content'] as String?;
+        final topic = e['topic'] as String?;
+        final layer = e['layer'] as String? ?? 'semantic';
+        // 抽取候选必须有明确主题；空主题不能借助仓储回退正文，避免把
+        // malformed 模型输出伪装成稳定主题，同时不影响同批其他候选。
         if (e['certainty'] != 'stated' ||
             quote == null ||
             quote.trim().isEmpty ||
+            content == null ||
+            content.trim().isEmpty ||
+            topic == null ||
+            topic.trim().isEmpty ||
             !userText.contains(quote) ||
-            !['preference', 'fact', 'constraint'].contains(e['kind'])) {
+            !['identity', 'semantic', 'procedural'].contains(layer)) {
           continue;
         }
-        final key = e['conflictKey'] as String? ?? e['content'] as String;
-        e['id'] = const Uuid().v5(Namespace.url.value, 'memory:${w.id}:$key');
-        e['source'] = 'conversation:${w.id}';
+        e['id'] = const Uuid().v5(Namespace.url.value, 'memory:${w.id}:$topic');
+        e['layer'] = layer;
+        e['topic'] = topic;
+        e['aliases'] = (e['aliases'] as List?)?.cast<String>() ?? const [];
+        e['sourceKind'] = 'extraction';
+        e['sourceRef'] = 'conversation:${w.id}';
+        e['importance'] = 50;
         final expiresAt = e['expiresAt'];
         e['expiresAt'] = expiresAt is int
             ? expiresAt

@@ -47,10 +47,10 @@ void main() {
       await repository.saveMemory({
         'id': 'memory',
         'content': '测试事实',
-        'kind': 'fact',
+        'layer': 'semantic',
         'certainty': 'stated',
-        'source': '用户',
-        'conflictKey': '主题',
+        'topic': '主题',
+        'sourceKind': 'user',
       });
       await repository.selectMemory(
         sessionId: 'session',
@@ -69,7 +69,7 @@ void main() {
       );
       expect(result['status'], 'success');
       expect(
-        (await database.select(database.memoryEntries).get()).single.forgotten,
+        (await database.select(database.memoryItems).get()).single.forgotten,
         isTrue,
       );
       await database.close();

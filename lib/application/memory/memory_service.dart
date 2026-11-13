@@ -10,20 +10,28 @@ class MemoryService {
     int offset = 0,
     int limit = 20,
     bool includeExpired = false,
+    String? layer,
+    String? certainty,
+    int? candidateLimit,
   }) => repository.queryMemory(
     goalId: goalId,
     search: search,
     offset: offset,
     limit: limit,
     includeExpired: includeExpired,
+    layer: layer,
+    certainty: certainty,
+    candidateLimit: candidateLimit,
   );
   Future<Map<String, Object?>> save(
     Map<String, Object?> entry, {
     bool userEdited = false,
+    bool explicitCorrection = false,
     String? operationId,
   }) => repository.saveMemory(
     entry,
     userEdited: userEdited,
+    explicitCorrection: explicitCorrection,
     operationId: operationId,
   );
   Future<void> forget(String id, {String? operationId}) =>
@@ -36,6 +44,7 @@ class MemoryService {
     int offset = 0,
     int limit = 20,
     bool fullContent = false,
+    String? layer,
   }) => repository.selectMemory(
     sessionId: sessionId,
     selectionId: selectionId,
@@ -44,6 +53,7 @@ class MemoryService {
     offset: offset,
     limit: limit,
     fullContent: fullContent,
+    layer: layer,
   );
   Future<Map<String, Object?>> previewForget({
     required String sessionId,
@@ -76,5 +86,25 @@ class MemoryService {
     operationId: operationId,
     offset: offset,
   );
-  Future<String> core() => repository.coreMemory();
+  Future<Map<String, Object?>> reflectionInput() =>
+      repository.reflectionInput();
+  Future<Map<String, Object?>> applyReflection(
+    List<Map<String, Object?>> actions, {
+    String? operationId,
+  }) => repository.applyReflection(actions, operationId: operationId);
+  Future<void> recordUsage({
+    required List<String> ids,
+    required bool injected,
+  }) => repository.recordUsage(ids: ids, injected: injected);
+  Future<List<Map<String, Object?>>> episodes({
+    String? goalId,
+    String? search,
+    int limit = 20,
+  }) => repository.memoryEpisodes(goalId: goalId, search: search, limit: limit);
+  Future<List<Map<String, Object?>>> procedures({
+    String? goalId,
+    String? search,
+    int limit = 20,
+  }) =>
+      repository.memoryProcedures(goalId: goalId, search: search, limit: limit);
 }

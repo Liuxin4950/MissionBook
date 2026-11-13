@@ -32,6 +32,55 @@ void main() {
     ),
   );
 
+  test('连续压缩承接安全摘要的一次性目标约束，普通核对通知可压缩', () async {
+    final inputs = <ModelRequest>[];
+    final engine = compactor(
+      summary: (request, _) {
+        inputs.add(request);
+        return textReply('目标：完成迁移；仅本次禁止删除记录；核对来源业务查询，操作已完成。');
+      },
+    );
+    final notice = ContextMessage(source: '业务查询核对', text: '操作已完成');
+    final first = await engine.prepare(
+      request([
+        UserMessage(text: '完成迁移，仅本次禁止删除记录。${'背景。' * 800}'),
+        notice,
+        textReply('收到').message,
+        UserMessage(text: '继续'),
+      ]),
+      CancellationToken(),
+      trigger: CompactionTrigger.manual,
+    );
+    expect(first, isNotNull);
+    expect(first!.summary.isSafe, isTrue);
+    expect(first.summary.summarizedMessageIds, contains(notice.id));
+    expect(
+      inputs.first.messages.whereType<ContextMessage>().single.source,
+      '业务查询核对',
+    );
+    final second = await engine.prepare(
+      request([
+        ...first.contextMessages,
+        UserMessage(text: '下一步${'资料。' * 800}'),
+        textReply('继续执行').message,
+        UserMessage(text: '收尾'),
+      ]),
+      CancellationToken(),
+      trigger: CompactionTrigger.manual,
+    );
+    expect(second, isNotNull);
+    expect(
+      inputs.last.messages.whereType<ContextSummaryMessage>().single.id,
+      first.summary.id,
+    );
+    expect(inputs.last.systemPrompt, contains('一次性'));
+    expect(
+      second!.summary.summarizedMessageIds,
+      containsAll(first.summary.summarizedMessageIds),
+    );
+    expect(second.summary.text, contains('仅本次禁止删除记录'));
+  });
+
   test('输入估算不受输出额度和非输入请求参数影响', () {
     const estimator = ApproximateTokenEstimator();
     final profile = testProfile('main', window: 20000);
@@ -120,6 +169,65 @@ void main() {
     expect(result.summaryRequests, 1);
     expect(result.usage.inputTokens, 10);
     expect(result.usage.outputTokens, 5);
+  });
+
+  test('只固定供给块，旧摘要失效且旧工具组仍可进入摘要', () async {
+    final memory = ContextMessage(
+      source: 'mission_book_memory',
+      text: '当前有效记忆：用户每天早上七点起床',
+    );
+    final time = ContextMessage(source: 'mission_book_context', text: '今天是星期一');
+    final legacy = ContextSummaryMessage(
+      text: '旧摘要含已忘记的通勤路线：42路公交',
+      summarizedMessageIds: const ['legacy-user'],
+    );
+    final call = toolReply('old-tool').message;
+    final tool = ToolResultMessage(
+      toolCallId: 'old-tool',
+      toolName: 'read',
+      text: '旧工具返回的真实事实',
+    );
+    final history = <AgentMessage>[
+      legacy,
+      memory,
+      time,
+      UserMessage(text: '早期资料：${'学习记录和明确约束。' * 800}'),
+      call,
+      tool,
+      textReply('旧回答').message,
+      UserMessage(text: '请继续当前问题'),
+    ];
+    final summaries = <ModelRequest>[];
+    final result = await compactor(
+      summary: (request, token) {
+        summaries.add(request);
+        return textReply('旧历史的工具事实已整理。');
+      },
+    ).prepare(request(history), CancellationToken());
+    expect(result, isNotNull);
+    expect(
+      result!.contextMessages.whereType<ContextMessage>().map((m) => m.id),
+      [memory.id, time.id],
+    );
+    expect(result.contextMessages, isNot(contains(legacy)));
+    expect(result.contextMessages.whereType<ToolResultMessage>(), isEmpty);
+    expect(
+      result.summary.summarizedMessageIds,
+      containsAll([call.id, tool.id]),
+    );
+    expect(
+      result.summary.summarizedMessageIds,
+      isNot(anyOf(contains(memory.id), contains(time.id), contains(legacy.id))),
+    );
+    expect(summaries, hasLength(1));
+    final input = summaries.single.messages;
+    expect(input.whereType<ContextMessage>(), isEmpty);
+    expect(input.whereType<ContextSummaryMessage>(), isEmpty);
+    expect(input, containsAllInOrder([call, tool]));
+    expect(
+      input.map((message) => message.text).join('\n'),
+      isNot(anyOf(contains('七点'), contains('星期一'), contains('42路'))),
+    );
   });
 
   test('预算充足不调用摘要；关闭自动压缩仍可手动调用', () async {

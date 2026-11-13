@@ -1,8 +1,10 @@
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/analysis_scope.dart';
+import '../../../domain/entities/goal.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_layout.dart';
+import '../../../application/goals/goal_service.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_empty_state.dart';
 import '../../widgets/app_section_card.dart';
@@ -18,12 +20,28 @@ import '../../widgets/app_expansion.dart';
 import '../../../application/errors/user_error_message.dart';
 
 String _dateLabel(DateTime date) => '${date.year}年${date.month}月${date.day}日';
-String _kindLabel(Object? kind) => switch (kind) {
-  'preference' => '偏好',
-  'constraint' => '临时约束',
+String _layerText(Object? layer) => switch (layer) {
+  'identity' => '身份与稳定偏好',
+  'procedural' => '习惯流程',
+  'episodic' => '情节记忆',
   'observation' => '待验证观察',
-  _ => '明确事实',
+  _ => '一般事实',
 };
+String _certaintyText(Object? certainty) => switch (certainty) {
+  'stated' => '用户确认',
+  'inferred' => '助手归纳',
+  _ => '未验证',
+};
+
+/// 只有 stated 且非观察层才进入稳定事实块；其余只参与检索与观察区。
+bool _unverified(Map<String, Object?> entry) =>
+    entry['layer'] == 'observation' || entry['certainty'] != 'stated';
+
+String _loadLabel(Map<String, Object?> entry, bool expired) {
+  if (expired) return '已过期，不载入';
+  if (_unverified(entry)) return '不作事实，仅观察区';
+  return entry['goal_id'] != null ? '引用该目标时载入候选，按相关性与预算选入' : '全局候选，按相关性与预算选入';
+}
 
 /// 日记本直接读取结构化记忆，保留来源、更正和忘记的业务规则。
 class MemoryPage extends StatefulWidget {
@@ -37,7 +55,12 @@ class _MemoryPageState extends State<MemoryPage> {
   Future<Map<String, Object?>>? _data;
   final _search = TextEditingController();
   StreamSubscription<void>? _changes;
+  StreamSubscription<void>? _goalChanges;
+  Future<List<Goal>>? _goalChoices;
+  GoalService? _goals;
   int _offset = 0;
+  String? _goalId;
+  String? _layer;
   bool _showExpired = false, _retrying = false;
   String? _error;
   void load({bool reset = false}) {
@@ -46,26 +69,41 @@ class _MemoryPageState extends State<MemoryPage> {
       if (reset) _offset = 0;
       _data = RecordScope.maybeOf(context)!.memory!.query(
         offset: _offset,
+        goalId: _goalId,
         includeExpired: _showExpired,
+        layer: _layer,
         search: _search.text.trim().isEmpty ? null : _search.text.trim(),
       );
     });
   }
 
+  Future<List<Goal>> _loadGoals(GoalService goals) => Future.wait([
+    goals.findAll(),
+    goals.findDropped(),
+  ]).then((groups) => [...groups[0], ...groups[1]]);
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final scope = RecordScope.maybeOf(context)!;
+    if (_goals == null && scope.goals != null) {
+      final goals = scope.goals!;
+      _goals = goals;
+      _goalChoices = _loadGoals(goals);
+      _goalChanges = goals.changes.listen((_) {
+        if (mounted) setState(() => _goalChoices = _loadGoals(goals));
+      });
+    }
     if (_data == null) {
       load();
-      _changes = RecordScope.maybeOf(
-        context,
-      )!.analysis.changes.listen((_) => load());
+      _changes = scope.analysis.changes.listen((_) => load());
     }
   }
 
   @override
   void dispose() {
     _changes?.cancel();
+    _goalChanges?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -131,7 +169,16 @@ class _MemoryPageState extends State<MemoryPage> {
     final expiry = entry['expires_at'] as int?;
     final expired =
         expiry != null && expiry <= widget.clock().millisecondsSinceEpoch;
-    final source = entry['source'] as String;
+    final unverified = _unverified(entry);
+    final source =
+        entry['source_ref'] as String? ??
+        switch (entry['source_kind']) {
+          'user' => '用户明确陈述',
+          'manual' => '用户手动记录',
+          'extraction' => '后台抽取',
+          'reflection' => '反思整理',
+          _ => '助手',
+        };
     return Padding(
       padding: const EdgeInsets.only(bottom: AppLayout.spaceMd),
       child: AppSectionCard(
@@ -142,11 +189,10 @@ class _MemoryPageState extends State<MemoryPage> {
               children: [
                 Expanded(
                   child: Text(
-                    '${_kindLabel(entry['kind'])}${expired
-                        ? ' · 已过期'
-                        : entry['certainty'] != 'stated'
-                        ? ' · 待确认'
-                        : ''}',
+                    '${_layerText(entry['layer'])} · '
+                    '${_certaintyText(entry['certainty'])} · '
+                    '重要度 ${entry['importance'] ?? 50} · '
+                    '${_loadLabel(entry, expired)}',
                     style: Theme.of(context).textTheme.labelMedium,
                   ),
                 ),
@@ -174,8 +220,12 @@ class _MemoryPageState extends State<MemoryPage> {
               ),
               insetHeader: false,
               children: [
-                Text(entry['certainty'] == 'stated' ? '用户明确陈述' : '助手观察，尚待验证'),
+                Text(unverified ? '未验证：只参与检索与观察区，不作事实' : '用户确认事实：可进入稳定事实块'),
                 if (entry['user_edited'] == 1) const Text('已由你确认或更正'),
+                if (entry['topic_name'] != null)
+                  Text('主题：${entry['topic_name']}'),
+                if (entry['topic_aliases'] != null)
+                  Text('别名：${entry['topic_aliases']}'),
                 Text(
                   '来源：${source.startsWith('conversation:') ? '助手对话中的用户消息' : source}',
                 ),
@@ -205,7 +255,7 @@ class _MemoryPageState extends State<MemoryPage> {
           onPressed: () => showAppInfoSheet(
             context,
             'AI 日记本',
-            '这里保存助手记住的偏好、事实、约束和待验证观察。你可以检查来源、更正或忘记。过期内容不再自动载入；任务进度仍从任务事实与目标摘要读取。',
+            '这里保存助手记住的偏好、事实、约束和未验证观察。每轮从有界候选中按相关性与预算选择全局记忆；引用目标时也可选择该目标的记忆，话题命中优先，不保证每条都载入。观察区明确标注不是事实。你可以检查来源、更正或忘记。过期内容不再自动载入；任务进度仍从任务事实与目标摘要读取。',
           ),
         ),
         FutureBuilder<Map<String, Object?>>(
@@ -266,11 +316,25 @@ class _MemoryPageState extends State<MemoryPage> {
                           search: _search,
                           total: data['total'] as int,
                           showExpired: _showExpired,
+                          layer: _layer,
+                          goalId: _goalId,
+                          goals: _goals == null ? null : _goalChoices,
                           onSearch: () => load(reset: true),
                           onShowExpired: (value) {
                             _showExpired = value;
                             load(reset: true);
                           },
+                          onLayer: (value) {
+                            _layer = value;
+                            load(reset: true);
+                          },
+                          onGoal: (value) {
+                            _goalId = value;
+                            load(reset: true);
+                          },
+                          onRetryGoals: () => setState(
+                            () => _goalChoices = _loadGoals(_goals!),
+                          ),
                         ),
                         const SizedBox(height: AppLayout.spaceLg),
                         if ((extraction?['pending'] as int? ?? 0) > 0 ||
@@ -420,15 +484,27 @@ class _MemoryToolbar extends StatelessWidget {
     required this.search,
     required this.total,
     required this.showExpired,
+    required this.layer,
+    required this.goalId,
+    required this.goals,
     required this.onSearch,
     required this.onShowExpired,
+    required this.onLayer,
+    required this.onGoal,
+    required this.onRetryGoals,
   });
 
   final TextEditingController search;
   final int total;
   final bool showExpired;
+  final String? layer;
+  final String? goalId;
+  final Future<List<Goal>>? goals;
   final VoidCallback onSearch;
   final ValueChanged<bool> onShowExpired;
+  final ValueChanged<String?> onLayer;
+  final ValueChanged<String?> onGoal;
+  final VoidCallback onRetryGoals;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -437,6 +513,7 @@ class _MemoryToolbar extends StatelessWidget {
           constraints.maxWidth >=
           AppLayout.mediumBreakpoint *
               MediaQuery.textScalerOf(context).scale(1);
+      final theme = Theme.of(context);
       final field = TextField(
         controller: search,
         textInputAction: TextInputAction.search,
@@ -456,6 +533,63 @@ class _MemoryToolbar extends StatelessWidget {
         selected: showExpired,
         onSelected: onShowExpired,
       );
+      final layerFilter = AppDropdownFormField<String?>(
+        key: ValueKey('memory-layer-${layer ?? 'all'}'),
+        initialValue: layer,
+        style: theme.textTheme.bodySmall,
+        decoration: const InputDecoration(labelText: '记忆层'),
+        items: const [
+          DropdownMenuItem(value: null, child: Text('全部层')),
+          DropdownMenuItem(value: 'identity', child: Text('身份与偏好')),
+          DropdownMenuItem(value: 'semantic', child: Text('一般事实')),
+          DropdownMenuItem(value: 'episodic', child: Text('情节记忆')),
+          DropdownMenuItem(value: 'procedural', child: Text('习惯流程')),
+          DropdownMenuItem(value: 'observation', child: Text('待验证观察')),
+        ],
+        onChanged: onLayer,
+      );
+      final goalFilter = goals == null
+          ? null
+          : FutureBuilder<List<Goal>>(
+              future: goals,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '目标读取失败，暂不能按目标筛选。',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: onRetryGoals,
+                        child: const Text('重试'),
+                      ),
+                    ],
+                  );
+                }
+                final items = snapshot.data ?? const <Goal>[];
+                return AppDropdownFormField<String?>(
+                  key: ValueKey('memory-goal-${goalId ?? 'all'}'),
+                  initialValue: goalId,
+                  style: theme.textTheme.bodySmall,
+                  decoration: const InputDecoration(labelText: '目标范围（含全局记忆）'),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('全部记忆')),
+                    for (final goal in items)
+                      DropdownMenuItem(
+                        value: goal.id,
+                        child: Text(
+                          goal.title,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: onGoal,
+                );
+              },
+            );
       final count = Text(
         '$total 条记忆',
         style: Theme.of(context).textTheme.bodyMedium,
@@ -471,6 +605,19 @@ class _MemoryToolbar extends StatelessWidget {
                 filter,
               ],
             ),
+            if (goalFilter != null) ...[
+              const SizedBox(height: AppLayout.spaceMd),
+              Row(
+                children: [
+                  Expanded(child: layerFilter),
+                  const SizedBox(width: AppLayout.spaceMd),
+                  Expanded(child: goalFilter),
+                ],
+              ),
+            ] else ...[
+              const SizedBox(height: AppLayout.spaceMd),
+              layerFilter,
+            ],
             if (total > 0) ...[
               const SizedBox(height: AppLayout.spaceMd),
               count,
@@ -485,6 +632,12 @@ class _MemoryToolbar extends StatelessWidget {
               runSpacing: AppLayout.spaceSm,
               children: [if (total > 0) count, filter],
             ),
+            const SizedBox(height: AppLayout.spaceMd),
+            layerFilter,
+            if (goalFilter != null) ...[
+              const SizedBox(height: AppLayout.spaceMd),
+              goalFilter,
+            ],
           ],
         ],
       );
@@ -506,9 +659,17 @@ class _MemoryEditorState extends State<_MemoryEditor> {
     text: widget.entry?['content'] as String? ?? '',
   );
   late final _source = TextEditingController(
-    text: widget.entry?['source'] as String? ?? '用户手动记录',
+    text: widget.entry?['source_ref'] as String? ?? '用户手动记录',
   );
-  late String _kind = widget.entry?['kind'] as String? ?? 'fact';
+  late final _topic = TextEditingController(
+    text: widget.entry?['topic_name'] as String? ?? '',
+  );
+  late final _aliases = TextEditingController(
+    text: widget.entry?['topic_aliases'] as String? ?? '',
+  );
+  late String _layer = widget.entry?['layer'] as String? ?? 'semantic';
+  late String _certainty = widget.entry?['certainty'] as String? ?? 'stated';
+  late int _importance = widget.entry?['importance'] as int? ?? 50;
   late DateTime? _expiry = widget.entry?['expires_at'] == null
       ? null
       : DateTime.fromMillisecondsSinceEpoch(widget.entry!['expires_at'] as int);
@@ -519,15 +680,13 @@ class _MemoryEditorState extends State<_MemoryEditor> {
   void dispose() {
     _content.dispose();
     _source.dispose();
+    _topic.dispose();
+    _aliases.dispose();
     super.dispose();
   }
 
   Future<void> save() async {
     if (_saving) return;
-    if (_kind == 'constraint' && _expiry == null) {
-      setState(() => _error = '约束记忆必须设置有效期');
-      return;
-    }
     setState(() {
       _saving = true;
       _error = null;
@@ -537,10 +696,18 @@ class _MemoryEditorState extends State<_MemoryEditor> {
         'id': widget.entry?['id'] ?? _id,
         'goalId': widget.entry?['goal_id'],
         'content': _content.text.trim(),
-        'kind': _kind,
-        'certainty': _kind == 'observation' ? 'unverified' : 'stated',
-        'source': _source.text.trim(),
-        'conflictKey': widget.entry?['conflict_key'] ?? _content.text.trim(),
+        'layer': _layer,
+        'certainty': _layer == 'observation' ? 'unverified' : _certainty,
+        'topic': _topic.text.trim().isEmpty
+            ? _content.text.trim()
+            : _topic.text.trim(),
+        'aliases': [
+          for (final alias in _aliases.text.split(RegExp(r'[,，、\s]+')))
+            if (alias.trim().isNotEmpty) alias.trim(),
+        ],
+        'importance': _importance,
+        'sourceKind': widget.entry?['source_kind'] ?? 'manual',
+        'sourceRef': _source.text.trim(),
         'expiresAt': _expiry?.millisecondsSinceEpoch,
       }, userEdited: true);
       if (mounted) Navigator.pop(context, true);
@@ -618,21 +785,80 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                 ),
                 const SizedBox(height: AppLayout.spaceMd),
                 AppDropdownFormField<String>(
-                  initialValue: _kind,
-                  decoration: const InputDecoration(labelText: '类型'),
+                  initialValue: _layer,
+                  decoration: const InputDecoration(labelText: '层级'),
                   items: [
-                    for (final kind in [
-                      'preference',
-                      'fact',
-                      'constraint',
+                    for (final layer in [
+                      'identity',
+                      'semantic',
+                      'episodic',
+                      'procedural',
                       'observation',
                     ])
                       DropdownMenuItem(
-                        value: kind,
-                        child: Text(_kindLabel(kind)),
+                        value: layer,
+                        child: Text(_layerText(layer)),
                       ),
                   ],
-                  onChanged: _saving ? null : (v) => setState(() => _kind = v!),
+                  onChanged: _saving
+                      ? null
+                      : (v) => setState(() {
+                          _layer = v!;
+                          if (_layer == 'observation') {
+                            _certainty = 'unverified';
+                          }
+                        }),
+                ),
+                const SizedBox(height: AppLayout.spaceMd),
+                AppDropdownFormField<String>(
+                  initialValue: _certainty,
+                  decoration: const InputDecoration(labelText: '确认程度'),
+                  items: [
+                    for (final certainty in [
+                      'stated',
+                      'inferred',
+                      'unverified',
+                    ])
+                      DropdownMenuItem(
+                        value: certainty,
+                        child: Text(_certaintyText(certainty)),
+                      ),
+                  ],
+                  onChanged: _saving || _layer == 'observation'
+                      ? null
+                      : (v) => setState(() => _certainty = v!),
+                ),
+                const SizedBox(height: AppLayout.spaceMd),
+                AppDropdownFormField<int>(
+                  key: const Key('memory-importance'),
+                  initialValue: _importance,
+                  decoration: const InputDecoration(labelText: '重要度（1–100）'),
+                  items: [
+                    for (var value = 1; value <= 100; value++)
+                      DropdownMenuItem(value: value, child: Text('$value')),
+                  ],
+                  onChanged: _saving
+                      ? null
+                      : (value) => setState(() => _importance = value!),
+                ),
+                const SizedBox(height: AppLayout.spaceMd),
+                TextField(
+                  controller: _topic,
+                  enabled: !_saving,
+                  decoration: const InputDecoration(
+                    labelText: '主题（可选）',
+                    helperText: '留空时使用正文；同一主题的新说法不会覆盖原事实',
+                  ),
+                ),
+                const SizedBox(height: AppLayout.spaceMd),
+                TextField(
+                  key: const Key('memory-aliases'),
+                  controller: _aliases,
+                  enabled: !_saving,
+                  decoration: const InputDecoration(
+                    labelText: '同义别名（可选）',
+                    helperText: '用逗号分隔；用于检索与每轮自动命中，例如“晨跑，早上跑步”',
+                  ),
                 ),
                 const SizedBox(height: AppLayout.spaceMd),
                 AppSectionCard(
@@ -643,14 +869,12 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                         icon: Icons.event_outlined,
                         title: '有效期',
                         subtitle: _expiry == null
-                            ? _kind == 'constraint'
-                                  ? '约束记忆必须设置有效期'
-                                  : '长期有效'
+                            ? '长期有效'
                             : '至 ${_dateLabel(_expiry!)} 当天结束',
                         enabled: !_saving,
                         onTap: chooseExpiry,
                       ),
-                      if (_expiry != null && _kind != 'constraint')
+                      if (_expiry != null)
                         AppSettingsRow(
                           icon: Icons.all_inclusive,
                           title: '设为长期有效',

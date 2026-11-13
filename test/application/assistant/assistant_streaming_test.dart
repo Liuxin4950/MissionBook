@@ -136,9 +136,10 @@ class _FailedContextHandle implements SessionHandle {
   Future<void> close() => inner.close();
   @override
   Future<SessionRecord> append(String type, Map<String, Object?> data) async {
-    if (type == 'message_added' &&
-        data['message'] is Map &&
-        (data['message'] as Map)['role'] == 'context') {
+    if (type == 'context_message_replaced' ||
+        (type == 'message_added' &&
+            data['message'] is Map &&
+            (data['message'] as Map)['role'] == 'context')) {
       store.entered.complete();
       await store.gate.future;
       throw StateError('上下文保存失败');

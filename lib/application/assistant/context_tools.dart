@@ -1,6 +1,7 @@
 import '../../domain/entities/record_draft.dart';
 import '../../domain/entities/analysis_scope.dart';
 import '../memory/memory_service.dart';
+import '../memory/memory_usage_recorder.dart';
 import 'assistant_operation_result.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/execution_command.dart';
@@ -24,6 +25,7 @@ List<AgentTool> contextTools({
   required AnalysisModel analyze,
   required WebService web,
   required String Function() userStatement,
+  MemoryUsageRecorder? usageRecorder,
   String? Function()? userMessageId,
   Map<String, Object?> Function(String callId)? snapshot,
 }) {
@@ -64,6 +66,7 @@ List<AgentTool> contextTools({
       }
     },
   );
+  final usage = usageRecorder ?? MemoryUsageRecorder(memory);
   String commandId(ToolContext c) =>
       const Uuid().v5(Namespace.url.value, c.idempotencyKey);
   DateTime instant(String value, String label) {
@@ -79,7 +82,8 @@ List<AgentTool> contextTools({
     bool memoryBasis = false,
     String? entryId,
   }) {
-    if (basis.trim().isEmpty || !userStatement().contains(basis.trim())) {
+    if (basis.trim().isEmpty ||
+        !userStatement().contains(memoryBasis ? basis : basis.trim())) {
       final shown = basis.length > 200 ? '${basis.substring(0, 200)}…' : basis;
       throw ToolRejected(
         memoryBasis ? 'memory_basis_invalid' : 'user_basis_required',
@@ -296,9 +300,19 @@ List<AgentTool> contextTools({
       ),
     tool(
       'getMemory',
-      '分页查询有效全局/目标记忆。过期约束默认排除；观察与用户明确陈述分别表达。',
+      '按相关性与确认程度分页查询有效记忆；支持目标、层级与关键词筛选，关键词会展开主题别名。过期条目默认排除，观察与确认程度分别标注。',
       {
         'goalId': s('目标ID'),
+        'layer': {
+          'type': 'string',
+          'enum': [
+            'identity',
+            'semantic',
+            'episodic',
+            'procedural',
+            'observation',
+          ],
+        },
         'search': s('关键词'),
         'offset': offset,
         'limit': {
@@ -312,17 +326,23 @@ List<AgentTool> contextTools({
           'description': '按需读取完整正文，必须同时设置 limit=1',
         },
       },
-      (i, c) {
+      (i, c) async {
         if (c.sessionId == null) throw ArgumentError('记忆查询需要当前会话');
-        return memory.select(
+        final page = await memory.select(
           sessionId: c.sessionId!,
           selectionId: 'memory-selection:${commandId(c)}',
           goalId: i['goalId'] as String?,
+          layer: i['layer'] as String?,
           search: i['search'] as String?,
           offset: i['offset'] as int? ?? 0,
           limit: i['limit'] as int? ?? 20,
           fullContent: i['fullContent'] == true,
         );
+        usage.record([
+          for (final item in page['items'] as List)
+            (item as Map)['id'] as String,
+        ], injected: false);
+        return page;
       },
     ),
     tool(
@@ -385,33 +405,64 @@ List<AgentTool> contextTools({
     ),
     tool(
       'saveMemory',
-      '保存有用户原话来源的稳定偏好、事实或有期限的约束；不保存推断、闲聊过程和任务进度。一次只保存一条，多条记录需要逐条调用。同 conflictKey 命中时更新原条目而不是新增。',
+      '保存有用户依据的稳定偏好、事实、习惯流程或有期限的约束，也可保存标注未验证的观察；不保存闲聊过程和任务进度。'
+          '所有 certainty（stated、inferred、unverified）都必须以 basis 逐字引用当前用户消息；observation 只能为 unverified。一次只保存一条。'
+          '同一主题已有事实时不会静默覆盖：新说法另存为未验证条目并保留原事实；用户明确更正时带 id、原快照和原话。',
       {
         'id': s('修改已有条目时使用稳定ID'),
         'content': s('记忆正文'),
-        'kind': {
+        'layer': {
           'type': 'string',
-          'enum': ['preference', 'fact', 'constraint'],
-          'description': 'constraint 必须同时提供未来的 expiresAt',
+          'enum': [
+            'identity',
+            'semantic',
+            'episodic',
+            'procedural',
+            'observation',
+          ],
+          'description':
+              'identity=身份与长期稳定偏好；semantic=一般事实；episodic=有跨会话价值的经历与情节摘要；procedural=用户习惯做法与流程；observation=待验证观察',
         },
-        'goalId': s('可选目标ID'),
         'certainty': {
           'type': 'string',
-          'enum': ['stated'],
+          'enum': ['stated', 'inferred', 'unverified'],
+          'description':
+              '用户明确陈述用 stated；归纳用 inferred；未确认用 unverified，观察固定 unverified。所有值都必须提供逐字引用当前用户消息的 basis',
         },
-        'conflictKey': s(
-          '同一范围内单个事实的稳定主题键；先用 getMemory 核对并复用。目标、动机、总空闲时间和专项投入是不同事实，不能共用宽泛主题',
+        'topic': s('稳定主题名；先用 getMemory 核对并复用。不同事实不要共用宽泛主题'),
+        'aliases': {
+          'type': 'array',
+          'items': {'type': 'string'},
+          'maxItems': 10,
+          'description':
+              '同一主题的常见同义说法；有同义说法时必填，用于检索与每轮上下文自动命中。例如正文“我习惯早上跑步”应登记“晨跑”“早上跑步”',
+        },
+        'importance': {
+          'type': 'integer',
+          'minimum': 1,
+          'maximum': 100,
+          'description': '长期重要度，默认 50',
+        },
+        'goalId': s('可选目标ID'),
+        'basis': s(
+          '所有 certainty 必填：逐字复制当前用户消息（本轮最后一条用户消息）中的连续原文，保留换行标点，不可拼接、改写或加省略号',
         ),
-        'basis': s('逐字复制本轮用户消息中的连续原文，保留换行标点，不可拼接、改写或加省略号；content 可概括'),
-        'expiresAt': s('约束期限ISO8601，必须含时区；constraint 必填且必须晚于当前时刻'),
+        'expiresAt': s('可选期限ISO8601，必须含时区且晚于当前时刻'),
       },
       (i, c) async {
         final entryId = i['id'] as String?;
-        explicitBasis(
-          i['basis'] as String? ?? '',
-          memoryBasis: true,
-          entryId: entryId,
-        );
+        final layer = i['layer'] as String? ?? 'semantic';
+        final certainty =
+            i['certainty'] as String? ??
+            (layer == 'observation' ? 'unverified' : 'stated');
+        final basis = i['basis'] as String? ?? '';
+        explicitBasis(basis, memoryBasis: true, entryId: entryId);
+        if (entryId != null && certainty != 'stated') {
+          throw ToolRejected(
+            'invalid_input',
+            '更正已确认记忆必须使用用户明确陈述和逐字原话；未验证说法只能新增，不能改写原条目',
+          );
+        }
         final id = entryId ?? commandId(c);
         final version =
             snapshot?.call(c.callId)['memoryVersion'] as Map<String, Object?>?;
@@ -421,32 +472,36 @@ List<AgentTool> contextTools({
             '记忆条目 ${jsonEncode(entryId)} 更正前需要重新查询并固定原记忆',
           );
         }
+        final expiresAt = i['expiresAt'] == null
+            ? (version?['expires_at'])
+            : instant(i['expiresAt'] as String, '记忆期限').millisecondsSinceEpoch;
         return memory.save(
           {
             'id': id,
             'expectedVersion': ?version,
             'content': i['content'],
-            'kind': i['kind'],
+            'layer': layer,
+            'certainty': certainty,
             'goalId': i.containsKey('goalId')
                 ? i['goalId']
                 : version?['goal_id'],
-            'certainty': 'stated',
-            'conflictKey':
-                i['conflictKey'] ?? version?['conflict_key'] ?? i['content'],
-            'source': 'conversation:${c.sessionId}:${c.callId}',
-            'expiresAt': i['expiresAt'] == null
-                ? (version?['expires_at'])
-                : instant(
-                    i['expiresAt'] as String,
-                    '约束期限',
-                  ).millisecondsSinceEpoch,
+            'topic':
+                i['topic'] ??
+                snapshot?.call(c.callId)['memoryTopic'] ??
+                (version?['content'] ?? i['content']),
+            'aliases': i['aliases'] ?? const <String>[],
+            'importance': i['importance'] ?? version?['importance'] ?? 50,
+            'sourceKind': 'assistant',
+            'sourceRef': 'conversation:${c.sessionId}:${c.callId}',
+            'expiresAt': expiresAt,
           },
-          userEdited: i['id'] != null,
+          userEdited: false,
+          explicitCorrection: entryId != null && certainty == 'stated',
           operationId: commandId(c),
         );
       },
       write: true,
-      required: ['content', 'kind', 'basis'],
+      required: ['content', 'layer', 'basis'],
     ),
     tool(
       'manageMemory',

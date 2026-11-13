@@ -1,3 +1,4 @@
+import '../../../application/goals/goal_service.dart';
 import '../../../application/memory/memory_service.dart';
 import '../../../application/web/web_service.dart';
 import 'package:flutter/material.dart';
@@ -11,12 +12,14 @@ class RecordScope extends InheritedWidget {
     required this.analysis,
     this.memory,
     this.web,
+    this.goals,
     required super.child,
   });
   final RecordService service;
   final MemoryService? memory;
   final AnalysisService analysis;
   final WebService? web;
+  final GoalService? goals;
   static RecordScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<RecordScope>();
   @override
@@ -24,5 +27,6 @@ class RecordScope extends InheritedWidget {
       service != oldWidget.service ||
       analysis != oldWidget.analysis ||
       memory != oldWidget.memory ||
-      web != oldWidget.web;
+      web != oldWidget.web ||
+      goals != oldWidget.goals;
 }

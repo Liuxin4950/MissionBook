@@ -247,11 +247,11 @@ void main() {
     final memory = MemoryService(DriftMemoryRepository(db));
     await memory.save({
       'id': 'ui-memory',
-      'kind': 'preference',
+      'layer': 'identity',
       'content': '喜欢上午学习',
       'certainty': 'stated',
-      'source': '用户明确陈述',
-      'conflictKey': '学习时段',
+      'sourceKind': 'user',
+      'topic': '学习时段',
     }, userEdited: true);
     await tester.pumpWidget(app(const MemoryPage()));
     await tester.pumpAndSettle();
@@ -267,8 +267,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(OutlinedButton, '忘记').last);
     await tester.pumpAndSettle();
-    expect(await memory.core(), '[]');
-    expect((await db.select(db.memoryEntries).get()).single.forgotten, true);
+    expect(((await memory.query())['items'] as List), isEmpty);
+    expect((await db.select(db.memoryItems).get()).single.forgotten, true);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

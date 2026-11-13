@@ -9,6 +9,7 @@ import 'package:mission_book/data/backup/database_backup_service.dart';
 import 'package:mission_book/application/backup/backup_service.dart';
 import 'package:mission_book/data/backup/backup_archive.dart';
 import 'package:mission_book/data/backup/local_resources_base.dart';
+import '../support/backup_rows.dart';
 import '../support/local_resources_fake.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
@@ -88,9 +89,10 @@ void main() {
         return original;
       },
     );
-    final zip = ZipDecoder().decodeBytes(await backup.create(), verify: true);
+    final bytes = await backup.create();
+    final zip = ZipDecoder().decodeBytes(bytes, verify: true);
     expect(zip.files.map((file) => file.name).toSet(), {
-      'database.sql',
+      'database.json',
       'manifest.json',
       'README.txt',
       'assistant-conversations.json',
@@ -119,10 +121,7 @@ void main() {
             )
             as Map;
     expect(manifest['databaseVersion'], db.schemaVersion);
-    final sql = utf8.decode(zip.findFile('database.sql')!.content as List<int>);
-    final restored = AppDatabase(
-      executor: NativeDatabase.memory(setup: (raw) => raw.execute(sql)),
-    );
+    final restored = await openBackupDatabase(bytes);
     try {
       for (final table in db.allTables) {
         final before = await db
@@ -213,13 +212,10 @@ void main() {
         id,
       ]);
       release.complete();
-      final archive = ZipDecoder().decodeBytes(await backup, verify: true);
-      final sql = utf8.decode(
-        archive.findFile('database.sql')!.content as List<int>,
-      );
-      final restored = AppDatabase(
-        executor: NativeDatabase.memory(setup: (db) => db.execute(sql)),
-      );
+      final bytes = await backup;
+      final archive = ZipDecoder().decodeBytes(bytes, verify: true);
+      expect(archive.findFile('database.json'), isNotNull);
+      final restored = await openBackupDatabase(bytes);
       try {
         expect(
           (await restored.select(restored.missions).get()).single.title,
@@ -260,20 +256,16 @@ void main() {
     await missions.applyMaintenance(proposal);
     expect(await db.select(db.evidenceRecords).get(), isEmpty);
     expect(await db.select(db.records).get(), isEmpty);
-    final zip = ZipDecoder().decodeBytes(
-      await DatabaseBackupService(
-        database: db,
-        readAttachment: (key) async {
-          expect(key, imageKey);
-          return Uint8List.fromList([7, 8, 9]);
-        },
-      ).create(),
-    );
+    final bytes = await DatabaseBackupService(
+      database: db,
+      readAttachment: (key) async {
+        expect(key, imageKey);
+        return Uint8List.fromList([7, 8, 9]);
+      },
+    ).create();
+    final zip = ZipDecoder().decodeBytes(bytes);
     expect(zip.findFile(imageKey)!.content, [7, 8, 9]);
-    final sql = utf8.decode(zip.findFile('database.sql')!.content as List<int>);
-    final restored = AppDatabase(
-      executor: NativeDatabase.memory(setup: (raw) => raw.execute(sql)),
-    );
+    final restored = await openBackupDatabase(bytes);
     try {
       final keys = await DriftMissionRepository(
         restored,

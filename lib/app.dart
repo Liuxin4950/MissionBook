@@ -9,6 +9,7 @@ import 'application/analysis/analysis_service.dart';
 import 'application/web/web_service.dart';
 import 'data/repositories/drift_record_repository.dart';
 import 'data/analysis/drift_analysis_store.dart';
+import 'data/memory/drift_memory_settings_store.dart';
 import 'data/analysis/analysis_preferences_store.dart';
 import 'data/assistant/drift_unified_reader.dart';
 import 'data/web/web_settings_store.dart';
@@ -203,6 +204,8 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     );
     _analysis = AnalysisService(
       preferencesStore: const SecureAnalysisPreferences(),
+      memorySettings: DriftMemorySettingsStore(_database),
+      missions: _missionService,
       store: analysisStore,
       model: _assistant.analyze,
       mainBusy: () => _assistant.isRunning,
@@ -579,6 +582,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
             memory: _memory,
             analysis: _analysis,
             web: _web,
+            goals: _goalService,
             child: Stack(
               children: [
                 AbsorbPointer(absorbing: _restoring, child: child!),

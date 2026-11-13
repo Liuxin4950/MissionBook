@@ -283,10 +283,19 @@ void main() {
     await sending;
   });
 
-  test('连接检查有界、无工具和会话写入，空正文给成功回执', () async {
+  test('连接检查有界、无工具和会话写入，空正文拒绝成功回执', () async {
     final model = _Model((r, n) => textResponse('  '));
     final ai = await create(model);
-    expect(await ai.testConnection(), '连接成功，模型已返回响应');
+    await expectLater(
+      ai.testConnection(),
+      throwsA(
+        isA<ModelException>().having(
+          (error) => error.code,
+          'code',
+          'connection_test_failed',
+        ),
+      ),
+    );
     expect(model.requests.single.maxOutputTokens, 64);
     expect(model.requests.single.tools, isEmpty);
     expect(await db.select(db.assistantSessions).get(), isEmpty);

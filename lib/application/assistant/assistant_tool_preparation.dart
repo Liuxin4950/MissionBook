@@ -123,24 +123,14 @@ class _AssistantToolPreparation {
           '记忆 ${jsonEncode(input['id'])} 不存在或已忘记；如果要新建，请不要传 id',
         );
       }
-      const fields = [
-        'id',
-        'goal_id',
-        'kind',
-        'content',
-        'source',
-        'certainty',
-        'conflict_key',
-        'updated_at',
-        'expires_at',
-        'forgotten',
-        'user_edited',
-      ];
       return PreparedToolCall(
         input,
         snapshot: {
           'targetTitle': target['content'],
-          'memoryVersion': {for (final field in fields) field: target[field]},
+          'memoryVersion': {
+            for (final field in memoryVersionFields) field: target[field],
+          },
+          'memoryTopic': target['topic_name'],
         },
       );
     }

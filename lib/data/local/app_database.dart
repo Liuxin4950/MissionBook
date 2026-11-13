@@ -17,6 +17,7 @@ import 'tables/import_receipts.dart';
 import 'tables/assistant_sessions.dart';
 import 'tables/operation_receipts.dart';
 import 'tables/record_analysis_tables.dart';
+import 'tables/memory_tables.dart';
 import 'analysis_triggers.dart';
 
 part 'app_database.g.dart';
@@ -42,7 +43,14 @@ part 'app_database.g.dart';
     UserExecutionReports,
     AnalysisJobs,
     AnalysisVersions,
-    MemoryEntries,
+    MemoryItems,
+    MemoryTopics,
+    MemoryTopicAliases,
+    MemoryVersions,
+    MemoryEpisodes,
+    MemoryProcedures,
+    MemoryUsage,
+    AppSettings,
     SearchUsage,
   ],
 )
@@ -78,7 +86,7 @@ class AppDatabase extends _$AppDatabase {
 
   // 当前开发结构：任务材料保存快照，来源记录独立维护。
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 18;
 
   @override
   Future<T> transaction<T>(

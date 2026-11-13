@@ -105,7 +105,7 @@ void main() {
       final model = ScriptedModel([
         (_) => toolResponse('invalid-memory', 'saveMemory', {
           'content': '晚上不安排学习',
-          'kind': 'constraint',
+          'layer': 'semantic',
           'basis': '晚上不安排学习',
           'expiresAt': expiry,
         }),
@@ -117,7 +117,7 @@ void main() {
       expect(result.errorCode, 'invalid_input');
       expect(ai.needsOutcomeResolution, false);
       expect(model.requests, hasLength(2));
-      expect(await db.select(db.memoryEntries).get(), isEmpty);
+      expect(await db.select(db.memoryItems).get(), isEmpty);
       expect(await db.select(db.operationReceipts).get(), isEmpty);
     });
   }

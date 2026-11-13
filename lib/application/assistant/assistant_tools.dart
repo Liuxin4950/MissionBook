@@ -8,6 +8,8 @@ import 'package:agent_core/agent_core.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:uuid/uuid.dart';
 
+import '../../domain/repositories/memory_repository.dart'
+    show memoryVersionFields;
 import '../../domain/entities/execution_command.dart';
 import '../../domain/entities/execution_plan.dart';
 import '../../domain/entities/goal.dart';

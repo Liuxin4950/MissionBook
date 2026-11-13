@@ -90,8 +90,9 @@ class DriftRepositorySupport {
     String kind,
     String entityId,
     Map<String, Object?> input,
-    Future<Map<String, Object?>> Function() write,
-  ) async {
+    Future<Map<String, Object?>> Function() write, [
+    bool includeResultId = false,
+  ]) async {
     final fingerprint = sha256
         .convert(utf8.encode(jsonEncode(input)))
         .toString();
@@ -110,7 +111,13 @@ class DriftRepositorySupport {
           return Map<String, Object?>.from(jsonDecode(saved.resultJson) as Map);
         }
       }
-      final result = await write();
+      final written = await write();
+      final result = includeResultId
+          ? {
+              ...written,
+              'resultId': written['resultId'] ?? written['id'] ?? entityId,
+            }
+          : written;
       if (operationId != null) {
         await db
             .into(db.operationReceipts)

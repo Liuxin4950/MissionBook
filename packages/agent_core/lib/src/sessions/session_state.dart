@@ -33,6 +33,9 @@ final class SessionState {
   CowList<AgentMessage> _transcript = CowList();
   CowList<AgentMessage> _context = CowList();
   CowMap<String, AgentMessage> _knownMessages = CowMap();
+  CowMap<String, AgentMessage> _projectionOverrides = CowMap();
+  CowSet<String> _refreshToolNames = CowSet();
+  Set<String> get refreshToolNames => Set.unmodifiable(_refreshToolNames);
   CowMap<String, ToolCallBlock> _pending = CowMap();
   CowSet<String> _started = CowSet();
   CowMap<String, ToolCallBlock> _executedCalls = CowMap();
@@ -43,6 +46,8 @@ final class SessionState {
   CowMap<String, ToolResultMessage> _unknown = CowMap();
   CowMap<String, ToolOutput> _resolved = CowMap();
   CowSet<String> _requestSpecs = CowSet();
+  bool _legacyCompaction = false;
+  CowSet<String> _legacyContextIds = CowSet();
   Map<String, ToolOutput> get resolvedOutcomes => Map.unmodifiable(_resolved);
   bool hasRequestSpec(String id) => _requestSpecs.contains(id);
   List<AgentMessage> get transcript => List.unmodifiable(_transcript);
@@ -96,6 +101,8 @@ final class SessionState {
         _interruptedAttempts.addAll(original._interruptedAttempts);
         _context.addAll(original._context);
         _knownMessages.addAll(original._knownMessages);
+        _projectionOverrides.addAll(original._projectionOverrides);
+        _refreshToolNames.addAll(original._refreshToolNames);
         _pending.addAll(original._pending);
         _started.addAll(original._started);
         _executedCalls.addAll(original._executedCalls);
@@ -156,8 +163,14 @@ final class SessionState {
           throw const FormatException('无效摘要');
         }
         for (final sourceId in summary.summarizedMessageIds) {
-          if (!_knownMessages.containsKey(sourceId)) {
+          final source = _knownMessages[sourceId];
+          if (source == null) {
             throw const FormatException('摘要引用了不存在的原始消息');
+          }
+          if (summary.isSafe &&
+              (source is ContextMessage && source.isPinned ||
+                  source is ContextSummaryMessage)) {
+            throw const FormatException('安全摘要不能覆盖供给或嵌套摘要编号');
           }
         }
         final ids = data['contextMessageIds'];
@@ -168,16 +181,128 @@ final class SessionState {
         final seen = <String>{};
         for (final id in ids.cast<String>()) {
           if (!seen.add(id)) throw const FormatException('投影消息重复');
-          final message = id == summary.id ? summary : _knownMessages[id];
+          final message = id == summary.id
+              ? summary
+              : (_projectionOverrides[id] ?? _knownMessages[id]);
           if (message == null) throw const FormatException('投影引用了不存在的消息');
           projection.add(message);
         }
         if (!seen.contains(summary.id)) throw const FormatException('投影缺少摘要');
         validateConversation(projection);
         _knownMessages[summary.id] = summary;
+        // 先恢复日志当时的投影，后续 request_prepared 仍须按原顺序严格校验。
         _context
           ..clear()
           ..addAll(projection);
+        _legacyContextIds.clear();
+        _legacyCompaction = data['supplyExcluded'] != true;
+        if (_legacyCompaction) {
+          // 旧压缩之前的供给可能已过期；之后新注入的块仍需保留。
+          _legacyContextIds.addAll(
+            _transcript.whereType<ContextMessage>().map(
+              (message) => message.id,
+            ),
+          );
+        }
+      case 'context_projection_reset':
+        // 旧投影失效必须有日志边界，否则下次回放无法校验重建后的请求。
+        finishReplay();
+        final ids = data['contextMessageIds'];
+        if (ids is! List<Object?> || ids.length != _context.length) {
+          throw const FormatException('无效上下文重建');
+        }
+        for (var index = 0; index < ids.length; index++) {
+          if (ids[index] != _context[index].id) {
+            throw const FormatException('上下文重建与原始记录不一致');
+          }
+        }
+      case 'tool_results_invalidated':
+        if (openTurnId != null || _pending.isNotEmpty) {
+          throw const FormatException('运行中不能失效工具投影');
+        }
+        final names = data['toolNames'];
+        if (names is! List<Object?> || names.any((name) => name is! String)) {
+          throw const FormatException('无效工具名称');
+        }
+        _refreshToolNames.addAll(names.cast<String>());
+        final replacements = staleToolProjections(_refreshToolNames);
+        _projectionOverrides.addAll(replacements);
+        final invalidSummaries = _context
+            .whereType<ContextSummaryMessage>()
+            .where(
+              (summary) =>
+                  !summary.isSafe ||
+                  summary.summarizedMessageIds.any(replacements.containsKey),
+            )
+            .toList();
+        final restoreIds = invalidSummaries
+            .expand((summary) => summary.summarizedMessageIds)
+            .toSet();
+        final removedIds = invalidSummaries
+            .map((summary) => summary.id)
+            .toSet();
+        final visibleIds = _context.map((message) => message.id).toSet()
+          ..removeAll(removedIds);
+        // 在被失效摘要的位置恢复其原始历史；用户原话及无关业务不丢弃。
+        final restored = <AgentMessage>[];
+        for (final item in _context) {
+          if (removedIds.contains(item.id)) {
+            for (final original in _transcript) {
+              if (restoreIds.contains(original.id) &&
+                  !(original is ContextMessage && original.isPinned) &&
+                  visibleIds.add(original.id)) {
+                restored.add(_projectionOverrides[original.id] ?? original);
+              }
+            }
+          } else {
+            restored.add(_projectionOverrides[item.id] ?? item);
+          }
+        }
+        _context
+          ..clear()
+          ..addAll(restored);
+        validateConversation(_context);
+      case 'context_message_replaced':
+        if (openTurnId != null || _pending.isNotEmpty) {
+          throw const FormatException('运行中或工具未结算时不能替换上下文');
+        }
+        final source = readString(data, 'source');
+        final ids = data['previousIds'];
+        if (ids is! List<Object?> || ids.any((id) => id is! String)) {
+          throw const FormatException('无效上下文替换');
+        }
+        final replaced = ids.cast<String>().toSet();
+        for (final id in replaced) {
+          final previous = _knownMessages[id];
+          if (previous is! ContextMessage || previous.source != source) {
+            throw const FormatException('上下文替换引用了不存在的来源');
+          }
+        }
+        ContextMessage? message;
+        if (data['message'] != null) {
+          final decoded = decodeMessage(readObject(data['message']));
+          if (decoded is! ContextMessage ||
+              decoded.source != source ||
+              _knownMessages.containsKey(decoded.id)) {
+            throw const FormatException('无效上下文替换消息');
+          }
+          message = decoded;
+        }
+        // 先取出保留项再清空；级联参数在 clear 之后求值会丢掉全部历史。
+        final retained = [
+          for (final item in _context)
+            if (!replaced.contains(item.id)) item,
+        ];
+        _context
+          ..clear()
+          ..addAll(retained);
+        if (message != null) {
+          // 被替换的旧块仍留在 transcript 与日志中，只退出模型可见投影。
+          _knownMessages[message.id] = message;
+          _transcript.add(message);
+          _context.add(message);
+        }
+        validateConversation(_context);
       case 'models_changed':
         if (openTurnId != null) throw const FormatException('运行中不能切换模型');
         final nextModel = readString(data, 'modelProfileId');
@@ -247,7 +372,10 @@ final class SessionState {
           if (ids is! List<Object?> || extra is! List<Object?>) {
             throw const FormatException('摘要请求缺少输入引用');
           }
-          final available = <String, AgentMessage>{..._knownMessages};
+          final available = <String, AgentMessage>{
+            ..._knownMessages,
+            ..._projectionOverrides,
+          };
           for (final raw in extra) {
             final message = decodeMessage(readObject(raw));
             if (available.containsKey(message.id)) {
@@ -359,8 +487,70 @@ final class SessionState {
       state.apply(record);
     }
     state.id;
+    state.finishReplay();
     return state;
   }
+
+  /// 仅变更模型投影；原日志、结果编号和工具配对始终保留。
+  Map<String, AgentMessage> staleToolProjections(Set<String> names) {
+    final replacements = <String, AgentMessage>{};
+    var dependsOnResult = false;
+    for (final message in _transcript) {
+      if (message is UserMessage) dependsOnResult = false;
+      if (message is ToolResultMessage && names.contains(message.toolName)) {
+        dependsOnResult = true;
+        if (!_projectionOverrides.containsKey(message.id)) {
+          replacements[message.id] = ToolResultMessage(
+            id: message.id,
+            toolCallId: message.toolCallId,
+            toolName: message.toolName,
+            text: '[${message.toolName} 旧查询结果已失效；需要当前事实时请重新查询。]',
+            isError: message.isError,
+            errorCode: message.errorCode,
+          );
+        }
+      } else if (message is AssistantMessage &&
+          dependsOnResult &&
+          !_projectionOverrides.containsKey(message.id)) {
+        // 同轮回答可能复述旧记忆；保留后续工具调用而移除文字和思考投影。
+        replacements[message.id] = AssistantMessage(
+          id: message.id,
+          provider: message.provider,
+          model: message.model,
+          content: [
+            const TextBlock(text: '[基于旧查询的模型说明已失效，请重新查询。]'),
+            ...message.toolCalls,
+          ],
+        );
+      }
+    }
+    return replacements;
+  }
+
+  /// 回放结束后处理版本化失效：旧摘要的投影不带 supplyExcluded，需按原始对话重建。
+  bool finishReplay() {
+    if (!_legacyCompaction) return false;
+    _legacyCompaction = false;
+    final currentSupplyIds = _context
+        .whereType<ContextMessage>()
+        .map((message) => message.id)
+        .where((id) => !_legacyContextIds.contains(id))
+        .toSet();
+    final rebuilt = [
+      for (final message in _transcript)
+        if (message is! ContextSummaryMessage &&
+            (message is! ContextMessage ||
+                currentSupplyIds.contains(message.id)))
+          _projectionOverrides[message.id] ?? message,
+    ];
+    _context
+      ..clear()
+      ..addAll(rebuilt);
+    _legacyContextIds.clear();
+    validateConversation(_context);
+    return true;
+  }
+
   SessionState({int seedDepth = 0}) : _seedDepth = seedDepth;
 
   /// O(1) 创建预校验分支，集合首次写入才复制；保存失败仍不污染原状态。
@@ -382,6 +572,8 @@ final class SessionState {
     .._interruptedAttempts = _interruptedAttempts.fork()
     .._context = _context.fork()
     .._knownMessages = _knownMessages.fork()
+    .._projectionOverrides = _projectionOverrides.fork()
+    .._refreshToolNames = _refreshToolNames.fork()
     .._pending = _pending.fork()
     .._started = _started.fork()
     .._executedCalls = _executedCalls.fork()
@@ -389,7 +581,9 @@ final class SessionState {
     .._usedCallIds = _usedCallIds.fork()
     .._unknown = _unknown.fork()
     .._resolved = _resolved.fork()
-    .._requestSpecs = _requestSpecs.fork();
+    .._requestSpecs = _requestSpecs.fork()
+    .._legacyCompaction = _legacyCompaction
+    .._legacyContextIds = _legacyContextIds.fork();
 }
 
 /// 中断尝试仅用于回看，不作为已完成消息或后续模型输入。

@@ -21,14 +21,40 @@ import 'package:mission_book/domain/entities/mission_maintenance.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/user_execution_report.dart';
 
+class _WriteFailureDatabase extends AppDatabase {
+  _WriteFailureDatabase() : super(executor: NativeDatabase.memory());
+
+  bool failReplacement = false;
+  int? missionsAtFailure;
+  int? triggersAtFailure;
+
+  @override
+  Future<void> customStatement(String statement, [List<Object?>? args]) async {
+    await super.customStatement(statement, args);
+    if (failReplacement && statement.startsWith('INSERT INTO "missions"')) {
+      failReplacement = false;
+      missionsAtFailure = (await customSelect(
+        'SELECT COUNT(*) n FROM missions',
+      ).getSingle()).read<int>('n');
+      triggersAtFailure = (await customSelect(
+        "SELECT COUNT(*) n FROM sqlite_master WHERE type='trigger'",
+      ).getSingle()).read<int>('n');
+      throw StateError('injected failure after restore row insert');
+    }
+  }
+}
+
 class RestoreFiles implements AttachmentStore {
   final values = <String, Uint8List>{};
+  final written = <String>[];
+  final deleted = <String>[];
   bool failWrite = false;
   @override
   Future<void> writeNew(String key, Uint8List bytes) async {
     if (failWrite) throw StateError('模拟磁盘写入失败');
     if (values.containsKey(key)) throw StateError('重复文件');
     values[key] = Uint8List.fromList(bytes);
+    written.add(key);
   }
 
   @override
@@ -37,6 +63,7 @@ class RestoreFiles implements AttachmentStore {
   @override
   Future<void> delete(String key) async {
     values.remove(key);
+    deleted.add(key);
   }
 
   @override
@@ -94,7 +121,7 @@ void main() {
 
   setUp(() async {
     source = AppDatabase(executor: NativeDatabase.memory());
-    target = AppDatabase(executor: NativeDatabase.memory());
+    target = _WriteFailureDatabase();
     sourceFiles = RestoreFiles();
     targetFiles = RestoreFiles();
     sourceMissions = service(source, sourceFiles);
@@ -151,16 +178,34 @@ void main() {
         content: '完整文字\n含引号与逗号，; 和 emoji 📘',
       ),
     );
+    await source
+        .into(source.appSettings)
+        .insert(
+          AppSettingsCompanion.insert(
+            key: 'memory.extraction.enabled',
+            value: '0',
+            updatedAt: now.millisecondsSinceEpoch,
+          ),
+        );
     await source.customStatement(
-      'INSERT INTO memory_entries(id,kind,content,source,certainty,conflict_key,updated_at) VALUES (?,?,?,?,?,?,?)',
+      'INSERT INTO memory_items(id,layer,topic_id,content,certainty,importance,'
+      'created_at,updated_at,expires_at,forgotten,user_edited,source_kind,'
+      'source_ref,goal_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       [
         'memory',
-        'preference',
+        'semantic',
+        null,
         '喜欢先理解调用链',
-        'user',
-        'confirmed',
-        'learning',
+        'stated',
+        60,
         now.millisecondsSinceEpoch,
+        now.millisecondsSinceEpoch,
+        null,
+        0,
+        1,
+        'user',
+        null,
+        null,
       ],
     );
     final session = await DriftSessionStore(source).create('conversation');
@@ -238,10 +283,15 @@ void main() {
       (await target.select(target.records).get()).single.content,
       '完整文字\n含引号与逗号，; 和 emoji 📘',
     );
-    expect(
-      (await target.select(target.memoryEntries).get()).single.content,
-      '喜欢先理解调用链',
-    );
+    final restoredMemory =
+        (await target.select(target.memoryItems).get()).single;
+    expect(restoredMemory.content, '喜欢先理解调用链');
+    expect(restoredMemory.layer, 'semantic');
+    expect(restoredMemory.sourceKind, 'user');
+    expect(restoredMemory.importance, 60);
+    expect(restoredMemory.userEdited, true);
+    expect(restoredMemory.forgotten, false);
+    expect((await target.select(target.appSettings).get()).single.value, '0');
     final session =
         (await target.select(target.assistantSessions).get()).single;
     expect(session.writerToken, isNull);
@@ -295,12 +345,139 @@ void main() {
     );
     expect(targetFiles.values.keys, {originalKey});
   });
-  test('数据库插入失败回滚删除和触发器变动，新附件不留引用', () async {
-    await target.customStatement(
-      'CREATE UNIQUE INDEX simulated_restore_failure ON missions(title)',
-    );
+  test('写入阶段失败回滚全部行和当前触发器，并清理新附件，可重试同一计划', () async {
+    Future<Map<String, List<String>>> snapshot() async => {
+      for (final table in target.allTables)
+        table.actualTableName:
+            (await target
+                    .customSelect('SELECT * FROM "${table.actualTableName}"')
+                    .get())
+                .map((row) => jsonEncode(row.data))
+                .toList()
+              ..sort(),
+    };
+    Future<List<Map<String, Object?>>> triggers() async => [
+      for (final row
+          in await target
+              .customSelect(
+                "SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name",
+              )
+              .get())
+        row.data,
+    ];
+
     final plan = await importer.prepareRestore(zip);
-    await expectLater(importer.restore(plan), throwsA(anything));
+    // Include a device-local trigger after schema validation, so rollback must
+    // retain the actual current DDL rather than regenerate standard triggers.
+    await target.customStatement('''
+      CREATE TRIGGER restore_local_guard BEFORE UPDATE OF title ON missions
+      WHEN NEW.title='blocked after rollback'
+      BEGIN SELECT RAISE(ABORT, 'local guard retained'); END
+    ''');
+    final beforeRows = await snapshot();
+    final beforeTriggers = await triggers();
+    final beforeReferences = await DriftMissionRepository(
+      target,
+    ).referencedAttachmentKeys();
+    final beforeFiles = {
+      for (final entry in targetFiles.values.entries)
+        entry.key: Uint8List.fromList(entry.value),
+    };
+    final database = target as _WriteFailureDatabase;
+    database.failReplacement = true;
+
+    await expectLater(
+      importer.restore(plan),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'injected failure after restore row insert',
+        ),
+      ),
+    );
+    // Failure occurred after all deletes and a real replacement INSERT,
+    // while replaceAllRows had temporarily removed every current trigger.
+    expect(database.missionsAtFailure, 1);
+    expect(database.triggersAtFailure, 0);
+    expect(await snapshot(), beforeRows);
+    expect(await triggers(), beforeTriggers);
+    expect(
+      await target.customSelect('PRAGMA foreign_key_check').get(),
+      isEmpty,
+    );
+    expect(
+      await DriftMissionRepository(target).referencedAttachmentKeys(),
+      beforeReferences,
+    );
+    final newKeys = targetFiles.written.where(
+      (key) => !beforeFiles.containsKey(key),
+    );
+    expect(newKeys, hasLength(plan.attachmentCount));
+    expect(newKeys, isNotEmpty);
+    expect(targetFiles.deleted, containsAll(newKeys));
+    expect(targetFiles.values, beforeFiles);
+
+    await expectLater(
+      target.customStatement(
+        "UPDATE missions SET title='blocked after rollback'",
+      ),
+      throwsA(anything),
+    );
+    expect(await snapshot(), beforeRows);
+    // The failed plan remains usable, and the synchronization queue is released.
+    await importer.restore(plan);
+    expect(await targetMissions.findAllDetails(), hasLength(2));
+    expect(await triggers(), beforeTriggers);
+  });
+
+  Uint8List modifyZip({
+    String? remove,
+    (String, String)? addFile,
+    String Function(String)? databaseText,
+    void Function(Map<String, dynamic>)? database,
+    void Function(Map<String, Object?>)? manifest,
+  }) {
+    final original = ZipDecoder().decodeBytes(zip);
+    final changed = Archive();
+    for (final file in original) {
+      if (file.name == remove) continue;
+      var content = Uint8List.fromList(file.content as List<int>);
+      if (file.name == backupDatabaseEntry) {
+        if (databaseText != null) {
+          content = Uint8List.fromList(
+            utf8.encode(databaseText(utf8.decode(content))),
+          );
+        } else if (database != null) {
+          final value = (jsonDecode(utf8.decode(content)) as Map)
+              .cast<String, dynamic>();
+          database(value);
+          content = Uint8List.fromList(utf8.encode(jsonEncode(value)));
+        }
+      }
+      if (file.name == 'manifest.json' && manifest != null) {
+        final value = (jsonDecode(utf8.decode(content)) as Map)
+            .cast<String, Object?>();
+        manifest(value);
+        content = Uint8List.fromList(utf8.encode(jsonEncode(value)));
+      }
+      changed.addFile(ArchiveFile(file.name, content.length, content));
+    }
+    if (addFile != null) {
+      final bytes = utf8.encode(addFile.$2);
+      changed.addFile(ArchiveFile(addFile.$1, bytes.length, bytes));
+    }
+    return Uint8List.fromList(ZipEncoder().encode(changed));
+  }
+
+  test('数据不满足当前约束时在准备阶段拒绝，目标零写入且不新增附件', () async {
+    final broken = modifyZip(
+      database: (d) {
+        final rows = (d['tables'] as Map)['missions'] as List;
+        (rows.first as Map<String, Object?>)['title'] = null;
+      },
+    );
+    await expectLater(importer.prepareRestore(broken), throwsA(anything));
     expect(
       (await targetMissions.findAllDetails()).single.mission.title,
       '当前旧任务',
@@ -314,36 +491,25 @@ void main() {
     );
   });
 
-  Uint8List modifyZip({
-    String? remove,
-    String Function(String)? sql,
-    void Function(Map<String, Object?>)? manifest,
-  }) {
-    final original = ZipDecoder().decodeBytes(zip);
-    final changed = Archive();
-    for (final file in original) {
-      if (file.name == remove) continue;
-      var content = Uint8List.fromList(file.content as List<int>);
-      if (file.name == 'database.sql' && sql != null) {
-        content = Uint8List.fromList(utf8.encode(sql(utf8.decode(content))));
-      }
-      if (file.name == 'manifest.json' && manifest != null) {
-        final value = (jsonDecode(utf8.decode(content)) as Map)
-            .cast<String, Object?>();
-        manifest(value);
-        content = Uint8List.fromList(utf8.encode(jsonEncode(value)));
-      }
-      changed.addFile(ArchiveFile(file.name, content.length, content));
-    }
-    return Uint8List.fromList(ZipEncoder().encode(changed));
-  }
-
-  test('拒绝缺图、错版本、截断SQL及额外执行语句，目标零写入', () async {
+  test('拒绝缺图、旧格式、错版本、损坏JSON、未知表、未知列与未知文件，目标零写入', () async {
     for (final invalid in [
       modifyZip(remove: originalKey),
+      modifyZip(manifest: (m) => m['formatVersion'] = 1),
       modifyZip(manifest: (m) => m['databaseVersion'] = 15),
-      modifyZip(sql: (s) => s.substring(0, s.indexOf('COMMIT;'))),
-      modifyZip(sql: (s) => '$s\nDROP TABLE missions;'),
+      modifyZip(databaseText: (s) => s.substring(0, 10)),
+      modifyZip(addFile: ('unexpected.txt', 'x')),
+      modifyZip(
+        database: (d) {
+          (d['tables'] as Map)['unexpected_table'] = <Object?>[];
+        },
+      ),
+      modifyZip(
+        database: (d) {
+          final rows = (d['tables'] as Map)['missions'] as List;
+          (rows.first as Map<String, Object?>)['unexpected_column'] = 1;
+        },
+      ),
+      modifyZip(manifest: (m) => m['resources'] = ['assistantSettings']),
       Uint8List.fromList([1, 2, 3]),
     ]) {
       await expectLater(importer.prepareRestore(invalid), throwsA(anything));
@@ -353,30 +519,13 @@ void main() {
       );
     }
   });
-  test('符号链接条目在任何解压发生前被拒绝', () async {
-    // archive 对 UNIX 链接条目会在 decodeBytes 内立即 readBytes，
-    // 因此必须只读中央目录就拒绝，不能等解码后再看 symbolicLink。
-    final linked = _asSymlink(zip, 'manifest.json');
-    expect(
-      () => decodeBackupArchive(linked),
-      throwsA(isA<FormatException>()),
-    );
-    await expectLater(
-      importer.prepareRestore(linked),
-      throwsA(isA<FormatException>()),
-    );
-    expect(
-      (await targetMissions.findAllDetails()).single.mission.title,
-      '当前旧任务',
-    );
-  });
-
-  test('备份中触发器仅作说明，不能安装或执行备份自带SQL', () async {
+  test('备份中的字符串只作为数据，不执行其中的 SQL 或 DDL', () async {
     final bytes = modifyZip(
-      sql: (s) => s.replaceFirst(
-        'COMMIT;',
-        'CREATE TRIGGER evil AFTER INSERT ON records BEGIN DELETE FROM missions; END;\nCOMMIT;',
-      ),
+      database: (d) {
+        final rows = (d['tables'] as Map)['records'] as List;
+        (rows.first as Map<String, Object?>)['content'] =
+            'DROP TABLE missions; CREATE TRIGGER evil AFTER INSERT ON records BEGIN DELETE FROM missions; END;';
+      },
     );
     await importer.restore(await importer.prepareRestore(bytes));
     expect(await targetMissions.findAllDetails(), hasLength(2));
@@ -385,6 +534,20 @@ void main() {
           .customSelect("SELECT name FROM sqlite_master WHERE name='evil'")
           .get(),
       isEmpty,
+    );
+  });
+  test('符号链接条目在任何解压发生前被拒绝', () async {
+    // archive 对 UNIX 链接条目会在 decodeBytes 内立即 readBytes，
+    // 因此必须只读中央目录就拒绝，不能等解码后再看 symbolicLink。
+    final linked = _asSymlink(zip, 'manifest.json');
+    expect(() => decodeBackupArchive(linked), throwsA(isA<FormatException>()));
+    await expectLater(
+      importer.prepareRestore(linked),
+      throwsA(isA<FormatException>()),
+    );
+    expect(
+      (await targetMissions.findAllDetails()).single.mission.title,
+      '当前旧任务',
     );
   });
 

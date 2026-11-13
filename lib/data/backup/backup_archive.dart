@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:archive/archive.dart';
+
 import '../../application/attachments/attachment_file_service.dart';
 import '../../application/backup/backup_service.dart';
 import '../speech/speech_model_store_base.dart';
@@ -11,13 +13,15 @@ import 'local_resources_base.dart';
 const maxBackupBytes = 768 * 1024 * 1024;
 const maxExpandedBackupBytes = 1024 * 1024 * 1024;
 
-/// 读取本应用已有 ZIP；只把受限 INSERT 字面量解析为值，从不执行备份 SQL。
+const backupFormatVersion = 2;
+const backupDatabaseEntry = 'database.json';
+
+/// 读取本应用的 ZIP；行数据只接受 JSON 基本类型，从不执行任何 SQL 或 DDL。
 Map<String, Object?> decodeBackupArchive(Uint8List bytes) {
   if (bytes.isEmpty || bytes.length > maxBackupBytes) {
     throw const FormatException('请选择非空且不超过 768 MiB 的 MissionBook ZIP 备份');
   }
-  // 先只读中央目录，不解压任何条目：archive 对 UNIX 符号链接条目会立即 readBytes，
-  // 等 decodeBytes 返回再检查就已经来不及，声明大小防护会被链接条目绕过。
+  // 先只读中央目录，不解压任何条目：archive 对 UNIX 符号链接条目会立即 readBytes。
   final directory = ZipDirectory();
   try {
     directory.read(InputMemoryStream(bytes));
@@ -34,7 +38,6 @@ Map<String, Object?> decodeBackupArchive(Uint8List bytes) {
     if (name.endsWith('/') || name.endsWith('\\')) {
       throw const FormatException('备份不能包含目录或链接');
     }
-    // UNIX 创建者版本 3，且高 16 位的文件类型为 S_IFLNK。
     if (header.versionMadeBy >> 8 == 3 &&
         (header.externalFileAttributes >> 16) & 0xf000 == 0xa000) {
       throw const FormatException('备份不能包含目录或链接');
@@ -50,16 +53,15 @@ Map<String, Object?> decodeBackupArchive(Uint8List bytes) {
     }
     final isSpeech = name.startsWith(speechEntryPrefix);
     if (!{
-      'manifest.json',
-      'database.sql',
-      'assistant-conversations.json',
-      'README.txt',
-      localResourcesEntry,
-    }.contains(name) &&
+          'manifest.json',
+          backupDatabaseEntry,
+          'assistant-conversations.json',
+          'README.txt',
+          localResourcesEntry,
+        }.contains(name) &&
         !isSpeech) {
       validateAttachmentKey(name);
     }
-    // 模型条目只认固定清单内的文件名，不能借前缀写入其他位置。
     if (isSpeech &&
         !senseVoiceFiles.any(
           (model) => model.name == name.substring(speechEntryPrefix.length),
@@ -83,9 +85,8 @@ Map<String, Object?> decodeBackupArchive(Uint8List bytes) {
     if (content.length != file.size || getCrc32(content) != file.crc32) {
       throw const FormatException('备份文件损坏，请重新导出');
     }
-    // 可阅读日志和说明不参与恢复，避免把重复副本传回工作区。
     if (name == 'manifest.json' ||
-        name == 'database.sql' ||
+        name == backupDatabaseEntry ||
         name == localResourcesEntry ||
         isSpeech ||
         name.startsWith('attachments/')) {
@@ -93,23 +94,31 @@ Map<String, Object?> decodeBackupArchive(Uint8List bytes) {
     }
   }
   final manifestBytes = files['manifest.json'];
-  final sql = files['database.sql'];
-  if (manifestBytes == null || sql == null) {
+  final databaseBytes = files[backupDatabaseEntry];
+  if (manifestBytes == null || databaseBytes == null) {
     throw const FormatException('缺少备份清单或数据库');
   }
-  final decoded = jsonDecode(utf8.decode(manifestBytes));
-  if (decoded is! Map ||
-      decoded['format'] != 'mission-book-backup' ||
-      decoded['formatVersion'] != 1 ||
-      decoded['databaseFormat'] != 'sqlite-sql') {
+  final manifest = jsonDecode(utf8.decode(manifestBytes));
+  if (manifest is! Map ||
+      manifest['format'] != 'mission-book-backup' ||
+      manifest['formatVersion'] != backupFormatVersion ||
+      manifest['databaseFormat'] != 'json') {
     throw const FormatException('不是支持的 MissionBook 完整备份');
   }
-  final exportedAt = DateTime.tryParse(decoded['exportedAt']?.toString() ?? '');
-  if (exportedAt == null || decoded['attachments'] is! List) {
+  final exportedAt = DateTime.tryParse(
+    manifest['exportedAt']?.toString() ?? '',
+  );
+  final version = manifest['databaseVersion'];
+  final fingerprint = manifest['schemaFingerprint'];
+  if (exportedAt == null ||
+      version is! int ||
+      fingerprint is! String ||
+      fingerprint.isEmpty ||
+      manifest['attachments'] is! List) {
     throw const FormatException('备份清单不完整');
   }
   final attachments = <String, Uint8List>{};
-  for (final name in decoded['attachments'] as List) {
+  for (final name in manifest['attachments'] as List) {
     if (name is! String || attachments.containsKey(name)) {
       throw const FormatException('附件清单无效');
     }
@@ -124,14 +133,35 @@ Map<String, Object?> decodeBackupArchive(Uint8List bytes) {
       attachments.length) {
     throw const FormatException('附件文件与清单不一致');
   }
-  final sqlText = utf8.decode(sql);
-  final versions = RegExp(
-    r'^PRAGMA user_version=(\d+);$',
-    multiLine: true,
-  ).allMatches(sqlText).toList();
-  if (versions.length != 1 ||
-      int.parse(versions.single[1]!) != decoded['databaseVersion']) {
-    throw const FormatException('数据库版本标记与备份清单不一致');
+  final database = jsonDecode(utf8.decode(databaseBytes));
+  if (database is! Map ||
+      database['schemaVersion'] != version ||
+      database['tables'] is! Map) {
+    throw const FormatException('备份数据库内容无效');
+  }
+  final tables = <String, List<Map<String, Object?>>>{};
+  for (final entry in (database['tables'] as Map).entries) {
+    final name = entry.key;
+    final rows = entry.value;
+    if (name is! String || rows is! List) {
+      throw const FormatException('备份表数据无效');
+    }
+    final parsed = <Map<String, Object?>>[];
+    for (final row in rows) {
+      if (row is! Map) throw const FormatException('备份行数据无效');
+      final values = <String, Object?>{};
+      for (final field in row.entries) {
+        if (field.key is! String ||
+            !(field.value == null ||
+                field.value is num ||
+                field.value is String)) {
+          throw const FormatException('备份行包含不支持的列或值');
+        }
+        values[field.key as String] = field.value;
+      }
+      parsed.add(values);
+    }
+    tables[name] = parsed;
   }
   final resourceFiles = <String, Uint8List>{
     for (final entry in files.entries)
@@ -139,7 +169,6 @@ Map<String, Object?> decodeBackupArchive(Uint8List bytes) {
           entry.key.startsWith(speechEntryPrefix))
         entry.key: entry.value,
   };
-  // 类别按包内真实内容判定，不采信清单自述；旧备份没有这些条目时自然为空。
   final Object? localSections = resourceFiles.containsKey(localResourcesEntry)
       ? jsonDecode(utf8.decode(resourceFiles[localResourcesEntry]!))
       : null;
@@ -157,149 +186,21 @@ Map<String, Object?> decodeBackupArchive(Uint8List bytes) {
     if (resourceFiles.keys.any((name) => name.startsWith(speechEntryPrefix)))
       BackupResource.speechModel,
   ];
+  final declaredResources = manifest['resources'];
+  if (declaredResources is! List ||
+      !declaredResources.every((value) => value is String) ||
+      declaredResources.toSet().length != declaredResources.length ||
+      declaredResources.toSet().length != kinds.length ||
+      !kinds.every((kind) => declaredResources.contains(kind.name))) {
+    throw const FormatException('备份清单中的本机资源与文件内容不一致');
+  }
   return {
-    'version': decoded['databaseVersion'],
+    'version': version,
+    'schemaFingerprint': fingerprint,
     'exportedAt': exportedAt.toUtc().toIso8601String(),
-    'tables': parseBackupSql(sqlText),
+    'tables': tables,
     'attachments': attachments,
     'resources': resourceFiles,
     'resourceKinds': kinds,
   };
 }
-
-Map<String, List<Map<String, Object?>>> parseBackupSql(String sql) {
-  final tables = <String, List<Map<String, Object?>>>{};
-  var begun = false, committed = false, foreignKeysOn = false;
-  for (final statement in _statements(sql)) {
-    final text = statement.trim();
-    if (text == 'PRAGMA foreign_keys=OFF') continue;
-    if (text == 'BEGIN TRANSACTION' && !begun) {
-      begun = true;
-      continue;
-    }
-    if (text == 'COMMIT' && begun && !committed) {
-      committed = true;
-      continue;
-    }
-    if (text == 'PRAGMA foreign_keys=ON' && committed) {
-      foreignKeysOn = true;
-      continue;
-    }
-    if (RegExp(r'^PRAGMA user_version=\d+$').hasMatch(text) && !committed) {
-      continue;
-    }
-    if (!begun || committed) throw const FormatException('备份 SQL 结构无效');
-    final table = RegExp(
-      r'^CREATE TABLE "([a-z_]+)"\s*\(',
-      caseSensitive: false,
-    ).firstMatch(text);
-    if (table != null) {
-      if (tables.containsKey(table[1])) throw const FormatException('备份表定义重复');
-      tables[table[1]!] = [];
-      continue;
-    }
-    // 索引和触发器是导出的说明；恢复时只使用当前应用自身的结构。
-    if (RegExp(
-      r'^CREATE (?:UNIQUE )?INDEX\b|^CREATE TRIGGER\b',
-      caseSensitive: false,
-    ).hasMatch(text)) {
-      continue;
-    }
-    final insert = RegExp(
-      r'^INSERT INTO "([a-z_]+)" \(([^)]+)\) VALUES \((.*)\)$',
-      dotAll: true,
-    ).firstMatch(text);
-    if (insert == null || !tables.containsKey(insert[1])) {
-      throw const FormatException('备份包含不支持的 SQL');
-    }
-    final columns = insert[2]!.split(',');
-    final values = insert[3]!.split(',');
-    if (columns.length != values.length ||
-        columns.toSet().length != columns.length) {
-      throw const FormatException('备份数据列不完整');
-    }
-    final row = <String, Object?>{};
-    for (var i = 0; i < columns.length; i++) {
-      final column = RegExp(r'^"([a-z_][a-z_0-9]*)"$').firstMatch(columns[i]);
-      if (column == null) throw const FormatException('备份数据列无效');
-      row[column[1]!] = _literal(values[i]);
-    }
-    tables[insert[1]]!.add(row);
-  }
-  if (!begun || !committed || !foreignKeysOn) {
-    throw const FormatException('备份数据库未完整写入');
-  }
-  return tables;
-}
-
-Object? _literal(String value) {
-  if (value == 'NULL') return null;
-  if (RegExp(r'^-?\d+$').hasMatch(value)) return int.parse(value);
-  if (RegExp(r'^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$').hasMatch(value)) {
-    return double.parse(value);
-  }
-  final text = RegExp(r"^CAST\(X'([0-9a-fA-F]*)' AS TEXT\)$").firstMatch(value);
-  final blob = RegExp(r"^X'([0-9a-fA-F]*)'$").firstMatch(value);
-  final hex = (text ?? blob)?[1];
-  if (hex == null || hex.length.isOdd) {
-    throw const FormatException('备份包含不支持的数据字面量');
-  }
-  final bytes = Uint8List(hex.length ~/ 2);
-  for (var i = 0; i < bytes.length; i++) {
-    bytes[i] = int.parse(hex.substring(i * 2, i * 2 + 2), radix: 16);
-  }
-  return text == null ? bytes : utf8.decode(bytes);
-}
-
-/// 只按 SQL 引号和触发器 BEGIN/CASE/END 划分，触发器正文不会被当作数据行。
-Iterable<String> _statements(String source) sync* {
-  var start = 0, depth = 0;
-  String? quote;
-  var trigger = false;
-  for (var i = 0; i < source.length; i++) {
-    final ch = source[i];
-    if (quote != null) {
-      if (ch == quote) {
-        if (i + 1 < source.length && source[i + 1] == quote) {
-          i++;
-        } else {
-          quote = null;
-        }
-      }
-      continue;
-    }
-    if (ch == "'" || ch == '"') {
-      quote = ch;
-      continue;
-    }
-    if (_isWordStart(source.codeUnitAt(i))) {
-      final wordStart = i;
-      while (i + 1 < source.length &&
-          (_isWordStart(source.codeUnitAt(i + 1)) ||
-              (source.codeUnitAt(i + 1) >= 48 &&
-                  source.codeUnitAt(i + 1) <= 57))) {
-        i++;
-      }
-      final word = source.substring(wordStart, i + 1).toUpperCase();
-      if (word == 'TRIGGER' &&
-          source.substring(start, wordStart).trim().toUpperCase() == 'CREATE') {
-        trigger = true;
-      }
-      if (trigger && (word == 'BEGIN' || word == 'CASE')) depth++;
-      if (trigger && word == 'END') depth--;
-    }
-    if (ch == ';' && depth == 0) {
-      yield source.substring(start, i);
-      start = i + 1;
-      trigger = false;
-    }
-  }
-  if (quote != null ||
-      depth != 0 ||
-      source.substring(start).trim().isNotEmpty) {
-    throw const FormatException('备份 SQL 被截断');
-  }
-}
-
-bool _isWordStart(int code) =>
-    code == 95 || (code >= 65 && code <= 90) || (code >= 97 && code <= 122);

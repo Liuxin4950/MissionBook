@@ -20,10 +20,15 @@ Map<String, Object?> encodeMessage(AgentMessage message) => {
       'isError': message.isError,
       'errorCode': message.errorCode,
     },
-    ContextMessage() => {'role': 'context', 'source': message.source},
+    ContextMessage() => {
+      'role': 'context',
+      'source': message.source,
+      'pinned': message.pinned,
+    },
     ContextSummaryMessage() => {
       'role': 'summary',
       'summarizedMessageIds': message.summarizedMessageIds,
+      'safetyVersion': message.safetyVersion,
     },
   },
 };
@@ -64,11 +69,13 @@ AgentMessage decodeMessage(Map<String, Object?> json) {
       id: id,
       source: readString(json, 'source'),
       text: textOnly(),
+      pinned: json['pinned'] == null ? false : _bool(json['pinned']),
     ),
     'summary' => ContextSummaryMessage(
       id: id,
       text: textOnly(),
       summarizedMessageIds: _strings(json['summarizedMessageIds']),
+      safetyVersion: json['safetyVersion'] as int? ?? 0,
     ),
     _ => throw const FormatException('未知消息角色'),
   };

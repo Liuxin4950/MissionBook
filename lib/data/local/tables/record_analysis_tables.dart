@@ -92,28 +92,6 @@ class AnalysisVersions extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-/// 忘记使用墓碑，防止同一对话来源又恢复已删除记忆。
-@DataClassName('MemoryEntryRow')
-@TableIndex.sql('CREATE INDEX memory_entries_source ON memory_entries(source)')
-@TableIndex.sql(
-  'CREATE INDEX memory_entries_topic ON memory_entries(conflict_key,goal_id)',
-)
-class MemoryEntries extends Table {
-  TextColumn get id => text()();
-  TextColumn get goalId => text().nullable().references(Goals, #id)();
-  TextColumn get kind => text()();
-  TextColumn get content => text()();
-  TextColumn get source => text()();
-  TextColumn get certainty => text()();
-  TextColumn get conflictKey => text()();
-  IntColumn get updatedAt => integer()();
-  IntColumn get expiresAt => integer().nullable()();
-  BoolColumn get forgotten => boolean().withDefault(const Constant(false))();
-  BoolColumn get userEdited => boolean().withDefault(const Constant(false))();
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
 /// 搜索按月保存已预留额度；密钥从不进入数据库。
 class SearchUsage extends Table {
   TextColumn get month => text()();

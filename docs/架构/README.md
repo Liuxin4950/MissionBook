@@ -4,7 +4,7 @@
 
 ## 模块导航
 
-先读[术语](术语.md)，再按功能域定位。本文档记录已实现代码，不提前规定未来架构。
+先读[术语](术语.md)，再按功能域定位。本文以源码为依据，实现与验收分别记录。2026-11-13 按用户要求将记忆/Agent 当前有限实现交接：通用 save 派生同步、usage、最终 JSON 含 brief 估算 ≤800、stable 的 identity+semantic、目标隔离与所有 AI certainty 的 basis 已有代码及专项测试；完整重构未最终验收。旧摘要、连续压缩与工具结果失效已有阶段实现，混合 5k 性能仍有失败，真实模型与设备尚需复验。当前回归及接续清单见[长期记忆](前端/助手与总结/长期记忆.md#阶段交接验证与接续开发)。
 
 | 领域 | 模块 | 职责 |
 | --- | --- | --- |
@@ -15,7 +15,7 @@
 | 前端 | [数据备份与恢复](前端/数据备份与恢复/README.md) | 一致快照、隔离校验、原子替换与工作区重建 |
 | 前端 | [平台资源](前端/平台资源/README.md) | 相机、离线语音、常驻通知与超级岛计时 |
 
-横切入口：[术语](术语.md) · [调用与失败恢复关系](调用与失败恢复关系.md)。领域细节见[调度与执行事务](前端/任务与材料/调度与执行事务.md)、[执行工具与会话提交](前端/助手与总结/执行工具与会话提交.md)、[提醒恢复与资源释放](前端/平台资源/提醒恢复与资源释放.md)。
+横切入口：[术语](术语.md) · [调用与失败恢复关系](调用与失败恢复关系.md) · [长期记忆](前端/助手与总结/长期记忆.md)。领域细节见[调度与执行事务](前端/任务与材料/调度与执行事务.md)、[执行工具与会话提交](前端/助手与总结/执行工具与会话提交.md)、[提醒恢复与资源释放](前端/平台资源/提醒恢复与资源释放.md)。
 
 文档按功能域组织，代码链接使用相对路径；单篇不超过 500 行。源码重命名或职责变化时同步更新模块入口、术语与导航。历史设计见[归档](../README.md)。
 
@@ -27,7 +27,7 @@
 | --- | --- |
 | [app.dart](../../lib/app.dart) | 数据库、任务、目标、记录、记忆、助手与平台服务装配和释放 |
 | [app_shell.dart](../../lib/app_shell.dart) | 主导航、自适应工作区与未访问页面的按需挂载 |
-| [app_database.dart](../../lib/data/local/app_database.dart) | 当前开发结构（schemaVersion 16）、建库与连接约束 |
+| [app_database.dart](../../lib/data/local/app_database.dart) | 当前开发结构（schemaVersion 18；新装 25 表，以 current_schema_test 为准）、建库与连接约束 |
 | [mission_detail.dart](../../lib/domain/entities/mission_detail.dart) | 不可变完整快照，构造时由唯一核心推导阶段 |
 | [execution_event_rules.dart](../../lib/domain/rules/execution_event_rules.dart) | 完整阶段派生与执行合法性规则 |
 | [mission_service.dart](../../lib/application/missions/mission_service.dart) | 命令、显式维护和通知页面重读 |
@@ -69,7 +69,7 @@ AppShell 仍保留四个 IndexedStack 位置以维持导航状态，但未访问
 独立记录 → RecordService → DriftRecordRepository（内容）
                          → MissionService（关联任务材料）
 记录和任务 → AttachmentCoordinator（共享附件与提交互斥）
-长期记忆 → MemoryService → DriftMemoryRepository
+长期记忆 → MemoryService / MemoryContextAssembler → DriftMemoryRepository（条目、主题别名、版本）
 总结队列 → AnalysisService → DriftAnalysisStore → 已配置模型
 ```
 

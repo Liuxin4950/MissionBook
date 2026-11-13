@@ -10,6 +10,7 @@ import '../../application/backup/backup_service.dart';
 import '../local/app_database.dart';
 import '../repositories/drift_mission_repository.dart';
 import 'backup_archive.dart';
+import 'backup_schema.dart';
 import 'backup_validation_database.dart';
 import 'local_resources.dart';
 
@@ -60,6 +61,9 @@ class DatabaseBackupRestorer implements BackupRestorer {
     if (payload['version'] != database.schemaVersion) {
       throw const FormatException('备份数据库版本与当前应用不一致，请使用对应版本导出或恢复');
     }
+    if (payload['schemaFingerprint'] != await schemaFingerprint(database)) {
+      throw const FormatException('备份结构指纹与当前应用不一致，请重新导出备份');
+    }
     final rows = (payload['tables'] as Map).map(
       (key, value) => MapEntry(
         key as String,
@@ -94,7 +98,7 @@ class DatabaseBackupRestorer implements BackupRestorer {
         .cast<String, Uint8List>();
     final stage = await openBackupValidationDatabase();
     try {
-      await _replaceBackupRows(stage, rows);
+      await replaceAllRows(stage, rows);
       final referenced = await DriftMissionRepository(
         stage,
       ).referencedAttachmentKeys();
@@ -172,7 +176,7 @@ class DatabaseBackupRestorer implements BackupRestorer {
           if (await _fingerprint() != plan.fingerprint) {
             throw StateError('校验后当前数据已变化，本次未恢复，请重新校验备份');
           }
-          await _replaceBackupRows(database, rows);
+          await replaceAllRows(database, rows);
         });
         committed = true;
         plan.used = true;
@@ -213,8 +217,11 @@ class DatabaseBackupRestorer implements BackupRestorer {
   Future<String> _fingerprint() async {
     final snapshot = <String, List<String>>{};
     for (final table in database.allTables) {
-      // 后台队列调度与会话续租不是需要用户覆盖确认的业务内容。
-      if (table.actualTableName == 'analysis_jobs') continue;
+      // 后台队列调度、会话续租与使用计数不是需要用户覆盖确认的业务内容。
+      if (table.actualTableName == 'analysis_jobs' ||
+          table.actualTableName == 'memory_usage') {
+        continue;
+      }
       final rows = await database
           .customSelect('SELECT * FROM "${table.actualTableName}"')
           .get();
@@ -272,39 +279,3 @@ class DatabaseBackupRestorer implements BackupRestorer {
     return value;
   }
 }
-
-/// 只使用当前结构的表列和参数绑定。备份中的 DDL/触发器从不进入连接。
-Future<void> _replaceBackupRows(
-  AppDatabase database,
-  _Rows rows,
-) => database.transaction(() async {
-  // 初始化当前结构以后取得可信触发器；恢复数据时停用，避免重排分析或重复写事实。
-  final triggers = await database
-      .customSelect("SELECT name,sql FROM sqlite_master WHERE type='trigger'")
-      .get();
-  await database.customStatement('PRAGMA defer_foreign_keys=ON');
-  for (final trigger in triggers) {
-    final name = trigger.read<String>('name').replaceAll('"', '""');
-    await database.customStatement('DROP TRIGGER "$name"');
-  }
-  for (final table in database.allTables.toList().reversed) {
-    await database.customStatement('DELETE FROM "${table.actualTableName}"');
-  }
-  for (final table in database.allTables) {
-    final columns = table.$columns.map((column) => column.$name).toList();
-    final sql =
-        'INSERT INTO "${table.actualTableName}" (${columns.map((name) => '"$name"').join(',')}) VALUES (${List.filled(columns.length, '?').join(',')})';
-    for (final row in rows[table.actualTableName]!) {
-      await database.customStatement(sql, [
-        for (final column in columns) row[column],
-      ]);
-    }
-  }
-  for (final trigger in triggers) {
-    await database.customStatement(trigger.read<String>('sql'));
-  }
-  if ((await database.customSelect('PRAGMA foreign_key_check').get())
-      .isNotEmpty) {
-    throw const FormatException('备份数据关联损坏，恢复已回滚');
-  }
-});

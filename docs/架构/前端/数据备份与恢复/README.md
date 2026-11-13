@@ -15,7 +15,7 @@
 | [local_resources_io.dart](../../../../lib/data/backup/local_resources_io.dart) | 安全存储整份替换、资料/动效/偏好文件原子写回、模型按固定清单落盘 |
 | [local_resources_web.dart](../../../../lib/data/backup/local_resources_web.dart) | 浏览器只带走助手设置，文件类资源不适用 |
 | [database_backup_service.dart](../../../../lib/data/backup/database_backup_service.dart) | 事务内捕获数据库快照，事务外编码并在附件互斥下读原件与本机资源，独立压缩 ZIP |
-| [backup_archive.dart](../../../../lib/data/backup/backup_archive.dart) | ZIP 清单、大小、路径及 CRC 检查；将导出 INSERT 的受限字面量解析为数据 |
+| [backup_archive.dart](../../../../lib/data/backup/backup_archive.dart) | ZIP 清单、大小、路径及 CRC 检查；解析 formatVersion 2 的 JSON 行数据，不执行备份内 SQL/DDL |
 | [database_backup_restorer.dart](../../../../lib/data/backup/database_backup_restorer.dart) | 隔离库校验、目标快照检查、新附件键映射与事务替换 |
 | [backup_validation_database.dart](../../../../lib/data/backup/backup_validation_database.dart) | 按平台选择 NativeDatabase.memory 或现有 sqlite3.wasm 的内存库 |
 | [backup_file_picker.dart](../../../../lib/data/backup/backup_file_picker.dart) | 原生系统文件选择与 Web 文件选择的编译期入口 |
@@ -33,9 +33,9 @@
        → BackupExporter.create(resources)
        → AttachmentCoordinator.synchronized
        → 数据库一致事务捕获行、会话和附件引用 → 提交并释放数据库锁
-       → 事务外生成 SQL / JSON、读取正式附件、按勾选收集本机资源 → compute 压缩 → 系统保存
+       → 事务外生成 database.json / manifest.json、读取正式附件、按勾选收集本机资源 → compute 压缩 → 系统保存
 
-  导入 → 选择 ZIP → compute 解码和受限 INSERT 解析
+  导入 → 选择 ZIP → compute 解码 JSON 行数据
        → 当前结构的隔离内存库 → 外键 / JSON / 附件引用 / 完整任务阶段 / 会话序号校验
        → 只读预览（备份与当前数量），保存目标业务快照指纹
        → 用户确认替换 → App 暂停语音、助手、分析及提醒调度
@@ -53,9 +53,9 @@
 
 ## 格式与失败边界
 
-- 只接受 formatVersion 1、sqlite-sql 且 databaseVersion 等于当前 schemaVersion 的完整备份，表集合和每行列集合须与当前结构一致。当前为 schema 16；没有历史数据库迁移、格式猜测或合并恢复分支。版本不一致时明确提示备份数据库版本与当前应用不一致，不静默改写或合并旧结构。
+- 只接受 formatVersion 2、databaseFormat `json` 的完整备份：`database.json` 保存当前全部 25 表行数据，manifest 保存 schemaVersion、表列及索引/触发器名称组成的结构指纹与附件清单。该指纹不是 SQL 定义全文哈希。恢复要求版本、指纹、表集合和每行列集合都与当前结构一致；不一致时明确拒绝，不猜测、不合并。当前为 schema 18；没有历史数据库迁移或旧格式兼容分支。
 - 解码前先只读 ZIP 中央目录，拒绝目录条目与 UNIX 符号链接条目。archive 对链接条目会在 decodeBytes 内立即解压，等解码返回再检查就已经绕过声明大小防护，因此该检查必须发生在任何解压之前。
-- 备份 SQL 仅作为数据载体。只解析本应用导出的 INSERT 字面量；备份中的 DDL、索引和触发器不进入连接。恢复使用当前应用自身建库代码及触发器。
+- 备份行数据是 JSON 基本类型，不包含 DDL、索引或触发器；恢复不执行备份包提供的 SQL/DDL。应用自身仍按当前列清单执行参数化 INSERT，并在恢复事务中清空表、停用后重建当前触发器、校验外键。这些应用操作本身会执行 SQL/DDL，不能笼统写成“完全不执行 SQL”。FTS 等虚拟表不进入 `allTables`，不会被当作业务表导出。
 - 隔离校验不写目标库和正式附件。预览后目标业务事实变化时整批拒绝；分析队列领取状态和助手写租约不计入用户业务快照。
 - 附件使用新键保存，再在数据库事务中替换引用；任务材料、独立记录及撤销归档一起映射。附件失败保留原库；数据库失败回滚原数据及触发器，并回收本次新附件。中途退出留下的无引用附件由现有协调器清理。
 - 导入的助手写租约清空，由新运行时重新领取。旧页面、会话缓存及服务不会继续使用恢复前的数据；旧工作区的通道解绑在重建前完成。
@@ -64,6 +64,10 @@
 - ZIP 限制为 768 MiB，展开总量 1 GiB、最多 20000 个文件；单附件沿用现有 20 MiB 限制，单模型文件 512 MiB，清单与本机资源 JSON 各 4 MiB。上限按勾选模型时约 228 MiB 原件放宽，展开总量仍有硬上限。超限或损坏整批拒绝。
 
 ## 验证与相关文档
+
+2026-11-13 交接全量已运行备份服务和恢复测试，覆盖当前 25 表（含情节/流程、usage、版本、墓碑、app_settings）的往返、结构拒绝、本机资源与失败回滚。新增故障注入在真实写入 missions 后抛错，验证旧行、触发器和外键回滚，新附件清理且旧附件保留，并可重试成功。根工程全量唯一失败为记忆混合 5k 性能，不在备份测试；整体结果为 1036 通过/45 跳过/1 失败。真实设备导出/恢复未做，不以自动化通过替代设备验收。统一记录见[阶段交接验证](../助手与总结/长期记忆.md#阶段交接验证与接续开发)。
+
+用户从“软件设置 → 数据备份”或“助手设置 → 数据备份”进入；导出先选择本机资源，业务数据与材料原件始终一起导出；导入先选择 ZIP 并校验/预览，再确认替换并重建工作区。抽取开关属于数据库 app_settings，独立于可勾选的助手设置资源，随业务行数据恢复。
 
 | 入口 | 内容 |
 | --- | --- |

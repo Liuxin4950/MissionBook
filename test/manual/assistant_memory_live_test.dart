@@ -37,10 +37,10 @@ void main() {
         await memory.save({
           'id': 'test-memory-$i',
           'content': '测试偏好$i',
-          'kind': 'preference',
+          'layer': 'identity',
           'certainty': 'stated',
           'source': '测试来源$i',
-          'conflictKey': '测试主题$i',
+          'topic': '测试主题$i',
         });
       }
       final settings = MemoryAssistantSettingsStore()
@@ -97,7 +97,7 @@ void main() {
         final greeting = await controller.send('你好');
         expect(greeting?.reason, AgentStopReason.completed);
         expect(
-          (await database.select(database.memoryEntries).get()).where(
+          (await database.select(database.memoryItems).get()).where(
             (entry) => entry.forgotten,
           ),
           isEmpty,
@@ -111,7 +111,7 @@ void main() {
                   message.toolName == 'manageMemory' && !message.isError,
             );
         expect((jsonDecode(forget.text) as Map)['status'], 'success');
-        final forgotten = (await database.select(database.memoryEntries).get())
+        final forgotten = (await database.select(database.memoryItems).get())
             .where((entry) => entry.forgotten)
             .map((entry) => entry.id)
             .toSet();

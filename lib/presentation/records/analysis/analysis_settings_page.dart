@@ -26,6 +26,7 @@ class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
     AnalysisScope.goal: ('目标', '目标整体进展与分层摘要'),
   };
   Set<AnalysisScope>? _scopes;
+  bool _memoryEnabled = true, _savingMemory = false;
   bool _started = false, _saving = false, _allowPop = false;
   String? _error, _message;
   bool get changed =>
@@ -50,6 +51,7 @@ class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
       if (mounted) {
         setState(() {
           _scopes = analysis.automaticScopes.toSet();
+          _memoryEnabled = analysis.memoryExtractionEnabled;
           _error = null;
         });
       }
@@ -73,6 +75,29 @@ class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
       if (mounted) setState(() => _message = '设置保存失败，当前选择已保留');
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> toggleMemory(bool value) async {
+    if (_savingMemory) return;
+    setState(() {
+      _savingMemory = true;
+      _message = null;
+    });
+    try {
+      await RecordScope.maybeOf(
+        context,
+      )!.analysis.saveMemoryExtractionEnabled(value);
+      if (mounted) {
+        setState(() {
+          _memoryEnabled = value;
+          _message = value ? '已恢复自动整理对话记忆' : '已暂停自动整理对话记忆';
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _message = '记忆整理设置保存失败，请重试');
+    } finally {
+      if (mounted) setState(() => _savingMemory = false);
     }
   }
 
@@ -112,7 +137,7 @@ class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
             onPressed: () => showAppInfoSheet(
               context,
               '自动与手动总结',
-              '关闭某层后，新的记录和完成报告仍正常保存，该层背景总结暂停。已有总结继续保留，资料变化时标记待更新，可以在对应页面点击生成或更新。重新开启后会继续处理待总结内容。已经发出的请求可能完成。手动总结只处理选中的对象，不会偷偷开启其他层级；缺少子级摘要会注明覆盖不足。这里的开关不改变对话记忆整理规则。',
+              '关闭某层后，新的记录和完成报告仍正常保存，该层背景总结暂停。已有总结继续保留，资料变化时标记待更新，可以在对应页面点击生成或更新。重新开启后会继续处理待总结内容。已经发出的请求可能完成。手动总结只处理选中的对象，不会偷偷开启其他层级；缺少子级摘要会注明覆盖不足。自动总结分层与下方对话记忆整理开关相互独立；关闭记忆整理只停新抽取，已有记忆仍会使用。',
             ),
           ),
         ],
@@ -177,6 +202,24 @@ class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
                                       }),
                                     ),
                                 ],
+                              ),
+                            ),
+                            const SizedBox(height: AppLayout.spaceLg),
+                            AppSectionCard(
+                              padding: EdgeInsets.zero,
+                              child: AppSettingsRow(
+                                icon: Icons.psychology_outlined,
+                                title: '自动整理对话记忆',
+                                subtitle: _memoryEnabled
+                                    ? '从新对话提取偏好、事实与观察；已有记忆仍会检索并参与回答'
+                                    : '已暂停新抽取；已有记忆仍会检索并参与回答',
+                                enabled: !_savingMemory,
+                                trailing: Switch(
+                                  key: const Key('analysis-auto-memory'),
+                                  value: _memoryEnabled,
+                                  onChanged: _savingMemory ? null : toggleMemory,
+                                ),
+                                onTap: () => toggleMemory(!_memoryEnabled),
                               ),
                             ),
                             if (_message != null)

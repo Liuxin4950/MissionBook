@@ -9,6 +9,7 @@ import 'package:http/testing.dart';
 import 'package:http/http.dart' as http;
 import 'package:mission_book/application/analysis/analysis_preferences.dart';
 import 'package:mission_book/application/analysis/analysis_service.dart';
+import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/memory/memory_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/records/record_service.dart';
@@ -17,6 +18,7 @@ import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/core/theme/app_layout.dart';
 import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
+import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/repositories/drift_record_repository.dart';
 import 'package:mission_book/data/web/web_settings_store.dart';
@@ -55,13 +57,19 @@ class _FailingMemory extends MemoryService {
   Future<Map<String, Object?>> save(
     Map<String, Object?> entry, {
     bool userEdited = false,
+    bool explicitCorrection = false,
     String? operationId,
   }) async {
     if (saveFailures > 0) {
       saveFailures--;
       throw StateError('这条记忆正在被其他操作占用，请稍后重试');
     }
-    return super.save(entry, userEdited: userEdited, operationId: operationId);
+    return super.save(
+      entry,
+      userEdited: userEdited,
+      explicitCorrection: explicitCorrection,
+      operationId: operationId,
+    );
   }
 
   @override
@@ -134,6 +142,7 @@ void main() {
     double width = 390,
     double height = 844,
     double textScale = 1,
+    GoalService? goals,
   }) async {
     tester.view.physicalSize = Size(width, height);
     tester.view.devicePixelRatio = 1;
@@ -150,6 +159,7 @@ void main() {
           memory: memory,
           analysis: analysis,
           web: web,
+          goals: goals,
           child: MediaQuery(
             data: MediaQuery.of(
               c,
@@ -189,7 +199,97 @@ void main() {
     await tester.tap(find.byKey(const Key('memory-save')));
     await tester.pumpAndSettle();
     expect(find.text('喜欢分步骤学习'), findsOneWidget);
-    expect(await memory.core(), contains('喜欢分步骤学习'));
+    final saved = (await memory.query())['items'] as List;
+    expect(
+      saved.map((item) => (item as Map)['content']),
+      contains('喜欢分步骤学习'),
+    );
+    await close(tester);
+  });
+
+  testWidgets('日记本按目标筛选并标注层级与观察范围', (tester) async {
+    final goals = GoalService(DriftGoalRepository(db));
+    addTearDown(goals.dispose);
+    final first = goals.prepareCreation(title: '目标甲');
+    final second = goals.prepareCreation(title: '目标乙');
+    await goals.create(first);
+    await goals.create(second);
+    Future<void> remember(
+      String id,
+      String content, {
+      String? goalId,
+      String layer = 'identity',
+      String certainty = 'stated',
+    }) => memory.save({
+      'id': id,
+      'content': content,
+      'layer': layer,
+      'certainty': certainty,
+      'topic': id,
+      'sourceKind': 'user',
+      'goalId': goalId,
+    });
+    await remember('global', '全局偏好');
+    await remember('first', '目标甲记忆', goalId: first.id);
+    await remember('second', '目标乙记忆', goalId: second.id);
+    await remember(
+      'observe',
+      '未验证的观察内容',
+      layer: 'observation',
+      certainty: 'unverified',
+    );
+    await open(tester, const MemoryPage(), goals: goals, height: 1200);
+    expect(find.text('全部记忆'), findsOneWidget);
+    expect(find.textContaining('身份与稳定偏好'), findsWidgets);
+    expect(find.textContaining('引用该目标时载入'), findsWidgets);
+    expect(find.textContaining('待验证观察'), findsWidgets);
+    expect(find.textContaining('未验证'), findsWidgets);
+    await tester.tap(find.text('全部记忆'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('目标甲').last);
+    await tester.pumpAndSettle();
+    expect(find.text('全局偏好'), findsOneWidget);
+    expect(find.text('目标甲记忆'), findsOneWidget);
+    expect(find.text('目标乙记忆'), findsNothing);
+    await close(tester);
+  });
+
+  testWidgets('日记本保存并回显同义别名', (tester) async {
+    await open(tester, const MemoryPage());
+    await tester.tap(find.text('添加第一条记忆'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('memory-content')),
+      '我习惯早上跑步',
+    );
+    await tester.enterText(
+      find.byKey(const Key('memory-aliases')),
+      '晨跑，早上跑步',
+    );
+    await tester.ensureVisible(find.byKey(const Key('memory-save')));
+    await tester.tap(find.byKey(const Key('memory-save')));
+    await tester.pumpAndSettle();
+    expect(
+      (await db.select(db.memoryTopicAliases).get()).map((row) => row.alias),
+      containsAll(['晨跑', '早上跑步']),
+    );
+    await tester.tap(find.byTooltip('更正记忆'));
+    await tester.pumpAndSettle();
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('memory-aliases')),
+    );
+    expect(field.controller!.text, contains('晨跑'));
+    await tester.enterText(
+      find.byKey(const Key('memory-aliases')),
+      '晨跑，早上跑步，慢跑',
+    );
+    await tester.ensureVisible(find.byKey(const Key('memory-save')));
+    await tester.tap(find.byKey(const Key('memory-save')));
+    await tester.pumpAndSettle();
+    expect(
+      (await db.select(db.memoryTopicAliases).get()).map((row) => row.alias),
+      contains('慢跑'),
+    );
     await close(tester);
   });
 
@@ -234,8 +334,8 @@ void main() {
     await memory.save({
       'id': 'preference',
       'content': '喜欢分步骤学习',
-      'kind': 'preference',
-      'source': '用户手动记录',
+      'layer': 'identity',
+      'sourceKind': 'manual',
       'certainty': 'stated',
     }, userEdited: true);
     await open(tester, const MemoryPage());
@@ -252,16 +352,16 @@ void main() {
 
   testWidgets('日记按需展示来源，过期内容默认隐藏但可查看', (tester) async {
     await db
-        .into(db.memoryEntries)
+        .into(db.memoryItems)
         .insert(
-          MemoryEntriesCompanion.insert(
+          MemoryItemsCompanion.insert(
             id: 'expired',
+            layer: 'semantic',
             content: '考试周临时安排',
-            kind: 'constraint',
-            source: '用户明确陈述',
             certainty: 'stated',
-            conflictKey: '考试安排',
+            createdAt: testNow.millisecondsSinceEpoch,
             updatedAt: testNow.millisecondsSinceEpoch,
+            sourceKind: 'user',
             expiresAt: Value(
               testNow.subtract(const Duration(days: 1)).millisecondsSinceEpoch,
             ),

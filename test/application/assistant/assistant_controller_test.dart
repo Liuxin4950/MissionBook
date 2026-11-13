@@ -13,10 +13,12 @@ import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/application/assistant/assistant_settings.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
+import 'package:mission_book/application/memory/memory_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
+import 'package:mission_book/data/repositories/drift_memory_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 
 import '../../support/assistant_fakes.dart';
@@ -41,6 +43,35 @@ class BackgroundModel implements AgentModel {
   ) {
     calls++;
     return calls == 1 ? first.future : Future.value(textResponse('继续完成了本轮'));
+  }
+}
+
+class SwitchableMemory extends MemoryService {
+  SwitchableMemory(super.repository);
+  bool failing = false;
+
+  @override
+  Future<Map<String, Object?>> query({
+    String? goalId,
+    String? search,
+    int offset = 0,
+    int limit = 20,
+    bool includeExpired = false,
+    String? layer,
+    String? certainty,
+    int? candidateLimit,
+  }) {
+    if (failing) throw StateError('记忆读取失败');
+    return super.query(
+      goalId: goalId,
+      search: search,
+      offset: offset,
+      limit: limit,
+      includeExpired: includeExpired,
+      layer: layer,
+      certainty: certainty,
+      candidateLimit: candidateLimit,
+    );
   }
 }
 
@@ -85,6 +116,7 @@ void main() {
     AgentModel model, {
     Duration resumeGrace = const Duration(seconds: 20),
     DriftSessionStore? sessionStore,
+    MemoryService? memory,
   }) {
     final result = AssistantController(
       unifiedReader: DriftUnifiedReader(database),
@@ -92,6 +124,7 @@ void main() {
       settingsStore: settings,
       missions: missions,
       goals: goals,
+      memory: memory,
       modelOverrides: {'deepseek-chat': model, 'deepseek': model},
       resumeGrace: resumeGrace,
       clock: () => now,
@@ -114,6 +147,40 @@ void main() {
     }
     throw StateError('等待助手状态超时');
   }
+
+  test('记忆每轮只注入最新一份，读取失败不阻断发送', () async {
+    final repository = DriftMemoryRepository(database, clock: () => now);
+    await repository.saveMemory({
+      'id': 'memory',
+      'content': '喜欢上午学习',
+      'layer': 'identity',
+      'certainty': 'stated',
+      'topic': '学习时间',
+      'sourceKind': 'user',
+    });
+    final memory = SwitchableMemory(repository);
+    final model = ScriptedModel([
+      (_) => textResponse('第一答'),
+      (_) => textResponse('第二答'),
+      (_) => textResponse('第三答'),
+    ]);
+    final ai = makeController(model, memory: memory);
+    await ai.initialize();
+    List<ContextMessage> blocks(ModelRequest request) => request.messages
+        .whereType<ContextMessage>()
+        .where((message) => message.source == 'mission_book_memory')
+        .toList();
+    await ai.send('第一问');
+    expect(blocks(model.requests.last), hasLength(1));
+    expect(blocks(model.requests.last).single.text, contains('喜欢上午学习'));
+    await ai.send('第二问');
+    expect(blocks(model.requests.last), hasLength(1));
+    memory.failing = true;
+    await ai.send('第三问');
+    expect(ai.errorMessage, isNull);
+    expect(blocks(model.requests.last), isEmpty);
+    expect(model.requests, hasLength(3));
+  });
 
   test('并发打开同一会话和切换全局入口不会重复持有运行时会话', () async {
     final ai = makeController(ScriptedModel([(_) => textResponse('已回答')]));

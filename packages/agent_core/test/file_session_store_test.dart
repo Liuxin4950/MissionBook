@@ -67,40 +67,73 @@ void main() {
     await reader.close();
   });
 
-  test('真实文件关闭重开，原文、配置、摘要和校验均恢复', () async {
-    final config = testConfiguration(
-      window: 3000,
-      context: ContextPolicy(
-        headroomTokens: 64,
-        summaryMaxTokens: 128,
-        keepRecentMessages: 1,
-      ),
-    );
-    final runtime = testRuntime(
-      store: FileSessionStore(directory),
-      configuration: config,
-    );
-    final session = await runtime.createSession(id: 'saved');
-    await session.send('背景：${'用户明确约束' * 480}');
-    await session.send('按这些约束继续');
-    final ids = session.contextMessages.map((message) => message.id).toList();
-    expect(
-      (await session.readRecords()).any(
-        (record) => record.type == 'context_compacted',
-      ),
-      isTrue,
-    );
-    await runtime.close();
-    final nextRuntime = testRuntime(
-      store: FileSessionStore(directory),
-      configuration: config,
-    );
-    final reopened = await nextRuntime.openSession('saved');
-    expect(reopened.transcript, hasLength(4));
-    expect(reopened.contextMessages.map((message) => message.id), ids);
-    expect((await reopened.send('下一句')).reason, AgentStopReason.completed);
-    await nextRuntime.close();
-  });
+  for (final automatic in [false, true]) {
+    test('真实文件${automatic ? '自动' : '手动'}压缩重开，原文与当前记忆投影均恢复', () async {
+      final config = testConfiguration(
+        window: 3000,
+        context: ContextPolicy(
+          enabled: automatic,
+          headroomTokens: 64,
+          summaryMaxTokens: 128,
+          keepRecentMessages: 1,
+        ),
+      );
+      final runtime = testRuntime(
+        store: FileSessionStore(directory),
+        configuration: config,
+      );
+      addTearDown(runtime.close);
+      final session = await runtime.createSession(id: 'saved');
+      await session.replaceContext(
+        source: 'mission_book_memory',
+        text: '当前有效记忆：每天早上七点起床',
+      );
+      final memory = session.transcript.whereType<ContextMessage>().single;
+      await session.send('背景：${'用户明确约束' * 480}');
+      final result = await session.send('按这些约束继续');
+      expect(result.reason, AgentStopReason.completed);
+      if (automatic) {
+        expect(result.compactions, 1);
+      } else {
+        final compaction = await session.compact();
+        expect(compaction, isNotNull);
+        expect(
+          compaction!.contextMessages.whereType<ContextMessage>().single.id,
+          memory.id,
+        );
+      }
+      final ids = session.contextMessages.map((message) => message.id).toList();
+      expect(
+        (await session.readRecords()).any(
+          (record) => record.type == 'context_compacted',
+        ),
+        isTrue,
+      );
+      await runtime.close();
+      final requests = <ModelRequest>[];
+      final nextRuntime = testRuntime(
+        store: FileSessionStore(directory),
+        configuration: config,
+        main: (request, token) {
+          requests.add(request);
+          return textReply('收到');
+        },
+      );
+      addTearDown(nextRuntime.close);
+      final reopened = await nextRuntime.openSession('saved');
+      expect(reopened.transcript, hasLength(5));
+      expect(
+        reopened.transcript.whereType<ContextMessage>().single.id,
+        memory.id,
+      );
+      expect(reopened.contextMessages.map((message) => message.id), ids);
+      expect((await reopened.send('下一句')).reason, AgentStopReason.completed);
+      expect(
+        requests.single.messages.whereType<ContextMessage>().single.id,
+        memory.id,
+      );
+    });
+  }
 
   test('未提交尾片段隔离保存后恢复，完整坏行拒绝修改', () async {
     final runtime = testRuntime(store: FileSessionStore(directory));

@@ -3,7 +3,8 @@ enum AnalysisScope {
   mission,
   node,
   goal,
-  memory;
+  memory,
+  reflection;
 
   /// 未知层级必须报错，不能误当成目标总结或读取另一类对象。
   static AnalysisScope parse(String value) => switch (value) {
@@ -11,6 +12,7 @@ enum AnalysisScope {
     'node' => node,
     'goal' => goal,
     'memory' => memory,
+    'reflection' => reflection,
     _ => throw FormatException('未知总结层级：$value'),
   };
 }

@@ -50,6 +50,11 @@ class _AssistantConfiguration {
     final profileId = profiles.any((profile) => profile.id == selected)
         ? selected
         : base.defaultModelProfile;
+    final summaryProfileId =
+        base.summaryModelProfile != base.defaultModelProfile &&
+            profiles.any((profile) => profile.id == base.summaryModelProfile)
+        ? base.summaryModelProfile
+        : profileId;
     return AgentConfiguration(
       profiles: [
         for (final profile in profiles)
@@ -63,7 +68,7 @@ class _AssistantConfiguration {
             profile,
       ],
       defaultModelProfile: profileId,
-      summaryModelProfile: profileId,
+      summaryModelProfile: summaryProfileId,
       maxSteps: base.maxSteps,
       maxRunDuration: base.maxRunDuration,
       context: base.context,
@@ -146,12 +151,15 @@ class _AssistantConfiguration {
       }
       await _controller._settingsStore.saveModelProfile(profileId);
       _controller._settings = await _controller._settingsStore.load();
+      final configuration = _configuration;
       if (_controller._session != null &&
-          (_controller._session!.modelProfileId != profileId ||
-              _controller._session!.summaryProfileId != profileId)) {
+          (_controller._session!.modelProfileId !=
+                  configuration.defaultModelProfile ||
+              _controller._session!.summaryProfileId !=
+                  configuration.summaryModelProfile)) {
         await _controller._session!.selectModels(
-          conversation: _controller._settings.modelProfileId,
-          summary: _controller._settings.modelProfileId,
+          conversation: configuration.defaultModelProfile,
+          summary: configuration.summaryModelProfile,
         );
       }
       await _applyReasoningEffort();

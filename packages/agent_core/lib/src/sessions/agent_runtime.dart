@@ -114,6 +114,14 @@ final class AgentRuntime {
     configuration.profile(state.summaryProfileId);
     final session = AgentSession._(this, handle, state);
     await session._recoverInterruptedTurn();
+    final replay = session._state.copy();
+    if (replay.finishReplay()) {
+      await session._record('context_projection_reset', {
+        'contextMessageIds': replay.contextMessages
+            .map((message) => message.id)
+            .toList(),
+      });
+    }
     _checkOpen();
     _sessions[handle.id] = session;
     return session;
@@ -306,6 +314,7 @@ final class AgentSession {
         _state.transcript.reversed.whereType<UserMessage>().firstOrNull?.id;
     AgentLoop? loop;
     try {
+      await _refreshToolResults();
       await _record('turn_started', {
         'turnId': const Uuid().v4(),
         'resume': input == null,
@@ -367,6 +376,7 @@ final class AgentSession {
     if (needsOutcomeResolution) throw StateError('先核对结果未知的工具');
     final token = _beginWork();
     try {
+      await _refreshToolResults();
       final result = await _compactor().prepare(
         ModelRequest(
           systemPrompt: systemPrompt,
@@ -387,15 +397,76 @@ final class AgentSession {
     }
   }
 
+  /// 持久注册每轮/手动压缩前需刷新投影的查询工具，并立即失效旧结果。
+  /// 保留 transcript、工具调用配对和用户原话；关联模型回答与摘要退出投影。
+  Future<void> invalidateToolResults({required Set<String> toolNames}) async {
+    if (toolNames.any((name) => name.trim().isEmpty)) {
+      throw ArgumentError('工具名称不能为空');
+    }
+    await _mutate(() async {
+      if (toolNames.isEmpty) return;
+      if (toolNames.every(_state.refreshToolNames.contains) &&
+          _state.staleToolProjections(toolNames).isEmpty &&
+          !_state.contextMessages.whereType<ContextSummaryMessage>().any(
+            (summary) => !summary.isSafe,
+          )) {
+        return;
+      }
+      await _record('tool_results_invalidated', {
+        'toolNames': toolNames.toList(),
+      });
+    });
+  }
+
+  Future<void> _refreshToolResults() async {
+    final names = _state.refreshToolNames;
+    if (names.isNotEmpty && _state.staleToolProjections(names).isNotEmpty) {
+      await _record('tool_results_invalidated', {'toolNames': names.toList()});
+    }
+  }
+
   Future<void> injectContext({
     required String source,
     required String text,
+    bool pinned = false,
   }) async {
     await _mutate(
       () => _record('message_added', {
-        'message': encodeMessage(ContextMessage(source: source, text: text)),
+        'message': encodeMessage(
+          ContextMessage(source: source, text: text, pinned: pinned),
+        ),
       }),
     );
+  }
+
+  /// 用最新一份同来源上下文替换旧块；传空文本表示移除，避免每轮累积过期资料。
+  /// 原始记录仍在 transcript 与日志中；当前块随压缩保留，替换或移除后退出模型投影。
+  Future<void> replaceContext({
+    required String source,
+    required String? text,
+  }) async {
+    await _mutate(() async {
+      final previous = _state.contextMessages
+          .where(
+            (message) => message is ContextMessage && message.source == source,
+          )
+          .toList();
+      final next = text?.trim() ?? '';
+      if (previous.length == 1 &&
+          previous.single.text == next &&
+          (previous.single as ContextMessage).isPinned) {
+        return;
+      }
+      if (previous.isEmpty && next.isEmpty) return;
+      final message = next.isEmpty
+          ? null
+          : ContextMessage(source: source, text: next, pinned: true);
+      await _record('context_message_replaced', {
+        'source': source,
+        'previousIds': [for (final item in previous) item.id],
+        if (message != null) 'message': encodeMessage(message),
+      });
+    });
   }
 
   Future<void> selectModels({String? conversation, String? summary}) async {
@@ -621,6 +692,7 @@ final class AgentSession {
       case ContextCompacted():
         final compaction = event.compaction;
         await _record('context_compacted', {
+          'supplyExcluded': true,
           'summary': encodeMessage(compaction.summary),
           'contextMessageIds': compaction.contextMessages
               .map((message) => message.id)

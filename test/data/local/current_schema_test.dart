@@ -46,9 +46,9 @@ void main() {
 
     tearDown(() async => database.close());
 
-    test('当前版本新装十八表与索引符合当前定义', () async {
+    test('当前版本新装二十五表与索引符合当前定义', () async {
       expect(await _version(database), database.schemaVersion);
-      expect(database.allTables, hasLength(18));
+      expect(database.allTables, hasLength(25));
       await database.validateDatabaseSchema();
       expect(
         (await database.customSelect('PRAGMA foreign_keys').getSingle())

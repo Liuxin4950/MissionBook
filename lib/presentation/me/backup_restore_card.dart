@@ -161,7 +161,9 @@ class _BackupRestoreCardState extends State<BackupRestoreCard> {
                 'missions': '任务',
                 'records': '记录',
                 'evidence_records': '任务材料',
-                'memory_entries': '长期记忆',
+                'memory_items': '长期记忆',
+                'memory_topics': '记忆主题',
+                'memory_versions': '记忆版本',
                 'assistant_sessions': '助手会话',
                 'assistant_session_records': '会话日志',
               }.entries)

@@ -78,7 +78,8 @@ Future<void> installAnalysisTriggers(GeneratedDatabase db) async {
     '''CREATE TRIGGER IF NOT EXISTS analysis_conversation_memory
     AFTER INSERT ON assistant_session_records
     WHEN NEW.type='message_added' AND
-      CASE WHEN json_valid(NEW.data) THEN json_extract(NEW.data,'\$.message.role') ELSE NULL END='user'
+      CASE WHEN json_valid(NEW.data) THEN json_extract(NEW.data,'\$.message.role') ELSE NULL END='user' AND
+      coalesce((SELECT value FROM app_settings WHERE key='memory.extraction.enabled'),'1')!='0'
     BEGIN INSERT OR IGNORE INTO analysis_jobs(scope,target_id,source_version,status,attempts,available_at)
       VALUES('memory',NEW.session_id || ':' || NEW.sequence,1,'pending',0,0); END''',
   );
