@@ -273,7 +273,7 @@ void main() {
     );
     controller = assistant;
     await assistant.initialize();
-    await assistant.saveCredential('test-key');
+    await assistant.saveCredentialForProvider('deepseek-api', 'test-key');
     await assistant.send('第一条');
     final sessionId = assistant.currentSessionId;
     assistant.setForeground(false);
@@ -828,7 +828,7 @@ void main() {
       ]),
     );
     await assistant.initialize();
-    await assistant.selectModelProfile('deepseek');
+    await assistant.setDefaultModels(main: 'deepseek');
     await assistant.startNewSession();
     expect(assistant.modelProfileId, 'deepseek');
     expect(assistant.currentSessionId, isNull);
@@ -894,25 +894,32 @@ void main() {
     expect((await missions.findAllDetails()), hasLength(1));
   });
 
-  test('自定义服务配置可用于新会话，换回DeepSeek不会混用凭据', () async {
+  test('多服务目录保存后默认模型、凭据和历史身份互相独立', () async {
     final assistant = makeController(ScriptedModel([]));
     await assistant.initialize();
-    final profile = ModelProfile(
-      id: 'custom',
-      provider: 'custom',
-      model: 'custom-model',
-      endpoint: Uri.parse('https://example.invalid/v1/chat/completions'),
+    final provider = ProviderConfig(
+      providerId: 'custom',
+      displayName: '自定义服务',
+      baseAddress: 'https://example.invalid/v1',
       protocol: ModelProtocol.chatCompletions,
-      credentialKey: 'MISSIONBOOK_CUSTOM_API_KEY',
+      credentialRef: 'MISSIONBOOK_CUSTOM_API_KEY',
+    );
+    final model = ProviderModel(
+      profileId: 'custom',
+      providerId: 'custom',
+      modelId: 'custom-model',
       supportsImages: false,
     );
-    await assistant.saveCustomProfile(profile);
-    await assistant.saveCredential('fake-custom', profileId: 'custom');
-    await assistant.selectModelProfile('custom');
+    await assistant.saveProvider(
+      provider: provider,
+      models: [model],
+      credential: 'fake-custom',
+    );
+    await assistant.setDefaultModels(main: 'custom');
     await assistant.startNewSession();
     expect(assistant.modelProfileId, 'custom');
     expect(assistant.hasCredential, isTrue);
-    expect(assistant.customProfile?.endpoint, profile.endpoint);
+    expect(assistant.modelForProfile('custom')?.modelId, 'custom-model');
     expect(
       await settings.resolveCredential('MISSIONBOOK_CUSTOM_API_KEY'),
       'fake-custom',
@@ -921,9 +928,14 @@ void main() {
       await settings.resolveCredential('DEEPSEEK_API_KEY'),
       'test-credential',
     );
-    await assistant.saveCredential('', profileId: 'custom');
+    await assistant.saveProvider(
+      provider: provider,
+      models: [model],
+      clearCredential: true,
+    );
     expect(assistant.hasCredential, isFalse);
-    await assistant.selectModelProfile('deepseek-chat');
+    await assistant.setDefaultModels(main: 'deepseek-chat');
+    await assistant.startNewSession();
     expect(assistant.hasCredential, isTrue);
   });
 
@@ -935,13 +947,16 @@ void main() {
     await assistant.initialize();
     await assistant.startNewSession();
     paused.loadGate = Completer<void>();
-    final saving = assistant.saveCredential('replacement-test-key');
+    final saving = assistant.saveCredentialForProvider(
+      'deepseek-api',
+      'replacement-test-key',
+    );
     expect(assistant.configuring, isTrue);
     expect(assistant.isRunning, isFalse);
     await expectLater(assistant.send('不应发出'), throwsStateError);
     await expectLater(assistant.startNewSession(), throwsStateError);
     await expectLater(
-      assistant.selectModelProfile('deepseek'),
+      assistant.setDefaultModels(main: 'deepseek'),
       throwsStateError,
     );
     var closed = false;
@@ -955,7 +970,160 @@ void main() {
     expect(assistant.configuring, isFalse);
   });
 
-  test('打开旧会话后再次选择已存默认模型，实际会话也会切换', () async {
+  test('编辑后重发创建新分支，原会话历史保持不变', () async {
+    final assistant = makeController(
+      ScriptedModel([
+        (_) => textResponse('第一答'),
+        (_) => textResponse('第二答'),
+        (_) => textResponse('修改后答'),
+      ]),
+    );
+    await assistant.initialize();
+    await assistant.send('第一句');
+    await assistant.send('第二句');
+    final originalId = assistant.currentSessionId!;
+    final second = assistant.transcript.whereType<UserMessage>().last;
+    await assistant.editAndResend(second.id, UserMessage(text: '修改后的第二句'));
+    expect(assistant.errorMessage, isNull);
+    expect(assistant.currentSessionId, isNot(originalId));
+    expect(
+      assistant.transcript.whereType<UserMessage>().map(
+        (message) => message.text,
+      ),
+      ['第一句', '修改后的第二句'],
+    );
+    expect(
+      assistant.transcript.whereType<AssistantMessage>().last.text,
+      '修改后答',
+    );
+    // 原会话保留完整两轮。
+    await assistant.openConversation(originalId);
+    expect(
+      assistant.transcript.whereType<UserMessage>().map(
+        (message) => message.text,
+      ),
+      ['第一句', '第二句'],
+    );
+  });
+
+  test('重新回答不重复用户消息', () async {
+    final assistant = makeController(
+      ScriptedModel([
+        (_) => textResponse('第一次回答'),
+        (_) => textResponse('重新回答'),
+      ]),
+    );
+    await assistant.initialize();
+    await assistant.send('同一个问题');
+    await assistant.regenerateLastAnswer();
+    expect(
+      assistant.transcript.whereType<UserMessage>().map(
+        (message) => message.text,
+      ),
+      ['同一个问题'],
+    );
+    expect(
+      assistant.transcript.whereType<AssistantMessage>().last.text,
+      '重新回答',
+    );
+  });
+
+  test('含工具结果的轮次禁止重新回答，避免自动重放业务操作', () async {
+    settings.permissionMode = AssistantPermissionMode.full;
+    final assistant = makeController(
+      ScriptedModel([
+        (_) => toolResponse('goal-call', 'createGoal', {'title': '副作用目标'}),
+        (_) => textResponse('已创建'),
+      ]),
+    );
+    await assistant.initialize();
+    await assistant.send('创建一个目标');
+    expect(assistant.transcript.whereType<ToolResultMessage>(), isNotEmpty);
+    await expectLater(assistant.regenerateLastAnswer(), throwsStateError);
+  });
+
+  test('目录保存失败时保留旧目录并回收本次新输入的 Key', () async {
+    final assistant = makeController(ScriptedModel([]));
+    await assistant.initialize();
+    final before = assistant.providerCatalog;
+    settings.failNextCatalogSave = true;
+    await expectLater(
+      assistant.saveProvider(
+        provider: ProviderConfig(
+          providerId: 'new-service',
+          displayName: '新服务',
+          baseAddress: 'https://new.invalid/v1',
+          protocol: ModelProtocol.chatCompletions,
+          credentialRef: ProviderCatalog.credentialRefFor('new-service'),
+        ),
+        models: [
+          ProviderModel(
+            profileId: 'new-model',
+            providerId: 'new-service',
+            modelId: 'new-model',
+          ),
+        ],
+        credential: 'new-secret',
+      ),
+      throwsStateError,
+    );
+    // 旧目录继续生效，失败的新服务不会半保存。
+    expect(assistant.providerCatalog.providers.length, before.providers.length);
+    expect(
+      assistant.providerCatalog.providers.any(
+        (provider) => provider.providerId == 'new-service',
+      ),
+      isFalse,
+    );
+    expect(
+      settings.credentials.containsKey(
+        ProviderCatalog.credentialRefFor('new-service'),
+      ),
+      isFalse,
+    );
+  });
+
+  test('目录不再包含会话模型时历史仍可打开，发送前要求重新选择', () async {
+    final first = makeController(ScriptedModel([(_) => textResponse('第一句')]));
+    await first.initialize();
+    final provider = ProviderConfig(
+      providerId: 'custom',
+      displayName: '自定义服务',
+      baseAddress: 'https://example.invalid/v1',
+      protocol: ModelProtocol.chatCompletions,
+      credentialRef: 'MISSIONBOOK_CUSTOM_API_KEY',
+    );
+    final model = ProviderModel(
+      profileId: 'custom',
+      providerId: 'custom',
+      modelId: 'custom-model',
+    );
+    await first.saveProvider(
+      provider: provider,
+      models: [model],
+      credential: 'fake-custom',
+    );
+    await first.setDefaultModels(main: 'custom');
+    await first.startNewSession();
+    await first.send('第一句');
+    final sessionId = first.currentSessionId!;
+    await first.close();
+
+    // 模拟恢复了一份不包含该服务的助手设置。
+    settings.catalog = ProviderCatalog.defaults();
+    final second = makeController(ScriptedModel([(_) => textResponse('不应调用')]));
+    await second.initialize();
+    expect(second.errorMessage, isNull);
+    expect(second.currentSessionId, sessionId);
+    expect(second.modelProfileId, 'custom');
+    expect(second.transcript.whereType<UserMessage>().single.text, '第一句');
+    // 历史可读，但停用的模型不能继续发送。
+    final result = await second.send('继续');
+    expect(result, isNull);
+    expect(second.errorMessage, contains('模型已停用'));
+  });
+
+  test('默认模型只影响新会话，当前会话模型单独切换', () async {
     final assistant = makeController(
       ScriptedModel([(_) => textResponse('旧会话回答')]),
     );
@@ -963,13 +1131,17 @@ void main() {
     await assistant.startNewSession();
     await assistant.send('需要保留的旧讨论');
     final oldId = assistant.currentSessionId!;
-    await assistant.selectModelProfile('deepseek');
-    await assistant.startNewSession();
-    await assistant.selectModelProfile('deepseek-chat');
-    await assistant.openConversation(oldId);
-    expect(assistant.modelProfileId, 'deepseek');
-    await assistant.selectModelProfile('deepseek-chat');
+    await assistant.setDefaultModels(main: 'deepseek');
+    // 修改默认不会改写已经打开的会话。
     expect(assistant.modelProfileId, 'deepseek-chat');
+    await assistant.startNewSession();
+    await assistant.setDefaultModels(main: 'deepseek-chat');
+    await assistant.openConversation(oldId);
+    expect(assistant.modelProfileId, 'deepseek-chat');
+    await assistant.selectSessionModel('deepseek');
+    expect(assistant.modelProfileId, 'deepseek');
+    // 会话切换不写回全局默认。
+    expect(assistant.defaultProfileId, 'deepseek-chat');
   });
   test('删除与切换串行，维护期间拒绝发送且最终会话一致', () async {
     final store = PausedDeleteStore(database);

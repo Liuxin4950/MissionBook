@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:agent_core/agent_core.dart';
 
+import 'assistant_provider_catalog.dart';
+
 /// 宿主决定哪些操作等用户确认；模型和附件都不能改变这一选择。
 enum AssistantPermissionMode {
   standard('询问', '每次查询和修改都先问我'),
@@ -219,37 +221,49 @@ class AssistantSpeechSettings {
 
 class AssistantSettings {
   const AssistantSettings({
-    required this.modelProfileId,
+    required this.catalog,
+    this.configuredCredentials = const {},
     this.permissionMode = AssistantPermissionMode.relaxed,
-    this.customProfile,
-    this.hasDeepSeekCredential = false,
-    this.hasCustomCredential = false,
     this.speech = const AssistantSpeechSettings(),
     this.hasTranscriptionCredential = false,
     this.persona = const AssistantPersona(),
     this.reasoningEfforts = const {},
+    this.catalogWarning,
   });
 
-  final bool hasDeepSeekCredential;
-  final bool hasCustomCredential;
-  final ModelProfile? customProfile;
+  /// 服务、模型与选择是模型配置的唯一运行来源。
+  final ProviderCatalog catalog;
+
+  /// 已在安全存储中存在值的凭据引用；只保存引用，不保存 Key 明文。
+  final Set<String> configuredCredentials;
   final AssistantSpeechSettings speech;
   final bool hasTranscriptionCredential;
-  final String modelProfileId;
   final AssistantPermissionMode permissionMode;
   final AssistantPersona persona;
   final Map<String, ReasoningEffort> reasoningEfforts;
-  bool get hasCredential =>
-      modelProfileId == 'custom' ? hasCustomCredential : hasDeepSeekCredential;
+
+  /// 目录损坏后回退时的提示；正常读取为 null。
+  final String? catalogWarning;
+
+  String get defaultProfileId => catalog.selection.defaultProfileId;
+
+  bool profileHasCredential(String profileId) {
+    final provider = catalog.providerForProfile(profileId);
+    if (provider == null) return false;
+    if (!provider.requiresCredential) return true;
+    return configuredCredentials.contains(provider.credentialRef);
+  }
 }
 
 abstract interface class AssistantSettingsStore {
   Future<AssistantSettings> load();
   Future<String?> resolveCredential(String credentialKey);
   Future<void> saveCredential(String credentialKey, String value);
-  Future<void> saveModelProfile(String profileId);
+
+  /// 整份目录一次写入；调用方负责在其中同时提交服务、模型与选择。
+  Future<void> saveCatalog(ProviderCatalog catalog);
+  Future<void> saveSelection(ModelSelection selection);
   Future<void> saveReasoningEffort(String profileId, ReasoningEffort effort);
-  Future<void> saveCustomProfile(ModelProfile profile);
   Future<void> savePermissionMode(AssistantPermissionMode mode);
   Future<void> saveSpeechSettings(AssistantSpeechSettings settings);
   Future<void> savePersona(AssistantPersona persona);

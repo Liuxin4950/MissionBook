@@ -10,6 +10,7 @@ class _MessageBubble extends StatelessWidget {
     this.markdownSlice,
     this.firstSlice = true,
     this.lastSlice = true,
+    this.onShowActions,
   });
   final AgentMessage message;
   final bool isUser;
@@ -18,6 +19,9 @@ class _MessageBubble extends StatelessWidget {
   final AssistantMarkdownSlice? markdownSlice;
   final bool firstSlice;
   final bool lastSlice;
+
+  /// 长按、右键或尾部菜单打开消息动作；为空表示不提供。
+  final VoidCallback? onShowActions;
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -40,107 +44,136 @@ class _MessageBubble extends StatelessWidget {
                   ? (constraints.maxWidth * .88).clamp(0, 620)
                   : constraints.maxWidth.clamp(0, 860),
             ),
-            child: Material(
-              color: isUser
-                  ? colors.primaryContainer
-                  : colors.surfaceContainerLow,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(firstSlice ? AppLayout.radiusLg : 0),
-                  bottom: Radius.circular(lastSlice ? AppLayout.radiusLg : 0),
+            child: GestureDetector(
+              onLongPress: onShowActions,
+              onSecondaryTap: onShowActions,
+              child: Material(
+                color: isUser
+                    ? colors.primaryContainer
+                    : colors.surfaceContainerLow,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(firstSlice ? AppLayout.radiusLg : 0),
+                    bottom: Radius.circular(lastSlice ? AppLayout.radiusLg : 0),
+                  ),
+                  side: isUser || markdownSlice != null
+                      ? BorderSide.none
+                      : const BorderSide(color: AppColors.hairline),
                 ),
-                side: isUser || markdownSlice != null
-                    ? BorderSide.none
-                    : const BorderSide(color: AppColors.hairline),
-              ),
-              child: Stack(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      AppLayout.spaceLg,
-                      firstSlice ? AppLayout.spaceMd : 0,
-                      AppLayout.spaceLg,
-                      lastSlice
-                          ? (!isUser && text.isNotEmpty
-                                ? 68
-                                : AppLayout.spaceMd)
-                          : AppLayout.spaceSm,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (text.isNotEmpty)
-                          if (!isUser)
-                            AssistantMarkdown(
-                              text: text,
-                              streaming: streaming,
-                              slice: markdownSlice,
-                            )
-                          else
-                            SelectableText(
-                              text,
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(
-                                    color: colors.onPrimaryContainer,
-                                    height: 1.5,
-                                  ),
-                            ),
-                        for (final block in content)
-                          if (AssistantAttachment.textFile(block)
-                              case final file?)
-                            AppExpansionTile(
-                              insetHeader: false,
-                              headerPadding: const EdgeInsets.symmetric(
-                                vertical: AppLayout.spaceXs,
-                              ),
-                              childrenPadding: EdgeInsets.zero,
-                              iconColor: isUser
-                                  ? colors.onPrimaryContainer
-                                  : colors.onSurface,
-                              title: Text(
-                                file.name,
-                                style: Theme.of(context).textTheme.titleSmall
+                child: Stack(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        AppLayout.spaceLg,
+                        firstSlice ? AppLayout.spaceMd : 0,
+                        AppLayout.spaceLg,
+                        lastSlice
+                            ? (isUser
+                                  ? (onShowActions != null
+                                        ? 44
+                                        : AppLayout.spaceMd)
+                                  : (text.isNotEmpty ? 68 : AppLayout.spaceMd))
+                            : AppLayout.spaceSm,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (text.isNotEmpty)
+                            if (!isUser)
+                              AssistantMarkdown(
+                                text: text,
+                                streaming: streaming,
+                                slice: markdownSlice,
+                              )
+                            else
+                              SelectableText(
+                                text,
+                                style: Theme.of(context).textTheme.bodyLarge
                                     ?.copyWith(
-                                      color: isUser
-                                          ? colors.onPrimaryContainer
-                                          : colors.onSurface,
+                                      color: colors.onPrimaryContainer,
+                                      height: 1.5,
                                     ),
                               ),
-                              leading: Icon(
-                                Icons.description_outlined,
-                                color: isUser
+                          for (final block in content)
+                            if (AssistantAttachment.textFile(block)
+                                case final file?)
+                              AppExpansionTile(
+                                insetHeader: false,
+                                headerPadding: const EdgeInsets.symmetric(
+                                  vertical: AppLayout.spaceXs,
+                                ),
+                                childrenPadding: EdgeInsets.zero,
+                                iconColor: isUser
                                     ? colors.onPrimaryContainer
-                                    : colors.primary,
-                              ),
-                              children: [
-                                SelectableText(
-                                  file.text,
-                                  style: Theme.of(context).textTheme.bodyLarge
+                                    : colors.onSurface,
+                                title: Text(
+                                  file.name,
+                                  style: Theme.of(context).textTheme.titleSmall
                                       ?.copyWith(
                                         color: isUser
                                             ? colors.onPrimaryContainer
                                             : colors.onSurface,
                                       ),
                                 ),
-                              ],
+                                leading: Icon(
+                                  Icons.description_outlined,
+                                  color: isUser
+                                      ? colors.onPrimaryContainer
+                                      : colors.primary,
+                                ),
+                                children: [
+                                  SelectableText(
+                                    file.text,
+                                    style: Theme.of(context).textTheme.bodyLarge
+                                        ?.copyWith(
+                                          color: isUser
+                                              ? colors.onPrimaryContainer
+                                              : colors.onSurface,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                          for (final block in content.whereType<ImageBlock>())
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                top: AppLayout.spaceSm,
+                              ),
+                              child: _MessageImage(block: block),
                             ),
-                        for (final block in content.whereType<ImageBlock>())
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              top: AppLayout.spaceSm,
-                            ),
-                            child: _MessageImage(block: block),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  if (!isUser && text.isNotEmpty && lastSlice)
-                    Positioned(
-                      right: 10,
-                      bottom: 10,
-                      child: _CopyReplyButton(text: text),
-                    ),
-                ],
+                    if (isUser && lastSlice && onShowActions != null)
+                      Positioned(
+                        right: 4,
+                        bottom: 2,
+                        child: IconButton(
+                          key: const Key('assistant-user-message-actions'),
+                          tooltip: '消息操作',
+                          visualDensity: VisualDensity.compact,
+                          iconSize: AppLayout.iconSm,
+                          color: colors.onPrimaryContainer,
+                          onPressed: onShowActions,
+                          icon: const Icon(Icons.more_horiz),
+                        ),
+                      ),
+                    if (!isUser && text.isNotEmpty && lastSlice)
+                      Positioned(
+                        right: 10,
+                        bottom: 10,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (onShowActions != null) ...[
+                              _MessageActionsButton(onPressed: onShowActions!),
+                              const SizedBox(width: 4),
+                            ],
+                            _CopyReplyButton(text: text),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -148,6 +181,19 @@ class _MessageBubble extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MessageActionsButton extends StatelessWidget {
+  const _MessageActionsButton({required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton.filledTonal(
+    key: const Key('assistant-message-actions'),
+    tooltip: '消息操作',
+    onPressed: onPressed,
+    icon: const Icon(Icons.more_horiz, size: AppLayout.iconSm),
+  );
 }
 
 class _CopyReplyButton extends StatelessWidget {

@@ -10,6 +10,7 @@ class _AssistantTurn extends StatelessWidget {
     required this.userMessageId,
     this.running = false,
     this.focusOperationCallId,
+    this.replyBuilder,
   });
   final List<AssistantMessage> messages;
   final Map<String, AssistantOperation> operations;
@@ -18,6 +19,7 @@ class _AssistantTurn extends StatelessWidget {
   final String userMessageId;
   final bool running;
   final String? focusOperationCallId;
+  final AssistantReplyBuilder? replyBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -35,17 +37,19 @@ class _AssistantTurn extends StatelessWidget {
       running: running,
       focusOperationCallId: focusOperationCallId,
       onOpenReference: onOpenReference,
-      replyBuilder: (message, block, key, streaming, slice, first, last) =>
-          _MessageBubble(
-            key: ValueKey(key),
-            message: message,
-            visibleContent: [block],
-            isUser: false,
-            streaming: streaming,
-            markdownSlice: slice,
-            firstSlice: first,
-            lastSlice: last,
-          ),
+      replyBuilder:
+          replyBuilder ??
+          (message, block, key, streaming, slice, first, last) =>
+              _MessageBubble(
+                key: ValueKey(key),
+                message: message,
+                visibleContent: [block],
+                isUser: false,
+                streaming: streaming,
+                markdownSlice: slice,
+                firstSlice: first,
+                lastSlice: last,
+              ),
     );
     return ValueListenableBuilder<SessionActivity>(
       valueListenable: controller.liveActivity,

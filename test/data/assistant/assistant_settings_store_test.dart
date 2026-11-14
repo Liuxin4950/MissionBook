@@ -171,41 +171,52 @@ void main() {
     expect(saved.speech.useTranscription, isTrue);
     expect(saved.speech.model, 'speech-test');
     expect(saved.hasTranscriptionCredential, isTrue);
-    expect(saved.hasCredential, isFalse);
+    expect(saved.profileHasCredential(saved.defaultProfileId), isFalse);
     expect(await store.resolveCredential('DEEPSEEK_API_KEY'), isNull);
   });
-  test('自定义服务与DeepSeek凭据独立保存，配置JSON不含Key', () async {
+  test('服务目录、凭据引用与选择持久化，配置 JSON 不含 Key', () async {
     FlutterSecureStorage.setMockInitialValues({});
     const store = SecureAssistantSettingsStore();
-    final profile = ModelProfile(
-      id: 'custom',
-      provider: 'custom',
-      model: 'test-model',
-      endpoint: Uri.parse('https://example.invalid/v1/chat/completions'),
+    final base = ProviderCatalog.defaults();
+    final custom = ProviderConfig(
+      providerId: 'custom',
+      displayName: '自定义服务',
+      baseAddress: 'https://example.invalid/v1',
       protocol: ModelProtocol.chatCompletions,
-      credentialKey: 'MISSIONBOOK_CUSTOM_API_KEY',
-      supportsImages: false,
+      credentialRef: 'MISSIONBOOK_CUSTOM_API_KEY',
+    );
+    final catalog = ProviderCatalog(
+      providers: [...base.providers, custom],
+      models: [
+        ...base.models,
+        ProviderModel(
+          profileId: 'custom',
+          providerId: 'custom',
+          modelId: 'test-model',
+          supportsImages: false,
+        ),
+      ],
+      selection: const ModelSelection(defaultProfileId: 'custom'),
     );
     await store.saveCredential('DEEPSEEK_API_KEY', 'fake-deepseek-credential');
-    await store.saveCustomProfile(profile);
+    await store.saveCatalog(catalog);
     await store.saveCredential(
       'MISSIONBOOK_CUSTOM_API_KEY',
       'fake-custom-credential',
     );
-    await store.saveModelProfile('custom');
     var loaded = await store.load();
-    expect(loaded.hasCredential, isTrue);
-    expect(loaded.customProfile?.model, 'test-model');
-    expect(loaded.hasCustomCredential, isTrue);
-    expect(loaded.hasDeepSeekCredential, isTrue);
+    expect(loaded.defaultProfileId, 'custom');
+    expect(loaded.catalog.modelOfProfile('custom')?.modelId, 'test-model');
+    expect(loaded.profileHasCredential('custom'), isTrue);
+    expect(loaded.profileHasCredential('deepseek-chat'), isTrue);
     expect(
-      jsonEncode(loaded.customProfile!.toJson()),
+      jsonEncode(loaded.catalog.toJson()),
       isNot(contains('fake-custom-credential')),
     );
     await store.saveCredential('MISSIONBOOK_CUSTOM_API_KEY', '');
     loaded = await store.load();
-    expect(loaded.hasCustomCredential, isFalse);
-    expect(loaded.hasCredential, isFalse);
+    expect(loaded.profileHasCredential('custom'), isFalse);
+    expect(loaded.profileHasCredential('deepseek-chat'), isTrue);
     expect(
       await store.resolveCredential('DEEPSEEK_API_KEY'),
       'fake-deepseek-credential',
@@ -214,6 +225,84 @@ void main() {
       store.saveCredential('arbitrary-key', 'fake'),
       throwsArgumentError,
     );
+    FlutterSecureStorage.setMockInitialValues({});
+  });
+
+  test('旧固定配置迁移为目录，成功迁移后不再读取旧键', () async {
+    final legacyProfile = ModelProfile(
+      id: 'custom',
+      provider: 'custom',
+      model: 'legacy-model',
+      endpoint: Uri.parse('https://legacy.invalid/v1/chat/completions'),
+      protocol: ModelProtocol.chatCompletions,
+      credentialKey: 'MISSIONBOOK_CUSTOM_API_KEY',
+      supportsImages: false,
+    );
+    FlutterSecureStorage.setMockInitialValues({
+      'assistant_model_profile': 'custom',
+      'assistant_custom_profile': jsonEncode(legacyProfile.toJson()),
+      'assistant_credential_MISSIONBOOK_CUSTOM_API_KEY': 'legacy-key',
+    });
+    const store = SecureAssistantSettingsStore();
+    final loaded = await store.load();
+    expect(loaded.defaultProfileId, 'custom');
+    expect(loaded.catalog.modelOfProfile('custom')?.modelId, 'legacy-model');
+    expect(loaded.profileHasCredential('custom'), isTrue);
+    // 迁移成功后以目录为唯一来源：再次读取不应重新读取旧键。
+    FlutterSecureStorage.setMockInitialValues({
+      'assistant_provider_catalog': jsonEncode(
+        ProviderCatalog.defaults().toJson(),
+      ),
+      'assistant_model_profile': 'custom',
+      'assistant_custom_profile': jsonEncode(legacyProfile.toJson()),
+    });
+    final again = await store.load();
+    expect(again.defaultProfileId, 'deepseek-chat');
+    expect(again.catalog.modelOfProfile('custom'), isNull);
+    FlutterSecureStorage.setMockInitialValues({});
+  });
+
+  test('目录损坏时回退为可用配置并保留提示，不抛异常', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'assistant_provider_catalog': '{not json',
+    });
+    const store = SecureAssistantSettingsStore();
+    final loaded = await store.load();
+    expect(loaded.catalog.providers, isNotEmpty);
+    expect(loaded.catalog.models, isNotEmpty);
+    expect(loaded.catalogWarning, isNotNull);
+    FlutterSecureStorage.setMockInitialValues({});
+  });
+
+  test('无需凭据的服务在未保存 Key 时也视为可用', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    const store = SecureAssistantSettingsStore();
+    final base = ProviderCatalog.defaults();
+    final local = ProviderConfig(
+      providerId: 'local',
+      displayName: '本机服务',
+      baseAddress: 'http://localhost:11434/v1',
+      protocol: ModelProtocol.chatCompletions,
+      credentialRef: ProviderCatalog.credentialRefFor('local'),
+      requiresCredential: false,
+    );
+    await store.saveCatalog(
+      ProviderCatalog(
+        providers: [...base.providers, local],
+        models: [
+          ...base.models,
+          ProviderModel(
+            profileId: 'local-model',
+            providerId: 'local',
+            modelId: 'qwen',
+          ),
+        ],
+        selection: const ModelSelection(defaultProfileId: 'local-model'),
+      ),
+    );
+    final loaded = await store.load();
+    expect(loaded.profileHasCredential('local-model'), isTrue);
+    expect(loaded.profileHasCredential('deepseek-chat'), isFalse);
     FlutterSecureStorage.setMockInitialValues({});
   });
 }

@@ -187,7 +187,7 @@ void main() {
     );
     controller = result;
     await result.initialize();
-    await result.saveCredential('test-key');
+    await result.saveCredentialForProvider('deepseek-api', 'test-key');
     return result;
   }
 

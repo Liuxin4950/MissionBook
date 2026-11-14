@@ -639,6 +639,11 @@ void main() {
       session.fork(throughMessageId: results.first.id),
       throwsArgumentError,
     );
+    // 排除工具结果的边界同样会切开调用与结果，必须拒绝。
+    await expectLater(
+      session.fork(beforeMessageId: results.last.id),
+      throwsArgumentError,
+    );
     final branch = await session.fork(throughMessageId: results.last.id);
     await branch.send('继续');
     expect(effects, 2);

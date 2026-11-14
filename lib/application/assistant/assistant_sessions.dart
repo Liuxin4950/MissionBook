@@ -229,6 +229,18 @@ class _AssistantSessions {
         !message.content.any((block) => block is! TextBlock)) {
       throw ArgumentError('请输入消息或添加附件后再发送');
     }
+    // 停用或移除的模型仍可回放历史，但不能直接用于新的请求。
+    if (_controller._session != null &&
+        !_controller.isProfileSelectable(_controller.modelProfileId)) {
+      _controller._setError('当前会话的模型已停用，请先选择可用模型');
+      _refreshSnapshot();
+      return null;
+    }
+    if (_controller._session == null &&
+        !_controller.isProfileSelectable(_controller.defaultProfileId)) {
+      _controller._setError('默认模型已停用，请先在助手设置中选择可用模型');
+      return null;
+    }
     if (!hasCredential && _controller._modelOverrides.isEmpty) {
       _controller._setError('请先在助手设置中保存 API Key');
       return null;
@@ -387,6 +399,83 @@ class _AssistantSessions {
       if (!session.transcript.any((message) => message is UserMessage)) {
         await _controller._sessionStore.delete(session.id);
       }
+      rethrow;
+    }
+  }
+
+  /// 从一条消息创建新分支会话；原会话与记录保持不变。
+  Future<void> branchFromMessage(String messageId) => _navigate(() async {
+    if (isRunning) throw StateError('请先结束本轮，再创建分支');
+    await _forkFrom(
+      (session) => session.fork(
+        throughMessageId: messageId,
+        metadata: {'branchReason': 'branch'},
+      ),
+    );
+  });
+
+  /// 编辑用户消息并在新分支中重新发送，原会话保留。
+  Future<AgentRunResult?> editAndResend(
+    String messageId,
+    UserMessage message,
+  ) async {
+    await _navigate(() async {
+      if (isRunning) throw StateError('请先结束本轮，再编辑消息');
+      await _forkFrom(
+        (session) => session.fork(
+          beforeMessageId: messageId,
+          metadata: {'branchReason': 'edit_resend'},
+        ),
+      );
+    });
+    return sendMessage(message);
+  }
+
+  /// 重新回答最后一个轮次。
+  ///
+  /// 该轮包含工具调用或工具结果时只允许“编辑后重发”，避免自动重放业务写操作。
+  Future<AgentRunResult?> regenerateLastAnswer() async {
+    late final UserMessage user;
+    await _navigate(() async {
+      if (isRunning) throw StateError('请先结束本轮，再重新回答');
+      final transcript = _controller.transcript;
+      final lastUserIndex = transcript.lastIndexWhere(
+        (message) => message is UserMessage,
+      );
+      if (lastUserIndex < 0) throw StateError('没有可重新回答的用户消息');
+      final round = transcript.skip(lastUserIndex);
+      final hasSideEffects = round.any(
+        (message) =>
+            message is ToolResultMessage ||
+            (message is AssistantMessage && message.toolCalls.isNotEmpty),
+      );
+      if (hasSideEffects) {
+        throw StateError('该轮包含业务操作，请使用“编辑后重发”，不能自动重放');
+      }
+      user = transcript[lastUserIndex] as UserMessage;
+      await _forkFrom(
+        (session) => session.fork(
+          beforeMessageId: user.id,
+          metadata: {'branchReason': 'regenerate'},
+        ),
+      );
+    });
+    return sendMessage(user);
+  }
+
+  /// 在运行时中建立分支并切换到新会话；原会话仍保留在历史列表。
+  Future<void> _forkFrom(
+    Future<AgentSession> Function(AgentSession session) create,
+  ) async {
+    final current = _controller._session ?? (throw StateError('请先打开一个会话'));
+    final forked = await create(current);
+    try {
+      await _closeSession();
+      await _attachSession(forked);
+      await _refreshConversations();
+      _controller._notifyListeners();
+    } catch (_) {
+      await forked.close();
       rethrow;
     }
   }

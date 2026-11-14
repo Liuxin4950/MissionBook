@@ -88,11 +88,11 @@ final class ContextCompactor {
     // 安全摘要承接前次决策和一次性约束；旧污染摘要继续排除。
     final pinned = request.messages
         .whereType<ContextMessage>()
-        .where((message) => message.isPinned)
+        .where((message) => message.pinned)
         .toList();
     final conversation = [
       for (final message in request.messages)
-        if (!(message is ContextMessage && message.isPinned) &&
+        if (!(message is ContextMessage && message.pinned) &&
             !(message is ContextSummaryMessage && !message.isSafe))
           message,
     ];

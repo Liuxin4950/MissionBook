@@ -71,7 +71,7 @@ AgentMessage decodeMessage(Map<String, Object?> json) {
       id: id,
       source: readString(json, 'source'),
       text: textOnly(),
-      pinned: json['pinned'] == null ? false : _bool(json['pinned']),
+      pinned: _bool(json['pinned']),
       sourceRevision: _nullableString(json['sourceRevision']),
     ),
     'summary' => ContextSummaryMessage(

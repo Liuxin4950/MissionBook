@@ -173,10 +173,15 @@ void main() {
 
   test('只固定供给块，旧摘要失效且旧工具组仍可进入摘要', () async {
     final memory = ContextMessage(
-      source: 'mission_book_memory',
+      source: 'personal_memory',
       text: '当前有效记忆：用户每天早上七点起床',
+      pinned: true,
     );
-    final time = ContextMessage(source: 'mission_book_context', text: '今天是星期一');
+    final time = ContextMessage(
+      source: 'current_time',
+      text: '今天是星期一',
+      pinned: true,
+    );
     final legacy = ContextSummaryMessage(
       text: '旧摘要含已忘记的通勤路线：42路公交',
       summarizedMessageIds: const ['legacy-user'],
@@ -229,6 +234,24 @@ void main() {
       isNot(anyOf(contains('七点'), contains('星期一'), contains('42路'))),
     );
   });
+
+  for (final source in [
+    'mission_book_context',
+    'mission_book_memory',
+    'provided_context',
+  ]) {
+    test('$source 的未固定上下文按普通消息参与压缩', () async {
+      final context = ContextMessage(source: source, text: '本轮入口信息');
+      final result = await compactor().prepare(
+        request([context, ...longHistory()]),
+        CancellationToken(),
+        trigger: CompactionTrigger.manual,
+      );
+      expect(result, isNotNull);
+      expect(result!.summary.summarizedMessageIds, contains(context.id));
+      expect(result.contextMessages, isNot(contains(context)));
+    });
+  }
 
   test('预算充足不调用摘要；关闭自动压缩仍可手动调用', () async {
     var summaries = 0;

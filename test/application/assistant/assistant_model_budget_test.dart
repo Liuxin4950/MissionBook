@@ -38,9 +38,7 @@ class _Model implements AgentModel {
 
 class _Settings extends MemoryAssistantSettingsStore {
   @override
-  Future<String?> resolveCredential(String credentialKey) async {
-    fail('Scripted models must not resolve credentials');
-  }
+  Future<String?> resolveCredential(String credentialKey) async => null;
 }
 
 class _Images implements AttachmentStore, ImageAttachmentPicker {
@@ -147,6 +145,37 @@ void main() {
     Map<String, AgentModel> extraModels = const {},
     int headroom = 512,
   }) async {
+    final profiles = [profile ?? _profile(), ...extraProfiles];
+    // 目录是模型配置的唯一运行来源；脚本模型通过 modelOverrides 接管实际请求。
+    settings.catalog = ProviderCatalog(
+      providers: [
+        for (final item in profiles)
+          ProviderConfig(
+            providerId: 'test-${item.id}',
+            displayName: item.id,
+            baseAddress: 'https://example.invalid',
+            protocol: item.protocol,
+            credentialRef: ProviderCatalog.credentialRefFor('test-${item.id}'),
+            requiresCredential: false,
+          ),
+      ],
+      models: [
+        for (final item in profiles)
+          ProviderModel(
+            profileId: item.id,
+            providerId: 'test-${item.id}',
+            modelId: item.model,
+            contextWindowTokens: item.contextWindowTokens,
+            maxOutputTokens: item.maxOutputTokens,
+            outputTokenLimit: item.outputTokenLimit,
+            supportsImages: item.supportsImages,
+          ),
+      ],
+      selection: ModelSelection(
+        defaultProfileId: profiles.first.id,
+        summaryProfileId: summary,
+      ),
+    );
     final result = AssistantController(
       sessionStore: sessions,
       settingsStore: settings,
@@ -155,8 +184,8 @@ void main() {
       unifiedReader: DriftUnifiedReader(db),
       clock: () => now,
       configuration: AgentConfiguration(
-        profiles: [profile ?? _profile(), ...extraProfiles],
-        defaultModelProfile: 'deepseek-chat',
+        profiles: profiles,
+        defaultModelProfile: profiles.first.id,
         summaryModelProfile: summary,
         context: ContextPolicy(headroomTokens: headroom),
       ),
@@ -197,7 +226,7 @@ void main() {
       await ai.send('create session');
       expect(selected.requests, hasLength(1));
       expect((await sessionState(ai)).summaryProfileId, 'summary');
-      await ai.selectModelProfile('deepseek-chat');
+      await ai.selectSessionModel('deepseek-chat');
       final state = await sessionState(ai);
       expect(state.modelProfileId, 'deepseek-chat');
       expect(state.summaryProfileId, 'summary');
@@ -220,26 +249,24 @@ void main() {
     await ai.send('create session');
     expect((await sessionState(ai)).summaryProfileId, 'other');
     expect(await ai.analyze('source'), 'selected');
-    await ai.selectModelProfile('deepseek-chat');
+    await ai.selectSessionModel('deepseek-chat');
     expect((await sessionState(ai)).summaryProfileId, 'deepseek-chat');
     expect(await ai.analyze('source'), 'main');
   });
 
-  test(
-    'removed custom summary falls back to the selected main model',
-    () async {
-      final model = _Model((_) => textResponse('main'));
-      final ai = await create(
-        model,
-        extraProfiles: [_profile(id: 'custom')],
-        summary: 'custom',
-      );
+  test('停用的摘要模型回退到当前主模型', () async {
+    final model = _Model((_) => textResponse('main'));
+    final ai = await create(
+      model,
+      extraProfiles: [_profile(id: 'custom')],
+      summary: 'custom',
+    );
 
-      expect(await ai.analyze('source'), 'main');
-      await ai.send('create session');
-      expect((await sessionState(ai)).summaryProfileId, 'deepseek-chat');
-    },
-  );
+    await ai.setModelArchived('custom', true);
+    expect(await ai.analyze('source'), 'main');
+    await ai.send('create session');
+    expect((await sessionState(ai)).summaryProfileId, 'deepseek-chat');
+  });
 
   test(
     'on-demand images use main while text uses the distinct summary',

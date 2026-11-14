@@ -1,4 +1,5 @@
 import 'assistant_prompt.dart';
+import 'assistant_model_catalog.dart';
 import '../errors/user_error_message.dart';
 import '../memory/memory_context.dart';
 import '../memory/memory_usage_recorder.dart';
@@ -11,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import 'assistant_settings.dart';
+import 'assistant_provider_catalog.dart';
 import 'assistant_attachment.dart';
 import 'assistant_schedule.dart';
 import '../../domain/entities/schedule_proposal.dart';
@@ -34,6 +36,13 @@ export 'assistant_settings.dart'
         AssistantRole,
         AssistantReplyStyle,
         AssistantAvatar;
+export 'assistant_provider_catalog.dart'
+    show
+        ProviderConfig,
+        ProviderModel,
+        ProviderCatalog,
+        ModelSelection,
+        isAssistantCredentialRef;
 
 part 'assistant_sessions.dart';
 part 'assistant_configuration.dart';
@@ -156,6 +165,7 @@ class AssistantController extends ChangeNotifier {
     this.resumeGrace = const Duration(seconds: 20),
     this.analysisTimeout = const Duration(seconds: 60),
     this.connectionTestTimeout = const Duration(seconds: 30),
+    this.modelCatalog = const AssistantModelCatalog(),
   }) : _sessionStore = sessionStore,
        _settingsStore = settingsStore,
        _missions = missions,
@@ -224,8 +234,8 @@ class AssistantController extends ChangeNotifier {
   final _pending = <String, _PendingAuthorization>{};
   final _operations = <String, AssistantOperation>{};
 
-  AssistantSettings _settings = const AssistantSettings(
-    modelProfileId: 'deepseek-chat',
+  AssistantSettings _settings = AssistantSettings(
+    catalog: ProviderCatalog.defaults(),
   );
   List<AssistantConversationSummary> _conversations = const [];
   List<AgentMessage> _transcript = const [];
@@ -490,10 +500,27 @@ class AssistantController extends ChangeNotifier {
   }
 
   bool get hasCredential => profileHasCredential(modelProfileId);
-  bool profileHasCredential(String id) => id == 'custom'
-      ? _settings.hasCustomCredential
-      : _settings.hasDeepSeekCredential;
-  ModelProfile? get customProfile => _settings.customProfile;
+  bool profileHasCredential(String id) => _settings.profileHasCredential(id);
+  bool providerHasCredential(String providerId) {
+    final provider = _settings.catalog.providers
+        .where((item) => item.providerId == providerId)
+        .firstOrNull;
+    if (provider == null) return false;
+    if (!provider.requiresCredential) return true;
+    return _settings.configuredCredentials.contains(provider.credentialRef);
+  }
+
+  ProviderCatalog get providerCatalog => _settings.catalog;
+  List<ProviderConfig> get providers => _settings.catalog.providers;
+  List<ProviderModel> get providerModels => _settings.catalog.models;
+  String get defaultProfileId => _settings.defaultProfileId;
+  String? get catalogWarning => _settings.catalogWarning;
+  ProviderModel? modelForProfile(String profileId) =>
+      _settings.catalog.modelOfProfile(profileId);
+  ProviderConfig? providerForProfile(String profileId) =>
+      _settings.catalog.providerForProfile(profileId);
+  bool isProfileSelectable(String profileId) =>
+      _settings.catalog.isSelectable(profileId);
   ReasoningEffort reasoningEffortFor(String profileId) =>
       _settings.reasoningEfforts[profileId] ??
       _configuration.profile(profileId).reasoningEffort;
@@ -513,7 +540,7 @@ class AssistantController extends ChangeNotifier {
   }
 
   String get modelProfileId =>
-      _session?.modelProfileId ?? _settings.modelProfileId;
+      _session?.modelProfileId ?? _settings.defaultProfileId;
   String get sessionTitle =>
       _session?.title ??
       (_reference == null
@@ -564,6 +591,20 @@ class AssistantController extends ChangeNotifier {
 
   Future<void> openConversation(String id) => _sessions.openConversation(id);
 
+  /// 从指定消息创建分支会话。
+  Future<void> branchFromMessage(String messageId) =>
+      _sessions.branchFromMessage(messageId);
+
+  /// 编辑用户消息并在新分支中发送，不修改原会话。
+  Future<AgentRunResult?> editAndResend(
+    String messageId,
+    UserMessage message,
+  ) => _sessions.editAndResend(messageId, message);
+
+  /// 重新回答最后一个轮次；含业务工具的轮次会被拒绝。
+  Future<AgentRunResult?> regenerateLastAnswer() =>
+      _sessions.regenerateLastAnswer();
+
   Future<void> deleteConversation(String id) =>
       _sessions.deleteConversation(id);
 
@@ -596,14 +637,34 @@ class AssistantController extends ChangeNotifier {
   void cancelProposal(String callId) =>
       _operationCoordinator.cancelProposal(callId);
 
-  Future<void> saveCredential(String value, {String? profileId}) =>
-      _config.saveCredential(value, profileId: profileId);
+  /// 一次提交服务、模型与凭据；目录是唯一运行来源。
+  Future<ProviderSaveReceipt> saveProvider({
+    required ProviderConfig provider,
+    required List<ProviderModel> models,
+    String? credential,
+    bool clearCredential = false,
+  }) => _config.saveProvider(
+    provider: provider,
+    models: models,
+    credential: credential,
+    clearCredential: clearCredential,
+  );
 
-  Future<void> saveCustomProfile(ModelProfile profile) =>
-      _config.saveCustomProfile(profile);
+  Future<void> setDefaultModels({required String main, String? summary}) =>
+      _config.setDefaultModels(main: main, summary: summary);
 
-  Future<void> selectModelProfile(String profileId) =>
-      _config.selectModelProfile(profileId);
+  /// 只影响当前会话的主模型，不修改新会话默认值。
+  Future<void> selectSessionModel(String profileId) =>
+      _config.selectSessionModel(profileId);
+
+  Future<void> setProviderArchived(String providerId, bool archived) =>
+      _config.setProviderArchived(providerId, archived);
+
+  Future<void> setModelArchived(String profileId, bool archived) =>
+      _config.setModelArchived(profileId, archived);
+
+  Future<void> saveCredentialForProvider(String providerId, String value) =>
+      _config.saveCredentialForProvider(providerId, value);
 
   Future<void> setReasoningEffort(ReasoningEffort effort) =>
       _config.setReasoningEffort(effort);
@@ -639,6 +700,28 @@ class AssistantController extends ChangeNotifier {
   );
 
   Future<String> testConnection() => _gateway.testConnection();
+
+  final AssistantModelCatalog modelCatalog;
+
+  /// 优先使用表单中的 Key；留空时按该服务已保存的凭据引用解析。
+  Future<List<String>> fetchProviderModels({
+    required String address,
+    required ModelProtocol protocol,
+    String credential = '',
+    String? credentialRef,
+  }) async {
+    final key = credential.trim().isNotEmpty
+        ? credential.trim()
+        : (credentialRef == null
+                  ? null
+                  : await _settingsStore.resolveCredential(credentialRef)) ??
+              '';
+    return modelCatalog.fetch(
+      address: address,
+      protocol: protocol,
+      credential: key,
+    );
+  }
 
   Future<void> loadLocalSchedule({String? date}) =>
       _gateway.loadLocalSchedule(date: date);

@@ -91,6 +91,27 @@ void main() {
     AgentModel? model, {
     bool supportsImages = true,
   }) async {
+    // 目录是模型配置的唯一运行来源；测试通过 modelOverrides 接管请求。
+    settings.catalog = ProviderCatalog(
+      providers: [
+        ProviderConfig(
+          providerId: 'test',
+          displayName: 'test',
+          baseAddress: 'https://example.invalid',
+          protocol: ModelProtocol.chatCompletions,
+          credentialRef: 'DEEPSEEK_API_KEY',
+        ),
+      ],
+      models: [
+        ProviderModel(
+          profileId: 'deepseek-chat',
+          providerId: 'test',
+          modelId: 'test-model',
+          supportsImages: supportsImages,
+        ),
+      ],
+      selection: const ModelSelection(defaultProfileId: 'deepseek-chat'),
+    );
     final result = AssistantController(
       unifiedReader: DriftUnifiedReader(db),
       sessionStore: DriftSessionStore(db),

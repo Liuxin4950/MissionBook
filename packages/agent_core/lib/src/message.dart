@@ -42,14 +42,8 @@ final class ContextMessage extends AgentMessage {
   }
 
   final String source;
-  final bool pinned;
+  final bool pinned; // 显式固定此块，压缩时保留并排除摘要输入。
   final String? sourceRevision; // 宿主事实版本；变化时失效依赖旧事实的回答。
-
-  /// 兼容旧宿主日志；普通来源通知默认可压缩。
-  bool get isPinned =>
-      pinned ||
-      source == 'mission_book_context' ||
-      source == 'mission_book_memory';
 }
 
 /// 旧历史的模型摘要；保留被概括的消息编号，原始消息仍在会话日志。

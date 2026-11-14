@@ -114,14 +114,16 @@ class HttpAgentModel implements StreamingAgentModel {
     StreamIterator<List<int>>? iterator;
     try {
       // 宿主提供读取函数；配置保存凭据标识，不保存 Key。
-      final key = await _wait(
-        Future.sync(() => _credentials(profile.credentialKey)),
-        token,
-        abort,
-        expired,
-      );
+      final key =
+          (await _wait(
+            Future.sync(() => _credentials(profile.credentialKey)),
+            token,
+            abort,
+            expired,
+          ))?.trim() ??
+          '';
       token.throwIfCancelled();
-      if (key == null || key.trim().isEmpty) {
+      if (profile.requiresCredential && key.isEmpty) {
         throw ModelException(
           'missing_credentials',
           '请配置凭据 ${profile.credentialKey}',
@@ -143,9 +145,9 @@ class HttpAgentModel implements StreamingAgentModel {
                   ? 'text/event-stream'
                   : 'application/json',
               if (profile.protocol == ModelProtocol.messages) ...{
-                'x-api-key': key,
+                if (key.isNotEmpty) 'x-api-key': key,
                 'anthropic-version': '2023-06-01',
-              } else
+              } else if (key.isNotEmpty)
                 'authorization': 'Bearer $key',
             })
             ..bodyBytes = utf8.encode(jsonEncode(body));

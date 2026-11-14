@@ -8,6 +8,25 @@ import 'package:test/test.dart';
 import 'support/foundation_fixtures.dart';
 
 void main() {
+  test('上下文日志必须携带布尔 pinned 字段并按原值恢复', () {
+    for (final pinned in [false, true]) {
+      final encoded = encodeMessage(
+        ContextMessage(source: 'provided_context', text: '背景', pinned: pinned),
+      );
+      expect((decodeMessage(encoded) as ContextMessage).pinned, pinned);
+      expect(
+        () => decodeMessage({...encoded}..remove('pinned')),
+        throwsFormatException,
+      );
+      for (final invalid in [null, 'true', 1]) {
+        expect(
+          () => decodeMessage({...encoded, 'pinned': invalid}),
+          throwsFormatException,
+        );
+      }
+    }
+  });
+
   for (final automatic in [false, true]) {
     test('记忆工具投影失效后${automatic ? '自动' : '手动'}压缩、重开与导入不回流', () async {
       final store = MemorySessionStore();
@@ -162,7 +181,7 @@ void main() {
       source: '业务回查',
     );
     final notice = session.contextMessages.whereType<ContextMessage>().single;
-    expect(notice.isPinned, isFalse);
+    expect(notice.pinned, isFalse);
     await session.send('后续${'业务资料。' * 400}');
     await session.send('收尾');
     final result = await session.compact();
@@ -291,6 +310,34 @@ void main() {
     expect(reopened.summaryProfileId, 'main');
     expect(await runtime.listSessionIds(), ['conversation']);
     await runtime.close();
+  });
+
+  test('配置中缺少模型时按日志快照打开历史会话', () async {
+    final store = MemorySessionStore();
+    final runtime = testRuntime(store: store);
+    final session = await runtime.createSession(id: 'removed-model');
+    await session.send('保留历史');
+    await runtime.close();
+
+    final narrowed = AgentRuntime(
+      configuration: AgentConfiguration(
+        profiles: [testProfile('other')],
+        defaultModelProfile: 'other',
+      ),
+      store: store,
+      credentials: (_) => null,
+      tools: const [],
+      authorize: (tool, call, token) => const ToolDecision.allow(),
+      modelOverrides: {
+        'other': CallbackModel((request, token) => textReply('其他模型')),
+      },
+    );
+    final reopened = await narrowed.openSession('removed-model');
+    expect(reopened.modelProfileId, 'main');
+    // 历史身份来自日志快照，而不是被静默替换成当前默认模型。
+    expect(reopened.modelProfile.id, 'main');
+    expect(reopened.transcript.whereType<UserMessage>().single.text, '保留历史');
+    await narrowed.close();
   });
 
   test('自动压缩后原文仍可按编号读取，重开和导出导入保持相同投影', () async {
@@ -469,6 +516,36 @@ void main() {
     await nextBranch.send('分支的新输入');
     expect(session.transcript, hasLength(4));
     expect(branch.transcript, hasLength(2));
+    await runtime.close();
+  });
+
+  test('分支可以排除指定消息，用于编辑后重发', () async {
+    final runtime = testRuntime();
+    final session = await runtime.createSession(id: 'edit-source');
+    await session.send('第一句');
+    await session.send('第二句');
+    final second = session.transcript.whereType<UserMessage>().last;
+    final branch = await session.fork(beforeMessageId: second.id);
+    expect(
+      branch.transcript.whereType<UserMessage>().map((message) => message.text),
+      ['第一句'],
+    );
+    expect(
+      branch.transcript.map((message) => message.id),
+      isNot(contains(second.id)),
+    );
+    await branch.send('修改后的第二句');
+    expect(
+      branch.transcript.whereType<UserMessage>().map((message) => message.text),
+      ['第一句', '修改后的第二句'],
+    );
+    // 原会话保持不变。
+    expect(
+      session.transcript.whereType<UserMessage>().map(
+        (message) => message.text,
+      ),
+      ['第一句', '第二句'],
+    );
     await runtime.close();
   });
 
@@ -692,6 +769,7 @@ void main() {
               'id': 'old-memory',
               'role': 'context',
               'source': '记忆',
+              'pinned': false,
               'content': [
                 {'type': 'text', 'text': '用户对花生过敏'},
               ],
@@ -848,6 +926,7 @@ void main() {
       'id': id,
       'role': 'context',
       'source': '记忆',
+      'pinned': false,
       'content': [
         {'type': 'text', 'text': text},
       ],

@@ -449,6 +449,66 @@ void main() {
     expect(bodies[1]['tools'], equals(bodies[0]['tools']));
     expect(bodies[2]['tools'], equals(bodies[0]['tools']));
   });
+
+  test('无需凭据的模型不发鉴权头，也不需要宿主提供 Key', () async {
+    Map<String, String>? headers;
+    final body = _chat({'content': 'ok'}, finish: 'stop');
+    final client = MockClient.streaming((request, incoming) async {
+      headers = request.headers;
+      await incoming.drain<void>();
+      return http.StreamedResponse(
+        Stream.value(utf8.encode('${body}data: [DONE]\n\n')),
+        200,
+        headers: {'content-type': 'text/event-stream'},
+      );
+    });
+    addTearDown(client.close);
+    final model = HttpAgentModel(
+      profile: ModelProfile(
+        id: 'local',
+        provider: 'local',
+        model: 'local-model',
+        endpoint: Uri.parse('http://localhost:11434/v1/chat/completions'),
+        protocol: ModelProtocol.chatCompletions,
+        credentialKey: 'MISSIONBOOK_PROVIDER_LOCAL_KEY',
+        requiresCredential: false,
+      ),
+      credentials: (_) => null,
+      client: client,
+    );
+    final events = await model.stream(_request(), CancellationToken()).toList();
+    expect((events.last as ModelCompleted).response.message.text, 'ok');
+    expect(headers!.containsKey('authorization'), isFalse);
+    expect(headers!.containsKey('x-api-key'), isFalse);
+    model.close();
+  });
+
+  test('需要凭据的模型缺少 Key 时明确失败，不发出请求', () async {
+    var called = false;
+    final client = MockClient.streaming((request, incoming) async {
+      called = true;
+      await incoming.drain<void>();
+      return http.StreamedResponse(const Stream.empty(), 200);
+    });
+    addTearDown(client.close);
+    final model = HttpAgentModel(
+      profile: testProfile('stream'),
+      credentials: (_) => null,
+      client: client,
+    );
+    await expectLater(
+      model.stream(_request(), CancellationToken()).toList(),
+      throwsA(
+        isA<ModelException>().having(
+          (error) => error.code,
+          'code',
+          'missing_credentials',
+        ),
+      ),
+    );
+    expect(called, isFalse);
+    model.close();
+  });
 }
 
 HttpAgentModel _httpModel(

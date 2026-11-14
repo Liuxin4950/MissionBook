@@ -1,5 +1,16 @@
 part of 'assistant_controller.dart';
 
+/// 一次服务保存的结果；目录已生效时也可能带有后续需要处理的提示。
+final class ProviderSaveReceipt {
+  const ProviderSaveReceipt({
+    required this.providerId,
+    this.warnings = const [],
+  });
+
+  final String providerId;
+  final List<String> warnings;
+}
+
 /// 助手控制器的独立职责；状态和生命周期由主控制器持有。
 class _AssistantConfiguration {
   _AssistantConfiguration(this._controller);
@@ -15,7 +26,6 @@ class _AssistantConfiguration {
   int get estimatedContextTokens => _controller.estimatedContextTokens;
   bool get compacting => _controller.compacting;
   bool get hasCredential => _controller.hasCredential;
-  ModelProfile? get customProfile => _controller.customProfile;
   AssistantPermissionMode get permissionMode => _controller.permissionMode;
   AssistantSpeechSettings get speechSettings => _controller.speechSettings;
   AssistantPersona get persona => _controller.persona;
@@ -38,40 +48,13 @@ class _AssistantConfiguration {
   List<AssistantOperation> get operations => _controller.operations;
   bool get needsOutcomeResolution => _controller.needsOutcomeResolution;
 
+  /// 目录是唯一运行来源；停用的服务与模型仍会编译进来，保证历史会话可打开。
   AgentConfiguration get _configuration {
     final base =
         _controller._baseConfiguration ?? AgentConfiguration.deepSeek();
-    final selected = _controller._settings.modelProfileId;
-    final profiles = [
-      ...base.profiles.where((profile) => profile.id != 'custom'),
-      if (_controller._settings.customProfile != null)
-        _controller._settings.customProfile!,
-    ];
-    final profileId = profiles.any((profile) => profile.id == selected)
-        ? selected
-        : base.defaultModelProfile;
-    final summaryProfileId =
-        base.summaryModelProfile != base.defaultModelProfile &&
-            profiles.any((profile) => profile.id == base.summaryModelProfile)
-        ? base.summaryModelProfile
-        : profileId;
-    return AgentConfiguration(
-      profiles: [
-        for (final profile in profiles)
-          if (_controller._settings.reasoningEfforts[profile.id]
-              case final effort?)
-            ModelProfile.fromJson({
-              ...profile.toJson(),
-              'reasoningEffort': effort.name,
-            })
-          else
-            profile,
-      ],
-      defaultModelProfile: profileId,
-      summaryModelProfile: summaryProfileId,
-      maxSteps: base.maxSteps,
-      maxRunDuration: base.maxRunDuration,
-      context: base.context,
+    return _controller._settings.catalog.compileConfiguration(
+      base: base,
+      reasoningEfforts: _controller._settings.reasoningEfforts,
     );
   }
 
@@ -88,14 +71,7 @@ class _AssistantConfiguration {
     try {
       _controller._settings = await _controller._settingsStore.load();
       if (_controller._closed) return;
-      _controller._runtime = AgentRuntime(
-        configuration: _configuration,
-        store: _controller._sessionStore,
-        credentials: _controller._settingsStore.resolveCredential,
-        tools: _controller._tools.tools,
-        authorize: _controller._authorize,
-        modelOverrides: _controller._modelOverrides,
-      );
+      _controller._runtime = _buildRuntime();
       await _controller._refreshConversations();
       if (_controller._closed) return;
       if (_controller._conversations.isNotEmpty) {
@@ -115,56 +91,244 @@ class _AssistantConfiguration {
     }
   }
 
-  Future<void> saveCredential(String value, {String? profileId}) =>
+  AgentRuntime _buildRuntime() => AgentRuntime(
+    configuration: _configuration,
+    store: _controller._sessionStore,
+    credentials: _controller._settingsStore.resolveCredential,
+    tools: _controller._tools.tools,
+    authorize: _controller._authorize,
+    modelOverrides: _controller._modelOverrides,
+  );
+
+  /// 目录变化后重建运行时；重建前后都保留当前会话，避免用户丢失上下文。
+  Future<void> _rebuildRuntime({String? reopenSessionId}) async {
+    await _controller._closeSession();
+    await _controller._runtime?.close();
+    _controller._settings = await _controller._settingsStore.load();
+    _controller._runtime = _buildRuntime();
+    if (reopenSessionId != null) {
+      await _controller._openSession(reopenSessionId);
+    }
+  }
+
+  /// 一次提交服务、该服务的模型与凭据。
+  ///
+  /// 顺序为：校验 → 写新凭据 → 整份目录写入 → 重建运行时 → 重开会话。
+  /// 目录写入失败时回收本次新写入的凭据，并保留旧目录继续生效。
+  Future<ProviderSaveReceipt> saveProvider({
+    required ProviderConfig provider,
+    required List<ProviderModel> models,
+    String? credential,
+    bool clearCredential = false,
+  }) => _updateConfiguration(() async {
+    final settings = _controller._settings;
+    final catalog = settings.catalog;
+    final warnings = <String>[];
+
+    for (final model in models) {
+      if (model.providerId != provider.providerId) {
+        throw ArgumentError(
+          '模型 ${model.profileId} 不属于服务 ${provider.providerId}',
+        );
+      }
+    }
+
+    // 表单里被移除的模型只停用，不物理删除，否则旧会话会找不到历史身份。
+    final incoming = {for (final model in models) model.profileId: model};
+    final existing = catalog.modelsOfProvider(
+      provider.providerId,
+      includeArchived: true,
+    );
+    final mergedModels = [
+      for (final model in existing)
+        incoming.remove(model.profileId) ?? model.copyWith(archived: true),
+      ...incoming.values,
+    ];
+
+    final nextCatalog = ProviderCatalog(
+      providers: [
+        for (final item in catalog.providers)
+          if (item.providerId != provider.providerId) item,
+        provider,
+      ],
+      models: [
+        for (final item in catalog.models)
+          if (item.providerId != provider.providerId) item,
+        ...mergedModels,
+      ],
+      selection: catalog.selection,
+    );
+
+    final archivedDefault = nextCatalog.modelOfProfile(
+      nextCatalog.selection.defaultProfileId,
+    );
+    if (archivedDefault == null || archivedDefault.archived) {
+      throw StateError('请先把默认模型切换到其他模型，再停用当前默认模型');
+    }
+
+    final sessionId = _controller.currentSessionId;
+    final wroteNewCredential =
+        !clearCredential &&
+        credential != null &&
+        credential.trim().isNotEmpty &&
+        !settings.configuredCredentials.contains(provider.credentialRef);
+
+    if (clearCredential) {
+      await _controller._settingsStore.saveCredential(
+        provider.credentialRef,
+        '',
+      );
+    } else if (credential != null && credential.trim().isNotEmpty) {
+      await _controller._settingsStore.saveCredential(
+        provider.credentialRef,
+        credential,
+      );
+    }
+
+    try {
+      await _controller._settingsStore.saveCatalog(nextCatalog);
+    } on Object {
+      if (wroteNewCredential) {
+        try {
+          await _controller._settingsStore.saveCredential(
+            provider.credentialRef,
+            '',
+          );
+        } on Object {
+          warnings.add('目录保存失败，且本次输入的 Key 未能自动清理，请重试');
+        }
+      }
+      rethrow;
+    }
+
+    try {
+      await _rebuildRuntime(reopenSessionId: sessionId);
+    } on Object catch (error) {
+      warnings.add('模型目录已保存，但当前会话重载失败：$error');
+    }
+
+    return ProviderSaveReceipt(
+      providerId: provider.providerId,
+      warnings: warnings,
+    );
+  });
+
+  Future<void> setProviderArchived(String providerId, bool archived) =>
       _updateConfiguration(() async {
-        await _controller._settingsStore.saveCredential(
-          (profileId ?? modelProfileId) == 'custom'
-              ? 'MISSIONBOOK_CUSTOM_API_KEY'
-              : 'DEEPSEEK_API_KEY',
-          value,
+        final settings = _controller._settings;
+        final catalog = settings.catalog;
+        catalog.providerOf(providerId);
+        if (archived) {
+          final selectableDefaults = catalog
+              .modelsOfProvider(providerId)
+              .where(
+                (model) =>
+                    model.profileId == catalog.selection.defaultProfileId,
+              );
+          if (selectableDefaults.isNotEmpty) {
+            throw StateError('请先把默认模型切换到其他服务，再停用该服务');
+          }
+          final sessionModelId = _controller._session?.modelProfileId;
+          if (sessionModelId != null &&
+              catalog.modelOfProfile(sessionModelId)?.providerId ==
+                  providerId) {
+            throw StateError('请先为当前会话选择其他模型，再停用该服务');
+          }
+        }
+        final next = catalog.copyWith(
+          providers: [
+            for (final item in catalog.providers)
+              item.providerId == providerId
+                  ? item.copyWith(archived: archived)
+                  : item,
+          ],
+        );
+        await _controller._settingsStore.saveCatalog(next);
+        await _reloadSettings();
+      });
+
+  Future<void> setModelArchived(String profileId, bool archived) =>
+      _updateConfiguration(() async {
+        final settings = _controller._settings;
+        final catalog = settings.catalog;
+        final model = catalog.modelOfProfile(profileId);
+        if (model == null) throw ArgumentError('不存在模型：$profileId');
+        if (archived) {
+          if (catalog.selection.defaultProfileId == profileId) {
+            throw StateError('请先把默认模型切换到其他模型，再停用该模型');
+          }
+          if (_controller._session?.modelProfileId == profileId) {
+            throw StateError('请先为当前会话选择其他模型，再停用该模型');
+          }
+        }
+        final next = catalog.copyWith(
+          models: [
+            for (final item in catalog.models)
+              item.profileId == profileId
+                  ? item.copyWith(archived: archived)
+                  : item,
+          ],
+        );
+        await _controller._settingsStore.saveCatalog(next);
+        await _reloadSettings();
+      });
+
+  /// 只影响之后创建的新会话；不隐式改写已打开的会话。
+  Future<void> setDefaultModels({required String main, String? summary}) =>
+      _updateConfiguration(() async {
+        final settings = _controller._settings;
+        final catalog = settings.catalog;
+        if (!catalog.isSelectable(main)) {
+          throw StateError('该模型已停用，不能设为默认模型');
+        }
+        if (!settings.profileHasCredential(main)) {
+          throw StateError('该服务还没有配置凭据');
+        }
+        if (summary != null) {
+          if (!catalog.isSelectable(summary)) {
+            throw StateError('摘要模型已停用，请选择其他模型');
+          }
+          if (!settings.profileHasCredential(summary)) {
+            throw StateError('摘要模型所属服务还没有配置凭据');
+          }
+        }
+        await _controller._settingsStore.saveSelection(
+          ModelSelection(defaultProfileId: main, summaryProfileId: summary),
         );
         await _reloadSettings();
       });
 
-  Future<void> saveCustomProfile(ModelProfile profile) =>
+  /// 只切换当前会话使用的模型，不改全局默认。
+  Future<void> selectSessionModel(String profileId) =>
       _updateConfiguration(() async {
-        await _controller._settingsStore.saveCustomProfile(profile);
-        final sessionId = currentSessionId;
-        await _controller._closeSession();
-        await _controller._runtime?.close();
-        _controller._settings = await _controller._settingsStore.load();
-        _controller._runtime = AgentRuntime(
-          configuration: _configuration,
-          store: _controller._sessionStore,
-          credentials: _controller._settingsStore.resolveCredential,
-          tools: _controller._tools.tools,
-          authorize: _controller._authorize,
-          modelOverrides: _controller._modelOverrides,
+        final settings = _controller._settings;
+        final catalog = settings.catalog;
+        final session = _controller._session;
+        if (session == null) throw StateError('请先打开或新建一个会话');
+        if (!catalog.isSelectable(profileId)) {
+          throw StateError('该模型已停用，请选择可用模型');
+        }
+        if (!settings.profileHasCredential(profileId)) {
+          throw StateError('该服务还没有配置凭据');
+        }
+        if (session.modelProfileId == profileId) return;
+        await session.selectModels(
+          conversation: profileId,
+          // 未显式设置摘要模型时跟随当前会话主模型。
+          summary: catalog.selection.summaryProfileId ?? profileId,
         );
-        if (sessionId != null) await _controller._openSession(sessionId);
+        await _applyReasoningEffort();
       });
 
-  Future<void> selectModelProfile(String profileId) => _updateConfiguration(
-    () async {
-      if (!_configuration.profiles.any((profile) => profile.id == profileId)) {
-        throw ArgumentError('请先保存所选模型的配置');
-      }
-      await _controller._settingsStore.saveModelProfile(profileId);
-      _controller._settings = await _controller._settingsStore.load();
-      final configuration = _configuration;
-      if (_controller._session != null &&
-          (_controller._session!.modelProfileId !=
-                  configuration.defaultModelProfile ||
-              _controller._session!.summaryProfileId !=
-                  configuration.summaryModelProfile)) {
-        await _controller._session!.selectModels(
-          conversation: configuration.defaultModelProfile,
-          summary: configuration.summaryModelProfile,
+  Future<void> saveCredentialForProvider(String providerId, String value) =>
+      _updateConfiguration(() async {
+        final provider = _controller._settings.catalog.providerOf(providerId);
+        await _controller._settingsStore.saveCredential(
+          provider.credentialRef,
+          value,
         );
-      }
-      await _applyReasoningEffort();
-    },
-  );
+        await _reloadSettings();
+      });
 
   Future<void> setReasoningEffort(ReasoningEffort effort) =>
       _updateConfiguration(() async {
@@ -218,7 +382,7 @@ class _AssistantConfiguration {
     await _reloadSettings();
   });
 
-  Future<void> _updateConfiguration(Future<void> Function() update) async {
+  Future<T> _updateConfiguration<T>(Future<T> Function() update) async {
     if (!_controller._initialized && _controller._runtime == null) {
       await initialize();
     }
@@ -229,8 +393,7 @@ class _AssistantConfiguration {
     _controller._configurationDone = done;
     _controller._notifyListeners();
     try {
-      await update();
-      await _controller._analysis?.resumeBlocked();
+      return await update();
     } finally {
       _controller._configuring = false;
       _controller._configurationDone = null;

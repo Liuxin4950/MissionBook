@@ -26,6 +26,7 @@ import '../history/assistant_history_page.dart';
 import '../shared/assistant_markdown.dart';
 import '../entry/assistant_scope.dart';
 import '../shared/assistant_reasoning_display.dart';
+import '../settings/assistant_model_picker.dart';
 import '../shared/assistant_turn_content.dart';
 import '../shared/assistant_thinking.dart';
 import '../settings/assistant_settings_page.dart';
@@ -224,7 +225,7 @@ class _AssistantPageState extends State<AssistantPage> {
                       child: AppPageHeader(
                         title: controller.persona.name,
                         subtitle: Text(
-                          '${controller.sessionTitle} · ${controller.modelProfileId == 'deepseek' ? 'Messages' : 'Chat'}',
+                          '${controller.sessionTitle} · ${controller.modelForProfile(controller.modelProfileId)?.label ?? controller.modelProfileId}',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         action: Row(
@@ -397,6 +398,167 @@ class _AssistantPageState extends State<AssistantPage> {
   bool _useSidebar(double width) =>
       width.clamp(0, _contentWidth) >=
       1180 * MediaQuery.textScalerOf(context).scale(1);
+
+  /// 会话级模型切换：只影响当前会话，不修改新会话默认值。
+  Future<void> _switchModel() async {
+    final controller = widget.controller;
+    final catalog = controller.providerCatalog;
+    final choices = <({ProviderConfig provider, ProviderModel model})>[
+      for (final model in catalog.models)
+        if (catalog.isSelectable(model.profileId))
+          if (catalog.providerForProfile(model.profileId) case final provider?)
+            (provider: provider, model: model),
+    ];
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (_) => AssistantModelChoicePicker(
+        choices: choices,
+        selectedProfileId: controller.modelProfileId,
+      ),
+    );
+    if (!mounted || selected == null) return;
+    try {
+      await controller.selectSessionModel(selected);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(userErrorMessage(error, fallback: '模型切换未完成，请重试')),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _replyBubble(
+    AssistantMessage message,
+    ContentBlock block,
+    String key,
+    bool streaming,
+    AssistantMarkdownSlice? slice,
+    bool first,
+    bool last,
+  ) => _MessageBubble(
+    key: ValueKey(key),
+    message: message,
+    visibleContent: [block],
+    isUser: false,
+    streaming: streaming,
+    markdownSlice: slice,
+    firstSlice: first,
+    lastSlice: last,
+    onShowActions: last && !widget.controller.isBusy
+        ? () => _showMessageActions(message)
+        : null,
+  );
+
+  /// 当前最后一条助手消息；只有它可以“重新回答”。
+  String? get _latestAssistantId {
+    String? id;
+    for (final message in widget.controller.transcript) {
+      if (message is AssistantMessage) id = message.id;
+    }
+    return id;
+  }
+
+  Future<void> _showMessageActions(AgentMessage message) async {
+    final controller = widget.controller;
+    if (controller.isBusy) return;
+    final isUser = message is UserMessage;
+    final isLatestAssistant =
+        message is AssistantMessage && message.id == _latestAssistantId;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isUser)
+              ListTile(
+                key: const Key('assistant-edit-resend'),
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('编辑后重发'),
+                subtitle: const Text('在新分支中发送，原会话保留'),
+                onTap: () => Navigator.of(context).pop('edit'),
+              ),
+            if (isLatestAssistant)
+              ListTile(
+                key: const Key('assistant-regenerate'),
+                leading: const Icon(Icons.refresh),
+                title: const Text('重新回答'),
+                subtitle: const Text('含业务操作的轮次会被拒绝'),
+                onTap: () => Navigator.of(context).pop('regenerate'),
+              ),
+            ListTile(
+              key: const Key('assistant-branch-message'),
+              leading: const Icon(Icons.call_split),
+              title: const Text('从这里分支'),
+              subtitle: const Text('复制到这里为止的上下文，原会话不变'),
+              onTap: () => Navigator.of(context).pop('branch'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'edit' && message is UserMessage) {
+      await _editUserMessage(message);
+    } else if (choice == 'regenerate') {
+      await _runAssistantAction(controller.regenerateLastAnswer);
+    } else if (choice == 'branch') {
+      await _runAssistantAction(() async {
+        await controller.branchFromMessage(message.id);
+        return null;
+      });
+    }
+  }
+
+  Future<void> _editUserMessage(UserMessage message) async {
+    final originalText = message.content
+        .whereType<TextBlock>()
+        .where((block) => AssistantAttachment.textFile(block) == null)
+        .map((block) => block.text)
+        .join('\n');
+    final text = await showDialog<String>(
+      context: context,
+      builder: (_) => _EditMessageDialog(initialText: originalText),
+    );
+    if (!mounted || text == null || text.trim().isEmpty) return;
+    // 保留原消息中的图片等非文字内容，只用新文字替换文本块。
+    final blocks = <ContentBlock>[
+      for (final block in message.content)
+        if (block is! TextBlock) block,
+      TextBlock(text: text.trim()),
+    ];
+    await _runAssistantAction(
+      () => widget.controller.editAndResend(
+        message.id,
+        UserMessage.withContent(content: blocks),
+      ),
+    );
+  }
+
+  Future<void> _runAssistantAction(
+    Future<AgentRunResult?> Function() action,
+  ) async {
+    try {
+      await action();
+      if (!mounted) return;
+      final error = widget.controller.errorMessage;
+      if (error != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error)));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userErrorMessage(error, fallback: '操作未完成，请重试'))),
+      );
+    }
+  }
+
   List<Widget> _headerActions() => [
     if (!_useSidebar(MediaQuery.sizeOf(context).width)) ...[
       IconButton(
@@ -412,6 +574,15 @@ class _AssistantPageState extends State<AssistantPage> {
         icon: const Icon(Icons.history_outlined),
       ),
     ],
+    IconButton(
+      key: const Key('assistant-switch-model'),
+      tooltip: '切换当前会话模型',
+      onPressed:
+          widget.controller.isBusy || widget.controller.currentSessionId == null
+          ? null
+          : _switchModel,
+      icon: const Icon(Icons.memory_outlined),
+    ),
     IconButton(
       key: const Key('assistant-settings'),
       tooltip: '助手设置',
@@ -474,18 +645,7 @@ class _AssistantPageState extends State<AssistantPage> {
             controller: controller,
             focusOperationCallId: widget.initialOperationCallId,
             onOpenReference: _openReference,
-            replyBuilder:
-                (message, block, key, streaming, slice, first, last) =>
-                    _MessageBubble(
-                      key: ValueKey(key),
-                      message: message,
-                      visibleContent: [block],
-                      isUser: false,
-                      streaming: streaming,
-                      markdownSlice: slice,
-                      firstSlice: first,
-                      lastSlice: last,
-                    ),
+            replyBuilder: _replyBubble,
           ).buildEntries(context, splitReplies: true),
         );
         messages = [];
@@ -501,6 +661,7 @@ class _AssistantPageState extends State<AssistantPage> {
           onOpenReference: _openReference,
           running: active,
           focusOperationCallId: widget.initialOperationCallId,
+          replyBuilder: _replyBubble,
         ),
       );
       messages = [];
@@ -514,6 +675,9 @@ class _AssistantPageState extends State<AssistantPage> {
             key: ValueKey(message.id),
             message: message,
             isUser: true,
+            onShowActions: controller.isBusy
+                ? null
+                : () => _showMessageActions(message),
           ),
         );
         turnKey = message.id;
@@ -658,4 +822,49 @@ class _AssistantPageState extends State<AssistantPage> {
       unawaited(openAssistantMission(context, id));
     }
   }
+}
+
+/// 编辑消息弹层由自身持有输入控制器，关闭动画期间也能安全重建。
+class _EditMessageDialog extends StatefulWidget {
+  const _EditMessageDialog({required this.initialText});
+  final String initialText;
+
+  @override
+  State<_EditMessageDialog> createState() => _EditMessageDialogState();
+}
+
+class _EditMessageDialogState extends State<_EditMessageDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialText,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('编辑后重发'),
+    content: TextField(
+      key: const Key('assistant-edit-message-input'),
+      controller: _controller,
+      minLines: 3,
+      maxLines: 6,
+      autofocus: true,
+      decoration: const InputDecoration(labelText: '消息内容'),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('取消'),
+      ),
+      FilledButton(
+        key: const Key('assistant-edit-message-send'),
+        onPressed: () => Navigator.of(context).pop(_controller.text),
+        child: const Text('发送'),
+      ),
+    ],
+  );
 }

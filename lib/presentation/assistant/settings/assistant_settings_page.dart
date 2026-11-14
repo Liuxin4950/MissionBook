@@ -434,7 +434,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                           icon: Icons.auto_awesome_outlined,
                           title: 'AI 模型',
                           subtitle:
-                              '${widget.controller.modelProfileId == "custom" ? widget.controller.customProfile?.model : widget.controller.modelProfileId} · 模型、凭据与连接测试',
+                              '${widget.controller.providerCatalog.modelOfProfile(widget.controller.defaultProfileId)?.label ?? widget.controller.defaultProfileId} · ${widget.controller.providerCatalog.providers.where((provider) => !provider.archived).length} 个服务 · 凭据与连接测试',
                           onTap: _saving || widget.controller.isBusy
                               ? null
                               : () => Navigator.of(context).push<void>(

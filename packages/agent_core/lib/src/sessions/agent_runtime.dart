@@ -110,9 +110,19 @@ final class AgentRuntime {
       }
     }
     if (state.id != handle.id) throw const FormatException('会话内容与存储编号不匹配');
-    configuration.profile(state.modelProfileId);
-    configuration.profile(state.summaryProfileId);
-    final session = AgentSession._(this, handle, state);
+    final session = AgentSession._(
+      this,
+      handle,
+      state,
+      modelProfile: _resolveProfile(
+        state.modelProfileId,
+        state.modelProfileSnapshot,
+      ),
+      summaryProfile: _resolveProfile(
+        state.summaryProfileId,
+        state.summaryProfileSnapshot,
+      ),
+    );
     await session._recoverInterruptedTurn();
     final replay = session._state.copy();
     if (replay.finishReplay()) {
@@ -137,6 +147,7 @@ final class AgentRuntime {
     Map<String, Object?> exported, {
     String? id,
     String? title,
+    Map<String, Object?>? metadata,
   }) async {
     _checkOpen();
     if (exported['format'] != 'agent_core_export' || exported['version'] != 1) {
@@ -150,8 +161,8 @@ final class AgentRuntime {
     // 先校验原始序号，再展开种子；展开时重编号不能掩盖损坏的导出记录。
     final original = SessionState.fromRecords(supplied);
     final records = _flattenRecords(supplied);
-    configuration.profile(original.modelProfileId);
-    configuration.profile(original.summaryProfileId);
+    _resolveProfile(original.modelProfileId, original.modelProfileSnapshot);
+    _resolveProfile(original.summaryProfileId, original.summaryProfileSnapshot);
     final nextId = id ?? const Uuid().v4();
     final initial = <SessionRecord>[
       SessionRecord(
@@ -159,6 +170,7 @@ final class AgentRuntime {
         timestamp: DateTime.now().toUtc(),
         type: 'session_created',
         data: {
+          ...?metadata,
           ...records.first.data,
           'id': nextId,
           'title': title ?? original.title,
@@ -181,6 +193,18 @@ final class AgentRuntime {
     if (_closed) throw StateError('AgentRuntime 已关闭');
   }
 
+  /// 优先使用当前配置；配置已移除时退回日志中的模型快照，保证历史可回放。
+  ModelProfile _resolveProfile(String id, Map<String, Object?>? snapshot) {
+    try {
+      return configuration.profile(id);
+    } on ArgumentError {
+      if (snapshot != null && snapshot['id'] == id) {
+        return ModelProfile.fromJson(snapshot);
+      }
+      rethrow;
+    }
+  }
+
   Future<void> close() => _closing ??= _close();
 
   Future<void> _close() async {
@@ -197,10 +221,19 @@ final class AgentRuntime {
 
 /// 对外的会话入口；用户输入、模型配置和压缩投影都由该会话持有。
 final class AgentSession {
-  AgentSession._(this._runtime, this._handle, this._state);
+  AgentSession._(
+    this._runtime,
+    this._handle,
+    this._state, {
+    required ModelProfile modelProfile,
+    required ModelProfile summaryProfile,
+  }) : _modelProfile = modelProfile,
+       _summaryProfile = summaryProfile;
   final AgentRuntime _runtime;
   final SessionHandle _handle;
   SessionState _state;
+  ModelProfile _modelProfile;
+  ModelProfile _summaryProfile;
   final _events = StreamController<AgentEvent>.broadcast();
   bool _closed = false;
   bool _unhealthy = false;
@@ -256,8 +289,7 @@ final class AgentSession {
     turnUserMessageId: _state.openTurnId == null ? null : _turnUserMessageId,
     toolName: _activeTool,
   ); // 页面重新订阅时先读取此快照，已经到达的增量仍然可见。
-  ModelProfile get modelProfile =>
-      _runtime.configuration.profile(modelProfileId);
+  ModelProfile get modelProfile => _modelProfile;
   int get outputTokens => _state.outputTokens ?? modelProfile.maxOutputTokens;
   ReasoningEffort get reasoningEffort =>
       _state.reasoningEffort ?? modelProfile.reasoningEffort;
@@ -320,7 +352,7 @@ final class AgentSession {
         'resume': input == null,
       });
       // 按会话选择的编号取得模型配置，再组装本轮所需的循环。
-      final profile = _runtime.configuration.profile(modelProfileId);
+      final profile = _modelProfile;
       loop = AgentLoop(
         model: _runtime._models.model(modelProfileId),
         systemPrompt: systemPrompt,
@@ -366,7 +398,7 @@ final class AgentSession {
       'maxOutputTokens': outputTokens,
       'reasoningEffort': reasoningEffort.name,
     }),
-    summaryProfile: _runtime.configuration.profile(summaryProfileId),
+    summaryProfile: _summaryProfile,
     summaryModel: _runtime._models.model(summaryProfileId),
     estimator: _runtime.tokenEstimator,
   );
@@ -457,7 +489,7 @@ final class AgentSession {
           previous.single.text == next &&
           (previous.single as ContextMessage).sourceRevision ==
               sourceRevision &&
-          (previous.single as ContextMessage).isPinned) {
+          (previous.single as ContextMessage).pinned) {
         return;
       }
       if (previous.isEmpty && next.isEmpty) return;
@@ -499,6 +531,8 @@ final class AgentSession {
         'modelProfile': model.toJson(),
         'summaryProfile': summarizer.toJson(),
       });
+      _modelProfile = model;
+      _summaryProfile = summarizer;
     });
   }
 
@@ -582,25 +616,50 @@ final class AgentSession {
     };
   }
 
-  Future<AgentSession> fork({String? throughMessageId, String? title}) async {
+  /// 从当前会话复制一条前缀创建新会话。
+  ///
+  /// `throughMessageId` 包含该消息；`beforeMessageId` 严格排除该消息，用于
+  /// “编辑后重发/重新回答”。两者不能同时指定，且前缀不能切开工具调用与结果。
+  Future<AgentSession> fork({
+    String? throughMessageId,
+    String? beforeMessageId,
+    String? title,
+    Map<String, Object?>? metadata,
+  }) async {
     _checkIdle();
+    if (throughMessageId != null && beforeMessageId != null) {
+      throw ArgumentError('只能指定一个分支边界');
+    }
     var prefix = _flattenRecords(await readRecords());
-    if (throughMessageId != null) {
+    final boundary = throughMessageId ?? beforeMessageId;
+    if (boundary != null) {
       final index = prefix.indexWhere(
         (record) =>
             record.type == 'message_added' &&
-            readObject(record.data['message'])['id'] == throughMessageId,
+            readObject(record.data['message'])['id'] == boundary,
       );
       if (index < 0) throw ArgumentError('找不到分支消息');
-      prefix = prefix.take(index + 1).toList();
+      prefix = prefix
+          .take(throughMessageId != null ? index + 1 : index)
+          .toList();
       final state = SessionState.fromRecords(prefix);
-      if (state.pendingCalls.isNotEmpty) throw ArgumentError('分支不能切开工具调用与结果');
+      if (state.pendingCalls.isNotEmpty) {
+        throw ArgumentError('分支不能切开工具调用与结果');
+      }
     }
-    return _runtime.importSession({
-      'format': 'agent_core_export',
-      'version': 1,
-      'records': prefix.map((record) => record.toJson()).toList(),
-    }, title: title ?? '${this.title} · 分支');
+    return _runtime.importSession(
+      {
+        'format': 'agent_core_export',
+        'version': 1,
+        'records': prefix.map((record) => record.toJson()).toList(),
+      },
+      title: title ?? '${this.title} · 分支',
+      metadata: {
+        'branchFromSessionId': id,
+        'branchFromMessageId': ?boundary,
+        ...?metadata,
+      },
+    );
   }
 
   Future<void> _observe(AgentEvent event) async {

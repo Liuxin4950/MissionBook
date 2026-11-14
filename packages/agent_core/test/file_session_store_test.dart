@@ -87,10 +87,11 @@ void main() {
       addTearDown(runtime.close);
       final session = await runtime.createSession(id: 'saved');
       await session.replaceContext(
-        source: 'mission_book_memory',
+        source: 'personal_memory',
         text: '当前有效记忆：每天早上七点起床',
       );
       final memory = session.transcript.whereType<ContextMessage>().single;
+      expect(memory.pinned, isTrue);
       await session.send('背景：${'用户明确约束' * 480}');
       final result = await session.send('按这些约束继续');
       expect(result.reason, AgentStopReason.completed);
@@ -127,6 +128,10 @@ void main() {
       expect(
         reopened.transcript.whereType<ContextMessage>().single.id,
         memory.id,
+      );
+      expect(
+        reopened.contextMessages.whereType<ContextMessage>().single.pinned,
+        isTrue,
       );
       expect(reopened.contextMessages.map((message) => message.id), ids);
       expect((await reopened.send('下一句')).reason, AgentStopReason.completed);

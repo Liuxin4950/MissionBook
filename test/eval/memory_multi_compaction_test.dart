@@ -88,11 +88,38 @@ void main() {
   });
 
   Future<AssistantController> start({bool auto = false}) async {
+    final base = _configuration(auto: auto);
+    // 目录是模型配置的唯一运行来源：把评测用的窗口预算同步到目录。
+    final settingsStore = MemoryAssistantSettingsStore()
+      ..permissionMode = AssistantPermissionMode.full
+      ..catalog = ProviderCatalog(
+        providers: [
+          ProviderConfig(
+            providerId: 'eval',
+            displayName: 'eval',
+            baseAddress: 'https://example.invalid',
+            protocol: ModelProtocol.chatCompletions,
+            credentialRef: 'DEEPSEEK_API_KEY',
+          ),
+        ],
+        models: [
+          for (final profile in base.profiles)
+            ProviderModel(
+              profileId: profile.id,
+              providerId: 'eval',
+              modelId: profile.model,
+              contextWindowTokens: profile.contextWindowTokens,
+              maxOutputTokens: profile.maxOutputTokens,
+              outputTokenLimit: profile.outputTokenLimit,
+              supportsImages: profile.supportsImages,
+            ),
+        ],
+        selection: ModelSelection(defaultProfileId: base.defaultModelProfile),
+      );
     final controller = AssistantController(
       unifiedReader: DriftUnifiedReader(db),
       sessionStore: DriftSessionStore(db),
-      settingsStore: MemoryAssistantSettingsStore()
-        ..permissionMode = AssistantPermissionMode.full,
+      settingsStore: settingsStore,
       missions: missions,
       goals: goals,
       records: records,

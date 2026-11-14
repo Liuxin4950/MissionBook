@@ -6,6 +6,8 @@ MissionBook 的独立 Dart Agent 基座。保留多供应商配置，当前优�
 
 工具输出通过 `ToolOutput.bounded()` 限制为 16 KiB UTF-8 文本，超长结果保留状态与业务编号并返回 JSON 预览。`replaceContext` 可提供 `sourceRevision`，宿主事实版本变化时清理依赖旧供给的模型回答与摘要；原始会话日志保留，版本随会话重开和导出导入恢复。
 
+上下文固定由 `ContextMessage.pinned` 显式决定，`source` 仅标识供给来源。`replaceContext` 自动写入 `pinned: true`；追加背景使用 `injectContext`，需要固定时传入 `pinned: true`。上下文日志必须包含布尔 `pinned` 字段，缺失或类型错误会拒绝读取。
+
 ## 启动
 
 在 PowerShell 中：

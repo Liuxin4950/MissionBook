@@ -1,4 +1,7 @@
 import 'package:agent_core/agent_core.dart';
+import 'package:mission_book/application/assistant/assistant_model_catalog.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -31,6 +34,7 @@ import 'package:mission_book/presentation/assistant/chat/assistant_page.dart';
 import 'package:mission_book/presentation/assistant/shared/assistant_markdown.dart';
 import 'package:mission_book/presentation/assistant/settings/assistant_settings_page.dart';
 import 'package:mission_book/presentation/assistant/settings/assistant_model_settings_page.dart';
+import 'package:mission_book/presentation/assistant/settings/assistant_provider_edit_page.dart';
 import 'package:mission_book/presentation/assistant/settings/assistant_speech_settings_page.dart';
 import 'package:mission_book/presentation/records/shared/record_scope.dart';
 import 'package:mission_book/presentation/records/list/records_page.dart';
@@ -216,6 +220,7 @@ void main() {
     Future<AssistantAttachment?> Function()? pickAvatar,
     bool initializeAssistant = true,
     MemoryAssistantSettingsStore? settingsStore,
+    AssistantModelCatalog modelCatalog = const AssistantModelCatalog(),
   }) async {
     currentTextScale = textScale;
     tester.view.resetViewInsets();
@@ -231,6 +236,7 @@ void main() {
       missions: missions,
       goals: goals,
       modelOverrides: {'deepseek-chat': model},
+      modelCatalog: modelCatalog,
     );
     if (initializeAssistant) await assistant.initialize();
     await tester.pumpWidget(
@@ -415,20 +421,26 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('assistant-model-settings-entry')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-add-provider')));
+    await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const Key('assistant-credential-input')),
+      find.byKey(const Key('assistant-provider-name')),
       '未保存的测试输入',
     );
     await tester.pump();
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
-    expect(find.text('放弃AI 模型修改？'), findsOneWidget);
+    expect(find.text('放弃添加服务修改？'), findsOneWidget);
     await tester.tap(find.text('继续编辑'));
     await tester.pumpAndSettle();
     expect(find.text('未保存的测试输入'), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('放弃修改'));
+    await tester.pumpAndSettle();
+    // 放弃后回到服务目录总览，再返回才是助手设置页。
+    expect(find.byType(AssistantModelSettingsPage), findsOneWidget);
+    await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.byType(AssistantSettingsPage), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));
@@ -460,7 +472,7 @@ void main() {
     await pumpUntil(tester, () => assistant.initialized);
     await tester.pumpAndSettle();
     expect(find.textContaining('原有角色'), findsOneWidget);
-    expect(find.textContaining('deepseek'), findsWidgets);
+    expect(find.textContaining('DeepSeek'), findsWidgets);
     await tester.tap(find.byKey(const Key('assistant-persona-section')));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -626,12 +638,12 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
-        find.byKey(const Key('assistant-credential-input')),
+        find.byKey(const Key('assistant-add-provider')),
         250,
         scrollable: find.byType(Scrollable).first,
       );
       await tester.ensureVisible(
-        find.byKey(const Key('assistant-credential-input')),
+        find.byKey(const Key('assistant-add-provider')),
       );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(
@@ -716,8 +728,12 @@ void main() {
         return null;
       },
     );
-    addTearDown(() => tester.binding.defaultBinaryMessenger
-        .setMockMethodCallHandler(SystemChannels.platform, null));
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
 
     await mount(
       tester,
@@ -1772,8 +1788,252 @@ void main() {
     await tester.runAsync(() => assistant.close());
   });
 
-  assistantTest('自定义模型设置可完整保存，Key与DeepSeek配置独立', (tester) async {
-    await mount(tester, ScriptedModel([]));
+  assistantTest('用户消息可编辑后重发，原会话保留', (tester) async {
+    final model = ScriptedModel([
+      (_) => textResponse('第一答'),
+      (_) => textResponse('修改后答'),
+    ]);
+    await mount(tester, model);
+    await tester.tap(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => assistant.send('第一句'));
+    await tester.pumpAndSettle();
+    final originalId = assistant.currentSessionId!;
+    await tester.tap(
+      find.byKey(const Key('assistant-user-message-actions')).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-edit-resend')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('assistant-edit-message-input')),
+      '修改后的一句',
+    );
+    await tester.tap(find.byKey(const Key('assistant-edit-message-send')));
+    await pumpUntil(tester, () => assistant.currentSessionId != originalId);
+    await tester.pumpAndSettle();
+    expect(
+      assistant.transcript.whereType<UserMessage>().map(
+        (message) => message.text,
+      ),
+      ['修改后的一句'],
+    );
+    expect(find.text('修改后的一句'), findsOneWidget);
+    await tester.runAsync(() => assistant.close());
+  });
+
+  assistantTest('助手回答可通过更多按钮从这里分支', (tester) async {
+    final model = ScriptedModel([(_) => textResponse('第一次回答')]);
+    await mount(tester, model);
+    await tester.tap(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => assistant.send('同一个问题'));
+    await tester.pumpAndSettle();
+    final originalId = assistant.currentSessionId!;
+    await tester.tap(find.byKey(const Key('assistant-message-actions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-branch-message')));
+    await pumpUntil(tester, () => assistant.currentSessionId != originalId);
+    await tester.pumpAndSettle();
+    expect(
+      assistant.transcript.whereType<UserMessage>().map(
+        (message) => message.text,
+      ),
+      ['同一个问题'],
+    );
+    expect(assistant.transcript.whereType<AssistantMessage>(), hasLength(1));
+    await tester.runAsync(() => assistant.close());
+  });
+
+  assistantTest('助手回答可重新回答且不重复用户消息', (tester) async {
+    final model = ScriptedModel([
+      (_) => textResponse('第一次回答'),
+      (_) => textResponse('重新生成'),
+    ]);
+    await mount(tester, model);
+    await tester.tap(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await pumpUntil(
+      tester,
+      () => find.byType(AssistantPage).evaluate().isNotEmpty,
+    );
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => assistant.send('同一个问题'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-message-actions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-regenerate')));
+    await pumpUntil(
+      tester,
+      () =>
+          assistant.transcript.whereType<AssistantMessage>().last.text ==
+          '重新生成',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      assistant.transcript.whereType<UserMessage>().map(
+        (message) => message.text,
+      ),
+      ['同一个问题'],
+    );
+    await tester.runAsync(() => assistant.close());
+  });
+
+  assistantTest('服务页从未保存表单获取模型，搜索选择后保存并重开', (tester) async {
+    final store = MemoryAssistantSettingsStore();
+    final catalog = AssistantModelCatalog(
+      clientFactory: () => MockClient((request) async {
+        expect(request.url.toString(), 'https://example.invalid/v1/models');
+        expect(request.headers['Authorization'], 'Bearer draft-key');
+        return http.Response(
+          '{"data":[{"id":"model-alpha"},{"id":"model-beta"}]}',
+          200,
+        );
+      }),
+    );
+    await mount(
+      tester,
+      ScriptedModel([]),
+      settingsStore: store,
+      modelCatalog: catalog,
+    );
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => AssistantModelSettingsPage(controller: assistant),
+          ),
+        );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-add-provider')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('assistant-provider-name')),
+      '测试服务',
+    );
+    await tester.enterText(
+      find.byKey(const Key('assistant-provider-address')),
+      'https://example.invalid',
+    );
+    await tester.enterText(
+      find.byKey(const Key('assistant-provider-credential')),
+      'draft-key',
+    );
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.ensureVisible(
+      find.byKey(const Key('assistant-provider-fetch-models')),
+    );
+    await tester.tap(find.byKey(const Key('assistant-provider-fetch-models')));
+    await tester.pumpAndSettle();
+    // 获取列表只使用草稿，不写目录和凭据。
+    expect(
+      store.catalog.providers.any((item) => item.displayName == '测试服务'),
+      isFalse,
+    );
+    expect(store.credentials.values.contains('draft-key'), isFalse);
+    await tester.enterText(find.widgetWithText(TextField, '搜索模型'), 'beta');
+    await tester.pumpAndSettle();
+    expect(find.text('model-alpha'), findsNothing);
+    await tester.tap(find.text('model-beta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-model-save')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('assistant-save-settings')),
+    );
+    await tester.tap(find.byKey(const Key('assistant-save-settings')));
+    await pumpUntil(
+      tester,
+      () => store.catalog.providers.any((item) => item.displayName == '测试服务'),
+    );
+    await tester.pumpAndSettle();
+    final provider = store.catalog.providers.singleWhere(
+      (item) => item.displayName == '测试服务',
+    );
+    expect(provider.baseAddress, 'https://example.invalid');
+    expect(
+      store.catalog.modelsOfProvider(provider.providerId).single.modelId,
+      'model-beta',
+    );
+    expect(store.credentials[provider.credentialRef], 'draft-key');
+    tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+    await tester.pumpAndSettle();
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => AssistantModelSettingsPage(controller: assistant),
+          ),
+        );
+    await tester.pumpAndSettle();
+    expect(find.text('测试服务'), findsOneWidget);
+    await tester.tap(find.text('测试服务'));
+    await tester.pumpAndSettle();
+    expect(find.text('model-beta'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  assistantTest('服务编辑页在320宽双倍字号下可滚动保存且不溢出', (tester) async {
+    final store = MemoryAssistantSettingsStore();
+    await mount(
+      tester,
+      ScriptedModel([]),
+      width: 320,
+      textScale: 2,
+      settingsStore: store,
+    );
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => AssistantProviderEditPage(controller: assistant),
+          ),
+        );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('assistant-provider-name')),
+      '窄屏服务',
+    );
+    await tester.enterText(
+      find.byKey(const Key('assistant-provider-address')),
+      'http://localhost:11434/v1',
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('assistant-save-settings')),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('assistant-save-settings')),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byKey(const Key('assistant-save-settings')));
+    await pumpUntil(
+      tester,
+      () => store.catalog.providers.any((item) => item.displayName == '窄屏服务'),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.runAsync(() => assistant.close());
+  });
+
+  assistantTest('服务缺少地址时保存被拒绝，保存成功后凭据与该服务独立', (tester) async {
+    final store = MemoryAssistantSettingsStore();
+    await mount(tester, ScriptedModel([]), settingsStore: store);
     await tester.tap(find.byKey(const Key('assistant-launcher')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('文字'));
@@ -1787,32 +2047,24 @@ void main() {
     expect(find.byType(AssistantSettingsPage), findsOneWidget);
     await tester.tap(find.byKey(const Key('assistant-model-settings-entry')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+    await tester.tap(find.byKey(const Key('assistant-add-provider')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('自定义服务').last);
-    await tester.pumpAndSettle();
-    expect(find.text('模型配置的 id、provider、model 和凭据标识不能为空'), findsNothing);
-    expect(find.text('保存模型配置后可测试连接'), findsNothing);
-    expect(find.byKey(const Key('assistant-test-connection')), findsNothing);
+    await tester.enterText(
+      find.byKey(const Key('assistant-provider-name')),
+      '独立服务',
+    );
     await tester.ensureVisible(
       find.byKey(const Key('assistant-save-settings')),
     );
     await tester.tap(find.byKey(const Key('assistant-save-settings')));
     await tester.pumpAndSettle();
-    expect(find.text('模型配置的 id、provider、model 和凭据标识不能为空'), findsOneWidget);
+    expect(find.textContaining('服务地址'), findsWidgets);
     await tester.enterText(
-      find.byKey(const Key('assistant-custom-endpoint')),
-      'https://example.invalid/v1/chat/completions',
+      find.byKey(const Key('assistant-provider-address')),
+      'https://example.invalid/v1',
     );
     await tester.enterText(
-      find.byKey(const Key('assistant-custom-model')),
-      'custom-model',
-    );
-    await tester.ensureVisible(
-      find.byKey(const Key('assistant-credential-input')),
-    );
-    await tester.enterText(
-      find.byKey(const Key('assistant-credential-input')),
+      find.byKey(const Key('assistant-provider-credential')),
       'fake-custom-only-for-test',
     );
     FocusManager.instance.primaryFocus?.unfocus();
@@ -1820,17 +2072,20 @@ void main() {
     await tester.ensureVisible(
       find.byKey(const Key('assistant-save-settings')),
     );
-    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('assistant-save-settings')));
-    await pumpUntil(tester, () => assistant.modelProfileId == 'custom');
+    await pumpUntil(
+      tester,
+      () => store.catalog.providers.any((item) => item.displayName == '独立服务'),
+    );
     await tester.pumpAndSettle();
-    expect(assistant.hasCredential, isTrue);
-    expect(assistant.customProfile?.model, 'custom-model');
-    expect(assistant.customProfile?.supportsImages, isFalse);
-    await tester.tap(find.byTooltip('返回'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('返回'));
-    await tester.pumpAndSettle();
+    final provider = store.catalog.providers.singleWhere(
+      (item) => item.displayName == '独立服务',
+    );
+    expect(
+      store.credentials[provider.credentialRef],
+      'fake-custom-only-for-test',
+    );
+    expect(store.credentials['DEEPSEEK_API_KEY'], 'test-credential');
     expect(tester.takeException(), isNull);
     await tester.runAsync(() => assistant.close());
   });
@@ -1946,6 +2201,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('assistant-model-settings-entry')));
     await tester.pumpAndSettle();
+    // 目录总览不持有草稿，保存按钮只出现在单个服务的编辑页。
+    expect(find.byKey(const Key('assistant-save-settings')), findsNothing);
+    await tester.tap(find.byKey(const Key('assistant-add-provider')));
+    await tester.pumpAndSettle();
     expect(
       tester
           .widget<FilledButton>(
@@ -1955,8 +2214,8 @@ void main() {
       isNull,
     );
     await tester.enterText(
-      find.byKey(const Key('assistant-credential-input')),
-      'fake-replacement',
+      find.byKey(const Key('assistant-provider-name')),
+      '新服务',
     );
     await tester.pump();
     expect(

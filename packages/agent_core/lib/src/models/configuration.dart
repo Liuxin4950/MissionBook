@@ -74,6 +74,7 @@ final class ModelProfile {
     this.outputTokenLimit,
     this.supportsImages = true,
     this.streamResponses = true,
+    this.requiresCredential = true,
     this.reasoningEffort = ReasoningEffort.off,
     this.temperature,
     this.requestTimeout = const Duration(seconds: 120),
@@ -132,6 +133,8 @@ final class ModelProfile {
   final int? outputTokenLimit; // 模型硬上限；未知供应商可不填。
   final bool supportsImages; // 关闭时，在发请求前拒绝图片输入。
   final bool streamResponses;
+  // 本机或内网兼容服务可以不校验凭据；此时不发送鉴权头，也不要求宿主提供 Key。
+  final bool requiresCredential;
   final ReasoningEffort reasoningEffort;
   final double? temperature;
   final Duration requestTimeout;
@@ -150,6 +153,7 @@ final class ModelProfile {
     if (outputTokenLimit != null) 'outputTokenLimit': outputTokenLimit,
     'supportsImages': supportsImages,
     'streamResponses': streamResponses,
+    if (!requiresCredential) 'requiresCredential': false,
     'reasoningEffort': reasoningEffort.name,
     if (temperature != null) 'temperature': temperature,
     'requestTimeoutMs': requestTimeout.inMilliseconds,
@@ -170,6 +174,7 @@ final class ModelProfile {
       'outputTokenLimit',
       'supportsImages',
       'streamResponses',
+      'requiresCredential',
       'reasoningEffort',
       'temperature',
       'requestTimeoutMs',
@@ -194,6 +199,7 @@ final class ModelProfile {
           : _integer(json, 'outputTokenLimit'),
       supportsImages: _boolean(json, 'supportsImages', fallback: true),
       streamResponses: _boolean(json, 'streamResponses', fallback: true),
+      requiresCredential: _boolean(json, 'requiresCredential', fallback: true),
       reasoningEffort: _enumValue(
         ReasoningEffort.values,
         json['reasoningEffort'] == null

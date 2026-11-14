@@ -486,7 +486,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       final result = await restore();
       if (mounted) {
         widget.onRestoreFinished(
-          '备份已恢复：${result.counts['missions'] ?? 0} 项任务，${result.counts['records'] ?? 0} 条记录；API Key 沿用本机设置',
+          '备份已恢复：${result.counts['missions'] ?? 0} 项任务，${result.counts['records'] ?? 0} 条记录；若备份包含助手设置与 Key，会覆盖本机模型配置',
         );
       }
       return result;

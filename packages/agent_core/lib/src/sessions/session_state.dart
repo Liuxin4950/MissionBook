@@ -19,6 +19,11 @@ final class SessionState {
   late String systemPrompt;
   late String modelProfileId;
   late String summaryProfileId;
+  // 日志里已有的模型快照；配置被移除后仍可用于只读回放历史会话。
+  Map<String, Object?>? _modelProfileSnapshot;
+  Map<String, Object?>? _summaryProfileSnapshot;
+  Map<String, Object?>? get modelProfileSnapshot => _modelProfileSnapshot;
+  Map<String, Object?>? get summaryProfileSnapshot => _summaryProfileSnapshot;
   int? outputTokens;
   ReasoningEffort? reasoningEffort;
   bool jsonOutput = false;
@@ -113,6 +118,8 @@ final class SessionState {
         _resolved.addAll(original._resolved);
         _resolvedNoticeCalls.addAll(original._resolvedNoticeCalls);
         _requestSpecs.addAll(original._requestSpecs);
+        _modelProfileSnapshot = original._modelProfileSnapshot;
+        _summaryProfileSnapshot = original._summaryProfileSnapshot;
         outputTokens = original.outputTokens;
         reasoningEffort = original.reasoningEffort;
         jsonOutput = original.jsonOutput;
@@ -125,6 +132,8 @@ final class SessionState {
         systemPrompt = readString(data, 'systemPrompt');
         modelProfileId = readString(data, 'modelProfileId');
         summaryProfileId = readString(data, 'summaryProfileId');
+        _modelProfileSnapshot = _readSnapshot(data['modelProfile']);
+        _summaryProfileSnapshot = _readSnapshot(data['summaryProfile']);
       case 'turn_started':
         if (openTurnId != null || _pending.isNotEmpty || _unknown.isNotEmpty) {
           throw const FormatException('旧轮次或未知工具结果尚未处理');
@@ -170,7 +179,7 @@ final class SessionState {
             throw const FormatException('摘要引用了不存在的原始消息');
           }
           if (summary.isSafe &&
-              (source is ContextMessage && source.isPinned ||
+              (source is ContextMessage && source.pinned ||
                   source is ContextSummaryMessage)) {
             throw const FormatException('安全摘要不能覆盖供给或嵌套摘要编号');
           }
@@ -290,6 +299,12 @@ final class SessionState {
         }
         modelProfileId = nextModel;
         summaryProfileId = readString(data, 'summaryProfileId');
+        if (data['modelProfile'] is Map) {
+          _modelProfileSnapshot = _readSnapshot(data['modelProfile']);
+        }
+        if (data['summaryProfile'] is Map) {
+          _summaryProfileSnapshot = _readSnapshot(data['summaryProfile']);
+        }
       case 'title_changed':
         if (openTurnId != null) throw const FormatException('运行中不能改名');
         title = readString(data, 'title');
@@ -572,7 +587,7 @@ final class SessionState {
       if (removedIds.contains(item.id)) {
         for (final original in _transcript) {
           if (restoreIds.contains(original.id) &&
-              !(original is ContextMessage && original.isPinned) &&
+              !(original is ContextMessage && original.pinned) &&
               visibleIds.add(original.id)) {
             restored.add(_projectionOverrides[original.id] ?? original);
           }
@@ -665,4 +680,10 @@ final class InterruptedModelAttempt {
   final String thinking;
   final String message;
   final bool willRetry;
+}
+
+/// 读取日志中的模型快照；旧日志可能没有该字段。
+Map<String, Object?>? _readSnapshot(Object? value) {
+  if (value is! Map) return null;
+  return Map<String, Object?>.unmodifiable(Map<String, Object?>.from(value));
 }
