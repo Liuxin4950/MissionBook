@@ -525,10 +525,11 @@ class _AssistantPageState extends State<AssistantPage> {
       builder: (_) => _EditMessageDialog(initialText: originalText),
     );
     if (!mounted || text == null || text.trim().isEmpty) return;
-    // 保留原消息中的图片等非文字内容，只用新文字替换文本块。
+    // 文本附件也是 TextBlock，保留文件内容，仅替换用户输入的正文。
     final blocks = <ContentBlock>[
       for (final block in message.content)
-        if (block is! TextBlock) block,
+        if (block is! TextBlock || AssistantAttachment.textFile(block) != null)
+          block,
       TextBlock(text: text.trim()),
     ];
     await _runAssistantAction(

@@ -113,17 +113,42 @@ class _AssistantConfiguration {
 
   /// 一次提交服务、该服务的模型与凭据。
   ///
-  /// 顺序为：校验 → 写新凭据 → 整份目录写入 → 重建运行时 → 重开会话。
-  /// 目录写入失败时回收本次新写入的凭据，并保留旧目录继续生效。
+  /// 新 Key 使用独立版本引用，目录提交后才回收不再使用的旧引用。
+  /// 目录写入失败保留旧目录与旧 Key，清除 Key 同样通过目录切换提交。
   Future<ProviderSaveReceipt> saveProvider({
     required ProviderConfig provider,
     required List<ProviderModel> models,
     String? credential,
     bool clearCredential = false,
-  }) => _updateConfiguration(() async {
+  }) => _updateConfiguration(
+    () => _saveProvider(
+      provider: provider,
+      models: models,
+      credential: credential,
+      clearCredential: clearCredential,
+    ),
+  );
+
+  Future<ProviderSaveReceipt> _saveProvider({
+    required ProviderConfig provider,
+    required List<ProviderModel> models,
+    String? credential,
+    bool clearCredential = false,
+  }) async {
     final settings = _controller._settings;
     final catalog = settings.catalog;
     final warnings = <String>[];
+    final previous = catalog.providers
+        .where((item) => item.providerId == provider.providerId)
+        .firstOrNull;
+    final oldRef = previous?.credentialRef ?? provider.credentialRef;
+    final newKey = clearCredential ? '' : credential?.trim() ?? '';
+    final rotatesCredential = clearCredential || newKey.isNotEmpty;
+    final savedProvider = provider.copyWith(
+      credentialRef: rotatesCredential
+          ? ProviderCatalog.credentialRefFor(const Uuid().v4())
+          : oldRef,
+    );
 
     for (final model in models) {
       if (model.providerId != provider.providerId) {
@@ -149,7 +174,7 @@ class _AssistantConfiguration {
       providers: [
         for (final item in catalog.providers)
           if (item.providerId != provider.providerId) item,
-        provider,
+        savedProvider,
       ],
       models: [
         for (final item in catalog.models)
@@ -159,59 +184,70 @@ class _AssistantConfiguration {
       selection: catalog.selection,
     );
 
-    final archivedDefault = nextCatalog.modelOfProfile(
-      nextCatalog.selection.defaultProfileId,
-    );
-    if (archivedDefault == null || archivedDefault.archived) {
+    if (!nextCatalog.isSelectable(nextCatalog.selection.defaultProfileId)) {
       throw StateError('请先把默认模型切换到其他模型，再停用当前默认模型');
+    }
+    final currentModel = _controller._session?.modelProfileId;
+    if (currentModel != null &&
+        catalog.isSelectable(currentModel) &&
+        !nextCatalog.isSelectable(currentModel)) {
+      throw StateError('请先为当前会话选择其他模型，再停用该模型或服务');
     }
 
     final sessionId = _controller.currentSessionId;
-    final wroteNewCredential =
-        !clearCredential &&
-        credential != null &&
-        credential.trim().isNotEmpty &&
-        !settings.configuredCredentials.contains(provider.credentialRef);
-
-    if (clearCredential) {
+    if (newKey.isNotEmpty) {
       await _controller._settingsStore.saveCredential(
-        provider.credentialRef,
-        '',
-      );
-    } else if (credential != null && credential.trim().isNotEmpty) {
-      await _controller._settingsStore.saveCredential(
-        provider.credentialRef,
-        credential,
+        savedProvider.credentialRef,
+        newKey,
       );
     }
-
     try {
       await _controller._settingsStore.saveCatalog(nextCatalog);
     } on Object {
-      if (wroteNewCredential) {
-        try {
-          await _controller._settingsStore.saveCredential(
-            provider.credentialRef,
-            '',
-          );
-        } on Object {
-          warnings.add('目录保存失败，且本次输入的 Key 未能自动清理，请重试');
-        }
+      // 平台写入可能已提交后才返回异常，先读回，避免清理仍被目录使用的新 Key。
+      final AssistantSettings persisted;
+      try {
+        persisted = await _controller._settingsStore.load();
+      } on Object {
+        throw StateError('无法核实目录保存结果，凭据已保留，请重新打开模型设置');
       }
-      rethrow;
+      if (jsonEncode(persisted.catalog.toJson()) ==
+          jsonEncode(nextCatalog.toJson())) {
+        warnings.add('保存返回异常，已读回确认新配置生效');
+      } else {
+        if (newKey.isNotEmpty) {
+          try {
+            await _controller._settingsStore.saveCredential(
+              savedProvider.credentialRef,
+              '',
+            );
+          } on Object {
+            throw StateError('目录保存失败，旧配置仍生效，本次新 Key 清理失败，该引用未被使用');
+          }
+        }
+        rethrow;
+      }
     }
 
     try {
       await _rebuildRuntime(reopenSessionId: sessionId);
-    } on Object catch (error) {
-      warnings.add('模型目录已保存，但当前会话重载失败：$error');
+    } on Object {
+      warnings.add('模型目录已保存，当前会话重载失败，请重新打开会话');
+    }
+    if (rotatesCredential &&
+        !nextCatalog.providers.any((item) => item.credentialRef == oldRef)) {
+      try {
+        await _controller._settingsStore.saveCredential(oldRef, '');
+      } on Object {
+        warnings.add('新配置已生效，旧 Key 清理失败，该引用已停止使用');
+      }
     }
 
     return ProviderSaveReceipt(
       providerId: provider.providerId,
       warnings: warnings,
     );
-  });
+  }
 
   Future<void> setProviderArchived(String providerId, bool archived) =>
       _updateConfiguration(() async {
@@ -273,7 +309,7 @@ class _AssistantConfiguration {
         await _reloadSettings();
       });
 
-  /// 只影响之后创建的新会话；不隐式改写已打开的会话。
+  /// 默认主模型用于新会话，摘要选择同时应用到当前会话。
   Future<void> setDefaultModels({required String main, String? summary}) =>
       _updateConfiguration(() async {
         final settings = _controller._settings;
@@ -311,23 +347,41 @@ class _AssistantConfiguration {
         if (!settings.profileHasCredential(profileId)) {
           throw StateError('该服务还没有配置凭据');
         }
-        if (session.modelProfileId == profileId) return;
+        final summary = _configuration.summaryModelProfile;
+        if (session.modelProfileId == profileId &&
+            session.summaryProfileId == summary) {
+          return;
+        }
         await session.selectModels(
           conversation: profileId,
-          // 未显式设置摘要模型时跟随当前会话主模型。
-          summary: catalog.selection.summaryProfileId ?? profileId,
+          // 摘要模型全局统一，未显式选择时跟随新会话默认模型。
+          summary: summary,
         );
         await _applyReasoningEffort();
       });
 
+  Future<void> _applySummaryModel() async {
+    final session = _controller._session;
+    if (session == null ||
+        !_controller._settings.catalog.isSelectable(session.modelProfileId)) {
+      return;
+    }
+    final summary = _configuration.summaryModelProfile;
+    if (summary != session.summaryProfileId) {
+      await session.selectModels(summary: summary);
+    }
+  }
+
   Future<void> saveCredentialForProvider(String providerId, String value) =>
       _updateConfiguration(() async {
-        final provider = _controller._settings.catalog.providerOf(providerId);
-        await _controller._settingsStore.saveCredential(
-          provider.credentialRef,
-          value,
+        final catalog = _controller._settings.catalog;
+        await _saveProvider(
+          provider: catalog.providerOf(providerId),
+          models: catalog.modelsOfProvider(providerId),
+          credential: value,
+          clearCredential: value.trim().isEmpty,
         );
-        await _reloadSettings();
+        await _controller._analysis?.resumeBlocked();
       });
 
   Future<void> setReasoningEffort(ReasoningEffort effort) =>
@@ -404,6 +458,7 @@ class _AssistantConfiguration {
 
   Future<void> _reloadSettings() async {
     _controller._settings = await _controller._settingsStore.load();
+    await _applySummaryModel();
     await _controller._analysis?.resumeBlocked();
     _controller._errorMessage = null;
     _controller._notifyListeners();

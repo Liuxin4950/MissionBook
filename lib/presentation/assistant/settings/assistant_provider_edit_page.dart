@@ -31,14 +31,16 @@ class AssistantProviderEditPage extends StatefulWidget {
 
 class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
   late final String _providerId;
-  late final String _credentialRef;
+  late String _credentialRef;
   late final TextEditingController _name;
   late final TextEditingController _address;
   late final TextEditingController _credential;
   late ModelProtocol _protocol;
+  late String _modelProvider;
+  ProviderConfig? _initialProvider;
   late bool _requiresCredential;
   late List<ProviderModel> _models;
-  late final List<ProviderModel> _initialModels;
+  late List<ProviderModel> _initialModels;
 
   bool _saving = false;
   bool _fetching = false;
@@ -47,8 +49,9 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
   String? _error;
   String? _result;
   String? _modelsError;
+  CancellationToken? _modelFetch;
 
-  bool get _isNew => widget.provider == null;
+  bool get _isNew => _initialProvider == null;
   bool get _busy => _saving || _fetching || widget.controller.isBusy;
 
   @override
@@ -56,6 +59,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
     super.initState();
     final catalog = widget.controller.providerCatalog;
     final existing = widget.provider;
+    _initialProvider = existing;
     _providerId =
         existing?.providerId ??
         ProviderCatalog.nextId(
@@ -68,6 +72,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
     _name = TextEditingController(text: existing?.displayName ?? '');
     _address = TextEditingController(text: existing?.baseAddress ?? '');
     _protocol = existing?.protocol ?? ModelProtocol.chatCompletions;
+    _modelProvider = existing?.modelProvider ?? 'custom';
     _requiresCredential = existing?.requiresCredential ?? true;
     _credential = TextEditingController();
     _initialModels = existing == null
@@ -81,6 +86,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
 
   @override
   void dispose() {
+    _modelFetch?.cancel();
     for (final field in [_name, _address, _credential]) {
       field.dispose();
     }
@@ -92,16 +98,20 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
   }
 
   bool get _changed {
-    final existing = widget.provider;
+    final existing = _initialProvider;
     if (_isNew) {
       return _name.text.trim().isNotEmpty ||
           _address.text.trim().isNotEmpty ||
           _models.isNotEmpty ||
+          _modelProvider != 'custom' ||
+          _protocol != ModelProtocol.chatCompletions ||
+          !_requiresCredential ||
           _credential.text.trim().isNotEmpty;
     }
     if (existing!.displayName != _name.text.trim() ||
         existing.baseAddress != _address.text.trim() ||
         existing.protocol != _protocol ||
+        existing.modelProvider != _modelProvider ||
         existing.requiresCredential != _requiresCredential ||
         _clearCredential ||
         _credential.text.trim().isNotEmpty) {
@@ -126,8 +136,9 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
     baseAddress: _address.text.trim(),
     protocol: _protocol,
     credentialRef: _credentialRef,
+    modelProvider: _modelProvider,
     requiresCredential: _requiresCredential,
-    archived: widget.provider?.archived ?? false,
+    archived: _initialProvider?.archived ?? false,
   );
 
   @override
@@ -191,6 +202,28 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                     : (value) => setState(() {
                         _protocol = value ?? _protocol;
                         _modelsError = null;
+                      }),
+              ),
+              const SizedBox(height: AppLayout.spaceMd),
+              AppDropdownFormField<String>(
+                initialValue: _modelProvider,
+                decoration: const InputDecoration(labelText: '供应商适配'),
+                items: [
+                  const DropdownMenuItem(value: 'custom', child: Text('通用协议')),
+                  const DropdownMenuItem(
+                    value: 'deepseek',
+                    child: Text('DeepSeek'),
+                  ),
+                  if (!['custom', 'deepseek'].contains(_modelProvider))
+                    DropdownMenuItem(
+                      value: _modelProvider,
+                      child: Text(_modelProvider),
+                    ),
+                ],
+                onChanged: _busy
+                    ? null
+                    : (value) => setState(() {
+                        _modelProvider = value ?? _modelProvider;
                       }),
               ),
               SwitchListTile(
@@ -259,14 +292,18 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                   ),
                   TextButton.icon(
                     key: const Key('assistant-provider-fetch-models'),
-                    onPressed: _busy ? null : _fetchModels,
+                    onPressed: _fetching
+                        ? () => _modelFetch?.cancel()
+                        : _busy
+                        ? null
+                        : _fetchModels,
                     icon: _fetching
                         ? const SizedBox.square(
                             dimension: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.cloud_download_outlined),
-                    label: Text(_fetching ? '获取中…' : '获取列表'),
+                    label: Text(_fetching ? '取消获取' : '获取列表'),
                   ),
                 ],
               ),
@@ -343,6 +380,11 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
       );
       if (!mounted) return;
       setState(() {
+        final saved = widget.controller.providerCatalog;
+        _initialProvider = saved.providerOf(receipt.providerId);
+        _credentialRef = _initialProvider!.credentialRef;
+        _initialModels = saved.modelsOfProvider(receipt.providerId);
+        _models = [..._initialModels];
         _credential.clear();
         _clearCredential = false;
         _result = receipt.warnings.isEmpty
@@ -361,6 +403,8 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
   Future<void> _fetchModels() async {
     if (_busy) return;
     FocusScope.of(context).unfocus();
+    final token = CancellationToken();
+    _modelFetch = token;
     setState(() {
       _fetching = true;
       _modelsError = null;
@@ -369,8 +413,11 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
       final models = await widget.controller.fetchProviderModels(
         address: _address.text,
         protocol: _protocol,
-        credential: _credential.text,
-        credentialRef: _requiresCredential ? _credentialRef : null,
+        credential: _requiresCredential ? _credential.text : '',
+        credentialRef: _requiresCredential && !_clearCredential
+            ? _credentialRef
+            : null,
+        cancellation: token,
       );
       if (!mounted) return;
       // 选择弹层打开前结束“获取中”，避免进度动画一直旋转并锁住表单。
@@ -381,6 +428,8 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
       );
       if (!mounted || selected == null) return;
       _addFetchedModel(selected);
+    } on AgentCancelled {
+      // 用户取消时保留表单与已添加模型。
     } catch (error) {
       if (mounted) {
         setState(
@@ -391,6 +440,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
         );
       }
     } finally {
+      if (identical(_modelFetch, token)) _modelFetch = null;
       if (mounted) setState(() => _fetching = false);
     }
   }
@@ -412,7 +462,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
       }
       return;
     }
-    final profileId = _profileIdFor(modelId);
+    final profileId = _newProfileId();
     setState(() {
       _models = [
         ..._models,
@@ -426,23 +476,14 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
     _editModel(_models.last);
   }
 
-  String _profileIdFor(String modelId) {
-    final base = modelId
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
-        .replaceAll(RegExp(r'^-+|-+$'), '');
+  String _newProfileId() {
     final used = {
       for (final model in widget.controller.providerCatalog.models)
         model.profileId,
       for (final model in _models) model.profileId,
     };
-    var candidate = base.isEmpty ? 'model' : base;
-    if (!used.contains(candidate)) return candidate;
-    var index = 2;
-    while (used.contains('$candidate-$index')) {
-      index++;
-    }
-    return '$candidate-$index';
+    // 本地身份独立生成，供应商编号可以包含任意字符或超过 64 字符。
+    return ProviderCatalog.nextId('model', used);
   }
 
   Future<void> _editModel(ProviderModel? model) async {
@@ -451,7 +492,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
       isScrollControlled: true,
       builder: (_) => _ModelEditSheet(
         providerId: _providerId,
-        profileId: model?.profileId ?? _profileIdFor('model'),
+        profileId: model?.profileId ?? _newProfileId(),
         initial: model,
       ),
     );
@@ -468,27 +509,16 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
     });
   }
 
-  Future<void> _toggleModelArchived(ProviderModel model) async {
+  void _toggleModelArchived(ProviderModel model) {
     if (_busy) return;
-    try {
-      await widget.controller.setModelArchived(
-        model.profileId,
-        !model.archived,
-      );
-      if (!mounted) return;
-      setState(() {
-        _models = [
-          for (final item in _models)
-            item.profileId == model.profileId
-                ? item.copyWith(archived: !model.archived)
-                : item,
-        ];
-      });
-    } catch (error) {
-      if (mounted) {
-        setState(() => _error = userErrorMessage(error, fallback: '操作未完成，请重试'));
-      }
-    }
+    setState(() {
+      _models = [
+        for (final item in _models)
+          item.profileId == model.profileId
+              ? item.copyWith(archived: !model.archived)
+              : item,
+      ];
+    });
   }
 }
 

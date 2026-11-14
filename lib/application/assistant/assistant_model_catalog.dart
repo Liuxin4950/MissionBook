@@ -26,6 +26,10 @@ class AssistantModelCatalog {
       RegExp(r'/(chat/completions|messages|models)$'),
       '',
     );
+    // 已保存的 DeepSeek Messages 根路径也按官方 API 前缀补全。
+    if (uri.host == 'api.deepseek.com' && path == '/anthropic') {
+      path = '/anthropic/v1';
+    }
     return uri.replace(path: path);
   }
 
@@ -46,14 +50,44 @@ class AssistantModelCatalog {
     required String address,
     required ModelProtocol protocol,
     required String credential,
+    CancellationToken? cancellation,
   }) async {
     final base = _baseUri(address);
     final client = clientFactory();
+    final token = cancellation ?? CancellationToken();
     try {
-      final request = http.Request(
-        'GET',
-        base.replace(path: '${base.path}/models'),
-      )..followRedirects = false;
+      return await token
+          .wait(
+            _fetchPages(
+              client: client,
+              endpoint: base.replace(path: '${base.path}/models'),
+              protocol: protocol,
+              credential: credential.trim(),
+              cancellation: token,
+            ),
+          )
+          .timeout(const Duration(seconds: 20));
+    } on TimeoutException {
+      throw StateError('获取模型超时，请检查网络后重试');
+    } finally {
+      token.cancel();
+      client.close();
+    }
+  }
+
+  Future<List<String>> _fetchPages({
+    required http.Client client,
+    required Uri endpoint,
+    required ModelProtocol protocol,
+    required String credential,
+    required CancellationToken cancellation,
+  }) async {
+    final ids = <String>{};
+    final cursors = <String>{};
+    var page = endpoint;
+    for (var count = 0; count < 100; count++) {
+      cancellation.throwIfCancelled();
+      final request = http.Request('GET', page)..followRedirects = false;
       request.headers['Accept'] = 'application/json';
       if (credential.trim().isNotEmpty) {
         request.headers['Authorization'] = 'Bearer ${credential.trim()}';
@@ -67,7 +101,8 @@ class AssistantModelCatalog {
       final response = await (() async {
         final streamed = await client.send(request);
         return http.Response.fromStream(streamed);
-      })().timeout(const Duration(seconds: 20));
+      })();
+      cancellation.throwIfCancelled();
       switch (response.statusCode) {
         case 200:
           break;
@@ -88,17 +123,24 @@ class AssistantModelCatalog {
       if (rows is! List) {
         throw const FormatException('服务未返回有效模型列表，可手动填写模型编号');
       }
-      final ids = <String>{};
       for (final row in rows) {
         final id = row is Map ? row['id'] : row;
         if (id is String && id.trim().isNotEmpty) ids.add(id.trim());
       }
-      if (ids.isEmpty) throw StateError('服务返回的模型列表为空，可重试或手动填写模型编号');
-      return ids.toList()..sort();
-    } on TimeoutException {
-      throw StateError('获取模型超时，请检查网络后重试');
-    } finally {
-      client.close();
+      if (body is! Map || body['has_more'] != true) {
+        if (ids.isEmpty) throw StateError('服务返回的模型列表为空，可重试或手动填写模型编号');
+        return ids.toList()..sort();
+      }
+      final cursor = body['last_id'];
+      if (cursor is! String || cursor.isEmpty || !cursors.add(cursor)) {
+        throw const FormatException('模型列表分页游标缺失或重复，请重试或手动填写模型编号');
+      }
+      page = endpoint.replace(
+        queryParameters: {
+          protocol == ModelProtocol.messages ? 'after_id' : 'after': cursor,
+        },
+      );
     }
+    throw StateError('模型列表分页超过 100 页，请缩小服务范围或手动填写模型编号');
   }
 }

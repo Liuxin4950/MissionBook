@@ -52,6 +52,7 @@ class DriftSessionStore implements AssistantConversationStore {
         ? now
         : initialRecords.last.timestamp.toUtc().millisecondsSinceEpoch;
     final title = _initialTitle(initialRecords);
+    final metadata = initialRecords.firstOrNull?.data;
     await _database.transaction(() async {
       await _database
           .into(_database.assistantSessions)
@@ -59,6 +60,9 @@ class DriftSessionStore implements AssistantConversationStore {
             AssistantSessionsCompanion.insert(
               id: id,
               title: title,
+              missionId: Value(metadata?['missionId'] as String?),
+              goalId: Value(metadata?['goalId'] as String?),
+              nodeId: Value(metadata?['nodeId'] as String?),
               createdAt: createdAt,
               updatedAt: updatedAt,
               writerToken: Value(token),

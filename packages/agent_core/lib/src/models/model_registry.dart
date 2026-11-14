@@ -1,8 +1,10 @@
+import 'dart:convert';
+
 import '../model.dart';
 import 'configuration.dart';
 import 'http_agent_model.dart';
 
-/// 通过配置编号取得模型，连接池复用；测试可以注入脚本模型。
+/// 使用已解析的模型快照取得客户端，按完整配置复用连接池。
 final class ModelRegistry {
   ModelRegistry({
     required this.configuration,
@@ -21,12 +23,11 @@ final class ModelRegistry {
   final Map<String, HttpAgentModel> _clients = {};
   bool _closed = false;
 
-  AgentModel model(String profileId) {
+  AgentModel model(ModelProfile profile) {
     if (_closed) throw StateError('模型注册表已关闭');
-    final profile = configuration.profile(profileId);
-    return _overrides[profileId] ??
+    return _overrides[profile.id] ??
         _clients.putIfAbsent(
-          profileId,
+          jsonEncode(profile.toJson()),
           () => HttpAgentModel(profile: profile, credentials: _credentials),
         );
   }

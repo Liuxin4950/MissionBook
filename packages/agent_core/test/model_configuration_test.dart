@@ -91,19 +91,19 @@ void main() {
     );
   });
   test('模型注册表按配置复用对象，关闭后拒绝新请求', () {
+    final configuration = AgentConfiguration.deepSeek();
+    final messages = configuration.profile('deepseek');
+    final chat = configuration.profile('deepseek-chat');
     final registry = ModelRegistry(
-      configuration: AgentConfiguration.deepSeek(),
+      configuration: configuration,
       credentials: (_) => null,
     );
     expect(
-      identical(registry.model('deepseek'), registry.model('deepseek')),
+      identical(registry.model(messages), registry.model(messages)),
       isTrue,
     );
-    expect(
-      identical(registry.model('deepseek'), registry.model('deepseek-chat')),
-      isFalse,
-    );
+    expect(identical(registry.model(messages), registry.model(chat)), isFalse);
     registry.close();
-    expect(() => registry.model('deepseek'), throwsStateError);
+    expect(() => registry.model(messages), throwsStateError);
   });
 }

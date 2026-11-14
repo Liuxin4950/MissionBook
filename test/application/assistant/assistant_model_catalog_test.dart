@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:agent_core/agent_core.dart';
@@ -7,6 +8,89 @@ import 'package:http/testing.dart';
 import 'package:mission_book/application/assistant/assistant_model_catalog.dart';
 
 void main() {
+  for (final protocol in ModelProtocol.values) {
+    test('分页合并去重并使用${protocol.name}游标', () async {
+      var calls = 0;
+      final catalog = AssistantModelCatalog(
+        clientFactory: () => MockClient((request) async {
+          calls++;
+          if (calls == 1) {
+            return http.Response(
+              '{"data":[{"id":"b"}],"has_more":true,"last_id":"b"}',
+              200,
+            );
+          }
+          expect(
+            request.url.queryParameters[protocol == ModelProtocol.messages
+                ? 'after_id'
+                : 'after'],
+            'b',
+          );
+          return http.Response(
+            '{"data":[{"id":"a"},{"id":"b"}],"has_more":false}',
+            200,
+          );
+        }),
+      );
+      expect(
+        await catalog.fetch(
+          address: 'https://example.invalid/v1',
+          protocol: protocol,
+          credential: '',
+        ),
+        ['a', 'b'],
+      );
+      expect(calls, 2);
+    });
+  }
+  test('分页重复游标与中途失败不会把部分列表报告为成功', () async {
+    for (final fails in [true, false]) {
+      var calls = 0;
+      final catalog = AssistantModelCatalog(
+        clientFactory: () => MockClient((_) async {
+          calls++;
+          if (calls == 2 && fails) return http.Response('', 403);
+          return http.Response(
+            '{"data":[{"id":"a"}],"has_more":true,"last_id":"a"}',
+            200,
+          );
+        }),
+      );
+      await expectLater(
+        catalog.fetch(
+          address: 'https://example.invalid',
+          protocol: ModelProtocol.messages,
+          credential: '',
+        ),
+        throwsA(anyOf(isA<StateError>(), isA<FormatException>())),
+      );
+      expect(calls, 2);
+    }
+  });
+  test('取消获取会关闭客户端且不返回迟到结果', () async {
+    final response = Completer<http.Response>();
+    final started = Completer<void>();
+    final token = CancellationToken();
+    var closed = false;
+    final catalog = AssistantModelCatalog(
+      clientFactory: () => _CloseAwareClient((request) {
+        started.complete();
+        return response.future;
+      }, () => closed = true),
+    );
+    final fetching = catalog.fetch(
+      address: 'https://example.invalid',
+      protocol: ModelProtocol.messages,
+      credential: '',
+      cancellation: token,
+    );
+    final assertion = expectLater(fetching, throwsA(isA<AgentCancelled>()));
+    await started.future;
+    token.cancel();
+    await assertion;
+    expect(closed, isTrue);
+    response.complete(http.Response('{"data":[{"id":"late"}]}', 200));
+  });
   test('已有无版本前缀的完整地址从同级 models 获取列表', () async {
     final catalog = AssistantModelCatalog(
       clientFactory: () => MockClient((request) async {
@@ -143,4 +227,14 @@ void main() {
       );
     }
   });
+}
+
+class _CloseAwareClient extends MockClient {
+  _CloseAwareClient(super.fn, this.onClose);
+  final void Function() onClose;
+  @override
+  void close() {
+    onClose();
+    super.close();
+  }
 }

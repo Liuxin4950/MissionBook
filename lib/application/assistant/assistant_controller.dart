@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'package:agent_core/agent_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'package:uuid/uuid.dart';
 
 import 'assistant_settings.dart';
 import 'assistant_provider_catalog.dart';
@@ -709,6 +710,7 @@ class AssistantController extends ChangeNotifier {
     required ModelProtocol protocol,
     String credential = '',
     String? credentialRef,
+    CancellationToken? cancellation,
   }) async {
     final key = credential.trim().isNotEmpty
         ? credential.trim()
@@ -720,6 +722,7 @@ class AssistantController extends ChangeNotifier {
       address: address,
       protocol: protocol,
       credential: key,
+      cancellation: cancellation,
     );
   }
 

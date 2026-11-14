@@ -1,4 +1,5 @@
 import 'package:agent_core/agent_core.dart';
+import 'package:agent_core/src/models/wire_codec.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/assistant/assistant_provider_catalog.dart';
 
@@ -31,6 +32,50 @@ ProviderModel _model(
 );
 
 void main() {
+  test('内置 DeepSeek 保留适配身份、Messages 路径和思考控制', () {
+    final original = ProviderCatalog.defaults();
+    // 覆盖 13bdd78 已写入但没有供应商适配字段的目录。
+    final json = original.toJson();
+    for (final item in json['providers'] as List) {
+      (item as Map).remove('modelProvider');
+      if (item['providerId'] == 'deepseek-anthropic') {
+        item['baseAddress'] = 'https://api.deepseek.com/anthropic';
+      }
+    }
+    final catalog = ProviderCatalog.fromJson(json);
+    for (final profile in catalog.compileProfiles()) {
+      expect(profile.provider, 'deepseek');
+      if (profile.protocol == ModelProtocol.messages) {
+        expect(profile.endpoint.path, '/anthropic/v1/messages');
+      }
+      for (final effort in [ReasoningEffort.off, ReasoningEffort.low]) {
+        final body = encodeModelRequest(
+          profile,
+          ModelRequest(
+            systemPrompt: '',
+            messages: [UserMessage(text: '测试')],
+            tools: const [],
+            reasoningEffort: effort,
+          ),
+          stream: false,
+        );
+        expect(body['thinking'], {
+          'type': effort == ReasoningEffort.off ? 'disabled' : 'enabled',
+        });
+        if (effort == ReasoningEffort.low) {
+          expect(
+            profile.protocol == ModelProtocol.messages
+                ? body['output_config']
+                : body['reasoning_effort'],
+            profile.protocol == ModelProtocol.messages
+                ? {'effort': 'low'}
+                : 'low',
+          );
+        }
+      }
+    }
+  });
+
   test('不同服务可配置相同 modelId，编译后的来源与凭据互不混用', () {
     final catalog = ProviderCatalog(
       providers: [

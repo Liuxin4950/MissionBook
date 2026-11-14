@@ -473,7 +473,7 @@ void main() {
         credentialKey: 'MISSIONBOOK_PROVIDER_LOCAL_KEY',
         requiresCredential: false,
       ),
-      credentials: (_) => null,
+      credentials: (_) => throw StateError('无 Key 模式不应读取旧凭据'),
       client: client,
     );
     final events = await model.stream(_request(), CancellationToken()).toList();

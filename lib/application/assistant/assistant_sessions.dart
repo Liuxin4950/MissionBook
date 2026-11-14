@@ -407,9 +407,9 @@ class _AssistantSessions {
   Future<void> branchFromMessage(String messageId) => _navigate(() async {
     if (isRunning) throw StateError('请先结束本轮，再创建分支');
     await _forkFrom(
-      (session) => session.fork(
+      (session, metadata) => session.fork(
         throughMessageId: messageId,
-        metadata: {'branchReason': 'branch'},
+        metadata: {...metadata, 'branchReason': 'branch'},
       ),
     );
   });
@@ -422,9 +422,9 @@ class _AssistantSessions {
     await _navigate(() async {
       if (isRunning) throw StateError('请先结束本轮，再编辑消息');
       await _forkFrom(
-        (session) => session.fork(
+        (session, metadata) => session.fork(
           beforeMessageId: messageId,
-          metadata: {'branchReason': 'edit_resend'},
+          metadata: {...metadata, 'branchReason': 'edit_resend'},
         ),
       );
     });
@@ -454,9 +454,9 @@ class _AssistantSessions {
       }
       user = transcript[lastUserIndex] as UserMessage;
       await _forkFrom(
-        (session) => session.fork(
+        (session, metadata) => session.fork(
           beforeMessageId: user.id,
-          metadata: {'branchReason': 'regenerate'},
+          metadata: {...metadata, 'branchReason': 'regenerate'},
         ),
       );
     });
@@ -465,10 +465,23 @@ class _AssistantSessions {
 
   /// 在运行时中建立分支并切换到新会话；原会话仍保留在历史列表。
   Future<void> _forkFrom(
-    Future<AgentSession> Function(AgentSession session) create,
+    Future<AgentSession> Function(
+      AgentSession session,
+      Map<String, Object?> metadata,
+    )
+    create,
   ) async {
     final current = _controller._session ?? (throw StateError('请先打开一个会话'));
-    final forked = await create(current);
+    final source = _controller._conversations
+        .where((item) => item.id == current.id)
+        .first;
+    // 引用随分支种子传给存储，由 Drift 与新日志在同一事务中建立索引。
+    // 使用原索引也能保留已删除对象的引用，重开后继续显示关联失效提示。
+    final forked = await create(current, {
+      'missionId': source.missionId,
+      'goalId': source.goalId,
+      'nodeId': source.nodeId,
+    });
     try {
       await _closeSession();
       await _attachSession(forked);
@@ -604,6 +617,7 @@ class _AssistantSessions {
       await session.setSystemPrompt(_effectiveSystemPrompt);
     }
     _controller._session = session;
+    await _controller._config._applySummaryModel();
     await _controller._config._applyReasoningEffort();
     _controller._preparedCalls.clear();
     _controller._pending.clear();

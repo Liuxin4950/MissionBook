@@ -100,11 +100,8 @@ class _AssistantModelGateway {
       throw const AnalysisInterrupted();
     }
     final configuration = _configuration;
-    // 显式独立的摘要模型负责文字分析；图片理解仍使用当前主模型的能力。
-    final profileId =
-        imageKey == null &&
-            configuration.summaryModelProfile !=
-                configuration.defaultModelProfile
+    // 文字分析与会话压缩共用全局摘要选择，图片理解使用当前会话主模型。
+    final profileId = imageKey == null
         ? configuration.summaryModelProfile
         : modelProfileId;
     if (!_controller.profileHasCredential(profileId) &&
@@ -142,7 +139,7 @@ class _AssistantModelGateway {
         );
         _checkBudget(profile, request, configuration.context.headroomTokens);
         token.throwIfCancelled();
-        final result = await registry.model(profileId).complete(request, token);
+        final result = await registry.model(profile).complete(request, token);
         if (!_isComplete(result)) {
           throw const ModelException('analysis_failed', '分析未完整生成，请重试');
         }
@@ -170,9 +167,7 @@ class _AssistantModelGateway {
           maxOutputTokens: profile.maxOutputTokens.clamp(1, 64),
         );
         _checkBudget(profile, request, configuration.context.headroomTokens);
-        final response = await registry
-            .model(profileId)
-            .complete(request, token);
+        final response = await registry.model(profile).complete(request, token);
         if (!_isComplete(response)) {
           throw const ModelException(
             'connection_test_failed',

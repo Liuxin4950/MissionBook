@@ -282,7 +282,10 @@ class _ModelOverviewState extends State<_ModelOverview> {
 
   Future<void> _chooseDefault() => _pickAndApply(
     title: '新会话默认模型',
-    onApply: (profileId) => _controller.setDefaultModels(main: profileId),
+    onApply: (profileId) => _controller.setDefaultModels(
+      main: profileId,
+      summary: _controller.providerCatalog.selection.summaryProfileId,
+    ),
   );
 
   Future<void> _chooseSummary() => _pickAndApply(

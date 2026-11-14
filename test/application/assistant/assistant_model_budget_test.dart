@@ -236,7 +236,7 @@ void main() {
     },
   );
 
-  test('default summary follows the selected main model', () async {
+  test('全局摘要跟随默认模型，当前会话切换主模型仍保留摘要选择', () async {
     final main = _Model((_) => textResponse('main'));
     final selected = _Model((_) => textResponse('selected'));
     settings.profileId = 'other';
@@ -250,8 +250,8 @@ void main() {
     expect((await sessionState(ai)).summaryProfileId, 'other');
     expect(await ai.analyze('source'), 'selected');
     await ai.selectSessionModel('deepseek-chat');
-    expect((await sessionState(ai)).summaryProfileId, 'deepseek-chat');
-    expect(await ai.analyze('source'), 'main');
+    expect((await sessionState(ai)).summaryProfileId, 'other');
+    expect(await ai.analyze('source'), 'selected');
   });
 
   test('停用的摘要模型回退到当前主模型', () async {

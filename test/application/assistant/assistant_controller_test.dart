@@ -33,6 +33,14 @@ class PausedSettingsStore extends MemoryAssistantSettingsStore {
   }
 }
 
+class CommittedThenFailSettingsStore extends MemoryAssistantSettingsStore {
+  @override
+  Future<void> saveCatalog(ProviderCatalog value) async {
+    await super.saveCatalog(value);
+    throw StateError('模拟目录已落盘但平台返回异常');
+  }
+}
+
 class BackgroundModel implements AgentModel {
   final first = Completer<ModelResponse>();
   int calls = 0;
@@ -117,6 +125,7 @@ void main() {
     Duration resumeGrace = const Duration(seconds: 20),
     DriftSessionStore? sessionStore,
     MemoryService? memory,
+    Map<String, AgentModel> modelOverrides = const {},
   }) {
     final result = AssistantController(
       unifiedReader: DriftUnifiedReader(database),
@@ -125,7 +134,11 @@ void main() {
       missions: missions,
       goals: goals,
       memory: memory,
-      modelOverrides: {'deepseek-chat': model, 'deepseek': model},
+      modelOverrides: {
+        'deepseek-chat': model,
+        'deepseek': model,
+        ...modelOverrides,
+      },
       resumeGrace: resumeGrace,
       clock: () => now,
     );
@@ -921,7 +934,9 @@ void main() {
     expect(assistant.hasCredential, isTrue);
     expect(assistant.modelForProfile('custom')?.modelId, 'custom-model');
     expect(
-      await settings.resolveCredential('MISSIONBOOK_CUSTOM_API_KEY'),
+      await settings.resolveCredential(
+        settings.catalog.providerOf('custom').credentialRef,
+      ),
       'fake-custom',
     );
     expect(
@@ -1084,8 +1099,6 @@ void main() {
   });
 
   test('目录不再包含会话模型时历史仍可打开，发送前要求重新选择', () async {
-    final first = makeController(ScriptedModel([(_) => textResponse('第一句')]));
-    await first.initialize();
     final provider = ProviderConfig(
       providerId: 'custom',
       displayName: '自定义服务',
@@ -1098,14 +1111,20 @@ void main() {
       providerId: 'custom',
       modelId: 'custom-model',
     );
-    await first.saveProvider(
-      provider: provider,
-      models: [model],
-      credential: 'fake-custom',
+    settings.catalog = settings.catalog.copyWith(
+      providers: [...settings.catalog.providers, provider],
+      models: [...settings.catalog.models, model],
     );
+    settings.customCredential = 'fake-custom';
+    final scripted = ScriptedModel([(_) => textResponse('第一句')]);
+    final first = makeController(
+      scripted,
+      modelOverrides: {'custom': scripted},
+    );
+    await first.initialize();
     await first.setDefaultModels(main: 'custom');
     await first.startNewSession();
-    await first.send('第一句');
+    expect((await first.send('第一句'))!.answer, '第一句');
     final sessionId = first.currentSessionId!;
     await first.close();
 
@@ -1143,6 +1162,198 @@ void main() {
     // 会话切换不写回全局默认。
     expect(assistant.defaultProfileId, 'deepseek-chat');
   });
+  for (final clear in [true, false]) {
+    test('已有服务${clear ? '清除' : '替换'}Key 后目录失败保留旧凭据和运行配置', () async {
+      final assistant = makeController(ScriptedModel([]));
+      await assistant.initialize();
+      final before = jsonEncode(settings.catalog.toJson());
+      final credentials = Map.of(settings.credentials);
+      settings.failNextCatalogSave = true;
+      await expectLater(
+        assistant.saveProvider(
+          provider: settings.catalog.providerOf('deepseek-api'),
+          models: settings.catalog.modelsOfProvider('deepseek-api'),
+          credential: clear ? null : 'replacement-key',
+          clearCredential: clear,
+        ),
+        throwsStateError,
+      );
+      expect(jsonEncode(settings.catalog.toJson()), before);
+      expect(settings.credentials, credentials);
+      await assistant.close();
+      final reopened = makeController(ScriptedModel([]));
+      await reopened.initialize();
+      expect(reopened.profileHasCredential('deepseek-chat'), isTrue);
+    });
+  }
+
+  test('Key 轮换和清除只提交指定服务，保留其他服务共享的旧 Key', () async {
+    final assistant = makeController(ScriptedModel([]));
+    await assistant.initialize();
+    await assistant.saveProvider(
+      provider: settings.catalog.providerOf('deepseek-api'),
+      models: settings.catalog.modelsOfProvider('deepseek-api'),
+      credential: 'new-key',
+    );
+    final ref = settings.catalog.providerOf('deepseek-api').credentialRef;
+    expect(ref, isNot('DEEPSEEK_API_KEY'));
+    expect(settings.credentials[ref], 'new-key');
+    expect(settings.credentials['DEEPSEEK_API_KEY'], 'test-credential');
+    await assistant.saveProvider(
+      provider: settings.catalog.providerOf('deepseek-api'),
+      models: settings.catalog.modelsOfProvider('deepseek-api'),
+      clearCredential: true,
+    );
+    expect(settings.credentials.containsKey(ref), isFalse);
+    expect(assistant.profileHasCredential('deepseek-chat'), isFalse);
+    expect(assistant.profileHasCredential('deepseek'), isTrue);
+  });
+
+  test('目录已提交后返回异常时读回核实，不能删除正在使用的新 Key', () async {
+    settings = CommittedThenFailSettingsStore();
+    final assistant = makeController(ScriptedModel([]));
+    await assistant.initialize();
+    final receipt = await assistant.saveProvider(
+      provider: settings.catalog.providerOf('deepseek-api'),
+      models: settings.catalog.modelsOfProvider('deepseek-api'),
+      credential: 'committed-key',
+    );
+    expect(receipt.warnings.single, contains('读回确认'));
+    final ref = assistant.providerCatalog
+        .providerOf('deepseek-api')
+        .credentialRef;
+    expect(await settings.resolveCredential(ref), 'committed-key');
+    expect(assistant.profileHasCredential('deepseek-chat'), isTrue);
+  });
+
+  for (final kind in ['mission', 'goal', 'node']) {
+    test('$kind 分支引用在切换和重启后恢复且已完成轮次不显示中断', () async {
+      final assistant = makeController(
+        ScriptedModel([(_) => textResponse('完成回答')]),
+      );
+      await assistant.initialize();
+      if (kind == 'mission') {
+        await createMission('分支任务');
+        final mission = (await missions.findAllDetails()).single;
+        await assistant.openMissionReference(mission.mission.id);
+      } else {
+        final goal = goals.prepareCreation(title: '分支目标');
+        await goals.create(goal);
+        if (kind == 'node') {
+          final node = goals.prepareNodeCreation(
+            goalId: goal.id,
+            title: '分支节点',
+          );
+          await goals.createNode(node);
+          await assistant.openNodeReference(node.id);
+        } else {
+          await assistant.openGoalReference(goal.id);
+        }
+      }
+      await assistant.send('根据关联对象回答');
+      final reference = assistant.reference!;
+      final sourceId = assistant.currentSessionId!;
+      await assistant.branchFromMessage(
+        assistant.transcript.whereType<AssistantMessage>().last.id,
+      );
+      final forkId = assistant.currentSessionId!;
+      expect(assistant.canContinueInterrupted, isFalse);
+      final source = assistant.conversations.singleWhere(
+        (item) => item.id == sourceId,
+      );
+      final fork = assistant.conversations.singleWhere(
+        (item) => item.id == forkId,
+      );
+      expect(
+        [fork.missionId, fork.goalId, fork.nodeId],
+        [source.missionId, source.goalId, source.nodeId],
+      );
+      await assistant.openConversation(sourceId);
+      await assistant.openConversation(forkId);
+      expect(assistant.reference!.id, reference.id);
+      await assistant.close();
+      final restarted = makeController(ScriptedModel([]));
+      await restarted.initialize();
+      await restarted.openConversation(forkId);
+      expect(restarted.reference!.type, reference.type);
+      expect(restarted.reference!.id, reference.id);
+      expect(restarted.reference!.goalId, reference.goalId);
+      expect(restarted.canContinueInterrupted, isFalse);
+    });
+  }
+
+  test('全局摘要切换即时用于压缩且重开仍使用同一选择', () async {
+    final main = ScriptedModel([
+      for (var i = 0; i < 5; i++) (_) => textResponse('回答$i'),
+    ]);
+    final summary = ScriptedModel([(_) => textResponse('已经完成的讨论摘要')]);
+    final assistant = makeController(
+      main,
+      modelOverrides: {'deepseek': summary},
+    );
+    await assistant.initialize();
+    for (var i = 0; i < 5; i++) {
+      await assistant.send('讨论$i');
+    }
+    await assistant.setDefaultModels(
+      main: 'deepseek-chat',
+      summary: 'deepseek',
+    );
+    expect(await assistant.compactConversation(), isNotNull);
+    expect(summary.requests.single.purpose, ModelRequestPurpose.summary);
+    expect(assistant.modelProfileId, 'deepseek-chat');
+    final sessionId = assistant.currentSessionId!;
+    await assistant.startNewSession();
+    await assistant.openConversation(sessionId);
+    final handle = await DriftSessionStore(
+      database,
+    ).open(sessionId, readOnly: true);
+    final records = await handle.readRecords();
+    await handle.close();
+    expect(
+      records
+          .where((r) => r.type == 'models_changed')
+          .last
+          .data['summaryProfileId'],
+      'deepseek',
+    );
+  });
+
+  test('主模型仍在而历史摘要模型缺失时重新绑定全局摘要并可发送', () async {
+    final store = DriftSessionStore(database);
+    final base = AgentConfiguration.deepSeek();
+    final legacySummary = ModelProfile.fromJson({
+      ...base.profile('deepseek').toJson(),
+      'id': 'removed-summary',
+    });
+    final runtime = AgentRuntime(
+      configuration: AgentConfiguration(
+        profiles: [...base.profiles, legacySummary],
+        defaultModelProfile: 'deepseek-chat',
+        summaryModelProfile: 'removed-summary',
+      ),
+      store: store,
+      credentials: (_) => null,
+      tools: [],
+      authorize: (_, _, _) => const ToolDecision.allow(),
+      modelOverrides: {
+        'deepseek-chat': ScriptedModel([(_) => textResponse('原回答')]),
+      },
+    );
+    final original = await runtime.createSession();
+    await original.send('已有问题');
+    final id = original.id;
+    await runtime.close();
+    final assistant = makeController(
+      ScriptedModel([(_) => textResponse('成功接续')]),
+    );
+    await assistant.initialize();
+    await assistant.selectSessionModel('deepseek-chat');
+    expect((await assistant.send('继续'))!.answer, '成功接续');
+    expect(assistant.currentSessionId, id);
+    expect(assistant.errorMessage, isNull);
+  });
+
   test('删除与切换串行，维护期间拒绝发送且最终会话一致', () async {
     final store = PausedDeleteStore(database);
     final assistant = makeController(

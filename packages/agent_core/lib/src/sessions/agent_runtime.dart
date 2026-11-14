@@ -170,8 +170,8 @@ final class AgentRuntime {
         timestamp: DateTime.now().toUtc(),
         type: 'session_created',
         data: {
-          ...?metadata,
           ...records.first.data,
+          ...?metadata,
           'id': nextId,
           'title': title ?? original.title,
           'createdAt': DateTime.now().toUtc().toIso8601String(),
@@ -354,7 +354,7 @@ final class AgentSession {
       // 按会话选择的编号取得模型配置，再组装本轮所需的循环。
       final profile = _modelProfile;
       loop = AgentLoop(
-        model: _runtime._models.model(modelProfileId),
+        model: _runtime._models.model(modelProfile),
         systemPrompt: systemPrompt,
         tools: _runtime.tools,
         authorize: _runtime.authorize,
@@ -399,7 +399,7 @@ final class AgentSession {
       'reasoningEffort': reasoningEffort.name,
     }),
     summaryProfile: _summaryProfile,
-    summaryModel: _runtime._models.model(summaryProfileId),
+    summaryModel: _runtime._models.model(_summaryProfile),
     estimator: _runtime.tokenEstimator,
   );
 
@@ -514,17 +514,23 @@ final class AgentSession {
     await _mutate(() async {
       final nextModel = conversation ?? modelProfileId;
       final nextSummary = summary ?? summaryProfileId;
-      final model = _runtime.configuration.profile(nextModel);
-      final summarizer = _runtime.configuration.profile(nextSummary);
-      encodeModelRequest(
-        model,
-        ModelRequest(
-          systemPrompt: systemPrompt,
-          messages: contextMessages,
-          tools: _runtime.tools.map((tool) => tool.definition).toList(),
-        ),
-        stream: false,
-      );
+      final model = conversation == null
+          ? _modelProfile
+          : _runtime.configuration.profile(nextModel);
+      final summarizer = summary == null
+          ? _summaryProfile
+          : _runtime.configuration.profile(nextSummary);
+      if (conversation != null && conversation != modelProfileId) {
+        encodeModelRequest(
+          model,
+          ModelRequest(
+            systemPrompt: systemPrompt,
+            messages: contextMessages,
+            tools: _runtime.tools.map((tool) => tool.definition).toList(),
+          ),
+          stream: false,
+        );
+      }
       await _record('models_changed', {
         'modelProfileId': nextModel,
         'summaryProfileId': nextSummary,
@@ -639,12 +645,44 @@ final class AgentSession {
             readObject(record.data['message'])['id'] == boundary,
       );
       if (index < 0) throw ArgumentError('找不到分支消息');
-      prefix = prefix
-          .take(throughMessageId != null ? index + 1 : index)
-          .toList();
+      var end = throughMessageId != null ? index + 1 : index;
+      if (beforeMessageId != null &&
+          decodeMessage(readObject(prefix[index].data['message']))
+              is UserMessage) {
+        // 用户输入之前应停在上一轮末尾，不能留下本轮的 turn_started。
+        final start = prefix.lastIndexWhere(
+          (record) => record.type == 'turn_started',
+          index,
+        );
+        if (start >= 0) end = start;
+      } else if (throughMessageId != null) {
+        // 回答后紧邻的结束记录属于同一轮；只扩展到结束，不带入后续消息。
+        for (var cursor = end; cursor < prefix.length; cursor++) {
+          final record = prefix[cursor];
+          if (record.type == 'message_added' || record.type == 'turn_started') {
+            break;
+          }
+          if (record.type == 'turn_ended') {
+            end = cursor + 1;
+            break;
+          }
+        }
+      }
+      prefix = prefix.take(end).toList();
       final state = SessionState.fromRecords(prefix);
       if (state.pendingCalls.isNotEmpty) {
         throw ArgumentError('分支不能切开工具调用与结果');
+      }
+      if (state.openTurnId != null) {
+        // 用户主动截取的部分轮次明确结束，避免把分支伪装为进程中断。
+        prefix.add(
+          SessionRecord(
+            sequence: prefix.length,
+            timestamp: DateTime.now().toUtc(),
+            type: 'turn_ended',
+            data: {'turnId': state.openTurnId, 'reason': 'cancelled'},
+          ),
+        );
       }
     }
     return _runtime.importSession(
@@ -688,11 +726,11 @@ final class AgentSession {
         });
       case ModelAttemptStarted():
         final request = event.request;
-        final profileId = request.purpose == ModelRequestPurpose.summary
-            ? summaryProfileId
-            : modelProfileId;
+        final profile = request.purpose == ModelRequestPurpose.summary
+            ? _summaryProfile
+            : modelProfile;
         final specification = {
-          'profile': _runtime.configuration.profile(profileId).toJson(),
+          'profile': profile.toJson(),
           'systemPrompt': request.systemPrompt,
           'maxOutputTokens': request.maxOutputTokens,
           'reasoningEffort': request.reasoningEffort?.name,

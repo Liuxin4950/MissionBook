@@ -28,6 +28,7 @@ class ProviderConfig {
     required this.baseAddress,
     required this.protocol,
     required this.credentialRef,
+    this.modelProvider = 'custom',
     this.requiresCredential = true,
     this.archived = false,
   }) {
@@ -56,6 +57,8 @@ class ProviderConfig {
   final String baseAddress;
   final ModelProtocol protocol;
   final String credentialRef;
+  // 模型协议适配身份与目录中的服务编号分开，多个网关可使用同一种适配。
+  final String modelProvider;
 
   /// 本机或内网兼容服务可以不需要 Key；关闭后请求不发送鉴权头。
   final bool requiresCredential;
@@ -68,6 +71,7 @@ class ProviderConfig {
     String? baseAddress,
     ModelProtocol? protocol,
     String? credentialRef,
+    String? modelProvider,
     bool? requiresCredential,
     bool? archived,
   }) => ProviderConfig(
@@ -76,6 +80,7 @@ class ProviderConfig {
     baseAddress: baseAddress ?? this.baseAddress,
     protocol: protocol ?? this.protocol,
     credentialRef: credentialRef ?? this.credentialRef,
+    modelProvider: modelProvider ?? this.modelProvider,
     requiresCredential: requiresCredential ?? this.requiresCredential,
     archived: archived ?? this.archived,
   );
@@ -86,6 +91,7 @@ class ProviderConfig {
     'baseAddress': baseAddress,
     'protocol': protocol.name,
     'credentialRef': credentialRef,
+    'modelProvider': modelProvider,
     'requiresCredential': requiresCredential,
     'archived': archived,
   };
@@ -96,6 +102,12 @@ class ProviderConfig {
     baseAddress: _readString(json, 'baseAddress'),
     protocol: _readEnum(json, 'protocol', ModelProtocol.values),
     credentialRef: _readString(json, 'credentialRef'),
+    modelProvider: json['modelProvider'] is String
+        ? _readString(json, 'modelProvider')
+        : switch (json['providerId']) {
+            'deepseek-api' || 'deepseek-anthropic' => 'deepseek',
+            _ => 'custom',
+          },
     requiresCredential: json['requiresCredential'] != false,
     archived: json['archived'] == true,
   );
@@ -324,7 +336,7 @@ class ProviderCatalog {
         if (providerById[model.providerId] case final provider?)
           ModelProfile(
             id: model.profileId,
-            provider: provider.providerId,
+            provider: provider.modelProvider,
             model: model.modelId,
             endpoint: AssistantModelCatalog.requestEndpoint(
               provider.baseAddress,
@@ -432,13 +444,15 @@ class ProviderCatalog {
         baseAddress: 'https://api.deepseek.com',
         protocol: ModelProtocol.chatCompletions,
         credentialRef: 'DEEPSEEK_API_KEY',
+        modelProvider: 'deepseek',
       ),
       ProviderConfig(
         providerId: 'deepseek-anthropic',
         displayName: 'DeepSeek Messages',
-        baseAddress: 'https://api.deepseek.com/anthropic',
+        baseAddress: 'https://api.deepseek.com/anthropic/v1',
         protocol: ModelProtocol.messages,
         credentialRef: 'DEEPSEEK_API_KEY',
+        modelProvider: 'deepseek',
       ),
     ],
     models: [
@@ -488,6 +502,7 @@ class ProviderCatalog {
           baseAddress: address,
           protocol: custom.protocol,
           credentialRef: 'MISSIONBOOK_CUSTOM_API_KEY',
+          modelProvider: custom.provider,
         ),
       ];
       models = [

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -1802,7 +1803,20 @@ void main() {
       () => find.byType(AssistantPage).evaluate().isNotEmpty,
     );
     await tester.pumpAndSettle();
-    await tester.runAsync(() => assistant.send('第一句'));
+    final attachment = AssistantAttachment.fromBytes(
+      'plan.md',
+      Uint8List.fromList(utf8.encode('需要保留的附件正文')),
+    );
+    await tester.runAsync(
+      () => assistant.sendMessage(
+        UserMessage.withContent(
+          content: [
+            const TextBlock(text: '第一句'),
+            attachment.block,
+          ],
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     final originalId = assistant.currentSessionId!;
     await tester.tap(
@@ -1819,10 +1833,26 @@ void main() {
     await pumpUntil(tester, () => assistant.currentSessionId != originalId);
     await tester.pumpAndSettle();
     expect(
-      assistant.transcript.whereType<UserMessage>().map(
-        (message) => message.text,
-      ),
-      ['修改后的一句'],
+      assistant.transcript
+          .whereType<UserMessage>()
+          .single
+          .content
+          .whereType<TextBlock>()
+          .where((block) => AssistantAttachment.textFile(block) == null)
+          .single
+          .text,
+      '修改后的一句',
+    );
+    expect(
+      assistant.transcript
+          .whereType<UserMessage>()
+          .single
+          .content
+          .map(AssistantAttachment.textFile)
+          .whereType<({String name, String text})>()
+          .single
+          .text,
+      '需要保留的附件正文',
     );
     expect(find.text('修改后的一句'), findsOneWidget);
     await tester.runAsync(() => assistant.close());
@@ -1893,13 +1923,19 @@ void main() {
   });
 
   assistantTest('服务页从未保存表单获取模型，搜索选择后保存并重开', (tester) async {
+    final longModelId = 'model-beta-${'x' * 100}';
     final store = MemoryAssistantSettingsStore();
     final catalog = AssistantModelCatalog(
       clientFactory: () => MockClient((request) async {
         expect(request.url.toString(), 'https://example.invalid/v1/models');
         expect(request.headers['Authorization'], 'Bearer draft-key');
         return http.Response(
-          '{"data":[{"id":"model-alpha"},{"id":"model-beta"}]}',
+          jsonEncode({
+            'data': [
+              {'id': 'model-alpha'},
+              {'id': longModelId},
+            ],
+          }),
           200,
         );
       }),
@@ -1947,7 +1983,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, '搜索模型'), 'beta');
     await tester.pumpAndSettle();
     expect(find.text('model-alpha'), findsNothing);
-    await tester.tap(find.text('model-beta'));
+    await tester.tap(find.text(longModelId));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('assistant-model-save')));
     await tester.pumpAndSettle();
@@ -1966,11 +2002,21 @@ void main() {
     expect(provider.baseAddress, 'https://example.invalid');
     expect(
       store.catalog.modelsOfProvider(provider.providerId).single.modelId,
-      'model-beta',
+      longModelId,
+    );
+    expect(
+      store.catalog
+          .modelsOfProvider(provider.providerId)
+          .single
+          .profileId
+          .length,
+      lessThanOrEqualTo(64),
     );
     expect(store.credentials[provider.credentialRef], 'draft-key');
-    tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+    await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
+    expect(find.textContaining('放弃编辑服务修改'), findsNothing);
+    expect(find.byType(AssistantProviderEditPage), findsNothing);
     tester
         .state<NavigatorState>(find.byType(Navigator).first)
         .push(
@@ -1982,8 +2028,65 @@ void main() {
     expect(find.text('测试服务'), findsOneWidget);
     await tester.tap(find.text('测试服务'));
     await tester.pumpAndSettle();
-    expect(find.text('model-beta'), findsOneWidget);
+    expect(find.text(longModelId), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  assistantTest('服务模型停用只改草稿，放弃后原配置仍然可用', (tester) async {
+    final store = MemoryAssistantSettingsStore();
+    await mount(tester, ScriptedModel([]), settingsStore: store);
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => AssistantProviderEditPage(
+              controller: assistant,
+              provider: store.catalog.providerOf('deepseek-anthropic'),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final toggle = find.byKey(const Key('assistant-provider-toggle-deepseek'));
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(find.text('恢复'), findsOneWidget);
+    expect(store.catalog.isSelectable('deepseek'), isTrue);
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('放弃修改'));
+    await tester.pumpAndSettle();
+    expect(store.catalog.isSelectable('deepseek'), isTrue);
+  });
+
+  assistantTest('默认模型入口保留独立摘要选择，跟随默认需显式选择', (tester) async {
+    final store = MemoryAssistantSettingsStore();
+    store.catalog = store.catalog.copyWith(
+      selection: const ModelSelection(
+        defaultProfileId: 'deepseek-chat',
+        summaryProfileId: 'deepseek-chat',
+      ),
+    );
+    await mount(tester, ScriptedModel([]), settingsStore: store);
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => AssistantModelSettingsPage(controller: assistant),
+          ),
+        );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-default-model')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DeepSeek Flash (Messages)'));
+    await tester.pumpAndSettle();
+    expect(store.catalog.selection.defaultProfileId, 'deepseek');
+    expect(store.catalog.selection.summaryProfileId, 'deepseek-chat');
+    await tester.tap(find.byKey(const Key('assistant-summary-model')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('跟随默认模型'));
+    await tester.pumpAndSettle();
+    expect(store.catalog.selection.summaryProfileId, isNull);
   });
 
   assistantTest('服务编辑页在320宽双倍字号下可滚动保存且不溢出', (tester) async {

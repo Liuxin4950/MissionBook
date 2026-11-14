@@ -510,8 +510,19 @@ void main() {
     final boundary = session.transcript.last.id;
     await session.send('第二句');
     final branch = await session.fork(throughMessageId: boundary);
+    expect(branch.lastStopReason, AgentStopReason.completed);
+    expect(
+      (await branch.readRecords())
+          .where((r) => r.type == 'turn_ended')
+          .last
+          .data['reason'],
+      'completed',
+    );
     expect(branch.transcript, hasLength(2));
     final nextBranch = await branch.fork(throughMessageId: boundary);
+    expect(nextBranch.lastStopReason, AgentStopReason.completed);
+    final seed = (await nextBranch.export())['records'] as List;
+    expect((seed.first as Map)['data']['branchFromSessionId'], branch.id);
     expect(nextBranch.transcript, hasLength(2));
     await nextBranch.send('分支的新输入');
     expect(session.transcript, hasLength(4));
@@ -526,6 +537,7 @@ void main() {
     await session.send('第二句');
     final second = session.transcript.whereType<UserMessage>().last;
     final branch = await session.fork(beforeMessageId: second.id);
+    expect(branch.lastStopReason, AgentStopReason.completed);
     expect(
       branch.transcript.whereType<UserMessage>().map((message) => message.text),
       ['第一句'],

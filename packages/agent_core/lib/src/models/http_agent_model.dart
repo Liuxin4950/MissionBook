@@ -114,14 +114,15 @@ class HttpAgentModel implements StreamingAgentModel {
     StreamIterator<List<int>>? iterator;
     try {
       // 宿主提供读取函数；配置保存凭据标识，不保存 Key。
-      final key =
-          (await _wait(
-            Future.sync(() => _credentials(profile.credentialKey)),
-            token,
-            abort,
-            expired,
-          ))?.trim() ??
-          '';
+      final key = profile.requiresCredential
+          ? (await _wait(
+                  Future.sync(() => _credentials(profile.credentialKey)),
+                  token,
+                  abort,
+                  expired,
+                ))?.trim() ??
+                ''
+          : '';
       token.throwIfCancelled();
       if (profile.requiresCredential && key.isEmpty) {
         throw ModelException(
