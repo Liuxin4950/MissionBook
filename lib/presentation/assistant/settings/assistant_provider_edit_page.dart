@@ -5,6 +5,9 @@ import '../../../application/assistant/assistant_controller.dart';
 import '../../../application/errors/user_error_message.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/theme/app_motion.dart';
+import '../../widgets/adaptive_columns.dart';
+import '../../widgets/adaptive_sheet.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/app_dropdown_form_field.dart';
 import '../shared/assistant_reasoning_display.dart';
@@ -149,15 +152,19 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
     error: _error,
     message: _result,
     onSave: _changed ? _save : null,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    maxContentWidth: AppLayout.formMaxWidth,
+    saveLabel: '保存服务',
+    child: AdaptiveColumns(
+      minColumnWidth: AppLayout.paneLeftMin,
+      maxColumns: 2,
       children: [
         AppSectionCard(
+          key: const Key('assistant-provider-connection-section'),
           padding: const EdgeInsets.all(AppLayout.spaceLg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('服务信息', style: Theme.of(context).textTheme.titleMedium),
+              Text('连接', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: AppLayout.spaceLg),
               TextField(
                 key: const Key('assistant-provider-name'),
@@ -165,7 +172,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                 controller: _name,
                 decoration: const InputDecoration(
                   labelText: '服务名称',
-                  hintText: '例如 本机 Ollama、公司网关',
+                  hintText: '本机 Ollama、公司网关',
                 ),
               ),
               const SizedBox(height: AppLayout.spaceMd),
@@ -174,6 +181,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                 enabled: !_busy,
                 controller: _address,
                 autocorrect: false,
+                keyboardType: TextInputType.url,
                 decoration: InputDecoration(
                   labelText: '服务地址',
                   hintText: _protocol == ModelProtocol.messages
@@ -182,60 +190,76 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                 ),
               ),
               const SizedBox(height: AppLayout.spaceMd),
-              AppDropdownFormField<ModelProtocol>(
-                key: ValueKey('assistant-provider-protocol-$_protocol'),
-                isExpanded: true,
-                initialValue: _protocol,
-                decoration: const InputDecoration(labelText: '请求协议'),
-                items: const [
-                  DropdownMenuItem(
-                    value: ModelProtocol.chatCompletions,
-                    child: Text('Chat Completions'),
+              AdaptiveColumns(
+                minColumnWidth:
+                    (AppLayout.formTwoColumnMinWidth - AppLayout.spaceMd) / 2,
+                maxColumns: 2,
+                spacing: AppLayout.spaceMd,
+                children: [
+                  AppDropdownFormField<ModelProtocol>(
+                    key: ValueKey('assistant-provider-protocol-$_protocol'),
+                    isExpanded: true,
+                    initialValue: _protocol,
+                    decoration: const InputDecoration(labelText: '请求协议'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: ModelProtocol.chatCompletions,
+                        child: Text('Chat Completions'),
+                      ),
+                      DropdownMenuItem(
+                        value: ModelProtocol.messages,
+                        child: Text('Messages'),
+                      ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(() {
+                            _protocol = value ?? _protocol;
+                            _modelsError = null;
+                          }),
                   ),
-                  DropdownMenuItem(
-                    value: ModelProtocol.messages,
-                    child: Text('Messages'),
+                  AppDropdownFormField<String>(
+                    initialValue: _modelProvider,
+                    decoration: const InputDecoration(labelText: '供应商适配'),
+                    items: [
+                      const DropdownMenuItem(
+                        value: 'custom',
+                        child: Text('通用协议'),
+                      ),
+                      const DropdownMenuItem(
+                        value: 'deepseek',
+                        child: Text('DeepSeek'),
+                      ),
+                      if (!['custom', 'deepseek'].contains(_modelProvider))
+                        DropdownMenuItem(
+                          value: _modelProvider,
+                          child: Text(_modelProvider),
+                        ),
+                    ],
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(() {
+                            _modelProvider = value ?? _modelProvider;
+                          }),
                   ),
                 ],
-                onChanged: _busy
-                    ? null
-                    : (value) => setState(() {
-                        _protocol = value ?? _protocol;
-                        _modelsError = null;
-                      }),
               ),
-              const SizedBox(height: AppLayout.spaceMd),
-              AppDropdownFormField<String>(
-                initialValue: _modelProvider,
-                decoration: const InputDecoration(labelText: '供应商适配'),
-                items: [
-                  const DropdownMenuItem(value: 'custom', child: Text('通用协议')),
-                  const DropdownMenuItem(
-                    value: 'deepseek',
-                    child: Text('DeepSeek'),
-                  ),
-                  if (!['custom', 'deepseek'].contains(_modelProvider))
-                    DropdownMenuItem(
-                      value: _modelProvider,
-                      child: Text(_modelProvider),
-                    ),
-                ],
-                onChanged: _busy
-                    ? null
-                    : (value) => setState(() {
-                        _modelProvider = value ?? _modelProvider;
-                      }),
-              ),
+              const SizedBox(height: AppLayout.spaceSm),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('此服务需要 API Key'),
-                subtitle: const Text('本机或内网兼容服务可以关闭，关闭后请求不发送鉴权头'),
+                title: const Text('API Key 鉴权'),
+                subtitle: !_requiresCredential
+                    ? const Text('免鉴权')
+                    : _hasSavedKey
+                    ? const Text('已保存')
+                    : null,
                 value: _requiresCredential,
                 onChanged: _busy
                     ? null
                     : (value) => setState(() => _requiresCredential = value),
               ),
               if (_requiresCredential) ...[
+                const SizedBox(height: AppLayout.spaceSm),
                 TextField(
                   key: const Key('assistant-provider-credential'),
                   enabled: !_busy && !_clearCredential,
@@ -245,10 +269,16 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                   autocorrect: false,
                   decoration: InputDecoration(
                     labelText: 'API Key',
-                    hintText: _hasSavedKey ? '已保存，输入新 Key 可替换' : '输入 API Key',
+                    hintText: _clearCredential
+                        ? '保存后清除'
+                        : _hasSavedKey
+                        ? '留空沿用，输入替换'
+                        : '输入 API Key',
                     suffixIcon: IconButton(
                       tooltip: _showKey ? '隐藏 Key' : '显示 Key',
-                      onPressed: () => setState(() => _showKey = !_showKey),
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() => _showKey = !_showKey),
                       icon: Icon(
                         _showKey
                             ? Icons.visibility_off_outlined
@@ -276,22 +306,35 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
             ],
           ),
         ),
-        const SizedBox(height: AppLayout.spaceLg),
         AppSectionCard(
+          key: const Key('assistant-provider-models-section'),
           padding: const EdgeInsets.all(AppLayout.spaceLg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: AppLayout.spaceSm,
                 children: [
-                  Expanded(
-                    child: Text(
-                      '模型（${_models.where((m) => !m.archived).length}）',
-                      style: Theme.of(context).textTheme.titleMedium,
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minHeight: AppLayout.touchTargetMin,
+                    ),
+                    child: Align(
+                      widthFactor: 1,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '模型 · ${_models.where((m) => !m.archived).length}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                     ),
                   ),
                   TextButton.icon(
                     key: const Key('assistant-provider-fetch-models'),
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(0, AppLayout.touchTargetMin),
+                    ),
                     onPressed: _fetching
                         ? () => _modelFetch?.cancel()
                         : _busy
@@ -318,23 +361,13 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
               if (_models.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: AppLayout.spaceMd),
-                  child: Text('还没有模型。可以从服务获取列表，或手动添加模型编号。'),
+                  child: Text('暂无模型', textAlign: TextAlign.center),
                 ),
               for (final model in _models)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(model.label),
-                  subtitle: Text(
-                    model.archived
-                        ? '已停用 · ${model.modelId}'
-                        : '${model.providerId == _providerId ? model.modelId : model.providerId}/${model.modelId} · 上下文 ${model.contextWindowTokens} · 回复 ${model.maxOutputTokens}',
-                  ),
-                  onTap: _busy ? null : () => _editModel(model),
-                  trailing: TextButton(
-                    key: Key('assistant-provider-toggle-${model.profileId}'),
-                    onPressed: _busy ? null : () => _toggleModelArchived(model),
-                    child: Text(model.archived ? '恢复' : '停用'),
-                  ),
+                _ProviderModelRow(
+                  model: model,
+                  onEdit: _busy ? null : () => _editModel(model),
+                  onToggle: _busy ? null : () => _toggleModelArchived(model),
                 ),
               const SizedBox(height: AppLayout.spaceSm),
               OutlinedButton.icon(
@@ -424,6 +457,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
       setState(() => _fetching = false);
       final selected = await showDialog<String>(
         context: context,
+        animationStyle: AppMotion.overlayStyle(context),
         builder: (_) => AssistantModelPicker(models: models, selected: ''),
       );
       if (!mounted || selected == null) return;
@@ -487,9 +521,8 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
   }
 
   Future<void> _editModel(ProviderModel? model) async {
-    final result = await showModalBottomSheet<ProviderModel>(
+    final result = await showAdaptiveSheet<ProviderModel>(
       context: context,
-      isScrollControlled: true,
       builder: (_) => _ModelEditSheet(
         providerId: _providerId,
         profileId: model?.profileId ?? _newProfileId(),
@@ -520,6 +553,78 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
       ];
     });
   }
+}
+
+class _ProviderModelRow extends StatelessWidget {
+  const _ProviderModelRow({required this.model, this.onEdit, this.onToggle});
+
+  final ProviderModel model;
+  final VoidCallback? onEdit;
+  final VoidCallback? onToggle;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    enabled: onEdit != null,
+    label: '编辑模型',
+    child: InkWell(
+      onTap: onEdit,
+      borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Tooltip(
+                    message: model.modelId,
+                    excludeFromSemantics: true,
+                    child: Text(
+                      model.label,
+                      semanticsLabel: model.label == model.modelId
+                          ? model.label
+                          : '${model.label}，${model.modelId}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                  const SizedBox(height: AppLayout.spaceXs),
+                  Text(
+                    model.archived
+                        ? '已停用'
+                        : '上下文 ${model.contextWindowTokens} · 回复 ${model.maxOutputTokens}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppLayout.spaceSm),
+            IconButton(
+              key: Key('assistant-provider-toggle-${model.profileId}'),
+              tooltip: model.archived ? '恢复模型' : '停用模型',
+              constraints: const BoxConstraints.tightFor(
+                width: AppLayout.touchTargetMin,
+                height: AppLayout.touchTargetMin,
+              ),
+              onPressed: onToggle,
+              icon: Icon(
+                model.archived
+                    ? Icons.play_circle_outline
+                    : Icons.pause_circle_outline,
+                size: AppLayout.iconMd,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _ModelEditSheet extends StatefulWidget {
@@ -586,6 +691,9 @@ class _ModelEditSheetState extends State<_ModelEditSheet> {
     final limitText = _outputLimit.text.trim();
     final limit = limitText.isEmpty ? null : int.tryParse(limitText);
     try {
+      if (limitText.isNotEmpty && limit == null) {
+        throw ArgumentError('输出硬上限需填写正整数');
+      }
       final model = ProviderModel(
         profileId: widget.profileId,
         providerId: widget.providerId,
@@ -607,107 +715,115 @@ class _ModelEditSheetState extends State<_ModelEditSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(
-      left: AppLayout.spaceLg,
-      right: AppLayout.spaceLg,
-      top: AppLayout.spaceLg,
-      bottom: MediaQuery.viewInsetsOf(context).bottom + AppLayout.spaceLg,
-    ),
-    child: SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            widget.initial == null ? '添加模型' : '编辑模型',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: AppLayout.spaceMd),
-          TextField(
-            key: const Key('assistant-model-id'),
-            controller: _modelId,
-            autocorrect: false,
-            decoration: const InputDecoration(
-              labelText: '模型编号',
-              hintText: '供应商要求的 model id',
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    child: Padding(
+      padding: EdgeInsets.only(
+        left: AppLayout.spaceLg,
+        right: AppLayout.spaceLg,
+        top: AppLayout.spaceLg,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + AppLayout.spaceLg,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.initial == null ? '添加模型' : '编辑模型',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-          ),
-          const SizedBox(height: AppLayout.spaceMd),
-          TextField(
-            controller: _label,
-            decoration: const InputDecoration(
-              labelText: '显示名称（可选）',
-              hintText: '聊天页展示用',
-            ),
-          ),
-          const SizedBox(height: AppLayout.spaceMd),
-          TextField(
-            controller: _contextWindow,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: '上下文容量（token）'),
-          ),
-          const SizedBox(height: AppLayout.spaceMd),
-          TextField(
-            controller: _outputBudget,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: '每次回复预算（token）'),
-          ),
-          const SizedBox(height: AppLayout.spaceMd),
-          TextField(
-            controller: _outputLimit,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: '模型输出硬上限（可选）'),
-          ),
-          const SizedBox(height: AppLayout.spaceMd),
-          AppDropdownFormField<ReasoningEffort>(
-            isExpanded: true,
-            initialValue: _reasoning,
-            decoration: const InputDecoration(labelText: '思考程度'),
-            items: [
-              for (final effort in ReasoningEffort.values)
-                DropdownMenuItem(
-                  value: effort,
-                  child: Text(assistantReasoningLabel(effort)),
-                ),
-            ],
-            onChanged: (value) =>
-                setState(() => _reasoning = value ?? _reasoning),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('此模型支持图片'),
-            value: _images,
-            onChanged: (value) => setState(() => _images = value),
-          ),
-          if (_error != null)
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                _error!,
-                style: const TextStyle(color: AppColors.error),
+            const SizedBox(height: AppLayout.spaceMd),
+            TextField(
+              key: const Key('assistant-model-id'),
+              controller: _modelId,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                labelText: '模型编号',
+                hintText: '供应商要求的 model id',
               ),
             ),
-          const SizedBox(height: AppLayout.spaceMd),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
+            const SizedBox(height: AppLayout.spaceMd),
+            TextField(
+              controller: _label,
+              decoration: const InputDecoration(
+                labelText: '显示名称（可选）',
+                hintText: '聊天页展示用',
+              ),
+            ),
+            const SizedBox(height: AppLayout.spaceMd),
+            AdaptiveColumns(
+              minColumnWidth:
+                  (AppLayout.formTwoColumnMinWidth - AppLayout.spaceMd) / 2,
+              maxColumns: 2,
+              spacing: AppLayout.spaceMd,
+              children: [
+                TextField(
+                  controller: _contextWindow,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: '上下文（token）'),
+                ),
+                TextField(
+                  controller: _outputBudget,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: '回复预算（token）'),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppLayout.spaceMd),
+            TextField(
+              controller: _outputLimit,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '模型输出硬上限（可选）'),
+            ),
+            const SizedBox(height: AppLayout.spaceMd),
+            AppDropdownFormField<ReasoningEffort>(
+              isExpanded: true,
+              initialValue: _reasoning,
+              decoration: const InputDecoration(labelText: '思考程度'),
+              items: [
+                for (final effort in ReasoningEffort.values)
+                  DropdownMenuItem(
+                    value: effort,
+                    child: Text(assistantReasoningLabel(effort)),
+                  ),
+              ],
+              onChanged: (value) =>
+                  setState(() => _reasoning = value ?? _reasoning),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('图片输入'),
+              value: _images,
+              onChanged: (value) => setState(() => _images = value),
+            ),
+            if (_error != null)
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: AppColors.error),
+                ),
+              ),
+            const SizedBox(height: AppLayout.spaceMd),
+            OverflowBar(
+              alignment: MainAxisAlignment.end,
+              spacing: AppLayout.spaceMd,
+              overflowSpacing: AppLayout.spaceSm,
+              children: [
+                OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text('取消'),
                 ),
-              ),
-              const SizedBox(width: AppLayout.spaceMd),
-              Expanded(
-                child: FilledButton(
+                FilledButton(
                   key: const Key('assistant-model-save'),
                   onPressed: _submit,
                   child: const Text('确定'),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     ),
   );

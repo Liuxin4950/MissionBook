@@ -105,7 +105,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       final option = find.byKey(
-        ValueKey(component ? 'motion-option-reduced' : 'page-style-slide'),
+        ValueKey(
+          component ? 'motion-option-reduced' : 'page-style-fadeThrough',
+        ),
       );
       await tester.ensureVisible(option);
       await tester.tap(option);
@@ -113,9 +115,54 @@ void main() {
       if (component) {
         expect(settings.preference, MotionPreference.reduced);
       } else {
-        expect(settings.pageStyle, PageMotionStyle.slide);
+        expect(settings.pageStyle, PageMotionStyle.fadeThrough);
       }
       expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final size in [
+    const Size(390, 844),
+    const Size(844, 390),
+    const Size(768, 1024),
+  ]) {
+    testWidgets('七种页面风格可选择并预览进入和返回 $size', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final settings = MotionSettings(
+        read: () async => null,
+        write: (_) async {},
+      );
+      addTearDown(settings.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          builder: (_, child) =>
+              MotionSettingsHost(settings: settings, child: child!),
+          home: Scaffold(body: MotionStyleSheet(settings: settings)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (final style in PageMotionStyle.values) {
+        final option = find.byKey(ValueKey('page-style-${style.name}'));
+        await tester.ensureVisible(option);
+        await tester.tap(option);
+        await tester.pumpAndSettle();
+        expect(settings.pageStyle, style);
+        final preview = find.byKey(const ValueKey('motion-preview-detail'));
+        expect(preview, findsOneWidget);
+        await tester.ensureVisible(preview);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('返回'));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('motion-preview-list')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      }
     });
   }
 

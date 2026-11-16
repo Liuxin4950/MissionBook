@@ -10,6 +10,7 @@ import '../../../application/assistant/assistant_attachment.dart';
 import '../../../application/assistant/assistant_image.dart';
 import '../../attachments/photo_capture_panel.dart';
 import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/adaptive_sheet.dart';
 import '../../../application/assistant/assistant_speech.dart';
 import '../../../data/assistant/assistant_attachment_picker.dart';
 import '../../../core/theme/app_layout.dart';
@@ -196,7 +197,9 @@ class _AssistantPageState extends State<AssistantPage> {
             child: ListenableBuilder(
               listenable: widget.controller,
               builder: (context, _) => AppTopBar(
-                title: widget.controller.persona.name,
+                title: widget.controller.currentSessionId == null
+                    ? widget.controller.persona.name
+                    : widget.controller.sessionTitle,
                 maxContentWidth: _contentWidth,
                 actions: _headerActions(),
               ),
@@ -236,6 +239,49 @@ class _AssistantPageState extends State<AssistantPage> {
                     ),
                   if (controller.reference != null)
                     _ReferenceBanner(controller: controller),
+                  if (widget.showBack &&
+                      AppLayout.windowClassOf(context) == WindowClass.compact &&
+                      controller.currentSessionId != null)
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppLayout.horizontalPadding(context),
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          key: const Key('assistant-switch-model'),
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(
+                              0,
+                              AppLayout.touchTargetMin,
+                            ),
+                          ),
+                          onPressed: controller.isBusy ? null : _switchModel,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  controller
+                                          .modelForProfile(
+                                            controller.modelProfileId,
+                                          )
+                                          ?.label ??
+                                      controller.modelProfileId,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: AppLayout.spaceXs),
+                              const Icon(
+                                Icons.expand_more_rounded,
+                                size: AppLayout.iconSm,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   if (controller.unavailableReference != null)
                     Padding(
                       padding: const EdgeInsets.all(AppLayout.spaceMd),
@@ -411,7 +457,9 @@ class _AssistantPageState extends State<AssistantPage> {
     ];
     final selected = await showDialog<String>(
       context: context,
+      animationStyle: AppMotion.overlayStyle(context),
       builder: (_) => AssistantModelChoicePicker(
+        title: '当前会话模型',
         choices: choices,
         selectedProfileId: controller.modelProfileId,
       ),
@@ -467,37 +515,38 @@ class _AssistantPageState extends State<AssistantPage> {
     final isUser = message is UserMessage;
     final isLatestAssistant =
         message is AssistantMessage && message.id == _latestAssistantId;
-    final choice = await showModalBottomSheet<String>(
+    final choice = await showAdaptiveSheet<String>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isUser)
+        top: false,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isUser)
+                ListTile(
+                  key: const Key('assistant-edit-resend'),
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('编辑后重发'),
+                  onTap: () => Navigator.of(context).pop('edit'),
+                ),
+              if (isLatestAssistant)
+                ListTile(
+                  key: const Key('assistant-regenerate'),
+                  leading: const Icon(Icons.refresh),
+                  title: const Text('重新回答'),
+                  onTap: () => Navigator.of(context).pop('regenerate'),
+                ),
               ListTile(
-                key: const Key('assistant-edit-resend'),
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('编辑后重发'),
-                subtitle: const Text('在新分支中发送，原会话保留'),
-                onTap: () => Navigator.of(context).pop('edit'),
+                key: const Key('assistant-branch-message'),
+                leading: const Icon(Icons.call_split),
+                title: const Text('从这里分支'),
+                subtitle: const Text('保留原会话'),
+                onTap: () => Navigator.of(context).pop('branch'),
               ),
-            if (isLatestAssistant)
-              ListTile(
-                key: const Key('assistant-regenerate'),
-                leading: const Icon(Icons.refresh),
-                title: const Text('重新回答'),
-                subtitle: const Text('含业务操作的轮次会被拒绝'),
-                onTap: () => Navigator.of(context).pop('regenerate'),
-              ),
-            ListTile(
-              key: const Key('assistant-branch-message'),
-              leading: const Icon(Icons.call_split),
-              title: const Text('从这里分支'),
-              subtitle: const Text('复制到这里为止的上下文，原会话不变'),
-              onTap: () => Navigator.of(context).pop('branch'),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -522,6 +571,7 @@ class _AssistantPageState extends State<AssistantPage> {
         .join('\n');
     final text = await showDialog<String>(
       context: context,
+      animationStyle: AppMotion.overlayStyle(context),
       builder: (_) => _EditMessageDialog(initialText: originalText),
     );
     if (!mounted || text == null || text.trim().isEmpty) return;
@@ -560,37 +610,43 @@ class _AssistantPageState extends State<AssistantPage> {
     }
   }
 
-  List<Widget> _headerActions() => [
-    if (!_useSidebar(MediaQuery.sizeOf(context).width)) ...[
+  List<Widget> _headerActions() {
+    final compact = AppLayout.windowClassOf(context) == WindowClass.compact;
+    return [
+      if (!_useSidebar(MediaQuery.sizeOf(context).width))
+        IconButton(
+          key: const Key('assistant-new-session'),
+          tooltip: '新会话',
+          onPressed: widget.controller.isBusy ? null : _newSession,
+          icon: const Icon(Icons.add_comment_outlined),
+        ),
+      if (!_useSidebar(MediaQuery.sizeOf(context).width))
+        IconButton(
+          key: const Key('assistant-history'),
+          tooltip: '会话历史',
+          onPressed: widget.controller.isBusy ? null : _openHistory,
+          icon: const Icon(Icons.history_outlined),
+        ),
+      if (!compact || !widget.showBack)
+        IconButton(
+          key: const Key('assistant-switch-model'),
+          tooltip: '切换当前会话模型',
+          onPressed:
+              widget.controller.isBusy ||
+                  widget.controller.currentSessionId == null
+              ? null
+              : _switchModel,
+          icon: const Icon(Icons.memory_outlined),
+        ),
       IconButton(
-        key: const Key('assistant-new-session'),
-        tooltip: '新会话',
-        onPressed: widget.controller.isBusy ? null : _newSession,
-        icon: const Icon(Icons.add_comment_outlined),
+        key: const Key('assistant-settings'),
+        tooltip: '助手设置',
+        onPressed: _openSettings,
+        icon: const Icon(Icons.tune_outlined),
       ),
-      IconButton(
-        key: const Key('assistant-history'),
-        tooltip: '会话历史',
-        onPressed: widget.controller.isBusy ? null : _openHistory,
-        icon: const Icon(Icons.history_outlined),
-      ),
-    ],
-    IconButton(
-      key: const Key('assistant-switch-model'),
-      tooltip: '切换当前会话模型',
-      onPressed:
-          widget.controller.isBusy || widget.controller.currentSessionId == null
-          ? null
-          : _switchModel,
-      icon: const Icon(Icons.memory_outlined),
-    ),
-    IconButton(
-      key: const Key('assistant-settings'),
-      tooltip: '助手设置',
-      onPressed: _openSettings,
-      icon: const Icon(Icons.tune_outlined),
-    ),
-  ];
+    ];
+  }
+
   Widget _buildConversation(AssistantController controller) {
     final transcript = controller.transcript;
     final operations = {
@@ -606,7 +662,6 @@ class _AssistantPageState extends State<AssistantPage> {
     if (transcript.isEmpty && controller.localSchedule == null) {
       children.add(
         _Welcome(
-          persona: controller.persona,
           onLocalSchedule: controller.loadLocalSchedule,
           onPrompt: _usePrompt,
         ),
@@ -848,13 +903,19 @@ class _EditMessageDialogState extends State<_EditMessageDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('编辑后重发'),
-    content: TextField(
-      key: const Key('assistant-edit-message-input'),
-      controller: _controller,
-      minLines: 3,
-      maxLines: 6,
-      autofocus: true,
-      decoration: const InputDecoration(labelText: '消息内容'),
+    scrollable: true,
+    insetPadding: const EdgeInsets.all(AppLayout.spaceLg),
+    content: SizedBox(
+      width: 560,
+      child: TextField(
+        key: const Key('assistant-edit-message-input'),
+        controller: _controller,
+        minLines: 3,
+        maxLines: 6,
+        autofocus: true,
+        onChanged: (_) => setState(() {}),
+        decoration: const InputDecoration(labelText: '消息内容'),
+      ),
     ),
     actions: [
       TextButton(
@@ -863,8 +924,10 @@ class _EditMessageDialogState extends State<_EditMessageDialog> {
       ),
       FilledButton(
         key: const Key('assistant-edit-message-send'),
-        onPressed: () => Navigator.of(context).pop(_controller.text),
-        child: const Text('发送'),
+        onPressed: _controller.text.trim().isEmpty
+            ? null
+            : () => Navigator.of(context).pop(_controller.text),
+        child: const Text('新分支发送'),
       ),
     ],
   );

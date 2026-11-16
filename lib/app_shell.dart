@@ -8,6 +8,7 @@ import 'presentation/assistant/entry/assistant_launcher.dart';
 import 'application/missions/mission_service.dart';
 import 'application/notifications/app_notification_service.dart';
 import 'core/theme/app_layout.dart';
+import 'core/theme/app_motion.dart';
 import 'core/theme/colors.dart';
 import 'presentation/missions/execution/mission_execution_page.dart';
 import 'presentation/missions/detail/mission_detail_page.dart';
@@ -480,15 +481,65 @@ class _AppShellState extends State<AppShell> {
                             ),
                           ),
                         ),
-                        item(0, '今天', Icons.home_outlined, Icons.home_rounded),
-                        item(
-                          1,
-                          '目标',
-                          Icons.track_changes_outlined,
-                          Icons.track_changes,
+                        Stack(
+                          children: [
+                            Positioned.fill(
+                              // 策略变化时重置纯视觉指示器，进行中的动画直接到位。
+                              child: AnimatedAlign(
+                                key: ValueKey(
+                                  MediaQuery.disableAnimationsOf(context),
+                                ),
+                                alignment: Alignment(
+                                  0,
+                                  -1 + 2 * _selectedIndex / 3,
+                                ),
+                                duration: AppMotion.resolve(
+                                  context,
+                                  AppMotion.standard,
+                                ),
+                                curve: AppMotion.curve,
+                                child: FractionallySizedBox(
+                                  heightFactor: .25,
+                                  widthFactor: 1,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: AppLayout.spaceXs,
+                                    ),
+                                    child: _navigationSelection(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Column(
+                              children: [
+                                item(
+                                  0,
+                                  '今天',
+                                  Icons.home_outlined,
+                                  Icons.home_rounded,
+                                ),
+                                item(
+                                  1,
+                                  '目标',
+                                  Icons.track_changes_outlined,
+                                  Icons.track_changes,
+                                ),
+                                item(
+                                  2,
+                                  '历史',
+                                  Icons.schedule_outlined,
+                                  Icons.schedule,
+                                ),
+                                item(
+                                  3,
+                                  '我的',
+                                  Icons.person_outline,
+                                  Icons.person,
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        item(2, '历史', Icons.schedule_outlined, Icons.schedule),
-                        item(3, '我的', Icons.person_outline, Icons.person),
                         const Spacer(),
                         if (widget.assistant != null)
                           Padding(
@@ -549,44 +600,74 @@ class _AppShellState extends State<AppShell> {
               clipBehavior: Clip.antiAlias,
               child: Padding(
                 padding: const EdgeInsets.all(AppLayout.spaceXs),
-                child: Row(
-                  children: [
-                    _navigationItem(
-                      0,
-                      '今天',
-                      Icons.home_outlined,
-                      Icons.home_rounded,
-                      inCapsule: true,
-                    ),
-                    _navigationItem(
-                      1,
-                      '目标',
-                      Icons.track_changes_outlined,
-                      Icons.track_changes,
-                      inCapsule: true,
-                    ),
-                    if (widget.assistant != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppLayout.spaceXs,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final assistantWidth = widget.assistant == null
+                        ? 0.0
+                        : 56 + AppLayout.spaceXs * 2;
+                    final itemWidth =
+                        (constraints.maxWidth - assistantWidth) / 4;
+                    return Stack(
+                      children: [
+                        AnimatedPositionedDirectional(
+                          key: ValueKey(
+                            MediaQuery.disableAnimationsOf(context),
+                          ),
+                          duration: AppMotion.resolve(
+                            context,
+                            AppMotion.standard,
+                          ),
+                          curve: AppMotion.curve,
+                          start:
+                              itemWidth * _selectedIndex +
+                              (_selectedIndex >= 2 ? assistantWidth : 0),
+                          top: 0,
+                          bottom: 0,
+                          width: itemWidth,
+                          child: _navigationSelection(),
                         ),
-                        child: AssistantLauncher(key: _assistantEntry),
-                      ),
-                    _navigationItem(
-                      2,
-                      '历史',
-                      Icons.schedule_outlined,
-                      Icons.schedule,
-                      inCapsule: true,
-                    ),
-                    _navigationItem(
-                      3,
-                      '我的',
-                      Icons.person_outline,
-                      Icons.person,
-                      inCapsule: true,
-                    ),
-                  ],
+                        Row(
+                          children: [
+                            _navigationItem(
+                              0,
+                              '今天',
+                              Icons.home_outlined,
+                              Icons.home_rounded,
+                              inCapsule: true,
+                            ),
+                            _navigationItem(
+                              1,
+                              '目标',
+                              Icons.track_changes_outlined,
+                              Icons.track_changes,
+                              inCapsule: true,
+                            ),
+                            if (widget.assistant != null)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppLayout.spaceXs,
+                                ),
+                                child: AssistantLauncher(key: _assistantEntry),
+                              ),
+                            _navigationItem(
+                              2,
+                              '历史',
+                              Icons.schedule_outlined,
+                              Icons.schedule,
+                              inCapsule: true,
+                            ),
+                            _navigationItem(
+                              3,
+                              '我的',
+                              Icons.person_outline,
+                              Icons.person,
+                              inCapsule: true,
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -595,6 +676,15 @@ class _AppShellState extends State<AppShell> {
       ),
     );
   }
+
+  Widget _navigationSelection() => DecoratedBox(
+    key: const Key('navigation-selection-surface'),
+    decoration: const ShapeDecoration(
+      color: AppColors.primarySoft,
+      shape: StadiumBorder(),
+    ),
+    child: const SizedBox.expand(),
+  );
 
   // 四个目的地共用同一排版与语义外壳；点击仍交给 _selectPage 切换 IndexedStack。
   // inCapsule：胶囊导航里横向铺满一格；extended：侧栏加宽条（图标+文字并排）。
@@ -614,22 +704,42 @@ class _AppShellState extends State<AppShell> {
       _selectPage(index);
     }
 
-    final iconWidget = Icon(
-      selected ? selectedIcon : icon,
+    final duration = AppMotion.resolve(context, AppMotion.quick);
+    final iconWidget = SizedBox(
       key: ValueKey('navigation-icon-$index'),
-      size: AppLayout.iconLg,
-      color: foreground,
+      width: AppLayout.iconLg,
+      height: AppLayout.iconLg,
+      child: AnimatedScale(
+        key: ValueKey(duration),
+        scale: selected ? 1.06 : 1,
+        duration: duration,
+        curve: AppMotion.curve,
+        child: TweenAnimationBuilder<Color?>(
+          tween: ColorTween(end: foreground),
+          duration: duration,
+          curve: AppMotion.curve,
+          builder: (_, color, _) => Icon(
+            selected ? selectedIcon : icon,
+            size: AppLayout.iconLg,
+            color: color,
+          ),
+        ),
+      ),
     );
-    final labelWidget = Text(
-      label,
+    final labelWidget = AnimatedDefaultTextStyle(
+      key: ValueKey(duration),
+      duration: duration,
+      curve: AppMotion.curve,
       style:
-          (extended
-                  ? Theme.of(context).textTheme.labelMedium
-                  : Theme.of(context).textTheme.labelSmall)
-              ?.copyWith(
+          ((extended
+                      ? Theme.of(context).textTheme.labelMedium
+                      : Theme.of(context).textTheme.labelSmall) ??
+                  const TextStyle())
+              .copyWith(
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                 color: foreground,
               ),
+      child: Text(label),
     );
     final content = extended
         ? Padding(
@@ -663,14 +773,11 @@ class _AppShellState extends State<AppShell> {
       onTap: selectPage,
       child: Tooltip(
         message: label,
-        child: InkWell(
-          onTap: selectPage,
-          customBorder: const StadiumBorder(),
-          child: Ink(
-            decoration: ShapeDecoration(
-              shape: const StadiumBorder(),
-              color: selected ? AppColors.primarySoft : AppColors.card,
-            ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: selectPage,
+            customBorder: const StadiumBorder(),
             child: content,
           ),
         ),

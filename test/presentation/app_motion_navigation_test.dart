@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/settings/motion_settings.dart';
 import 'package:mission_book/core/theme/app_motion.dart';
+import 'package:mission_book/core/theme/app_page_motion.dart';
 import 'package:mission_book/presentation/widgets/app_content_transition.dart';
 import 'package:mission_book/presentation/widgets/motion_settings_scope.dart';
 import 'package:mission_book/presentation/widgets/adaptive_sheet.dart';
@@ -11,6 +12,116 @@ import 'package:mission_book/presentation/me/motion_style_sheet.dart';
 
 void main() {
   for (final style in PageMotionStyle.values) {
+    testWidgets('iOS ${style.name} 保留边缘返回的取消和提交', (tester) async {
+      final settings = MotionSettings(
+        read: () async => null,
+        write: (_) async {},
+      );
+      addTearDown(settings.dispose);
+      await settings.selectPageStyle(style);
+      final nav = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: TargetPlatform.iOS),
+          navigatorKey: nav,
+          builder: (_, child) =>
+              MotionSettingsHost(settings: settings, child: child!),
+          home: const Scaffold(body: Text('列表')),
+        ),
+      );
+      nav.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('详情')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final cancel = await tester.startGesture(const Offset(2, 300));
+      await cancel.moveBy(const Offset(120, 0));
+      await tester.pump(const Duration(milliseconds: 50));
+      await cancel.up();
+      await tester.pumpAndSettle();
+      expect(find.text('详情'), findsOneWidget);
+      final commit = await tester.startGesture(const Offset(2, 300));
+      await commit.moveBy(const Offset(650, 0));
+      await tester.pump(const Duration(milliseconds: 50));
+      await commit.up();
+      await tester.pumpAndSettle();
+      expect(nav.currentState!.canPop(), isFalse);
+      expect(find.text('列表'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('${style.name} 主导航有真实中间帧且换风格保留草稿', (tester) async {
+      final settings = MotionSettings(
+        read: () async => null,
+        write: (_) async {},
+      );
+      addTearDown(settings.dispose);
+      await settings.selectPageStyle(style);
+      var identity = 0;
+      late StateSetter update;
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (_, child) =>
+              MotionSettingsHost(settings: settings, child: child!),
+          home: StatefulBuilder(
+            builder: (_, setState) {
+              update = setState;
+              return Scaffold(
+                body: AppContentTransition(
+                  identity: identity,
+                  child: const TextField(),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.enterText(find.byType(TextField), '保留转场草稿');
+      final fieldState = tester.state(find.byType(TextField));
+      update(() => identity = 1);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      final effectFinder = find.descendant(
+        of: find.byType(AppContentTransition),
+        matching: find.byType(AppPageMotion),
+      );
+      final effect = tester.widget<AppPageMotion>(effectFinder);
+      expect(effect.style, style);
+      expect(effect.animation.value, inExclusiveRange(0, 1));
+      final opacity = tester.widget<Opacity>(
+        find.descendant(of: effectFinder, matching: find.byType(Opacity)).first,
+      );
+      if (style == PageMotionStyle.push) {
+        final translation = tester.widget<FractionalTranslation>(
+          find
+              .descendant(
+                of: effectFinder,
+                matching: find.byType(FractionalTranslation),
+              )
+              .first,
+        );
+        expect(translation.translation.dx, inExclusiveRange(0, 1));
+      } else {
+        expect(opacity.opacity, lessThan(1));
+      }
+      await tester.pumpAndSettle();
+      for (final choice in PageMotionStyle.values) {
+        await settings.selectPageStyle(choice);
+        await tester.pump();
+        expect(tester.state(find.byType(TextField)), same(fieldState));
+        expect(find.text('保留转场草稿'), findsOneWidget);
+      }
+      update(() => identity = 0);
+      await tester.pump();
+      final backwards = tester.widget<AppPageMotion>(effectFinder);
+      expect(backwards.horizontalDirection, -1);
+      await settings.select(MotionPreference.reduced);
+      await tester.pump();
+      expect(backwards.animation.value, 1);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('Android ${style.name} 保留预测返回的取消和提交', (tester) async {
       final settings = MotionSettings(
         read: () async => null,
@@ -168,15 +279,15 @@ void main() {
     await settings.select(MotionPreference.reduced);
     await tester.pump();
     expect(find.text('草稿'), findsOneWidget);
-    final fade = tester.widget<FadeTransition>(
+    final fade = tester.widget<Opacity>(
       find
           .descendant(
             of: find.byType(AppContentTransition),
-            matching: find.byType(FadeTransition),
+            matching: find.byType(Opacity),
           )
           .first,
     );
-    expect(fade.opacity.value, 1);
+    expect(fade.opacity, 1);
     expect(
       AppMotion.resolve(
         tester.element(find.byType(TextField)),

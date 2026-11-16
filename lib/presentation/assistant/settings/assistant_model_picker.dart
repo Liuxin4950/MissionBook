@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 
 import '../../../application/assistant/assistant_provider_catalog.dart';
+import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/colors.dart';
 
-/// 按服务分组的可选模型；返回 `profileId`，取消返回 null。
+/// 按服务分组选择模型，返回 profileId，取消返回 null。
 class AssistantModelChoicePicker extends StatefulWidget {
   const AssistantModelChoicePicker({
     super.key,
     required this.choices,
+    this.title = '选择模型',
     this.selectedProfileId,
     this.followDefaultLabel,
   });
 
   final List<({ProviderConfig provider, ProviderModel model})> choices;
+  final String title;
   final String? selectedProfileId;
 
-  /// 传入后在弹层底部提供“跟随默认模型”动作。
+  /// 提供后可选“跟随默认模型”，该选项返回空字符串。
   final String? followDefaultLabel;
 
   @override
@@ -39,76 +43,62 @@ class _AssistantModelChoicePickerState
       if (!matches) continue;
       groups.putIfAbsent(choice.provider.providerId, () => []).add(choice);
     }
-    return AlertDialog(
-      title: const Text('选择模型'),
-      content: SizedBox(
-        width: 440,
-        height: MediaQuery.sizeOf(context).height * .5,
-        child: Column(
-          children: [
-            TextField(
-              decoration: const InputDecoration(
-                labelText: '搜索服务或模型',
-                prefixIcon: Icon(Icons.search_rounded),
-              ),
-              onChanged: (value) => setState(() => _query = value.trim()),
+    return _ModelPickerDialog(
+      title: widget.title,
+      searchLabel: '搜索服务或模型',
+      onSearch: (value) => setState(() => _query = value.trim()),
+      slivers: [
+        if (widget.followDefaultLabel != null && normalized.isEmpty)
+          SliverToBoxAdapter(
+            child: _ModelChoiceRow(
+              title: widget.followDefaultLabel!,
+              selected: widget.selectedProfileId == null,
+              onTap: () => Navigator.of(context).pop(''),
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: groups.isEmpty
-                  ? const Center(child: Text('没有可用模型'))
-                  : ListView(
-                      children: [
-                        for (final entry in groups.entries) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8, bottom: 4),
-                            child: Text(
-                              entry.value.first.provider.displayName,
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
-                          ),
-                          for (final choice in entry.value)
-                            ListTile(
-                              dense: true,
-                              title: Text(choice.model.label),
-                              subtitle: Text(
-                                '${choice.model.modelId} · ${choice.model.contextWindowTokens} 上下文',
-                              ),
-                              selected:
-                                  choice.model.profileId ==
-                                  widget.selectedProfileId,
-                              trailing:
-                                  choice.model.profileId ==
-                                      widget.selectedProfileId
-                                  ? const Icon(Icons.check)
-                                  : null,
-                              onTap: () => Navigator.of(
-                                context,
-                              ).pop(choice.model.profileId),
-                            ),
-                        ],
-                      ],
-                    ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        if (widget.followDefaultLabel != null)
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(''),
-            child: Text(widget.followDefaultLabel!),
           ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
+        if (groups.isEmpty)
+          _emptyModels(widget.choices.isEmpty ? '暂无可用模型' : '没有匹配的模型'),
+        for (final group in groups.values) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppLayout.spaceLg,
+                AppLayout.spaceLg,
+                AppLayout.spaceLg,
+                AppLayout.spaceXs,
+              ),
+              child: Semantics(
+                header: true,
+                child: Text(
+                  group.first.provider.displayName,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SliverList.builder(
+            itemCount: group.length,
+            itemBuilder: (context, index) {
+              final choice = group[index];
+              return _ModelChoiceRow(
+                title: choice.model.label,
+                subtitle: choice.model.label == choice.model.modelId
+                    ? null
+                    : choice.model.modelId,
+                selected: choice.model.profileId == widget.selectedProfileId,
+                onTap: () => Navigator.of(context).pop(choice.model.profileId),
+              );
+            },
+          ),
+        ],
       ],
     );
   }
 }
 
-/// 在服务返回的真实模型列表中搜索并选择一个编号。
+/// 在服务实际返回的模型列表中搜索并选择编号。
 class AssistantModelPicker extends StatefulWidget {
   const AssistantModelPicker({
     super.key,
@@ -130,48 +120,138 @@ class _AssistantModelPickerState extends State<AssistantModelPicker> {
     final models = widget.models
         .where((model) => model.toLowerCase().contains(_query.toLowerCase()))
         .toList();
-    return AlertDialog(
-      title: const Text('选择模型'),
-      content: SizedBox(
-        width: 440,
-        height: MediaQuery.sizeOf(context).height * .45,
-        child: Column(
-          children: [
-            TextField(
-              decoration: const InputDecoration(
-                labelText: '搜索模型',
-                prefixIcon: Icon(Icons.search_rounded),
-              ),
-              onChanged: (value) => setState(() => _query = value.trim()),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: models.isEmpty
-                  ? const Center(child: Text('没有匹配的模型'))
-                  : ListView.builder(
-                      itemCount: models.length,
-                      itemBuilder: (context, index) {
-                        final model = models[index];
-                        return ListTile(
-                          title: Text(model),
-                          selected: model == widget.selected,
-                          trailing: model == widget.selected
-                              ? const Icon(Icons.check)
-                              : null,
-                          onTap: () => Navigator.of(context).pop(model),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+    return _ModelPickerDialog(
+      title: '添加模型',
+      searchLabel: '搜索模型',
+      onSearch: (value) => setState(() => _query = value.trim()),
+      slivers: [
+        if (models.isEmpty)
+          _emptyModels(widget.models.isEmpty ? '服务未返回模型' : '没有匹配的模型'),
+        SliverList.builder(
+          itemCount: models.length,
+          itemBuilder: (context, index) {
+            final model = models[index];
+            return _ModelChoiceRow(
+              title: model,
+              selected: model == widget.selected,
+              onTap: () => Navigator.of(context).pop(model),
+            );
+          },
         ),
       ],
     );
   }
 }
+
+/// 搜索与列表共用可滚动视口，键盘或短横屏压缩高度时仍可操作。
+class _ModelPickerDialog extends StatelessWidget {
+  const _ModelPickerDialog({
+    required this.title,
+    required this.searchLabel,
+    required this.onSearch,
+    required this.slivers,
+  });
+
+  final String title;
+  final String searchLabel;
+  final ValueChanged<String> onSearch;
+  final List<Widget> slivers;
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    insetPadding: const EdgeInsets.all(AppLayout.spaceLg),
+    backgroundColor: AppColors.card,
+    clipBehavior: Clip.antiAlias,
+    constraints: const BoxConstraints(maxWidth: 560, maxHeight: 560),
+    child: CustomScrollView(
+      shrinkWrap: true,
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(AppLayout.spaceLg),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: '取消',
+                      constraints: const BoxConstraints.tightFor(
+                        width: AppLayout.touchTargetMin,
+                        height: AppLayout.touchTargetMin,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppLayout.spaceSm),
+                TextField(
+                  decoration: InputDecoration(
+                    labelText: searchLabel,
+                    prefixIcon: const Icon(Icons.search_rounded),
+                  ),
+                  onChanged: onSearch,
+                ),
+              ],
+            ),
+          ),
+        ),
+        ...slivers,
+        const SliverToBoxAdapter(child: SizedBox(height: AppLayout.spaceSm)),
+      ],
+    ),
+  );
+}
+
+class _ModelChoiceRow extends StatelessWidget {
+  const _ModelChoiceRow({
+    required this.title,
+    required this.selected,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  final String title;
+  final String? subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: AppLayout.spaceSm),
+    child: ListTile(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+      ),
+      minTileHeight: AppLayout.touchTargetMin,
+      selected: selected,
+      selectedTileColor: AppColors.primarySoft,
+      title: Tooltip(
+        message: title,
+        excludeFromSemantics: true,
+        child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+      ),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: selected
+          ? const Icon(Icons.check_rounded, size: AppLayout.iconSm)
+          : null,
+      onTap: onTap,
+    ),
+  );
+}
+
+Widget _emptyModels(String message) => SliverToBoxAdapter(
+  child: Padding(
+    padding: const EdgeInsets.all(AppLayout.spaceXxl),
+    child: Text(message, textAlign: TextAlign.center),
+  ),
+);

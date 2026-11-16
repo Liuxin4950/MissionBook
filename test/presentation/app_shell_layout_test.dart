@@ -5,11 +5,13 @@ import 'package:drift/native.dart';
 import 'package:mission_book/app_shell.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/application/settings/motion_settings.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
+import 'package:mission_book/presentation/widgets/motion_settings_scope.dart';
 import '../support/me_fakes.dart';
 
 void main() {
@@ -28,7 +30,11 @@ void main() {
     await database.close();
   });
 
-  Future<void> open(WidgetTester tester, {required double width}) async {
+  Future<void> open(
+    WidgetTester tester, {
+    required double width,
+    MotionSettings? motion,
+  }) async {
     tester.view.physicalSize = Size(width, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -39,6 +45,9 @@ void main() {
         locale: const Locale('zh', 'CN'),
         supportedLocales: const [Locale('zh', 'CN')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        builder: (_, child) => motion == null
+            ? child!
+            : MotionSettingsHost(settings: motion, child: child!),
         home: AppShell(
           missionService: missions,
           goalService: goals,
@@ -48,6 +57,45 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+  }
+
+  for (final width in [390.0, 768.0, 1280.0]) {
+    testWidgets('导航选中底色移动并在减少动效时立即到位 $width', (tester) async {
+      final motion = MotionSettings(
+        read: () async => null,
+        write: (_) async {},
+      );
+      addTearDown(motion.dispose);
+      await open(tester, width: width, motion: motion);
+      final surface = find.byKey(const Key('navigation-selection-surface'));
+      final initial = tester.getCenter(surface);
+      await tester.tap(find.byTooltip('我的'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      final during = tester.getCenter(surface);
+      await tester.pumpAndSettle();
+      final end = tester.getCenter(surface);
+      final vertical = width >= 600;
+      expect(
+        vertical ? during.dy : during.dx,
+        inExclusiveRange(
+          vertical ? initial.dy : initial.dx,
+          vertical ? end.dy : end.dx,
+        ),
+      );
+      for (final label in ['目标', '历史', '今天']) {
+        await tester.tap(find.byTooltip(label));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await motion.select(MotionPreference.reduced);
+      await tester.pump();
+      final destination = tester.getCenter(find.byTooltip('今天'));
+      expect(tester.getCenter(surface).dx, closeTo(destination.dx, .1));
+      expect(tester.getCenter(surface).dy, closeTo(destination.dy, .1));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
   }
 
   testWidgets('390 手机宽度用底部胶囊导航，不出现侧栏', (tester) async {

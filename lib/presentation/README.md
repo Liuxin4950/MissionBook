@@ -37,11 +37,14 @@
 | 添加和编辑节点 | [goals/outline/goal_node_editor.dart](goals/outline/goal_node_editor.dart) | 原位底部填写框，固定创建请求、失败重试和草稿保护 |
 | 浏览已结束与已取消任务 | [missions/history/mission_history_page.dart](missions/history/mission_history_page.dart) | 查询历史列表，打开对应记录或详情 |
 | 我的：系统权限、本地备份、关于 | [me/me_page.dart](me/me_page.dart) | 查询设备能力，发起正式备份，展示保存反馈和安装版本 |
-| 助手主页面、对话、快捷本地查询与输入 | [assistant/assistant_page.dart](assistant/assistant_page.dart) | 读取控制器快照，组合会话、提案/回执与输入；已接入主导航 |
-| 助手可编辑操作卡片与只读查询结果 | [assistant/assistant_operation_card.dart](assistant/assistant_operation_card.dart) | 按真实工具状态显示确认、取消、失败、未知结果和对象入口 |
-| 助手会话历史 | [assistant/assistant_history_page.dart](assistant/assistant_history_page.dart) | 切换、改名、删除会话 |
-| 助手模型、凭据与操作权限 | [assistant/assistant_settings_page.dart](assistant/assistant_settings_page.dart) | 安全存储凭据、选择 DeepSeek 协议、连接测试与自动执行开关；设备验收单独记录 |
-| 任务/目标内问助手与对象跳转 | [assistant/assistant_scope.dart](assistant/assistant_scope.dart) | 提供控制器，复用 DetailPane 打开助手和真实任务/目标；已装配 |
+| 动效强度、页面切换与预览 | [me/settings_page.dart](me/settings_page.dart)、[me/motion_style_sheet.dart](me/motion_style_sheet.dart) | 保存本机偏好，提供七种风格及真实导航预览，主导航与快捷菜单共用全局动效节奏 |
+| 助手主页面、对话、快捷本地查询与输入 | [assistant/chat/assistant_page.dart](assistant/chat/assistant_page.dart) | 读取控制器快照，组合会话、提案/回执与输入；已接入主导航 |
+| 助手可编辑操作卡片与只读查询结果 | [assistant/operations/assistant_operation_card.dart](assistant/operations/assistant_operation_card.dart) | 按真实工具状态显示确认、取消、失败、未知结果和对象入口 |
+| 助手会话历史 | [assistant/history/assistant_history_page.dart](assistant/history/assistant_history_page.dart) | 切换、改名、删除会话 |
+| 助手模型、凭据与操作权限 | [assistant/settings/assistant_settings_page.dart](assistant/settings/assistant_settings_page.dart) | 角色与权限草稿、模型和语音入口；共用自适应设置表单 |
+| 助手服务与模型目录 | [assistant/settings/assistant_model_settings_page.dart](assistant/settings/assistant_model_settings_page.dart)、[assistant/settings/assistant_provider_edit_page.dart](assistant/settings/assistant_provider_edit_page.dart) | 实际面板宽度与字号决定分栏，服务草稿统一保存 |
+| 模型选择与搜索 | [assistant/settings/assistant_model_picker.dart](assistant/settings/assistant_model_picker.dart) | 受可用高度约束的滚动弹窗，保留当前选中值 |
+| 任务/目标内问助手与对象跳转 | [assistant/entry/assistant_scope.dart](assistant/entry/assistant_scope.dart) | 提供控制器，复用 DetailPane 打开助手和真实任务/目标；已装配 |
 
 `form` 是“表单”：创建、修改和重试新建共同使用，因此没有只叫 `create`。
 `detail` 是详情，`execution` 是执行，`record` 是一条记录，`history` 是历史列表。

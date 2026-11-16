@@ -30,6 +30,7 @@ class AppSegmentedControl<T> extends StatelessWidget {
             if (options.keys.contains(selected))
               Positioned.fill(
                 child: AnimatedAlign(
+                  key: ValueKey(MediaQuery.disableAnimationsOf(context)),
                   alignment: Alignment(
                     options.length <= 1
                         ? 0

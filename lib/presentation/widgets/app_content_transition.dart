@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_motion.dart';
+import '../../core/theme/app_page_motion.dart';
+import '../../application/settings/motion_settings.dart';
+import 'motion_settings_scope.dart';
 
 /// 内容身份变化时短暂进入，保留子树 State；连续切换以最后一次内容为准。
 class AppContentTransition extends StatefulWidget {
@@ -19,6 +22,7 @@ class AppContentTransition extends StatefulWidget {
 class _AppContentTransitionState extends State<AppContentTransition>
     with SingleTickerProviderStateMixin {
   late final _controller = AnimationController(vsync: this, value: 1);
+  double _direction = 1;
 
   @override
   void didChangeDependencies() {
@@ -32,6 +36,9 @@ class _AppContentTransitionState extends State<AppContentTransition>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.identity != widget.identity &&
         _controller.duration != Duration.zero) {
+      if ((oldWidget.identity, widget.identity) case (int before, int after)) {
+        _direction = after < before ? -1 : 1;
+      }
       _controller.forward(from: 0);
     }
   }
@@ -43,8 +50,16 @@ class _AppContentTransitionState extends State<AppContentTransition>
   }
 
   @override
-  Widget build(BuildContext context) => FadeTransition(
-    opacity: _controller.drive(CurveTween(curve: AppMotion.curve)),
-    child: widget.child,
+  Widget build(BuildContext context) => ClipRect(
+    child: AppPageMotion(
+      style:
+          MotionSettingsScope.maybeOf(context)?.settings.pageStyle ??
+          PageMotionStyle.fade,
+      animation: _controller,
+      horizontalDirection:
+          _direction *
+          (Directionality.of(context) == TextDirection.rtl ? -1 : 1),
+      child: widget.child,
+    ),
   );
 }

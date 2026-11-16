@@ -118,10 +118,7 @@ class _CredentialBanner extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              '配置模型后可创建、修改和安排任务；本地快捷查询仍可使用',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            child: Text('未配置模型', style: Theme.of(context).textTheme.bodyMedium),
           ),
           TextButton(onPressed: onPressed, child: const Text('配置模型')),
         ],

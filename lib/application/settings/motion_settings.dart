@@ -3,7 +3,8 @@ import 'dart:convert';
 
 enum MotionPreference { system, full, reduced }
 
-enum PageMotionStyle { platform, fade, slide }
+/// 本机页面切换风格，自定义风格也用于主导航内容进入。
+enum PageMotionStyle { platform, fade, slide, zoom, lift, push, fadeThrough }
 
 /// 本机动效选择；保存成功后才通知页面，不改变操作系统的辅助功能设置。
 class MotionSettings extends ChangeNotifier {

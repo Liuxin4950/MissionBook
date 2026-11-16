@@ -92,17 +92,21 @@ class _MotionPreferencesSheetState extends State<MotionPreferencesSheet> {
         ),
         options: [
           for (final preference in MotionPreference.values)
-            ListTile(
+            MotionSettingsOption(
               key: ValueKey('motion-option-${preference.name}'),
-              title: Text(MotionPreferencesSheet.label(preference)),
+              label: MotionPreferencesSheet.label(preference),
+              icon: switch (preference) {
+                MotionPreference.system => Icons.settings_suggest_outlined,
+                MotionPreference.full => Icons.animation_outlined,
+                MotionPreference.reduced => Icons.motion_photos_off_outlined,
+              },
               selected: widget.settings.preference == preference,
-              trailing: widget.settings.preference == preference
-                  ? const Icon(Icons.check)
-                  : null,
               enabled: !widget.settings.saving,
               onTap: () async {
                 await widget.settings.select(preference);
-                if (mounted) setState(() => _selected = 1 - _selected);
+                if (mounted && widget.settings.error == null) {
+                  setState(() => _selected = 1 - _selected);
+                }
               },
             ),
         ],

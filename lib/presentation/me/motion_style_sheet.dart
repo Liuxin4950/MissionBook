@@ -14,6 +14,20 @@ class MotionStyleSheet extends StatefulWidget {
     PageMotionStyle.platform => '跟随平台',
     PageMotionStyle.fade => '淡入',
     PageMotionStyle.slide => '轻滑动',
+    PageMotionStyle.zoom => '柔和缩放',
+    PageMotionStyle.lift => '上移进入',
+    PageMotionStyle.push => '横向推入',
+    PageMotionStyle.fadeThrough => '淡出穿入',
+  };
+
+  static IconData icon(PageMotionStyle style) => switch (style) {
+    PageMotionStyle.platform => Icons.devices_outlined,
+    PageMotionStyle.fade => Icons.gradient_outlined,
+    PageMotionStyle.slide => Icons.swipe_outlined,
+    PageMotionStyle.zoom => Icons.zoom_out_map_rounded,
+    PageMotionStyle.lift => Icons.vertical_align_top_rounded,
+    PageMotionStyle.push => Icons.view_carousel_outlined,
+    PageMotionStyle.fadeThrough => Icons.layers_outlined,
   };
 
   @override
@@ -101,6 +115,7 @@ class _MotionStyleSheetState extends State<MotionStyleSheet> {
       title: '页面切换',
       onReplay: _play,
       replayKey: const Key('page-motion-replay'),
+      maxOptionColumns: 2,
       preview: SizedBox(
         height: 120 + MediaQuery.textScalerOf(context).scale(14),
         child: Navigator(
@@ -112,13 +127,11 @@ class _MotionStyleSheetState extends State<MotionStyleSheet> {
       ),
       options: [
         for (final style in PageMotionStyle.values)
-          ListTile(
+          MotionSettingsOption(
             key: ValueKey('page-style-${style.name}'),
-            title: Text(MotionStyleSheet.label(style)),
+            label: MotionStyleSheet.label(style),
+            icon: MotionStyleSheet.icon(style),
             selected: widget.settings.pageStyle == style,
-            trailing: widget.settings.pageStyle == style
-                ? const Icon(Icons.check)
-                : null,
             enabled: !widget.settings.saving,
             onTap: () async {
               await widget.settings.selectPageStyle(style);

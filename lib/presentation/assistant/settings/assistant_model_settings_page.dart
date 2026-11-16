@@ -5,6 +5,9 @@ import '../../../application/assistant/assistant_controller.dart';
 import '../../../application/errors/user_error_message.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/theme/app_motion.dart';
+import '../../widgets/adaptive_columns.dart';
+import '../../widgets/app_expansion.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/app_settings_row.dart';
 import '../../widgets/app_top_bar.dart';
@@ -95,12 +98,15 @@ class _ModelOverviewState extends State<_ModelOverview> {
         : null;
 
     return Scaffold(
-      appBar: AppTopBar(title: 'AI 模型'),
+      appBar: AppTopBar(
+        title: 'AI 模型',
+        maxContentWidth: AppLayout.formMaxWidth,
+      ),
       body: SafeArea(
         top: false,
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
+            constraints: const BoxConstraints(maxWidth: AppLayout.formMaxWidth),
             child: ListView(
               padding: AppLayout.pagePadding(context),
               children: [
@@ -124,97 +130,112 @@ class _ModelOverviewState extends State<_ModelOverview> {
                   ),
                   const SizedBox(height: AppLayout.spaceLg),
                 ],
-                AppSectionCard(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    children: [
-                      AppSettingsRow(
-                        key: const Key('assistant-default-model'),
-                        icon: Icons.star_outline,
-                        title: '默认模型',
-                        subtitle:
-                            '${_describe(defaultModel, catalog.providerForProfile(defaultModel?.profileId ?? ''))} · 只影响新会话',
-                        enabled: !_busy,
-                        onTap: _chooseDefault,
-                      ),
-                      const Divider(height: 1),
-                      AppSettingsRow(
-                        key: const Key('assistant-summary-model'),
-                        icon: Icons.summarize_outlined,
-                        title: '摘要模型',
-                        subtitle: _describe(
-                          summaryModel,
-                          catalog.providerForProfile(
-                            summaryModel?.profileId ?? '',
-                          ),
-                        ),
-                        enabled: !_busy,
-                        onTap: _chooseSummary,
-                      ),
-                      if (sessionOpen) ...[
-                        const Divider(height: 1),
-                        AppSettingsRow(
-                          key: const Key('assistant-session-model'),
-                          icon: Icons.chat_bubble_outline,
-                          title: '当前会话模型',
-                          subtitle: _describe(
-                            sessionModel,
-                            catalog.providerForProfile(
-                              sessionModel?.profileId ?? '',
+                AdaptiveColumns(
+                  minColumnWidth: AppLayout.paneLeftMin,
+                  maxColumns: 2,
+                  children: [
+                    AppSectionCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          AppSettingsRow(
+                            key: const Key('assistant-default-model'),
+                            icon: Icons.star_outline,
+                            title: '新会话默认模型',
+                            subtitle: _describe(
+                              defaultModel,
+                              catalog.providerForProfile(
+                                defaultModel?.profileId ?? '',
+                              ),
                             ),
+                            enabled: !_busy,
+                            onTap: _chooseDefault,
                           ),
-                          enabled: !_busy,
-                          onTap: _chooseSessionModel,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppLayout.spaceLg),
-                AppSectionCard(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    children: [
-                      for (final provider in providers) ...[
-                        AppSettingsRow(
-                          key: Key('assistant-provider-${provider.providerId}'),
-                          icon: Icons.dns_outlined,
-                          title: provider.displayName,
-                          subtitle: [
-                            provider.protocol == ModelProtocol.messages
-                                ? 'Messages'
-                                : 'Chat Completions',
-                            '${catalog.modelsOfProvider(provider.providerId, includeArchived: false).length} 个模型',
-                            provider.requiresCredential ? '需要 Key' : '无需 Key',
-                            if (provider.archived) '已停用',
-                          ].join(' · '),
-                          enabled: !_busy,
-                          onTap: () => _openProvider(provider),
-                        ),
-                        const Divider(height: 1),
-                      ],
-                      AppSettingsRow(
-                        key: const Key('assistant-add-provider'),
-                        icon: Icons.add_rounded,
-                        title: '添加服务',
-                        subtitle: '支持 OpenAI 兼容地址、Messages 协议与无 Key 本机服务',
-                        enabled: !_busy,
-                        onTap: _busy ? null : () => _openProvider(null),
+                          const Divider(height: 1),
+                          AppSettingsRow(
+                            key: const Key('assistant-summary-model'),
+                            icon: Icons.summarize_outlined,
+                            title: '摘要模型',
+                            subtitle:
+                                '${catalog.selection.summaryProfileId == null ? '跟随默认 · ' : ''}${_describe(summaryModel, catalog.providerForProfile(summaryModel?.profileId ?? ''))}',
+                            enabled: !_busy,
+                            onTap: _chooseSummary,
+                          ),
+                          if (sessionOpen) ...[
+                            const Divider(height: 1),
+                            AppSettingsRow(
+                              key: const Key('assistant-session-model'),
+                              icon: Icons.chat_bubble_outline,
+                              title: '当前会话模型',
+                              subtitle: _describe(
+                                sessionModel,
+                                catalog.providerForProfile(
+                                  sessionModel?.profileId ?? '',
+                                ),
+                              ),
+                              enabled: !_busy,
+                              onTap: _chooseSessionModel,
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    AppSectionCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (final provider in providers) ...[
+                            AppSettingsRow(
+                              key: Key(
+                                'assistant-provider-${provider.providerId}',
+                              ),
+                              icon: Icons.dns_outlined,
+                              title: provider.displayName,
+                              subtitle: [
+                                provider.protocol == ModelProtocol.messages
+                                    ? 'Messages'
+                                    : 'Chat Completions',
+                                '${catalog.modelsOfProvider(provider.providerId, includeArchived: false).length} 个模型',
+                                if (provider.requiresCredential &&
+                                    !_controller.providerHasCredential(
+                                      provider.providerId,
+                                    ))
+                                  '未配置 Key',
+                                if (provider.archived) '已停用',
+                              ].join(' · '),
+                              enabled: !_busy,
+                              onTap: () => _openProvider(provider),
+                            ),
+                            const Divider(height: 1),
+                          ],
+                          AppSettingsRow(
+                            key: const Key('assistant-add-provider'),
+                            icon: Icons.add_rounded,
+                            title: '添加服务',
+                            enabled: !_busy,
+                            onTap: _busy ? null : () => _openProvider(null),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 if (archivedModels.isNotEmpty) ...[
                   const SizedBox(height: AppLayout.spaceLg),
                   AppSectionCard(
                     padding: EdgeInsets.zero,
-                    child: Column(
+                    child: AppExpansionTile(
+                      insetHeader: false,
+                      leading: const Icon(Icons.pause_circle_outline),
+                      title: Text('已停用模型 · ${archivedModels.length}'),
                       children: [
                         for (final model in archivedModels) ...[
                           AppSettingsRow(
                             icon: Icons.pause_circle_outline,
                             title: model.label,
-                            subtitle: '${model.modelId} · 已停用，历史会话仍可查看',
+                            subtitle: catalog
+                                .providerForProfile(model.profileId)
+                                ?.displayName,
                             trailing: TextButton(
                               onPressed: _busy
                                   ? null
@@ -282,6 +303,7 @@ class _ModelOverviewState extends State<_ModelOverview> {
 
   Future<void> _chooseDefault() => _pickAndApply(
     title: '新会话默认模型',
+    selectedProfileId: _controller.defaultProfileId,
     onApply: (profileId) => _controller.setDefaultModels(
       main: profileId,
       summary: _controller.providerCatalog.selection.summaryProfileId,
@@ -312,7 +334,9 @@ class _ModelOverviewState extends State<_ModelOverview> {
   }) async {
     final selected = await showDialog<String>(
       context: context,
+      animationStyle: AppMotion.overlayStyle(context),
       builder: (_) => AssistantModelChoicePicker(
+        title: title,
         choices: _choices,
         selectedProfileId: selectedProfileId,
         followDefaultLabel: followDefault ? '跟随默认模型' : null,

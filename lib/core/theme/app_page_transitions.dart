@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../application/settings/motion_settings.dart';
 import 'app_motion.dart';
+import 'app_page_motion.dart';
 
 /// 页面风格统一作用于普通路由和详情栏内的 MaterialPageRoute。
 class AppPageTransitionsBuilder extends PageTransitionsBuilder {
@@ -65,25 +66,14 @@ class AppPageTransitionsBuilder extends PageTransitionsBuilder {
         child: child,
         builder: (context, child) {
           if (route.popGestureInProgress) return child!;
-          final progress = animation.drive(CurveTween(curve: AppMotion.curve));
-          return FadeTransition(
-            opacity: progress,
-            child: style == PageMotionStyle.slide
-                ? SlideTransition(
-                    position: progress.drive(
-                      Tween(
-                        begin: Offset(
-                          Directionality.of(context) == TextDirection.rtl
-                              ? -.06
-                              : .06,
-                          0,
-                        ),
-                        end: Offset.zero,
-                      ),
-                    ),
-                    child: child,
-                  )
-                : child,
+          return AppPageMotion(
+            style: style,
+            animation: animation,
+            secondaryAnimation: secondaryAnimation,
+            horizontalDirection: Directionality.of(context) == TextDirection.rtl
+                ? -1
+                : 1,
+            child: child!,
           );
         },
       ),

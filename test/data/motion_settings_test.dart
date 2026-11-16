@@ -6,6 +6,25 @@ import 'package:mission_book/application/settings/motion_settings.dart';
 import 'package:mission_book/data/settings/motion_settings_store_native.dart';
 
 void main() {
+  for (final style in PageMotionStyle.values) {
+    test('${style.name} 风格保存后重新载入保留选择', () async {
+      String? saved;
+      final settings = MotionSettings(
+        read: () async => saved,
+        write: (value) async => saved = value,
+      );
+      addTearDown(settings.dispose);
+      await settings.selectPageStyle(style);
+      final reopened = MotionSettings(
+        read: () async => saved,
+        write: (_) async {},
+      );
+      addTearDown(reopened.dispose);
+      await reopened.load();
+      expect(reopened.pageStyle, style);
+    });
+  }
+
   test('首次跟随系统，保存后重新装载保留本机选择', () async {
     final directory = await Directory.systemTemp.createTemp('mission-motion-');
     addTearDown(() => directory.delete(recursive: true));

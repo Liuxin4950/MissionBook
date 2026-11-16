@@ -16,6 +16,7 @@ import '../shared/assistant_avatar.dart';
 import 'assistant_scope.dart';
 import '../settings/assistant_settings_page.dart';
 import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_motion.dart';
 
 /// 业务页面仅提供身份；助手状态、识别和操作不归业务页面持有。
 class AssistantEntryScope extends InheritedWidget {
@@ -101,7 +102,8 @@ class AssistantLauncher extends StatefulWidget {
   State<AssistantLauncher> createState() => AssistantLauncherState();
 }
 
-class AssistantLauncherState extends State<AssistantLauncher> {
+class AssistantLauncherState extends State<AssistantLauncher>
+    with SingleTickerProviderStateMixin {
   String? _selectedNodeId;
 
   void openNodeMenu(String id) {
@@ -167,9 +169,10 @@ class AssistantLauncherState extends State<AssistantLauncher> {
     }
   }
 
-  final _link = LayerLink();
   final _target = GlobalKey();
   final _portal = OverlayPortalController();
+  late final _menuAnimation = AnimationController(vsync: this)
+    ..addStatusListener(_menuStatusChanged);
   bool _menu = false;
   bool _bubble = false;
   bool _opening = false;
@@ -183,6 +186,11 @@ class AssistantLauncherState extends State<AssistantLauncher> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _menuAnimation.duration = AppMotion.resolve(context, AppMotion.standard);
+    _menuAnimation.reverseDuration = AppMotion.resolve(context, AppMotion.exit);
+    if (_menuAnimation.duration == Duration.zero) {
+      _menuAnimation.value = _menu ? 1 : 0;
+    }
     final scope = AssistantScope.of(context);
     if (_scope?.controller != scope.controller) {
       _scope?.controller.removeListener(_changed);
@@ -233,11 +241,20 @@ class AssistantLauncherState extends State<AssistantLauncher> {
       unawaited(_closeBubble());
       return;
     }
+    if (_menu) {
+      _hide();
+      return;
+    }
     setState(() {
       _menu = true;
       _hover = null;
     });
     _portal.show();
+    if (_menuAnimation.duration == Duration.zero) {
+      _menuAnimation.value = 1;
+    } else {
+      _menuAnimation.forward();
+    }
   }
 
   void _hide() {
@@ -247,7 +264,21 @@ class AssistantLauncherState extends State<AssistantLauncher> {
       _hover = null;
       _selectedNodeId = null;
     });
-    _portal.hide();
+    if (_menuAnimation.reverseDuration == Duration.zero) {
+      _menuAnimation.value = 0;
+    } else {
+      unawaited(_menuAnimation.reverse());
+    }
+    if (_menuAnimation.isDismissed && _portal.isShowing) _portal.hide();
+  }
+
+  void _menuStatusChanged(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed &&
+        !_menu &&
+        !_bubble &&
+        _portal.isShowing) {
+      _portal.hide();
+    }
   }
 
   Rect _safeBounds(BuildContext context) {
@@ -264,19 +295,25 @@ class AssistantLauncherState extends State<AssistantLauncher> {
 
   Rect _anchor() {
     final box = _target.currentContext?.findRenderObject() as RenderBox?;
-    return (box?.localToGlobal(Offset.zero) ?? Offset.zero) &
-        (box?.size ?? const Size(56, 56));
+    if (box == null || !box.attached || !box.hasSize) {
+      return Offset.zero & const Size(56, 56);
+    }
+    return box.localToGlobal(Offset.zero) & box.size;
   }
 
-  List<Rect> _choices(BuildContext context) {
-    final anchor = _anchor();
+  List<Rect> _choices(BuildContext context, Rect anchor) {
     final bounds = _safeBounds(context);
     final rail = widget.navigationRailWidth;
-    const choiceSize = 56.0;
+    final choiceSize = math.max(
+      56.0,
+      MediaQuery.textScalerOf(context).scale(12) * 1.4 +
+          AppLayout.iconMd +
+          AppLayout.spaceSm * 2,
+    );
     const choiceGap = 32.0;
     const anchorGap = AppLayout.spaceXxl;
     const choiceCount = 2;
-    final columns = choiceCount;
+    final columns = bounds.width >= choiceSize * 2 + choiceGap ? 2 : 1;
     final rows = (choiceCount / columns).ceil();
     final groupWidth = choiceSize * columns + choiceGap * (columns - 1);
     final groupHeight = choiceSize * rows + choiceGap * (rows - 1);
@@ -307,9 +344,11 @@ class AssistantLauncherState extends State<AssistantLauncher> {
 
   void _move(Offset position) {
     int? selected;
-    final choices = _choices(context);
+    final choices = _choices(context, _anchor());
     for (var index = 0; index < choices.length; index++) {
-      if ((position - choices[index].center).distance <= 36) selected = index;
+      if (choices[index].inflate(AppLayout.spaceSm).contains(position)) {
+        selected = index;
+      }
     }
     if (_hover != selected) setState(() => _hover = selected);
   }
@@ -321,7 +360,6 @@ class AssistantLauncherState extends State<AssistantLauncher> {
       await _prepare();
       _selectedNodeId = null;
       if (!mounted) return;
-      _menu = false;
       _opening = false;
       _bubbleIdentity = _scope!.controller.draftKey;
       _sentMessage = null;
@@ -329,9 +367,11 @@ class AssistantLauncherState extends State<AssistantLauncher> {
         await _expand();
       } else {
         setState(() {
+          _menu = false;
           _bubble = true;
           _recording = true;
         });
+        _menuAnimation.value = 0;
         _portal.show();
         unawaited(_scope!.voice.start());
       }
@@ -441,6 +481,7 @@ class AssistantLauncherState extends State<AssistantLauncher> {
 
   @override
   void dispose() {
+    _menuAnimation.dispose();
     _scope?.controller.removeListener(_changed);
     _scope?.controller.liveActivity.removeListener(_changed);
     _scope?.voice.removeListener(_changed);
@@ -452,48 +493,56 @@ class AssistantLauncherState extends State<AssistantLauncher> {
   Widget build(BuildContext context) {
     final scope = _scope!;
     final controller = scope.controller;
-    return OverlayPortal(
+    return OverlayPortal.overlayChildLayoutBuilder(
       controller: _portal,
-      overlayChildBuilder: (context) {
-        final choices = _choices(context);
+      overlayLocation: OverlayChildLocation.rootOverlay,
+      overlayChildBuilder: (context, layout) {
+        // 布局完成后由 Overlay 提供入口坐标，窗口重排时不读取未布局的 RenderBox。
+        final anchor = MatrixUtils.transformRect(
+          layout.childPaintTransform,
+          Offset.zero & layout.childSize,
+        );
+        final choices = _choices(context, anchor);
         final bounds = _safeBounds(context);
-        final anchor = _anchor();
-        return Stack(
-          children: [
-            if (_menu)
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: _hide,
-                  behavior: HitTestBehavior.opaque,
-                  child: const ColoredBox(color: Colors.transparent),
-                ),
-              ),
-            if (_menu)
-              for (var index = 0; index < choices.length; index++)
-                Positioned.fromRect(
-                  rect: choices[index],
-                  child: _modeBubble(index),
-                ),
-            if (_bubble && controller.draftKey == _bubbleIdentity)
-              Positioned.fill(
-                child: CustomSingleChildLayout(
-                  delegate: _AssistantBubbleLayout(
-                    anchor: anchor,
-                    bounds: bounds,
-                    railWidth: widget.navigationRailWidth,
-                  ),
-                  child: Material(
-                    key: const Key('assistant-voice-bubble'),
-                    elevation: 4,
-                    shadowColor: AppColors.shadow,
-                    color: AppColors.card,
-                    borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
-                    clipBehavior: Clip.antiAlias,
-                    child: _bubbleContent(),
+        return AnimatedBuilder(
+          animation: _menuAnimation,
+          builder: (context, _) => Stack(
+            children: [
+              if (_menu || !_menuAnimation.isDismissed)
+                Positioned.fill(
+                  child: GestureDetector(
+                    onTap: _hide,
+                    behavior: HitTestBehavior.opaque,
+                    child: const ColoredBox(color: Colors.transparent),
                   ),
                 ),
-              ),
-          ],
+              if (_menu || !_menuAnimation.isDismissed)
+                for (var index = 0; index < choices.length; index++)
+                  Positioned.fromRect(
+                    rect: choices[index],
+                    child: _animatedModeBubble(index, choices[index], anchor),
+                  ),
+              if (_bubble && controller.draftKey == _bubbleIdentity)
+                Positioned.fill(
+                  child: CustomSingleChildLayout(
+                    delegate: _AssistantBubbleLayout(
+                      anchor: anchor,
+                      bounds: bounds,
+                      railWidth: widget.navigationRailWidth,
+                    ),
+                    child: Material(
+                      key: const Key('assistant-voice-bubble'),
+                      elevation: 4,
+                      shadowColor: AppColors.shadow,
+                      color: AppColors.card,
+                      borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+                      clipBehavior: Clip.antiAlias,
+                      child: _bubbleContent(),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         );
       },
       child: FocusableActionDetector(
@@ -509,70 +558,100 @@ class AssistantLauncherState extends State<AssistantLauncher> {
             },
           ),
         },
-        child: CompositedTransformTarget(
-          link: _link,
-          child: Semantics(
-            label: 'AI 助手，打开快捷菜单',
-            hint: '长按后滑动可选择文字对话或语音输入',
-            excludeSemantics: true,
-            button: true,
+        child: Semantics(
+          label: 'AI 助手，打开快捷菜单',
+          hint: '长按后滑动可选择文字对话或语音输入',
+          excludeSemantics: true,
+          button: true,
+          expanded: _menu,
+          onTap: _showMenu,
+          child: GestureDetector(
+            key: _target,
             onTap: _showMenu,
-            child: GestureDetector(
-              key: _target,
-              onTap: _showMenu,
-              onLongPressStart: (_) => _showMenu(),
-              onLongPressMoveUpdate: (details) => _move(details.globalPosition),
-              onLongPressEnd: (_) {
-                final choice = _hover;
-                if (choice != null) {
-                  unawaited(_select(choice));
-                }
-              },
-              child: Tooltip(
-                triggerMode: TooltipTriggerMode.manual,
-                message: '长按选择快捷操作',
-                child: Container(
-                  key: const Key('assistant-launcher'),
-                  width: 56,
-                  height: 56,
-                  decoration: const BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: _opening
-                      ? const Padding(
-                          padding: EdgeInsets.all(AppLayout.spaceLg),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.onPrimary,
-                          ),
-                        )
-                      : scope.voice.listening && _recording ||
-                            controller.isRunning
-                      ? Icon(
-                          scope.voice.listening && _recording
-                              ? Icons.mic_rounded
-                              : Icons.auto_awesome,
-                          color: AppColors.onPrimary,
-                          size: AppLayout.iconLg,
-                        )
-                      : LayoutBuilder(
-                          builder: (context, constraints) => Center(
-                            child: AssistantPersonaAvatar(
-                              avatar: controller.persona.avatar,
-                              customAvatarBase64:
-                                  controller.persona.customAvatarBase64,
-                              size:
-                                  controller.persona.avatar ==
-                                      AssistantAvatar.spark
-                                  ? constraints.biggest.shortestSide
-                                  : AppLayout.iconLg,
+            onLongPressStart: (_) => _showMenu(),
+            onLongPressMoveUpdate: (details) => _move(details.globalPosition),
+            onLongPressEnd: (_) {
+              final choice = _hover;
+              if (choice != null) {
+                unawaited(_select(choice));
+              }
+            },
+            child: Tooltip(
+              triggerMode: TooltipTriggerMode.manual,
+              message: '长按选择快捷操作',
+              child: SizedBox(
+                key: const Key('assistant-launcher'),
+                width: 56,
+                height: 56,
+                child: AnimatedScale(
+                  scale: _menu ? .94 : 1,
+                  duration: AppMotion.resolve(context, AppMotion.quick),
+                  curve: AppMotion.curve,
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: _opening
+                        ? const Padding(
+                            padding: EdgeInsets.all(AppLayout.spaceLg),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
                               color: AppColors.onPrimary,
                             ),
+                          )
+                        : scope.voice.listening && _recording ||
+                              controller.isRunning
+                        ? Icon(
+                            scope.voice.listening && _recording
+                                ? Icons.mic_rounded
+                                : Icons.auto_awesome,
+                            color: AppColors.onPrimary,
+                            size: AppLayout.iconLg,
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) => Center(
+                              child: AssistantPersonaAvatar(
+                                avatar: controller.persona.avatar,
+                                customAvatarBase64:
+                                    controller.persona.customAvatarBase64,
+                                size:
+                                    controller.persona.avatar ==
+                                        AssistantAvatar.spark
+                                    ? constraints.biggest.shortestSide
+                                    : AppLayout.iconLg,
+                                color: AppColors.onPrimary,
+                              ),
+                            ),
                           ),
-                        ),
+                  ),
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _animatedModeBubble(int index, Rect target, Rect anchor) {
+    final progress = Interval(
+      index * .12,
+      1,
+      curve: AppMotion.curve,
+    ).transform(_menuAnimation.value);
+    return IgnorePointer(
+      ignoring: !_menu || _opening,
+      child: ExcludeSemantics(
+        excluding: !_menu,
+        child: Opacity(
+          key: ValueKey('assistant-mode-opacity-$index'),
+          opacity: progress,
+          child: Transform.translate(
+            offset: (anchor.center - target.center) * (1 - progress),
+            child: Transform.scale(
+              scale: .72 + .28 * progress,
+              child: _modeBubble(index),
             ),
           ),
         ),
@@ -587,37 +666,54 @@ class AssistantLauncherState extends State<AssistantLauncher> {
       label: label,
       excludeSemantics: true,
       onTap: () => _select(index),
-      child: Material(
-        key: Key('assistant-mode-bubble-$index'),
-        color: _hover == index ? AppColors.primarySoft : AppColors.card,
-        elevation: 4,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: () => _select(index),
-          child: SizedBox(
-            width: 56,
-            height: 56,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  index == 0 ? Icons.keyboard_outlined : Icons.mic_none,
-                  color: AppColors.primary,
-                  size: AppLayout.iconMd,
-                ),
-                Text(
-                  index == 0 ? '文字' : '语音',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: AppColors.primary),
-                ),
-              ],
+      child: AnimatedScale(
+        scale: _hover == index ? 1.06 : 1,
+        duration: AppMotion.resolve(context, AppMotion.quick),
+        curve: AppMotion.curve,
+        child: Material(
+          key: Key('assistant-mode-bubble-$index'),
+          color: _hover == index ? AppColors.primarySoft : AppColors.card,
+          animationDuration: AppMotion.resolve(context, AppMotion.quick),
+          elevation: 4,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onHover: (hovered) => _highlightMode(index, hovered),
+            onFocusChange: (focused) => _highlightMode(index, focused),
+            onTap: () => _select(index),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    index == 0 ? Icons.keyboard_outlined : Icons.mic_none,
+                    color: AppColors.primary,
+                    size: AppLayout.iconMd,
+                  ),
+                  Text(
+                    index == 0 ? '文字' : '语音',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(color: AppColors.primary),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  void _highlightMode(int index, bool highlighted) {
+    if (!_menu || _opening) return;
+    setState(() {
+      if (highlighted) {
+        _hover = index;
+      } else if (_hover == index) {
+        _hover = null;
+      }
+    });
   }
 
   Widget _bubbleContent() {

@@ -180,7 +180,7 @@ class _AssistantPersonaTextPageState extends State<AssistantPersonaTextPage> {
             key: const Key('persona-text-help'),
             tooltip: '写法参考',
             onPressed: _showHelp,
-            icon: const Icon(Icons.error_outline_rounded),
+            icon: const Icon(Icons.help_outline_rounded),
           ),
         ],
       ),

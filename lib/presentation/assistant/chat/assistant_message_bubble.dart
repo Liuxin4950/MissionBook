@@ -60,113 +60,131 @@ class _MessageBubble extends StatelessWidget {
                       ? BorderSide.none
                       : const BorderSide(color: AppColors.hairline),
                 ),
-                child: Stack(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        AppLayout.spaceLg,
-                        firstSlice ? AppLayout.spaceMd : 0,
-                        AppLayout.spaceLg,
-                        lastSlice
-                            ? (isUser
-                                  ? (onShowActions != null
-                                        ? 44
-                                        : AppLayout.spaceMd)
-                                  : (text.isNotEmpty ? 68 : AppLayout.spaceMd))
-                            : AppLayout.spaceSm,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (text.isNotEmpty)
-                            if (!isUser)
-                              AssistantMarkdown(
-                                text: text,
-                                streaming: streaming,
-                                slice: markdownSlice,
-                              )
-                            else
-                              SelectableText(
-                                text,
-                                style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(
-                                      color: colors.onPrimaryContainer,
-                                      height: 1.5,
+                    Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: isUser && onShowActions != null
+                                ? AppLayout.touchTargetMin
+                                : 0,
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              AppLayout.spaceLg,
+                              firstSlice ? AppLayout.spaceMd : 0,
+                              isUser && onShowActions != null
+                                  ? AppLayout.touchTargetMin + AppLayout.spaceSm
+                                  : AppLayout.spaceLg,
+                              lastSlice ? AppLayout.spaceMd : AppLayout.spaceSm,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (text.isNotEmpty)
+                                  if (!isUser)
+                                    AssistantMarkdown(
+                                      text: text,
+                                      streaming: streaming,
+                                      slice: markdownSlice,
+                                    )
+                                  else
+                                    SelectableText(
+                                      text,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            color: colors.onPrimaryContainer,
+                                            height: 1.5,
+                                          ),
                                     ),
-                              ),
-                          for (final block in content)
-                            if (AssistantAttachment.textFile(block)
-                                case final file?)
-                              AppExpansionTile(
-                                insetHeader: false,
-                                headerPadding: const EdgeInsets.symmetric(
-                                  vertical: AppLayout.spaceXs,
-                                ),
-                                childrenPadding: EdgeInsets.zero,
-                                iconColor: isUser
-                                    ? colors.onPrimaryContainer
-                                    : colors.onSurface,
-                                title: Text(
-                                  file.name,
-                                  style: Theme.of(context).textTheme.titleSmall
-                                      ?.copyWith(
+                                for (final block in content)
+                                  if (AssistantAttachment.textFile(block)
+                                      case final file?)
+                                    AppExpansionTile(
+                                      insetHeader: false,
+                                      headerPadding: const EdgeInsets.symmetric(
+                                        vertical: AppLayout.spaceXs,
+                                      ),
+                                      childrenPadding: EdgeInsets.zero,
+                                      iconColor: isUser
+                                          ? colors.onPrimaryContainer
+                                          : colors.onSurface,
+                                      title: Text(
+                                        file.name,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                              color: isUser
+                                                  ? colors.onPrimaryContainer
+                                                  : colors.onSurface,
+                                            ),
+                                      ),
+                                      leading: Icon(
+                                        Icons.description_outlined,
                                         color: isUser
                                             ? colors.onPrimaryContainer
-                                            : colors.onSurface,
+                                            : colors.primary,
                                       ),
-                                ),
-                                leading: Icon(
-                                  Icons.description_outlined,
-                                  color: isUser
-                                      ? colors.onPrimaryContainer
-                                      : colors.primary,
-                                ),
-                                children: [
-                                  SelectableText(
-                                    file.text,
-                                    style: Theme.of(context).textTheme.bodyLarge
-                                        ?.copyWith(
-                                          color: isUser
-                                              ? colors.onPrimaryContainer
-                                              : colors.onSurface,
+                                      children: [
+                                        SelectableText(
+                                          file.text,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyLarge
+                                              ?.copyWith(
+                                                color: isUser
+                                                    ? colors.onPrimaryContainer
+                                                    : colors.onSurface,
+                                              ),
                                         ),
+                                      ],
+                                    ),
+                                for (final block
+                                    in content.whereType<ImageBlock>())
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: AppLayout.spaceSm,
+                                    ),
+                                    child: _MessageImage(block: block),
                                   ),
-                                ],
-                              ),
-                          for (final block in content.whereType<ImageBlock>())
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                top: AppLayout.spaceSm,
-                              ),
-                              child: _MessageImage(block: block),
+                              ],
                             ),
-                        ],
-                      ),
-                    ),
-                    if (isUser && lastSlice && onShowActions != null)
-                      Positioned(
-                        right: 4,
-                        bottom: 2,
-                        child: IconButton(
-                          key: const Key('assistant-user-message-actions'),
-                          tooltip: '消息操作',
-                          visualDensity: VisualDensity.compact,
-                          iconSize: AppLayout.iconSm,
-                          color: colors.onPrimaryContainer,
-                          onPressed: onShowActions,
-                          icon: const Icon(Icons.more_horiz),
+                          ),
                         ),
-                      ),
+                        if (isUser && lastSlice && onShowActions != null)
+                          IconButton(
+                            key: const Key('assistant-user-message-actions'),
+                            tooltip: '消息操作',
+                            constraints: const BoxConstraints.tightFor(
+                              width: AppLayout.touchTargetMin,
+                              height: AppLayout.touchTargetMin,
+                            ),
+                            iconSize: AppLayout.iconSm,
+                            color: colors.onPrimaryContainer,
+                            onPressed: onShowActions,
+                            icon: const Icon(Icons.more_horiz),
+                          ),
+                      ],
+                    ),
                     if (!isUser && text.isNotEmpty && lastSlice)
-                      Positioned(
-                        right: 10,
-                        bottom: 10,
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          right: AppLayout.spaceSm,
+                          bottom: AppLayout.spaceXs,
+                        ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (onShowActions != null) ...[
                               _MessageActionsButton(onPressed: onShowActions!),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: AppLayout.spaceXs),
                             ],
                             _CopyReplyButton(text: text),
                           ],
@@ -188,9 +206,13 @@ class _MessageActionsButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => IconButton.filledTonal(
+  Widget build(BuildContext context) => IconButton(
     key: const Key('assistant-message-actions'),
     tooltip: '消息操作',
+    constraints: const BoxConstraints.tightFor(
+      width: AppLayout.touchTargetMin,
+      height: AppLayout.touchTargetMin,
+    ),
     onPressed: onPressed,
     icon: const Icon(Icons.more_horiz, size: AppLayout.iconSm),
   );
@@ -201,13 +223,13 @@ class _CopyReplyButton extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => IconButton.filledTonal(
+  Widget build(BuildContext context) => IconButton(
     tooltip: '复制回复',
     style: IconButton.styleFrom(
       shape: const CircleBorder(),
-      fixedSize: const Size.square(48),
+      fixedSize: const Size.square(AppLayout.touchTargetMin),
     ),
-    icon: const Icon(Icons.copy_rounded, size: 20),
+    icon: const Icon(Icons.copy_rounded, size: AppLayout.iconMd),
     onPressed: () async {
       var feedback = '已复制回复';
       try {

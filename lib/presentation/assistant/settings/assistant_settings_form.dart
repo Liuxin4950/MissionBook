@@ -83,11 +83,15 @@ class AssistantSettingsForm extends StatefulWidget {
     this.error,
     this.message,
     this.onSave,
+    this.maxContentWidth = AppLayout.maxPageWidth,
+    this.saveLabel = '保存设置',
   });
   final String title;
   final bool changed, busy;
   final String? error, message;
   final VoidCallback? onSave;
+  final double maxContentWidth;
+  final String saveLabel;
   final Widget child;
   @override
   State<AssistantSettingsForm> createState() => _AssistantSettingsFormState();
@@ -121,55 +125,87 @@ class _AssistantSettingsFormState extends State<AssistantSettingsForm> {
     onPopInvokedWithResult: (didPop, _) {
       if (!didPop) unawaited(_back());
     },
-    child: Scaffold(
-      appBar: AppTopBar(
-        title: widget.title,
-        canGoBack: !widget.busy,
-        onBack: _back,
-      ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
-            child: ListView(
-              padding: AppLayout.pagePadding(context),
-              children: [widget.child],
+    child: LayoutBuilder(
+      builder: (context, box) {
+        final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+        final availableHeight =
+            (box.maxHeight -
+                    keyboard -
+                    MediaQuery.paddingOf(context).top -
+                    AppLayout.topBarHeight)
+                .clamp(0.0, double.infinity);
+        return Scaffold(
+          appBar: AppTopBar(
+            title: widget.title,
+            maxContentWidth: widget.maxContentWidth,
+            canGoBack: !widget.busy,
+            onBack: _back,
+          ),
+          body: SafeArea(
+            top: false,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: widget.maxContentWidth),
+                child: ListView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: AppLayout.pagePadding(context),
+                  children: [widget.child],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: PageFooterBar(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (widget.error != null || widget.message != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
-                  child: Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      widget.error ?? widget.message!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: widget.error != null
-                            ? AppColors.error
-                            : AppColors.primary,
-                      ),
+          // 把键盘避让计入底栏，SnackBar 也会停在保存按钮上方。
+          bottomNavigationBar: Padding(
+            padding: EdgeInsets.only(bottom: keyboard),
+            child: SafeArea(
+              top: false,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: availableHeight / 2),
+                child: SingleChildScrollView(
+                  child: PageFooterBar(
+                    maxContentWidth: widget.maxContentWidth,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (widget.error != null || widget.message != null)
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppLayout.spaceSm,
+                            ),
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                widget.error ?? widget.message!,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: widget.error != null
+                                          ? AppColors.error
+                                          : AppColors.primary,
+                                    ),
+                              ),
+                            ),
+                          ),
+                        FilledButton(
+                          key: const Key('assistant-save-settings'),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(
+                              AppLayout.actionMinHeight,
+                            ),
+                          ),
+                          onPressed: widget.busy ? null : widget.onSave,
+                          child: Text(widget.busy ? '正在处理…' : widget.saveLabel),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              FilledButton(
-                key: const Key('assistant-save-settings'),
-                onPressed: widget.busy ? null : widget.onSave,
-                child: Text(widget.busy ? '正在处理…' : '保存设置'),
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     ),
   );
 }

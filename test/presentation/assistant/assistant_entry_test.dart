@@ -19,9 +19,11 @@ import 'package:mission_book/application/assistant/assistant_speech.dart';
 import 'package:mission_book/application/analysis/analysis_service.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/application/settings/motion_settings.dart';
 import 'package:mission_book/application/records/record_service.dart';
 import 'package:mission_book/core/theme/app_layout.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
+import 'package:mission_book/core/theme/colors.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
 import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
@@ -35,10 +37,12 @@ import 'package:mission_book/presentation/assistant/chat/assistant_page.dart';
 import 'package:mission_book/presentation/assistant/shared/assistant_markdown.dart';
 import 'package:mission_book/presentation/assistant/settings/assistant_settings_page.dart';
 import 'package:mission_book/presentation/assistant/settings/assistant_model_settings_page.dart';
+import 'package:mission_book/presentation/assistant/settings/assistant_model_picker.dart';
 import 'package:mission_book/presentation/assistant/settings/assistant_provider_edit_page.dart';
 import 'package:mission_book/presentation/assistant/settings/assistant_speech_settings_page.dart';
 import 'package:mission_book/presentation/records/shared/record_scope.dart';
 import 'package:mission_book/presentation/records/list/records_page.dart';
+import 'package:mission_book/presentation/widgets/motion_settings_scope.dart';
 
 import '../../support/assistant_fakes.dart';
 import '../../support/me_fakes.dart';
@@ -154,6 +158,7 @@ void main() {
   late RecordService records;
   late AnalysisService analysis;
   late String missionId;
+  late MotionSettings motion;
 
   setUp(() async {
     database = AppDatabase(executor: NativeDatabase.memory());
@@ -181,12 +186,14 @@ void main() {
     missionId = (await missions.findAllDetails()).single.mission.id;
     speech = TestSpeech();
     voice = AssistantVoiceController(speech);
+    motion = MotionSettings(read: () async => null, write: (_) async {});
   });
 
   tearDown(() async {
     await assistant.close();
     assistant.dispose();
     voice.dispose();
+    motion.dispose();
     await missions.dispose();
     await goals.dispose();
     await analysis.dispose();
@@ -248,6 +255,21 @@ void main() {
                 textTheme: AppTheme.light.textTheme.apply(
                   fontFamily: 'UiPreview',
                 ),
+                listTileTheme: AppTheme.light.listTileTheme.copyWith(
+                  titleTextStyle: AppTheme.light.listTileTheme.titleTextStyle
+                      ?.copyWith(fontFamily: 'UiPreview'),
+                  subtitleTextStyle: AppTheme
+                      .light
+                      .listTileTheme
+                      .subtitleTextStyle
+                      ?.copyWith(fontFamily: 'UiPreview'),
+                ),
+                dialogTheme: AppTheme.light.dialogTheme.copyWith(
+                  titleTextStyle: AppTheme.light.dialogTheme.titleTextStyle
+                      ?.copyWith(fontFamily: 'UiPreview'),
+                  contentTextStyle: AppTheme.light.dialogTheme.contentTextStyle
+                      ?.copyWith(fontFamily: 'UiPreview'),
+                ),
                 filledButtonTheme: FilledButtonThemeData(
                   style: AppTheme.light.filledButtonTheme.style!.copyWith(
                     textStyle: WidgetStatePropertyAll(
@@ -283,17 +305,20 @@ void main() {
           data: MediaQuery.of(
             context,
           ).copyWith(textScaler: TextScaler.linear(currentTextScale)),
-          child: AssistantScope(
-            controller: assistant,
-            voice: voice,
-            missions: missions,
-            goals: goals,
-            backup: TestBackup(),
-            device: TestAppDevice(),
-            child: RecordScope(
-              service: records,
-              analysis: analysis,
-              child: RepaintBoundary(key: _screen, child: child!),
+          child: MotionSettingsHost(
+            settings: motion,
+            child: AssistantScope(
+              controller: assistant,
+              voice: voice,
+              missions: missions,
+              goals: goals,
+              backup: TestBackup(),
+              device: TestAppDevice(),
+              child: RecordScope(
+                service: records,
+                analysis: analysis,
+                child: RepaintBoundary(key: _screen, child: child!),
+              ),
             ),
           ),
         ),
@@ -544,6 +569,31 @@ void main() {
     }
   });
 
+  assistantTest('助手图标提示显示时缩放窗口可正常重排', (tester) async {
+    await mount(tester, ScriptedModel([]), width: 390);
+    await tester.tap(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文字'));
+    await tester.pumpAndSettle();
+    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    try {
+      await mouse.moveTo(
+        tester.getCenter(find.byKey(const Key('assistant-settings'))),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(find.text('助手设置'), findsOneWidget);
+      for (final width in [1440.0, 768.0, 320.0]) {
+        tester.view.physicalSize = Size(width, 900);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      }
+    } finally {
+      await mouse.removePointer();
+    }
+  });
+
   assistantTest('语音单独校验保存，试用识别不改聊天草稿也不创建会话', (tester) async {
     final store = MemoryAssistantSettingsStore()
       ..persona = const AssistantPersona(name: '保留角色');
@@ -750,7 +800,7 @@ void main() {
           data: MediaQuery.of(
             context,
           ).copyWith(textScaler: const TextScaler.linear(2)),
-          child: child!,
+          child: RepaintBoundary(key: _screen, child: child!),
         ),
         home: AssistantSettingsPage(controller: assistant),
       ),
@@ -799,6 +849,7 @@ void main() {
       await tester.tap(find.byKey(const Key('persona-text-done')));
       await tester.pumpAndSettle();
     }
+    await capture(tester, 'persona-before-save');
     await tester.tap(find.byKey(const Key('assistant-save-settings')));
     await pumpUntil(tester, () => assistant.persona.customRole != null);
     expect(assistant.persona.customRole, '协助我修改小说，保留我的原意。');
@@ -903,7 +954,7 @@ void main() {
         '小书',
       );
       await tester.pump();
-      expect(find.text('小书\n效率助理 · 简洁直接'), findsOneWidget);
+      expect(find.text('小书 · 效率助理 · 简洁直接'), findsOneWidget);
       FocusManager.instance.primaryFocus?.unfocus();
       final choice = find.byKey(const Key('assistant-avatar-book'));
       await Scrollable.ensureVisible(tester.element(choice), alignment: 0.5);
@@ -1007,6 +1058,7 @@ void main() {
           label: 'AI 助手，打开快捷菜单',
           hint: '长按后滑动可选择文字对话或语音输入',
           isButton: true,
+          hasExpandedState: true,
           isFocusable: true,
           hasTapAction: true,
           hasFocusAction: true,
@@ -1014,6 +1066,10 @@ void main() {
       );
       await tester.longPress(find.byKey(const Key('assistant-launcher')));
       await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(find.byKey(const Key('assistant-launcher'))).label,
+        'AI 助手，打开快捷菜单',
+      );
       expect(find.text('浮窗'), findsNothing);
       final launcher = tester.getRect(
         find.byKey(const Key('assistant-launcher')),
@@ -1043,6 +1099,126 @@ void main() {
       handle.dispose();
     }
   });
+
+  assistantTest('快捷按钮展开收起有中间帧，连续操作与减少动效可立即收敛', (tester) async {
+    await mount(tester, ScriptedModel([]));
+    final launcher = find.byKey(const Key('assistant-launcher'));
+    double opacity() => tester
+        .widget<Opacity>(find.byKey(const ValueKey('assistant-mode-opacity-0')))
+        .opacity;
+    await tester.tap(launcher);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(opacity(), inExclusiveRange(0, 1));
+    final beforeReverse = opacity();
+    final state = tester.state<AssistantLauncherState>(
+      find.byType(AssistantLauncher),
+    );
+    state.resetContext();
+    await tester.pump();
+    expect(opacity(), closeTo(beforeReverse, .001));
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(opacity(), lessThan(beforeReverse));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('assistant-mode-bubble-0')), findsNothing);
+    await tester.tap(launcher);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+    await motion.select(MotionPreference.reduced);
+    await tester.pump();
+    expect(opacity(), 1);
+    state.resetContext();
+    await tester.pump();
+    expect(find.byKey(const Key('assistant-mode-bubble-0')), findsNothing);
+    await tester.tap(launcher);
+    await tester.pump();
+    expect(opacity(), 1);
+    await tester.tap(find.text('文字'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AssistantPage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  assistantTest('快捷菜单退出期间连续关闭与跨导航形态缩放可完成', (tester) async {
+    await mount(tester, ScriptedModel([]), shell: true);
+    await tester.tap(find.byKey(const Key('assistant-launcher')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    final launcher = tester.state<AssistantLauncherState>(
+      find.byType(AssistantLauncher),
+    );
+    launcher.resetContext();
+    launcher.resetContext();
+    tester.view.physicalSize = const Size(1440, 900);
+    await tester.pump();
+    await motion.select(MotionPreference.reduced);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('assistant-mode-bubble-0')), findsNothing);
+    await tester.tap(find.byKey(const Key('assistant-launcher')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('assistant-mode-bubble-0')), findsOneWidget);
+    for (final size in [const Size(768, 1024), const Size(320, 640)]) {
+      tester.view.physicalSize = size;
+      await tester.pumpAndSettle();
+      final bubble = tester.getRect(
+        find.byKey(const Key('assistant-mode-bubble-0')),
+      );
+      expect(bubble.left, greaterThanOrEqualTo(12));
+      expect(bubble.top, greaterThanOrEqualTo(12));
+      expect(bubble.right, lessThanOrEqualTo(size.width - 12));
+      expect(bubble.bottom, lessThanOrEqualTo(size.height - 12));
+    }
+    launcher.resetContext();
+    launcher.resetContext();
+    tester.view.physicalSize = const Size(320, 640);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('assistant-mode-bubble-0')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final (size, scale) in [
+    (const Size(320, 640), 2.0),
+    (const Size(844, 390), 1.3),
+    (const Size(1440, 900), 1.0),
+  ]) {
+    assistantTest('快捷按钮适配字号并支持滑动激活 $size $scale', (tester) async {
+      await mount(
+        tester,
+        ScriptedModel([]),
+        width: size.width,
+        height: size.height,
+        textScale: scale,
+        shell: true,
+      );
+      await tester.ensureVisible(find.byKey(const Key('assistant-launcher')));
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('assistant-launcher'))),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+      for (var index = 0; index < 2; index++) {
+        final rect = tester.getRect(
+          find.byKey(Key('assistant-mode-bubble-$index')),
+        );
+        expect(rect.left, greaterThanOrEqualTo(12));
+        expect(rect.top, greaterThanOrEqualTo(12));
+        expect(rect.right, lessThanOrEqualTo(size.width - 12));
+        expect(rect.bottom, lessThanOrEqualTo(size.height - 12));
+        expect(rect.height, greaterThanOrEqualTo(56));
+      }
+      final target = find.byKey(const Key('assistant-mode-bubble-0'));
+      await gesture.moveTo(tester.getCenter(target));
+      await tester.pumpAndSettle();
+      final surface = tester.widget<Material>(target);
+      expect(surface.color, AppColors.primarySoft);
+      await capture(tester, 'launcher-motion-${size.width.toInt()}-$scale');
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(AssistantPage), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   assistantTest('已打开聊天接收截图立即显示并复用当前路由和文字草稿', (tester) async {
     await mount(tester, ScriptedModel([]));
@@ -1858,6 +2034,69 @@ void main() {
     await tester.runAsync(() => assistant.close());
   });
 
+  for (final (size, scale) in [
+    (const Size(320, 640), 2.0),
+    (const Size(844, 390), 1.0),
+  ]) {
+    assistantTest('编辑重发在短屏与大字号下可操作 ${size.width}×${size.height}', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        ScriptedModel([
+          (_) => textResponse('第一答'),
+          (_) => textResponse('重发回答'),
+        ]),
+        width: size.width,
+        height: size.height,
+        textScale: scale,
+      );
+      await tester.tap(find.byKey(const Key('assistant-launcher')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('文字'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => assistant.send('原问题'));
+      await tester.pumpAndSettle();
+      final original = assistant.currentSessionId;
+      final actions = find.byKey(const Key('assistant-user-message-actions'));
+      await tester.ensureVisible(actions);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSize(actions).shortestSide,
+        greaterThanOrEqualTo(AppLayout.touchTargetMin),
+      );
+      await tester.tap(actions);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('assistant-edit-resend')));
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 160);
+      await tester.pumpAndSettle();
+      final input = find.byKey(const Key('assistant-edit-message-input'));
+      final send = find.byKey(const Key('assistant-edit-message-send'));
+      await tester.enterText(input, '');
+      await tester.pumpAndSettle();
+      expect(tester.widget<FilledButton>(send).onPressed, isNull);
+      await tester.enterText(input, '修改后的问题');
+      await tester.pumpAndSettle();
+      expect(
+        tester.getBottomRight(send).dy,
+        lessThanOrEqualTo(size.height - 160),
+      );
+      expect(tester.takeException(), isNull);
+      await capture(tester, 'edit-resend-${size.width.toInt()}');
+      await tester.tap(send);
+      await pumpUntil(
+        tester,
+        () => assistant.currentSessionId != original && !assistant.isRunning,
+      );
+      expect(
+        assistant.transcript.whereType<UserMessage>().single.text,
+        '修改后的问题',
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   assistantTest('助手回答可通过更多按钮从这里分支', (tester) async {
     final model = ScriptedModel([(_) => textResponse('第一次回答')]);
     await mount(tester, model);
@@ -2050,7 +2289,7 @@ void main() {
     await tester.ensureVisible(toggle);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
-    expect(find.text('恢复'), findsOneWidget);
+    expect(find.byTooltip('恢复模型'), findsOneWidget);
     expect(store.catalog.isSelectable('deepseek'), isTrue);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
@@ -2087,6 +2326,198 @@ void main() {
     await tester.tap(find.text('跟随默认模型'));
     await tester.pumpAndSettle();
     expect(store.catalog.selection.summaryProfileId, isNull);
+  });
+
+  for (final (size, scale) in [
+    (const Size(320, 568), 1.0),
+    (const Size(390, 844), 1.0),
+    (const Size(600, 960), 1.0),
+    (const Size(768, 1024), 1.3),
+    (const Size(1024, 768), 1.0),
+    (const Size(1440, 900), 1.0),
+    (const Size(844, 390), 1.0),
+    (const Size(320, 640), 2.0),
+    (const Size(600, 420), 2.0),
+  ]) {
+    assistantTest('模型设置适配 ${size.width}×${size.height} 字号 $scale', (
+      tester,
+    ) async {
+      final store = MemoryAssistantSettingsStore();
+      await mount(
+        tester,
+        ScriptedModel([]),
+        width: size.width,
+        height: size.height,
+        textScale: scale,
+        settingsStore: store,
+      );
+      tester
+          .state<NavigatorState>(find.byType(Navigator).first)
+          .push(
+            MaterialPageRoute<void>(
+              builder: (_) => AssistantModelSettingsPage(controller: assistant),
+            ),
+          );
+      await tester.pumpAndSettle();
+      final captureName = '${size.width.toInt()}x${size.height.toInt()}-$scale';
+      await capture(tester, 'model-overview-$captureName');
+      await tester.tap(find.byKey(const Key('assistant-default-model')));
+      await tester.pumpAndSettle();
+      final defaultModel = store.catalog.modelOfProfile(
+        store.catalog.selection.defaultProfileId,
+      )!;
+      final selected = find.descendant(
+        of: find.byType(AssistantModelChoicePicker),
+        matching: find.text(defaultModel.label),
+      );
+      final selectedRow = find.ancestor(
+        of: selected,
+        matching: find.byType(ListTile),
+      );
+      expect(tester.widget<ListTile>(selectedRow).selected, isTrue);
+      final semantics = tester.ensureSemantics();
+      try {
+        await tester.pumpAndSettle();
+        expect(
+          RegExp(
+            RegExp.escape(defaultModel.label),
+          ).allMatches(tester.getSemantics(selectedRow).label).length,
+          1,
+        );
+      } finally {
+        semantics.dispose();
+      }
+      final keyboard = size.height < 500 ? 160.0 : 240.0;
+      tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, '搜索服务或模型'),
+        'DeepSeek',
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(selected);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(selected);
+      await tester.pumpAndSettle();
+      expect(find.byType(AssistantModelChoicePicker), findsNothing);
+      tester.view.resetViewInsets();
+      await tester.pumpAndSettle();
+
+      final providerEntry = find.byKey(
+        const Key('assistant-provider-deepseek-anthropic'),
+      );
+      await tester.ensureVisible(providerEntry);
+      await tester.pumpAndSettle();
+      await tester.tap(providerEntry);
+      await tester.pumpAndSettle();
+      final connection = find.byKey(
+        const Key('assistant-provider-connection-section'),
+      );
+      final models = find.byKey(const Key('assistant-provider-models-section'));
+      if (size.width >= 1024 && scale == 1) {
+        expect(tester.getTopLeft(connection).dy, tester.getTopLeft(models).dy);
+        expect(
+          tester.getTopLeft(models).dx - tester.getTopRight(connection).dx,
+          AppLayout.sectionGap,
+        );
+      } else {
+        expect(
+          tester.getTopLeft(models).dy,
+          greaterThan(tester.getBottomLeft(connection).dy),
+        );
+      }
+      await capture(tester, 'provider-$captureName');
+      await tester.ensureVisible(
+        find.byKey(const Key('assistant-provider-add-model')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('assistant-provider-add-model')));
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('assistant-model-id')),
+        'ui-check-model',
+      );
+      await tester.pumpAndSettle();
+      final saveModel = find.byKey(const Key('assistant-model-save'));
+      await tester.ensureVisible(saveModel);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getBottomRight(saveModel).dy,
+        lessThanOrEqualTo(size.height - keyboard),
+      );
+      expect(tester.takeException(), isNull);
+      await capture(tester, 'model-editor-keyboard-$captureName');
+      await tester.tap(saveModel);
+      await tester.pumpAndSettle();
+      tester.view.resetViewInsets();
+      await tester.pumpAndSettle();
+      final nameField = find.byKey(const Key('assistant-provider-name'));
+      await tester.ensureVisible(nameField);
+      await tester.enterText(nameField, '适配检查');
+      tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+      await tester.pumpAndSettle();
+      final saveProvider = find.byKey(const Key('assistant-save-settings'));
+      expect(
+        tester.getBottomRight(saveProvider).dy,
+        lessThanOrEqualTo(size.height - keyboard),
+      );
+      expect(
+        tester.getSize(saveProvider).height,
+        greaterThanOrEqualTo(AppLayout.actionMinHeight),
+      );
+      await tester.tap(saveProvider);
+      await pumpUntil(
+        tester,
+        () =>
+            store.catalog.providerOf('deepseek-anthropic').displayName ==
+            '适配检查',
+      );
+      expect(
+        store.catalog
+            .modelsOfProvider('deepseek-anthropic')
+            .any((model) => model.modelId == 'ui-check-model'),
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  assistantTest('服务草稿和模型参数在宽窄窗口切换后保留', (tester) async {
+    await mount(tester, ScriptedModel([]), width: 1440);
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => AssistantProviderEditPage(
+              controller: assistant,
+              provider: assistant.providerCatalog.providerOf(
+                'deepseek-anthropic',
+              ),
+            ),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final name = find.byKey(const Key('assistant-provider-name'));
+    final address = find.byKey(const Key('assistant-provider-address'));
+    await tester.enterText(name, '保留草稿');
+    await tester.enterText(address, 'http://localhost:11434/v1');
+    final toggle = find.byKey(const Key('assistant-provider-toggle-deepseek'));
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    for (final width in [320.0, 768.0, 1440.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(name).controller!.text, '保留草稿');
+      expect(
+        tester.widget<TextField>(address).controller!.text,
+        'http://localhost:11434/v1',
+      );
+      expect(find.byTooltip('恢复模型'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
   });
 
   assistantTest('服务编辑页在320宽双倍字号下可滚动保存且不溢出', (tester) async {

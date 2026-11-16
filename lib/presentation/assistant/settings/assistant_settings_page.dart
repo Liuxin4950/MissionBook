@@ -18,13 +18,13 @@ import '../shared/assistant_avatar.dart';
 import '../entry/assistant_scope.dart';
 import '../../me/data_backup_page.dart';
 import 'assistant_model_settings_page.dart';
+import 'assistant_settings_form.dart';
 import 'assistant_speech_settings_page.dart';
 
 import '../../../application/assistant/assistant_controller.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/adaptive_columns.dart';
-import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_expansion.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/app_settings_row.dart';
@@ -63,8 +63,6 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
   bool _pickingAvatar = false;
   late AssistantPermissionMode _permission = widget.controller.permissionMode;
   bool _saving = false;
-  bool _leaving = false;
-  bool _allowPop = false;
   bool _ready = false;
   String? _loadError;
   String? _error;
@@ -103,29 +101,6 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       }
     } finally {
       if (mounted) setState(() => _overlayBusy = false);
-    }
-  }
-
-  Future<void> _back() async {
-    if (_saving || _leaving) return;
-    _leaving = true;
-    try {
-      final leave =
-          !_changed ||
-          await AppConfirmDialog.show(
-            context: context,
-            title: '放弃助手设置修改？',
-            message: '尚未保存的角色和权限设置会丢失。',
-            cancelText: '继续编辑',
-            confirmText: '放弃修改',
-          );
-      if (!mounted || !leave) return;
-      setState(() => _allowPop = true);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) Navigator.of(context).pop();
-      });
-    } finally {
-      _leaving = false;
     }
   }
 
@@ -206,10 +181,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
   }
 
   Widget _buildPrepareState(BuildContext context) => Scaffold(
-    appBar: AppTopBar(
-      title: '助手设置',
-      maxContentWidth: AppLayout.dashboardMaxWidth,
-    ),
+    appBar: AppTopBar(title: '助手设置', maxContentWidth: AppLayout.maxPageWidth),
     body: SafeArea(
       top: false,
       child: Center(
@@ -287,263 +259,181 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
   @override
   Widget build(BuildContext context) {
     if (!_ready) return _buildPrepareState(context);
-    return PopScope(
-      canPop: _allowPop || (!_saving && !_changed),
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _back();
-      },
-      child: Scaffold(
-        appBar: AppTopBar(
-          title: '助手设置',
-          maxContentWidth: AppLayout.dashboardMaxWidth,
-          canGoBack: !_saving,
-          onBack: _back,
-        ),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Center(
-            heightFactor: 1,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppLayout.dashboardMaxWidth,
-              ),
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppLayout.horizontalPadding(context),
-                  AppLayout.spaceSm,
-                  AppLayout.horizontalPadding(context),
-                  AppLayout.spaceMd,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_error != null || _result != null)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: AppLayout.spaceSm,
-                        ),
-                        child: Semantics(
-                          liveRegion: true,
-                          child: Text(
-                            _error ?? _result!,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: _error != null
-                                      ? AppColors.error
-                                      : AppColors.primary,
-                                ),
-                          ),
-                        ),
-                      ),
-                    if (_changed && _validationError != null)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: AppLayout.spaceSm,
-                        ),
-                        child: Semantics(
-                          liveRegion: true,
-                          child: Text(
-                            _validationError!,
-                            key: const Key('assistant-settings-validation'),
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: AppColors.error),
-                          ),
-                        ),
-                      ),
-                    _buildSaveActions(),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        body: SafeArea(
-          top: false,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppLayout.dashboardMaxWidth,
-              ),
-              child: ListView(
-                padding: AppLayout.pagePadding(context),
+    return AssistantSettingsForm(
+      title: '助手设置',
+      changed: _changed,
+      busy: _saving || _pickingAvatar,
+      error: _error ?? (_changed ? _validationError : null),
+      message: _result,
+      onSave: widget.controller.isBusy || !_changed || !_valid ? null : _save,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildPersonaSection(),
+          const SizedBox(height: AppLayout.spaceLg),
+          if (RecordScope.maybeOf(context) != null) ...[
+            AppSectionCard(
+              padding: EdgeInsets.zero,
+              child: Column(
                 children: [
-                  _buildPersonaSection(),
-                  const SizedBox(height: AppLayout.spaceLg),
-                  if (RecordScope.maybeOf(context) != null) ...[
-                    AppSectionCard(
-                      padding: EdgeInsets.zero,
-                      child: Column(
-                        children: [
-                          AppSettingsRow(
-                            key: const Key('assistant-memory-entry'),
-                            icon: Icons.psychology_outlined,
-                            title: 'AI 日记本',
-                            subtitle: '查看助手记住的偏好、事实与约束',
-                            onTap: () => Navigator.of(context).push<void>(
-                              MaterialPageRoute(
-                                builder: (_) => const MemoryPage(),
-                              ),
-                            ),
-                          ),
-                          if (RecordScope.maybeOf(context)?.web != null) ...[
-                            const Divider(
-                              height: 1,
-                              indent: AppLayout.spaceLg,
-                              endIndent: AppLayout.spaceLg,
-                            ),
-                            AppSettingsRow(
-                              key: const Key('assistant-web-settings-entry'),
-                              icon: Icons.travel_explore,
-                              title: '联网搜索',
-                              subtitle: '搜索与网页读取设置',
-                              onTap: () => Navigator.of(context).push<void>(
-                                MaterialPageRoute(
-                                  builder: (_) => const WebSettingsPage(),
-                                ),
-                              ),
-                            ),
-                          ],
-                          const Divider(
-                            height: 1,
-                            indent: AppLayout.spaceLg,
-                            endIndent: AppLayout.spaceLg,
-                          ),
-                          AppSettingsRow(
-                            key: const Key('assistant-analysis-settings-entry'),
-                            icon: Icons.auto_awesome_outlined,
-                            title: '自动总结',
-                            subtitle: '按记录、任务、节点和目标分别设置',
-                            onTap: () => Navigator.of(context).push<void>(
-                              MaterialPageRoute(
-                                builder: (_) => const AnalysisSettingsPage(),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppLayout.spaceLg),
-                  ],
-                  AppSectionCard(
-                    padding: EdgeInsets.zero,
-                    child: Column(
-                      children: [
-                        AppSettingsRow(
-                          key: const Key('assistant-model-settings-entry'),
-                          icon: Icons.auto_awesome_outlined,
-                          title: 'AI 模型',
-                          subtitle:
-                              '${widget.controller.providerCatalog.modelOfProfile(widget.controller.defaultProfileId)?.label ?? widget.controller.defaultProfileId} · ${widget.controller.providerCatalog.providers.where((provider) => !provider.archived).length} 个服务 · 凭据与连接测试',
-                          onTap: _saving || widget.controller.isBusy
-                              ? null
-                              : () => Navigator.of(context).push<void>(
-                                  MaterialPageRoute(
-                                    builder: (_) => AssistantModelSettingsPage(
-                                      controller: widget.controller,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                        const Divider(
-                          height: 1,
-                          indent: AppLayout.spaceLg,
-                          endIndent: AppLayout.spaceLg,
-                        ),
-                        AppSettingsRow(
-                          key: const Key('assistant-speech-settings-entry'),
-                          icon: Icons.mic_outlined,
-                          title: '语音输入',
-                          subtitle:
-                              widget.controller.speechSettings.useTranscription
-                              ? '录音转写服务 · 独立凭据'
-                              : '离线语音 · 模型下载与管理',
-                          onTap: _saving || widget.controller.isBusy
-                              ? null
-                              : () => Navigator.of(context).push<void>(
-                                  MaterialPageRoute(
-                                    builder: (_) => AssistantSpeechSettingsPage(
-                                      controller: widget.controller,
-                                      createVoiceTest: AssistantScope.maybeOf(
-                                        context,
-                                      )?.createVoiceTest,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                        if (AssistantScope.maybeOf(context) case final scope?)
-                          if (scope.backup != null && scope.device != null) ...[
-                            const Divider(
-                              height: 1,
-                              indent: AppLayout.spaceLg,
-                              endIndent: AppLayout.spaceLg,
-                            ),
-                            AppSettingsRow(
-                              key: const Key('assistant-backup-entry'),
-                              icon: Icons.archive_outlined,
-                              title: '数据备份',
-                              subtitle: '导出完整本地数据，与软件设置共用',
-                              onTap: () => Navigator.of(context).push<void>(
-                                MaterialPageRoute(
-                                  builder: (_) => DataBackupPage(
-                                    backup: scope.backup!,
-                                    device: scope.device!,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                      ],
+                  AppSettingsRow(
+                    key: const Key('assistant-memory-entry'),
+                    icon: Icons.psychology_outlined,
+                    title: 'AI 日记本',
+                    onTap: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(builder: (_) => const MemoryPage()),
                     ),
                   ),
-                  const SizedBox(height: AppLayout.spaceLg),
-                  _buildPermissionSection(),
-                  if (!kIsWeb &&
-                      defaultTargetPlatform == TargetPlatform.android) ...[
-                    const SizedBox(height: AppLayout.spaceLg),
-                    AppSectionCard(
-                      padding: EdgeInsets.zero,
-                      child: AppSettingsRow(
-                        icon: Icons.open_in_new_rounded,
-                        title: '跨应用悬浮窗',
-                        subtitle: _overlayEnabled == null
-                            ? '正在读取悬浮窗状态…'
-                            : _overlayBusy
-                            ? '正在切换悬浮窗…'
-                            : '离开应用后显示 AI 悬浮入口',
-                        trailing: Semantics(
-                          container: true,
-                          label: '跨应用悬浮窗',
-                          toggled: _overlayEnabled,
-                          enabled: _overlayEnabled != null && !_overlayBusy,
-                          excludeSemantics: true,
-                          onTap: _overlayEnabled == null || _overlayBusy
-                              ? null
-                              : _toggleOverlay,
-                          child: Switch(
-                            value: _overlayEnabled ?? false,
-                            onChanged: _overlayEnabled == null || _overlayBusy
-                                ? null
-                                : (_) => _toggleOverlay(),
-                          ),
+                  if (RecordScope.maybeOf(context)?.web != null) ...[
+                    const Divider(
+                      height: 1,
+                      indent: AppLayout.spaceLg,
+                      endIndent: AppLayout.spaceLg,
+                    ),
+                    AppSettingsRow(
+                      key: const Key('assistant-web-settings-entry'),
+                      icon: Icons.travel_explore,
+                      title: '联网搜索',
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => const WebSettingsPage(),
                         ),
                       ),
                     ),
                   ],
-                  const SizedBox(height: AppLayout.spaceLg),
-                  AppSectionCard(
-                    padding: EdgeInsets.zero,
-                    child: AppSettingsRow(
-                      icon: Icons.shield_outlined,
-                      title: '数据与隐私',
-                      subtitle: 'API Key 仅保存在本机；对话会发送给所选模型供应商。',
+                  const Divider(
+                    height: 1,
+                    indent: AppLayout.spaceLg,
+                    endIndent: AppLayout.spaceLg,
+                  ),
+                  AppSettingsRow(
+                    key: const Key('assistant-analysis-settings-entry'),
+                    icon: Icons.auto_awesome_outlined,
+                    title: '自动总结',
+                    subtitle: '记录 · 任务 · 节点 · 目标',
+                    onTap: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => const AnalysisSettingsPage(),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: AppLayout.spaceLg),
+          ],
+          AppSectionCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                AppSettingsRow(
+                  key: const Key('assistant-model-settings-entry'),
+                  icon: Icons.auto_awesome_outlined,
+                  title: 'AI 模型',
+                  subtitle:
+                      '${widget.controller.providerCatalog.modelOfProfile(widget.controller.defaultProfileId)?.label ?? widget.controller.defaultProfileId} · ${widget.controller.providerCatalog.providers.where((provider) => !provider.archived).length} 个服务',
+                  onTap: _saving || widget.controller.isBusy
+                      ? null
+                      : () => Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => AssistantModelSettingsPage(
+                              controller: widget.controller,
+                            ),
+                          ),
+                        ),
+                ),
+                const Divider(
+                  height: 1,
+                  indent: AppLayout.spaceLg,
+                  endIndent: AppLayout.spaceLg,
+                ),
+                AppSettingsRow(
+                  key: const Key('assistant-speech-settings-entry'),
+                  icon: Icons.mic_outlined,
+                  title: '语音输入',
+                  subtitle: widget.controller.speechSettings.useTranscription
+                      ? '录音转写'
+                      : '离线识别',
+                  onTap: _saving || widget.controller.isBusy
+                      ? null
+                      : () => Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => AssistantSpeechSettingsPage(
+                              controller: widget.controller,
+                              createVoiceTest: AssistantScope.maybeOf(
+                                context,
+                              )?.createVoiceTest,
+                            ),
+                          ),
+                        ),
+                ),
+                if (AssistantScope.maybeOf(context) case final scope?)
+                  if (scope.backup != null && scope.device != null) ...[
+                    const Divider(
+                      height: 1,
+                      indent: AppLayout.spaceLg,
+                      endIndent: AppLayout.spaceLg,
+                    ),
+                    AppSettingsRow(
+                      key: const Key('assistant-backup-entry'),
+                      icon: Icons.archive_outlined,
+                      title: '数据备份',
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => DataBackupPage(
+                            backup: scope.backup!,
+                            device: scope.device!,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+              ],
+            ),
           ),
-        ),
+          const SizedBox(height: AppLayout.spaceLg),
+          _buildPermissionSection(),
+          if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) ...[
+            const SizedBox(height: AppLayout.spaceLg),
+            AppSectionCard(
+              padding: EdgeInsets.zero,
+              child: AppSettingsRow(
+                icon: Icons.open_in_new_rounded,
+                title: '跨应用悬浮窗',
+                subtitle: _overlayEnabled == null
+                    ? '正在读取悬浮窗状态…'
+                    : _overlayBusy
+                    ? '正在切换悬浮窗…'
+                    : '离开应用后显示 AI 悬浮入口',
+                trailing: Semantics(
+                  container: true,
+                  label: '跨应用悬浮窗',
+                  toggled: _overlayEnabled,
+                  enabled: _overlayEnabled != null && !_overlayBusy,
+                  excludeSemantics: true,
+                  onTap: _overlayEnabled == null || _overlayBusy
+                      ? null
+                      : _toggleOverlay,
+                  child: Switch(
+                    value: _overlayEnabled ?? false,
+                    onChanged: _overlayEnabled == null || _overlayBusy
+                        ? null
+                        : (_) => _toggleOverlay(),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: AppLayout.spaceLg),
+          AppSectionCard(
+            padding: EdgeInsets.zero,
+            child: AppSettingsRow(
+              icon: Icons.shield_outlined,
+              title: '数据与隐私',
+              subtitle: 'Key 本机保存 · 对话发送至模型服务',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -596,7 +486,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       ),
       title: Text('角色与风格', style: Theme.of(context).textTheme.titleMedium),
       subtitle: Text(
-        '${_personaName.text.trim().isEmpty ? '书祺' : _personaName.text.trim()}\n${_readPersona().roleLabel} · ${_readPersona().replyStyleLabel}',
+        '${_personaName.text.trim().isEmpty ? '书祺' : _personaName.text.trim()} · ${_readPersona().roleLabel} · ${_readPersona().replyStyleLabel}',
         style: Theme.of(
           context,
         ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
@@ -689,13 +579,6 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
               child: const Text('恢复默认头像'),
             ),
           ),
-        const SizedBox(height: AppLayout.spaceMd),
-        Text(
-          '保存后应用到助手入口与已有会话。',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-        ),
       ],
     ),
   );
@@ -812,25 +695,6 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       if (mounted) setState(() => _pickingAvatar = false);
     }
   }
-
-  Widget _buildSaveActions() => Align(
-    alignment: Alignment.centerRight,
-    child: FilledButton(
-      key: const Key('assistant-save-settings'),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(160, AppLayout.actionMinHeight),
-      ),
-      onPressed:
-          _saving ||
-              _pickingAvatar ||
-              widget.controller.isBusy ||
-              !_changed ||
-              !_valid
-          ? null
-          : _save,
-      child: Text(_saving ? '正在保存…' : '保存设置'),
-    ),
-  );
 
   Widget _buildPermissionSection() => AppSectionCard(
     padding: EdgeInsets.zero,
