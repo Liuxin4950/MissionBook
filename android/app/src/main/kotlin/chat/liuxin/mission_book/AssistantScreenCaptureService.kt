@@ -444,8 +444,13 @@ class AssistantScreenCaptureService : Service() {
         releaseProjection()
         getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).edit()
             .putBoolean(AssistantOverlayService.CAPTURE_PENDING_KEY, false).apply()
-        if (file != null) getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).edit()
-            .putString(MainActivity.EXTRA_CAPTURE_PATH, file.absolutePath).apply()
+        if (file != null) {
+            getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).edit()
+                .putString(MainActivity.EXTRA_CAPTURE_PATH, file.absolutePath).apply()
+            Log.i(TAG, "截图文件已就绪，发送完成广播: ${file.absolutePath}")
+        } else {
+            Log.w(TAG, "截图未生成，发送失败广播")
+        }
         sendBroadcast(Intent(ACTION_CAPTURE_READY).setPackage(packageName).apply {
             if (file != null) putExtra(MainActivity.EXTRA_CAPTURE_PATH, file.absolutePath)
         })

@@ -183,6 +183,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        Log.i(TAG, "收到助手外部 Intent: open=${intent.getBooleanExtra(EXTRA_OPEN_ASSISTANT, false)}, capture=${intent.getStringExtra(EXTRA_CAPTURE_PATH) != null}")
         setIntent(intent)
         if (intent.getBooleanExtra(EXTRA_OPEN_ASSISTANT, false)) {
             pendingAssistantOpen = true

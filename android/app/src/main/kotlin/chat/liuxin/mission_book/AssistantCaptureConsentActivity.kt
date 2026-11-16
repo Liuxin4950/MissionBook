@@ -25,8 +25,10 @@ class AssistantCaptureConsentActivity : Activity() {
             val path = intent?.getStringExtra(MainActivity.EXTRA_CAPTURE_PATH)
             if (path != null) {
                 captureCompleted = true
+                Log.i(TAG, "截图完成，准备拉回助手: $path")
                 try {
                     startActivity(MainActivity.assistantIntent(this@AssistantCaptureConsentActivity, path))
+                    Log.i(TAG, "助手 Intent 已提交")
                     // 成功交给主 Activity 后不要立刻恢复悬浮球，避免它抢回前台焦点。
                     finish()
                     return
@@ -55,6 +57,7 @@ class AssistantCaptureConsentActivity : Activity() {
             } catch (error: Exception) {
                 Log.w(TAG, "取消长截图服务失败", error)
             }
+            handler.postDelayed({ restoreOverlayIfEnabled() }, 300L)
         }
         super.onBackPressed()
     }
