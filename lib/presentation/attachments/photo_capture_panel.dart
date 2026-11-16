@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -256,31 +257,33 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
           return Stack(
             fit: StackFit.expand,
             children: [
-              GestureDetector(
-                key: const Key('camera-preview-gestures'),
-                behavior: HitTestBehavior.opaque,
-                onTapUp: (details) => _focusAt(details.localPosition, size),
-                onScaleStart: (_) => _gestureStartZoom = _zoom,
-                onScaleUpdate: (details) {
-                  if (details.pointerCount > 1 && _maxZoom > _minZoom) {
-                    unawaited(_setZoom(_gestureStartZoom * details.scale));
-                  }
-                },
-                child: preview,
+              Semantics(
+                label: '相机取景区',
+                hint: controller.value.focusPointSupported
+                    ? '点按预览对焦，双指调整倍率'
+                    : '双指调整倍率',
+                child: GestureDetector(
+                  key: const Key('camera-preview-gestures'),
+                  behavior: HitTestBehavior.opaque,
+                  onTapUp: (details) => _focusAt(details.localPosition, size),
+                  onScaleStart: (_) => _gestureStartZoom = _zoom,
+                  onScaleUpdate: (details) {
+                    if (details.pointerCount > 1 && _maxZoom > _minZoom) {
+                      unawaited(_setZoom(_gestureStartZoom * details.scale));
+                    }
+                  },
+                  child: preview,
+                ),
               ),
               if (point != null && controller.value.focusPointSupported)
                 Positioned(
                   left: point.dx * size.width - 20,
                   top: point.dy * size.height - 20,
                   child: IgnorePointer(
-                    child: Container(
+                    child: CustomPaint(
                       key: const Key('camera-focus-indicator'),
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.onMedia, width: 2),
-                        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
-                      ),
+                      size: const Size.square(48),
+                      painter: _FocusRingPainter(color: AppColors.onMedia),
                     ),
                   ),
                 ),
@@ -289,34 +292,100 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
         },
       );
 
-  Widget _zoomControl({required bool onMedia}) {
-    if (_maxZoom <= _minZoom) return const SizedBox.shrink();
-    final foreground = onMedia
-        ? AppColors.onMedia
-        : Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(
-      children: [
-        Icon(Icons.zoom_out, color: foreground, size: AppLayout.iconSm),
-        Expanded(
-          child: Slider(
-            key: const Key('camera-zoom-slider'),
-            min: _minZoom,
-            max: _maxZoom,
-            value: _zoom.clamp(_minZoom, _maxZoom).toDouble(),
-            label: '${_zoom.toStringAsFixed(1)}×',
-            onChanged: _busy ? null : (value) => unawaited(_setZoom(value)),
+  List<double> _zoomPresets() {
+    if (_maxZoom <= _minZoom) return const [];
+    final candidates = <double>[_minZoom, 1, 2, 3, _maxZoom];
+    final result = <double>[];
+    for (final candidate in candidates) {
+      if (candidate < _minZoom || candidate > _maxZoom) continue;
+      final value = candidate.clamp(_minZoom, _maxZoom).toDouble();
+      if (result.every((item) => (item - value).abs() > .05)) {
+        result.add(value);
+      }
+    }
+    return result;
+  }
+
+  String _zoomLabel(double value) {
+    final rounded = value.roundToDouble() == value
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return '$rounded×';
+  }
+
+  Future<void> _openZoomFineTune() async {
+    if (_busy || _maxZoom <= _minZoom || !mounted) return;
+    var value = _zoom;
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppLayout.spaceXl,
+            0,
+            AppLayout.spaceXl,
+            AppLayout.spaceXxl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    '精细调整变焦',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const Spacer(),
+                  Text(_zoomLabel(value)),
+                ],
+              ),
+              Slider(
+                key: const Key('camera-zoom-slider'),
+                min: _minZoom,
+                max: _maxZoom,
+                value: value.clamp(_minZoom, _maxZoom).toDouble(),
+                label: _zoomLabel(value),
+                onChanged: _busy
+                    ? null
+                    : (next) {
+                        setSheetState(() => value = next);
+                        unawaited(_setZoom(next));
+                      },
+              ),
+            ],
           ),
         ),
-        Icon(Icons.zoom_in, color: foreground, size: AppLayout.iconSm),
-        SizedBox(
-          width: 42,
-          child: Text(
-            '${_zoom.toStringAsFixed(1)}×',
-            textAlign: TextAlign.end,
-            style: TextStyle(color: foreground),
-          ),
-        ),
-      ],
+      ),
+    );
+  }
+
+  void _cycleZoom() {
+    final presets = _zoomPresets();
+    if (presets.isEmpty || _busy) return;
+    final currentIndex = presets.indexWhere(
+      (value) => (_zoom - value).abs() < .05,
+    );
+    final next = presets[(currentIndex + 1) % presets.length];
+    unawaited(_setZoom(next));
+  }
+
+  Widget _zoomDial({required bool onMedia}) {
+    final presets = _zoomPresets();
+    if (presets.isEmpty) return const SizedBox.shrink();
+    return _XiaomiZoomDial(
+      key: const Key('camera-zoom-dial'),
+      minZoom: _minZoom,
+      maxZoom: _maxZoom,
+      zoom: _zoom,
+      presets: presets,
+      onMedia: onMedia,
+      enabled: !_busy,
+      onChanged: (value) => unawaited(_setZoom(value)),
+      onTap: _cycleZoom,
+      onFineTune: _openZoomFineTune,
     );
   }
 
@@ -330,24 +399,30 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
     super.dispose();
   }
 
-  Widget _mediaAction({
-    required String label,
+  Widget _mediaIconAction({
+    required String tooltip,
     required IconData icon,
     required VoidCallback? onPressed,
-  }) => Expanded(
-    child: TextButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: AppLayout.iconMd),
-      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-      style: TextButton.styleFrom(
-        foregroundColor: AppColors.onMedia,
-        disabledForegroundColor: AppColors.onMedia.withValues(alpha: .42),
-        minimumSize: const Size(0, AppLayout.touchTargetMin),
-        padding: const EdgeInsets.symmetric(horizontal: AppLayout.spaceSm),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+  }) => Semantics(
+    button: true,
+    label: tooltip,
+    child: SizedBox(
+      width: AppLayout.touchTargetMin,
+      height: AppLayout.touchTargetMin,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          fixedSize: const Size(
+            AppLayout.touchTargetMin,
+            AppLayout.touchTargetMin,
+          ),
+          foregroundColor: AppColors.onMedia,
+          disabledForegroundColor: AppColors.onMedia.withValues(alpha: .42),
+          backgroundColor: Colors.black.withValues(alpha: .28),
+          shape: const CircleBorder(),
         ),
-        backgroundColor: Colors.white.withValues(alpha: .1),
+        icon: Icon(icon, size: AppLayout.iconMd),
       ),
     ),
   );
@@ -355,42 +430,52 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
   Widget _mediaShutter(CameraController? controller) {
     final hasCapture = _capture != null;
     final enabled = !_busy && (hasCapture || controller != null);
-    return SizedBox(
-      width: 84,
-      height: 84,
-      child: Tooltip(
-        message: hasCapture ? '重试保存照片' : '拍照',
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.onMedia, width: 4),
-            color: Colors.white.withValues(alpha: .16),
-          ),
-          child: Center(
-            child: IconButton(
-              key: const Key('evidence-camera-shoot'),
-              onPressed: enabled
-                  ? hasCapture
-                        ? _confirm
-                        : _shoot
-                  : null,
-              style: IconButton.styleFrom(
-                fixedSize: const Size(64, 64),
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.onPrimary,
-                disabledBackgroundColor: AppColors.primary.withValues(
-                  alpha: .45,
+    return Semantics(
+      button: true,
+      label: hasCapture ? '重试保存照片' : '拍照',
+      child: SizedBox(
+        width: 88,
+        height: 88,
+        child: Tooltip(
+          message: hasCapture ? '重试保存照片' : '拍照',
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.onMedia, width: 4),
+              color: Colors.transparent,
+            ),
+            child: Center(
+              child: IconButton(
+                key: const Key('evidence-camera-shoot'),
+                onPressed: enabled
+                    ? hasCapture
+                          ? _confirm
+                          : _shoot
+                    : null,
+                style: IconButton.styleFrom(
+                  fixedSize: const Size(68, 68),
+                  backgroundColor: hasCapture
+                      ? AppColors.primary
+                      : Colors.transparent,
+                  foregroundColor: hasCapture
+                      ? AppColors.onPrimary
+                      : AppColors.primary,
+                  disabledBackgroundColor: AppColors.onMedia.withValues(
+                    alpha: .5,
+                  ),
+                  disabledForegroundColor: AppColors.primary.withValues(
+                    alpha: .55,
+                  ),
+                  shape: const CircleBorder(),
+                  padding: EdgeInsets.zero,
                 ),
-                disabledForegroundColor: AppColors.onPrimary.withValues(
-                  alpha: .7,
-                ),
-                shape: const CircleBorder(),
-                padding: EdgeInsets.zero,
-              ),
-              icon: Icon(
-                hasCapture ? Icons.check_rounded : Icons.camera_alt_rounded,
-                color: AppColors.onPrimary,
-                size: AppLayout.iconLg,
+                icon: hasCapture
+                    ? const Icon(Icons.check_rounded, size: AppLayout.iconLg)
+                    : const Icon(
+                        Icons.circle,
+                        color: AppColors.onPrimary,
+                        size: 52,
+                      ),
               ),
             ),
           ),
@@ -479,72 +564,61 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
                     icon: const Icon(Icons.arrow_back),
                   ),
                 ),
-                if (_capture != null)
-                  Positioned(
-                    top: AppLayout.spaceSm,
-                    right: AppLayout.spaceSm,
-                    child: IconButton(
-                      tooltip: '重拍',
-                      onPressed: _busy ? null : _retake,
-                      style: IconButton.styleFrom(
-                        fixedSize: const Size(
-                          AppLayout.touchTargetMin,
-                          AppLayout.touchTargetMin,
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: .82),
+                          ],
+                          stops: const [.5, 1],
                         ),
-                        backgroundColor: Colors.black.withValues(alpha: .38),
-                        foregroundColor: AppColors.onMedia,
-                        shape: const CircleBorder(),
                       ),
-                      icon: const Icon(Icons.refresh_rounded),
                     ),
                   ),
+                ),
                 Positioned(
-                  left: AppLayout.spaceMd,
-                  right: AppLayout.spaceMd,
+                  left: AppLayout.spaceXl,
+                  right: AppLayout.spaceXl,
                   bottom: AppLayout.spaceMd,
-                  child: Material(
-                    color: Colors.black.withValues(alpha: .48),
-                    borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
-                    clipBehavior: Clip.antiAlias,
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppLayout.spaceSm),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_capture == null && _maxZoom > _minZoom)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AppLayout.spaceMd,
+                          ),
+                          child: _zoomDial(onMedia: true),
+                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          if (_capture == null && _maxZoom > _minZoom)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppLayout.spaceSm,
-                              ),
-                              child: _zoomControl(onMedia: true),
-                            ),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              _mediaAction(
-                                label: '选择图片',
-                                icon: Icons.photo_library_outlined,
-                                onPressed: _busy ? null : widget.onChooseFile,
-                              ),
-                              const SizedBox(width: AppLayout.spaceSm),
-                              _mediaShutter(controller),
-                              const SizedBox(width: AppLayout.spaceSm),
-                              _mediaAction(
-                                label: _capture == null ? '不记录图片' : '重拍',
-                                icon: _capture == null
-                                    ? Icons.close_rounded
-                                    : Icons.refresh_rounded,
-                                onPressed: _busy
-                                    ? null
-                                    : _capture == null
-                                    ? widget.onCancel
-                                    : _retake,
-                              ),
-                            ],
+                          _mediaIconAction(
+                            tooltip: '选择图片',
+                            icon: Icons.photo_library_outlined,
+                            onPressed: _busy ? null : widget.onChooseFile,
+                          ),
+                          _mediaShutter(controller),
+                          _mediaIconAction(
+                            tooltip: _capture == null ? '不记录图片' : '重拍',
+                            icon: _capture == null
+                                ? Icons.close_rounded
+                                : Icons.refresh_rounded,
+                            onPressed: _busy
+                                ? null
+                                : _capture == null
+                                ? widget.onCancel
+                                : _retake,
                           ),
                         ],
                       ),
-                    ),
+                    ],
                   ),
                 ),
                 if (controller == null && _capture == null && !_busy)
@@ -610,7 +684,7 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
             Text(_error!, style: TextStyle(color: AppColors.error)),
           ],
           if (_capture == null && controller != null && _maxZoom > _minZoom)
-            _zoomControl(onMedia: false),
+            _zoomDial(onMedia: false),
           const SizedBox(height: AppLayout.spaceMd),
           Wrap(
             spacing: AppLayout.spaceSm,
@@ -653,4 +727,241 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
       ),
     );
   }
+}
+
+class _FocusRingPainter extends CustomPainter {
+  const _FocusRingPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2 - 4;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, paint);
+    const corner = 8.0;
+    final left = center.dx - radius;
+    final right = center.dx + radius;
+    final top = center.dy - radius;
+    final bottom = center.dy + radius;
+    for (final segment in <(Offset, Offset)>[
+      (Offset(left, top + corner), Offset(left, top)),
+      (Offset(left, top), Offset(left + corner, top)),
+      (Offset(right - corner, top), Offset(right, top)),
+      (Offset(right, top), Offset(right, top + corner)),
+      (Offset(left, bottom - corner), Offset(left, bottom)),
+      (Offset(left, bottom), Offset(left + corner, bottom)),
+      (Offset(right - corner, bottom), Offset(right, bottom)),
+      (Offset(right, bottom), Offset(right, bottom - corner)),
+    ]) {
+      canvas.drawLine(segment.$1, segment.$2, paint);
+    }
+    canvas.drawCircle(center, 2.5, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FocusRingPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+class _XiaomiZoomDial extends StatelessWidget {
+  const _XiaomiZoomDial({
+    super.key,
+    required this.minZoom,
+    required this.maxZoom,
+    required this.zoom,
+    required this.presets,
+    required this.onMedia,
+    required this.enabled,
+    required this.onChanged,
+    required this.onTap,
+    required this.onFineTune,
+  });
+
+  final double minZoom;
+  final double maxZoom;
+  final double zoom;
+  final List<double> presets;
+  final bool onMedia;
+  final bool enabled;
+  final ValueChanged<double> onChanged;
+  final VoidCallback onTap;
+  final VoidCallback onFineTune;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = onMedia
+        ? AppColors.onMedia
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    final line = onMedia
+        ? Colors.white.withValues(alpha: .58)
+        : AppColors.outline.withValues(alpha: .7);
+    return Semantics(
+      button: true,
+      label: '透明线条变焦轮盘，当前 ${_label(zoom)}',
+      hint: '左右拖动连续变焦，轻触切换倍率，长按精细调整',
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        onLongPress: enabled ? onFineTune : null,
+        onHorizontalDragUpdate: enabled
+            ? (details) {
+                final sensitivity = (maxZoom - minZoom) / 260;
+                onChanged(
+                  (zoom + details.delta.dx * sensitivity)
+                      .clamp(minZoom, maxZoom)
+                      .toDouble(),
+                );
+              }
+            : null,
+        child: SizedBox(
+          width: 292,
+          height: 92,
+          child: CustomPaint(
+            painter: _ZoomDialPainter(
+              minZoom: minZoom,
+              maxZoom: maxZoom,
+              zoom: zoom,
+              presets: presets,
+              lineColor: line,
+              selectedColor: foreground,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _label(double value) {
+    final text = value.roundToDouble() == value
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return '$text×';
+  }
+}
+
+class _ZoomDialPainter extends CustomPainter {
+  const _ZoomDialPainter({
+    required this.minZoom,
+    required this.maxZoom,
+    required this.zoom,
+    required this.presets,
+    required this.lineColor,
+    required this.selectedColor,
+  });
+
+  final double minZoom;
+  final double maxZoom;
+  final double zoom;
+  final List<double> presets;
+  final Color lineColor;
+  final Color selectedColor;
+
+  static const _startAngle = math.pi * 1.15;
+  static const _sweepAngle = math.pi * .7;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height + 22);
+    final radius = size.width * .43;
+    final arc = Rect.fromCircle(center: center, radius: radius);
+    final base = Paint()
+      ..color = lineColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    canvas.drawArc(arc, _startAngle, _sweepAngle, false, base);
+
+    final tickCount = 19;
+    for (var index = 0; index < tickCount; index++) {
+      final progress = index / (tickCount - 1);
+      final angle = _startAngle + _sweepAngle * progress;
+      final major = index % 3 == 0;
+      final outer = _point(center, radius, angle);
+      final inner = _point(center, radius - (major ? 13 : 8), angle);
+      canvas.drawLine(
+        inner,
+        outer,
+        Paint()
+          ..color = major ? selectedColor : lineColor
+          ..strokeWidth = major ? 1.6 : 1,
+      );
+    }
+
+    for (final preset in presets) {
+      final progress = ((preset - minZoom) / (maxZoom - minZoom)).clamp(
+        0.0,
+        1.0,
+      );
+      final angle = _startAngle + _sweepAngle * progress;
+      final point = _point(center, radius - 28, angle);
+      final selected = (zoom - preset).abs() < .05;
+      final painter = TextPainter(
+        text: TextSpan(
+          text: _label(preset),
+          style: TextStyle(
+            color: selected ? selectedColor : lineColor,
+            fontSize: selected ? 13 : 11,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      painter.paint(
+        canvas,
+        point - Offset(painter.width / 2, painter.height / 2),
+      );
+    }
+
+    final selectedProgress = ((zoom - minZoom) / (maxZoom - minZoom)).clamp(
+      0.0,
+      1.0,
+    );
+    final selectedPoint = _point(
+      center,
+      radius - 14,
+      _startAngle + _sweepAngle * selectedProgress,
+    );
+    canvas.drawCircle(selectedPoint, 4, Paint()..color = selectedColor);
+    final current = TextPainter(
+      text: TextSpan(
+        text: _label(zoom),
+        style: TextStyle(
+          color: selectedColor,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    current.paint(
+      canvas,
+      Offset(
+        size.width / 2 - current.width / 2,
+        size.height - current.height - 1,
+      ),
+    );
+  }
+
+  Offset _point(Offset center, double radius, double angle) => Offset(
+    center.dx + math.cos(angle) * radius,
+    center.dy + math.sin(angle) * radius,
+  );
+
+  String _label(double value) {
+    final text = value.roundToDouble() == value
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return '$text×';
+  }
+
+  @override
+  bool shouldRepaint(covariant _ZoomDialPainter oldDelegate) =>
+      oldDelegate.zoom != zoom ||
+      oldDelegate.lineColor != lineColor ||
+      oldDelegate.selectedColor != selectedColor ||
+      oldDelegate.presets != presets;
 }

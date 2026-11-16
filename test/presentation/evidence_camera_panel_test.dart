@@ -153,22 +153,29 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('预览点按设置对焦点，变焦滑杆调用设备变焦', (tester) async {
+  testWidgets('预览点按设置对焦点，透明轮盘长按打开精细变焦', (tester) async {
     await open(tester);
+    expect(find.byKey(const Key('camera-zoom-dial')), findsOneWidget);
+    expect(find.byKey(const Key('camera-zoom-slider')), findsNothing);
+    await tester.longPress(find.byKey(const Key('camera-zoom-dial')));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('camera-zoom-slider')), findsOneWidget);
+    final slider = tester.widget<Slider>(
+      find.byKey(const Key('camera-zoom-slider')),
+    );
+    slider.onChanged!(3.5);
+    await tester.pumpAndSettle();
+    expect(camera.zoomLevel, 3.5);
+    Navigator.of(
+      tester.element(find.byKey(const Key('camera-zoom-slider'))),
+    ).pop();
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('camera-preview-gestures')));
     await tester.pumpAndSettle();
     expect(camera.focusPoint, isNotNull);
     expect(camera.focusPoint!.dx, closeTo(0.5, 0.02));
     expect(camera.focusPoint!.dy, closeTo(0.5, 0.02));
     expect(find.byKey(const Key('camera-focus-indicator')), findsOneWidget);
-
-    final slider = tester.widget<Slider>(
-      find.byKey(const Key('camera-zoom-slider')),
-    );
-    slider.onChanged!(3);
-    await tester.pumpAndSettle();
-    expect(camera.zoomLevel, 3);
 
     final center = tester.getCenter(
       find.byKey(const Key('camera-preview-gestures')),

@@ -24,25 +24,31 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   static const _steps = <_OnboardingStepData>[
     _OnboardingStepData(
-      eyebrow: '第一步 · 今天',
-      title: '先从今天开始，不必先学会一切',
-      description: '今天页把安排、执行和待补材料放在一起。选一个下一步，开始一次真实行动。',
-      asset: 'assets/illustrations/day-plan.png',
-      imageLabel: '一本打开的日程本和书签',
+      eyebrow: '从今天开始',
+      title: '先完成今天的一步',
+      description: '安排、执行和待补材料，都在今天页。',
+      asset: 'assets/illustrations/journey-garden-v2.png',
+      imageLabel: '通往花园的路径与打开的书',
+      fit: BoxFit.cover,
+      alignment: Alignment.centerRight,
     ),
     _OnboardingStepData(
-      eyebrow: '第二步 · 目标',
-      title: '把目标写成可以走的路径',
-      description: '目标可以拆成节点，再变成任务；每一次完成都能留下记录和材料，而不是只留下一个愿望。',
+      eyebrow: '把方向拆开',
+      title: '把目标变成下一步',
+      description: '目标拆成节点，再变成可以执行的任务。',
       asset: 'assets/illustrations/goal-path.png',
       imageLabel: '从书页上向上延伸的目标路径',
+      fit: BoxFit.contain,
+      alignment: Alignment.center,
     ),
     _OnboardingStepData(
-      eyebrow: '第三步 · 助手',
-      title: '需要时，让助手帮你整理',
-      description: '文字、语音、拍照和截屏都可以进入同一条会话。先保留草稿，再决定是否发送或写回任务。',
+      eyebrow: '随时有人帮你整理',
+      title: '让助手接住你的想法',
+      description: '文字、语音、照片和截屏，都能进入同一条会话。',
       asset: 'assets/illustrations/assistant-notebook.png',
       imageLabel: '带有便签和助手符号的笔记本',
+      fit: BoxFit.contain,
+      alignment: Alignment.center,
     ),
   ];
 
@@ -61,7 +67,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     final completed = await widget.onFinish();
     if (!mounted) return;
     if (completed) {
-      if (mounted) setState(() => _saving = false);
+      setState(() => _saving = false);
       return;
     }
     setState(() {
@@ -93,16 +99,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 720;
+            final horizontal = wide ? AppLayout.space3Xl : AppLayout.spaceLg;
             return Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1040),
+                constraints: const BoxConstraints(maxWidth: 1120),
                 child: Column(
                   children: [
                     Padding(
                       padding: EdgeInsets.fromLTRB(
-                        wide ? AppLayout.space3Xl : AppLayout.spaceLg,
+                        horizontal,
                         AppLayout.spaceMd,
-                        wide ? AppLayout.space3Xl : AppLayout.spaceLg,
+                        horizontal,
                         AppLayout.spaceSm,
                       ),
                       child: Row(
@@ -141,9 +148,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     ),
                     Padding(
                       padding: EdgeInsets.fromLTRB(
-                        wide ? AppLayout.space3Xl : AppLayout.spaceLg,
+                        horizontal,
                         AppLayout.spaceSm,
-                        wide ? AppLayout.space3Xl : AppLayout.spaceLg,
+                        horizontal,
                         AppLayout.spaceLg,
                       ),
                       child: Column(
@@ -190,25 +197,30 @@ class _OnboardingPageState extends State<OnboardingPage> {
                             ),
                           ],
                           const SizedBox(height: AppLayout.spaceMd),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              key: const Key('onboarding-next'),
-                              onPressed: _saving ? null : _next,
-                              child: _saving
-                                  ? const SizedBox(
-                                      width: AppLayout.iconMd,
-                                      height: AppLayout.iconMd,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.onPrimary,
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: wide ? 420 : double.infinity,
+                            ),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                key: const Key('onboarding-next'),
+                                onPressed: _saving ? null : _next,
+                                child: _saving
+                                    ? const SizedBox(
+                                        width: AppLayout.iconMd,
+                                        height: AppLayout.iconMd,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppColors.onPrimary,
+                                        ),
+                                      )
+                                    : Text(
+                                        _page == _steps.length - 1
+                                            ? '开始使用'
+                                            : '下一步',
                                       ),
-                                    )
-                                  : Text(
-                                      _page == _steps.length - 1
-                                          ? '开始使用'
-                                          : '下一步',
-                                    ),
+                              ),
                             ),
                           ),
                         ],
@@ -232,6 +244,8 @@ class _OnboardingStepData {
     required this.description,
     required this.asset,
     required this.imageLabel,
+    required this.fit,
+    required this.alignment,
   });
 
   final String eyebrow;
@@ -239,6 +253,8 @@ class _OnboardingStepData {
   final String description;
   final String asset;
   final String imageLabel;
+  final BoxFit fit;
+  final Alignment alignment;
 }
 
 class _StepView extends StatelessWidget {
@@ -255,15 +271,11 @@ class _StepView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final image = _OnboardingImage(
-      asset: data.asset,
-      label: data.imageLabel,
-      reduceMotion: reduceMotion,
-    );
+    final artwork = _OnboardingArtwork(data: data, reduceMotion: reduceMotion);
     final words = Padding(
       padding: EdgeInsets.fromLTRB(
         wide ? AppLayout.space3Xl : AppLayout.spaceLg,
-        wide ? AppLayout.space3Xl : AppLayout.spaceXl,
+        wide ? AppLayout.space3Xl : AppLayout.spaceLg,
         wide ? AppLayout.space3Xl : AppLayout.spaceLg,
         wide ? AppLayout.space3Xl : AppLayout.spaceMd,
       ),
@@ -279,73 +291,70 @@ class _StepView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppLayout.spaceMd),
-          Text(data.title, style: text.headlineSmall),
+          Text(data.title, style: text.headlineMedium),
           const SizedBox(height: AppLayout.spaceMd),
           Text(data.description, style: text.bodyLarge),
         ],
       ),
     );
-    final content = wide
-        ? Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(flex: 10, child: image),
-              Expanded(flex: 9, child: words),
-            ],
-          )
-        : Column(
-            children: [
-              Expanded(flex: 6, child: image),
-              Expanded(flex: 5, child: words),
-            ],
-          );
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: wide ? AppLayout.space3Xl : AppLayout.spaceSm,
         vertical: AppLayout.spaceSm,
       ),
-      child: Material(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
-        clipBehavior: Clip.antiAlias,
-        child: content,
-      ),
+      child: wide
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 11, child: artwork),
+                Expanded(flex: 9, child: words),
+              ],
+            )
+          : Column(
+              children: [
+                Expanded(flex: 7, child: artwork),
+                Expanded(flex: 4, child: words),
+              ],
+            ),
     );
   }
 }
 
-class _OnboardingImage extends StatelessWidget {
-  const _OnboardingImage({
-    required this.asset,
-    required this.label,
-    required this.reduceMotion,
-  });
+class _OnboardingArtwork extends StatelessWidget {
+  const _OnboardingArtwork({required this.data, required this.reduceMotion});
 
-  final String asset;
-  final String label;
+  final _OnboardingStepData data;
   final bool reduceMotion;
 
   @override
   Widget build(BuildContext context) {
     final duration = reduceMotion ? Duration.zero : AppMotion.entrance;
-    return Semantics(
-      image: true,
-      label: label,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: .94, end: 1),
-        duration: duration,
-        curve: AppMotion.curve,
-        builder: (context, scale, child) =>
-            Transform.scale(scale: scale, child: child),
-        child: ColoredBox(
-          color: AppColors.accentSoft,
-          child: Center(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -.2),
+            radius: 1.05,
+            colors: [AppColors.accentSoft, AppColors.background],
+          ),
+        ),
+        child: Semantics(
+          image: true,
+          label: data.imageLabel,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: .96, end: 1),
+            duration: duration,
+            curve: AppMotion.curve,
+            builder: (context, scale, child) =>
+                Transform.scale(scale: scale, child: child),
             child: Padding(
               padding: const EdgeInsets.all(AppLayout.spaceXl),
               child: Image.asset(
-                asset,
-                fit: BoxFit.contain,
-                cacheWidth: 960,
+                data.asset,
+                fit: data.fit,
+                alignment: data.alignment,
+                cacheWidth: 1200,
                 excludeFromSemantics: true,
               ),
             ),

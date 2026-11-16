@@ -26,18 +26,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('先从今天开始，不必先学会一切'), findsOneWidget);
-    expect(find.text('第一步 · 今天'), findsOneWidget);
+    expect(find.text('先完成今天的一步'), findsOneWidget);
+    expect(find.text('从今天开始'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('onboarding-next')));
     await tester.pumpAndSettle();
-    expect(find.text('把目标写成可以走的路径'), findsOneWidget);
-    expect(find.text('第二步 · 目标'), findsOneWidget);
+    expect(find.text('把目标变成下一步'), findsOneWidget);
+    expect(find.text('把方向拆开'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('onboarding-next')));
     await tester.pumpAndSettle();
-    expect(find.text('需要时，让助手帮你整理'), findsOneWidget);
-    expect(find.text('第三步 · 助手'), findsOneWidget);
+    expect(find.text('让助手接住你的想法'), findsOneWidget);
+    expect(find.text('随时有人帮你整理'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('onboarding-next')));
     await tester.pumpAndSettle();
