@@ -82,6 +82,9 @@ class _AssistantPageState extends State<AssistantPage> {
   AssistantVoiceController? _voice;
   bool _recordingVoice = false;
   String _voicePrefix = '';
+  String _voiceSuffix = '';
+  TextEditingValue? _voiceDraftBefore;
+  String? _voiceInputError;
   void _controllerChanged() {
     final id = widget.controller.draftKey;
     if (id != _draftSession) {
@@ -91,13 +94,11 @@ class _AssistantPageState extends State<AssistantPage> {
           follow: _followOutput,
         );
       }
-      if (_recordingVoice) {
-        _recordingVoice = false;
-        unawaited(_voice?.cancel());
-      }
+      if (_recordingVoice) unawaited(_cancelVoiceInput());
       widget.controller.saveDraft(_draftSession, _input.text);
       widget.controller.saveAttachments(_draftSession, _attachments);
       _draftSession = id;
+      _voiceInputError = null;
       _input.text = widget.controller.draftFor(id);
       _attachments
         ..clear()
@@ -162,24 +163,51 @@ class _AssistantPageState extends State<AssistantPage> {
 
   void _voiceChanged() {
     if (!mounted) return;
-    final text = _voice!.text;
-    if (_recordingVoice && text.isNotEmpty) {
-      _input.value = TextEditingValue(
-        text: '$_voicePrefix$text',
-        selection: TextSelection.collapsed(
-          offset: _voicePrefix.length + text.length,
-        ),
-      );
-      widget.controller.saveDraft(_draftSession, _input.text);
+    final voice = _voice!;
+    if (_recordingVoice) {
+      final text = voice.text;
+      if (text.isNotEmpty) {
+        _input.value = TextEditingValue(
+          text: '$_voicePrefix$text$_voiceSuffix',
+          selection: TextSelection.collapsed(
+            offset: _voicePrefix.length + text.length,
+          ),
+        );
+        widget.controller.saveDraft(_draftSession, _input.text);
+      }
+      if (!voice.listening && !voice.busy) {
+        _recordingVoice = false;
+        _voiceInputError = voice.error;
+        if (text.isEmpty) {
+          _input.value = _voiceDraftBefore ?? _input.value;
+        }
+        _voiceDraftBefore = null;
+        widget.controller.saveDraft(_draftSession, _input.text);
+      }
     }
     setState(() {});
+  }
+
+  Future<void> _cancelVoiceInput() async {
+    if (!_recordingVoice) return;
+    // 先撤销页面对识别回调的所有权，再恢复录音前的文字与光标。
+    _recordingVoice = false;
+    _input.value = _voiceDraftBefore ?? _input.value;
+    _voiceDraftBefore = null;
+    _voiceInputError = null;
+    widget.controller.saveDraft(_draftSession, _input.text);
+    setState(() {});
+    await _voice?.cancel();
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_controllerChanged);
     widget.controller.liveActivity.removeListener(_liveActivityChanged);
-    widget.controller.saveDraft(_draftSession, _input.text);
+    widget.controller.saveDraft(
+      _draftSession,
+      _recordingVoice ? (_voiceDraftBefore?.text ?? _input.text) : _input.text,
+    );
     widget.controller.saveAttachments(_draftSession, _attachments);
     _voice?.removeListener(_voiceChanged);
     if (_recordingVoice) unawaited(_voice?.cancel());
@@ -846,10 +874,7 @@ class _AssistantPageState extends State<AssistantPage> {
   }
 
   Future<void> _openHistory() async {
-    if (_recordingVoice) {
-      _recordingVoice = false;
-      await _voice?.cancel();
-    }
+    await _cancelVoiceInput();
     if (!mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -859,10 +884,7 @@ class _AssistantPageState extends State<AssistantPage> {
   }
 
   Future<void> _openSettings() async {
-    if (_recordingVoice) {
-      _recordingVoice = false;
-      await _voice?.cancel();
-    }
+    await _cancelVoiceInput();
     if (!mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(

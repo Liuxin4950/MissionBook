@@ -120,3 +120,7 @@ goals/
 ### 2026-10-26 图形引导与工作区
 
 `goals/list/goals_page.dart` 同时承接手机单列、宽屏创建/导入并排和目标列表/行动路径并排；同一Wrap子树重排，不复制业务或节点树。该文件的私有 `_GoalJourneyHint` 用三个图标和一次顺序显现表达目标→行动→记录。`widgets/app_illustration.dart` 复用于目标、空日程与空历史，只控制首次可见入场及图片尺寸；事实、草稿、查询和保存仍由原页面与服务负责。`goal_import_section.dart` 在开始输入时通知页面保留导入工作区，以免缩成窄窗丢失草稿。
+
+## 首次体验
+
+`launch/launch_page.dart` 展示品牌封面，由 App 控制停留和提前进入；`onboarding/onboarding_page.dart` 负责步骤、滑动、键盘、完成保存及响应式操作区，`onboarding/onboarding_scene.dart` 负责不写业务数据的连续示意画布。手机纵排，平板重新展开图形关系，再按窗口宽高决定纵向组合或左右演示/操作分区；完成状态与减少动效由既有本机设置提供。设置可重新打开引导，返回原工作区。完整约束见[全局样式](../../docs/架构/设计/全局样式/README.md#首次体验与媒体上下文)。

@@ -49,3 +49,7 @@ TZ=America/Los_Angeles flutter test --no-pub test/presentation/detail_pane_flow_
 目标包协议夹具保留在 `docs/设计/目标计划导入/examples/`；其路径归档不改变 JSON 协议。旧测试数字和历史失败不作为当前门禁结果。
 
 本轮新增的截止调度、模型网关、空会话、图片恢复及通知入口回归见[2026-11-01 复审记录](../docs/审查/2026-11-01-复审与会话生命周期修复.md)。
+
+## Android 截图与边缘几何
+
+`python3 test/support/run_capture_interaction_checks.py` 使用本机 Gradle 缓存中的 Kotlin 2.3.21 编译器运行 `android/app/src/test/kotlin/chat/liuxin/mission_book/CaptureInteractionChecks.kt`。先通过 Android Gradle 编译准备缓存；脚本缺依赖时明确失败，不自动安装或下载。覆盖拉选、四角、移动、取消、全屏及左右收起/向内呼出的纯几何；这不是 Android View、系统触摸分发或 MediaProjection 设备测试。完整交互仍需目标设备验收，见[本轮记录](../docs/审查/2026-11-17-语音与截图交互修复.md)。

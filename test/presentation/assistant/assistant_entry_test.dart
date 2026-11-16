@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:agent_core/agent_core.dart';
 import 'package:mission_book/application/assistant/assistant_model_catalog.dart';
 import 'package:http/http.dart' as http;
@@ -90,6 +91,11 @@ class TestSpeech implements AssistantSpeech {
   VoidCallback? finish;
   int starts = 0;
   int cancels = 0;
+  int stops = 0;
+  bool available = true;
+  Completer<bool>? startGate;
+  Completer<void>? stopGate;
+  void Function(String)? fail;
   @override
   Future<bool> start({
     required void Function(String) onText,
@@ -100,11 +106,14 @@ class TestSpeech implements AssistantSpeech {
     starts++;
     emit = onText;
     finish = onDone;
-    return true;
+    fail = onError;
+    return startGate == null ? available : await startGate!.future;
   }
 
   @override
   Future<void> stop() async {
+    stops++;
+    if (stopGate != null) await stopGate!.future;
     finish?.call();
   }
 
@@ -225,6 +234,7 @@ void main() {
     bool realDetail = false,
     bool recordsPage = false,
     bool settingsPage = false,
+    bool chatPage = false,
     Future<AssistantAttachment?> Function()? pickAvatar,
     bool initializeAssistant = true,
     MemoryAssistantSettingsStore? settingsStore,
@@ -340,6 +350,8 @@ void main() {
             ? MissionDetailPage(missionId: missionId, missionService: missions)
             : recordsPage
             ? RecordsPage(missionId: missionId)
+            : chatPage
+            ? AssistantPage(controller: assistant)
             : AssistantSurface(
                 missionId: missionId,
                 child: Scaffold(
@@ -592,6 +604,175 @@ void main() {
     } finally {
       await mouse.removePointer();
     }
+  });
+
+  assistantTest('聊天语音按光标替换选区，完成只回填而不自动发送', (tester) async {
+    await mount(tester, ScriptedModel([]), chatPage: true);
+    final input = tester
+        .widget<TextField>(find.byKey(const Key('assistant-input')))
+        .controller!;
+    input.value = const TextEditingValue(
+      text: '早上旧安排晚上',
+      selection: TextSelection(baseOffset: 2, extentOffset: 5),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('assistant-composer-voice')));
+    await pumpUntil(tester, () => voice.listening);
+    await tester.pump();
+    speech.emit!('读书');
+    await tester.pump();
+    expect(input.text, '早上读书晚上');
+    expect(find.byTooltip('结束录音并转文字'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('assistant-send')));
+    await pumpUntil(tester, () => !voice.busy && !voice.listening);
+    await tester.pump();
+    expect(input.text, '早上读书晚上');
+    expect(input.selection.baseOffset, 4);
+    expect(assistant.transcript, isEmpty);
+    expect(find.byTooltip('发送'), findsOneWidget);
+    speech.emit!('迟到结果');
+    await tester.pump();
+    expect(input.text, '早上读书晚上');
+    await capture(tester, 'voice-review');
+  });
+
+  assistantTest('取消聊天录音恢复原稿与光标，并隔离迟到识别', (tester) async {
+    await mount(tester, ScriptedModel([]), chatPage: true);
+    final input = tester
+        .widget<TextField>(find.byKey(const Key('assistant-input')))
+        .controller!;
+    const before = TextEditingValue(
+      text: '保留这段文字',
+      selection: TextSelection.collapsed(offset: 2),
+    );
+    input.value = before;
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('assistant-composer-voice')));
+    await pumpUntil(tester, () => voice.listening);
+    await tester.pump();
+    speech.emit!('临时识别');
+    await tester.pump();
+    await capture(tester, 'voice-recording');
+    expect(input.text, '保留临时识别这段文字');
+    await tester.tap(find.byTooltip('取消本次语音').first);
+    await pumpUntil(tester, () => !voice.busy);
+    await tester.pump();
+    expect(input.value, before);
+    expect(assistant.draft, before.text);
+    speech.emit!('取消后返回');
+    await tester.pump();
+    expect(input.value, before);
+    expect(speech.cancels, 1);
+  });
+
+  assistantTest('语音准备期间可取消，迟到授权不重开录音，随后可重试', (tester) async {
+    await mount(tester, ScriptedModel([]), chatPage: true);
+    speech.startGate = Completer<bool>();
+    await tester.tap(find.byKey(const Key('assistant-composer-voice')));
+    await tester.pump();
+    expect(voice.starting, isTrue);
+    await tester.tap(find.byTooltip('取消本次语音').first);
+    await pumpUntil(tester, () => !voice.busy);
+    await tester.pump();
+    speech.startGate!.complete(true);
+    await tester.pump();
+    expect(voice.listening, isFalse);
+    speech.startGate = null;
+    await tester.tap(find.byKey(const Key('assistant-composer-voice')));
+    await pumpUntil(tester, () => voice.listening);
+    await tester.pump();
+    expect(speech.starts, 2);
+    await tester.tap(find.byTooltip('取消本次语音').first);
+    await pumpUntil(tester, () => !voice.busy);
+    await tester.pump();
+  });
+
+  assistantTest('语音权限拒绝可见且能重试，转写中取消仍保留原稿', (tester) async {
+    await mount(tester, ScriptedModel([]), chatPage: true);
+    await tester.enterText(find.byKey(const Key('assistant-input')), '原稿');
+    speech.available = false;
+    await tester.tap(find.byKey(const Key('assistant-composer-voice')));
+    await pumpUntil(tester, () => !voice.starting);
+    await tester.pump();
+    expect(find.textContaining('麦克风未获授权'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('assistant-input')))
+          .controller!
+          .text,
+      '原稿',
+    );
+    speech.available = true;
+    speech.stopGate = Completer<void>();
+    await tester.tap(find.byKey(const Key('assistant-composer-voice')));
+    await pumpUntil(tester, () => voice.listening);
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('assistant-send')));
+    await tester.pump();
+    expect(voice.stopping, isTrue);
+    await tester.tap(find.byTooltip('取消本次语音').first);
+    await pumpUntil(tester, () => !voice.busy);
+    await tester.pump();
+    speech.emit!('取消后的识别');
+    speech.stopGate!.complete();
+    await tester.pump();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('assistant-input')))
+          .controller!
+          .text,
+      '原稿',
+    );
+    expect(assistant.transcript, isEmpty);
+  });
+
+  for (final (width, height, scale) in [
+    (320.0, 568.0, 2.0),
+    (1024.0, 768.0, 1.0),
+  ]) {
+    assistantTest('录音与转写操作在 $width 宽 $scale 字号可取消和完成', (tester) async {
+      await mount(
+        tester,
+        ScriptedModel([]),
+        chatPage: true,
+        width: width,
+        height: height,
+        textScale: scale,
+      );
+      await tester.tap(find.byKey(const Key('assistant-composer-voice')));
+      await pumpUntil(tester, () => voice.listening);
+      await tester.pump();
+      expect(find.text('完成'), findsOneWidget);
+      expect(find.text('取消'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const Key('assistant-send')));
+      await pumpUntil(tester, () => !voice.busy && !voice.listening);
+      await tester.pump();
+      expect(find.byTooltip('语音输入'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  assistantTest('后台取消共享语音时恢复聊天原稿并保存，旧结果不再回填', (tester) async {
+    await mount(tester, ScriptedModel([]), chatPage: true);
+    await tester.enterText(find.byKey(const Key('assistant-input')), '原稿');
+    await tester.tap(find.byKey(const Key('assistant-composer-voice')));
+    await pumpUntil(tester, () => voice.listening);
+    speech.emit!('暂存');
+    await tester.pump();
+    await voice.cancel();
+    await tester.pump();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('assistant-input')))
+          .controller!
+          .text,
+      '原稿',
+    );
+    expect(assistant.draft, '原稿');
+    speech.emit!('迟到');
+    await tester.pump();
+    expect(assistant.draft, '原稿');
   });
 
   assistantTest('语音单独校验保存，试用识别不改聊天草稿也不创建会话', (tester) async {

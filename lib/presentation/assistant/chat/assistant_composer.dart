@@ -156,14 +156,7 @@ class _AssistantComposer {
                   ),
                 if (_page._recordingVoice && _page._voice != null) ...[
                   const SizedBox(height: AppLayout.spaceSm),
-                  AssistantVoiceStatus(
-                    voice: _page._voice!,
-                    onCancel: () async {
-                      _page._recordingVoice = false;
-                      await _page._voice!.cancel();
-                      if (mounted) _page._update(() {});
-                    },
-                  ),
+                  AssistantVoiceStatus(voice: _page._voice!),
                 ],
                 TextField(
                   key: const Key('assistant-input'),
@@ -176,7 +169,7 @@ class _AssistantComposer {
                       (_page._voice?.listening ?? false) ||
                       (_page._voice?.busy ?? false),
                   onChanged: (text) {
-                    _page._recordingVoice = false;
+                    _page._voiceInputError = null;
                     controller.saveDraft(_page._draftSession, text);
                   },
                   minLines: 1,
@@ -202,131 +195,142 @@ class _AssistantComposer {
                     focusedBorder: InputBorder.none,
                   ),
                 ),
-                if (_page._recordingVoice && _page._voice?.error != null)
+                if (_page._voiceInputError != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
                     child: Text(
-                      _page._voice!.error!,
+                      _page._voiceInputError!,
                       style: const TextStyle(color: AppColors.error),
                     ),
                   ),
-                Row(
-                  children: [
-                    PopupMenuButton<String>(
-                      popUpAnimationStyle: AppMotion.overlayStyle(context),
-                      key: const Key('assistant-add-attachment'),
-                      tooltip: '附件与快捷指令',
-                      style: toolStyle,
-                      constraints: const BoxConstraints(
-                        minWidth: 188,
-                        maxWidth: 240,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
-                      ),
-                      enabled:
-                          !controller.isBusy &&
-                          !controller.compacting &&
-                          !_page._picking,
-                      onSelected: _composerAction,
-                      icon: _page._picking
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(
-                              Icons.add_rounded,
-                              size: AppLayout.iconMd,
-                            ),
-                      itemBuilder: (_) => [
-                        if (kIsWeb ||
-                            defaultTargetPlatform == TargetPlatform.android)
-                          _composerMenuItem(
-                            'camera',
-                            Icons.photo_camera_outlined,
-                            '拍照',
-                            enabled:
-                                _page._attachments.length <
-                                AssistantAttachment.maxCount,
-                          ),
-                        _composerMenuItem(
-                          'image',
-                          Icons.image_outlined,
-                          '添加图片',
-                          enabled:
-                              _page._attachments.length <
-                              AssistantAttachment.maxCount,
-                        ),
-                        _composerMenuItem(
-                          'file',
-                          Icons.attach_file,
-                          '添加文件',
-                          enabled:
-                              _page._attachments.length <
-                              AssistantAttachment.maxCount,
-                        ),
-                      ],
-                    ),
-                    if (_page._voice != null)
-                      IconButton(
-                        key: const Key('assistant-composer-voice'),
-                        tooltip: _page._voice!.listening ? '结束录音' : '语音输入',
+                if (_page._recordingVoice)
+                  _voiceActions()
+                else
+                  Row(
+                    children: [
+                      PopupMenuButton<String>(
+                        popUpAnimationStyle: AppMotion.overlayStyle(context),
+                        key: const Key('assistant-add-attachment'),
+                        tooltip: '附件与快捷指令',
                         style: toolStyle,
-                        onPressed: controller.isBusy || _page._voice!.busy
-                            ? null
-                            : _toggleVoice,
-                        icon: Icon(
-                          _page._voice!.listening
-                              ? Icons.stop_circle_outlined
-                              : Icons.mic_none_rounded,
-                          size: AppLayout.iconMd,
-                          color: _page._voice!.listening
-                              ? colors.primary
-                              : null,
+                        constraints: const BoxConstraints(
+                          minWidth: 188,
+                          maxWidth: 240,
                         ),
-                      ),
-                    Expanded(
-                      child: Text(
-                        _page._attachments.isEmpty
-                            ? ''
-                            : '${_page._attachments.length}/${AssistantAttachment.maxCount} 个附件',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                    _reasoningSelector(controller),
-                    _contextIndicator(controller),
-                    IconButton.filled(
-                      key: const Key('assistant-send'),
-                      tooltip: canStop ? '停止本轮' : '发送',
-                      onPressed: action,
-                      style: IconButton.styleFrom(
-                        minimumSize: const Size.square(
-                          AppLayout.touchTargetMin,
-                        ),
-                        foregroundColor: colors.onPrimary,
-                        backgroundColor: colors.primary,
-                        disabledForegroundColor: AppColors.onDisabled,
-                        disabledBackgroundColor: AppColors.disabled,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(
                             AppLayout.radiusLg,
                           ),
                         ),
+                        enabled:
+                            !controller.isBusy &&
+                            !controller.compacting &&
+                            !_page._picking &&
+                            !(_page._voice?.busy ?? false) &&
+                            !(_page._voice?.listening ?? false),
+                        onSelected: _composerAction,
+                        icon: _page._picking
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.add_rounded,
+                                size: AppLayout.iconMd,
+                              ),
+                        itemBuilder: (_) => [
+                          if (kIsWeb ||
+                              defaultTargetPlatform == TargetPlatform.android)
+                            _composerMenuItem(
+                              'camera',
+                              Icons.photo_camera_outlined,
+                              '拍照',
+                              enabled:
+                                  _page._attachments.length <
+                                  AssistantAttachment.maxCount,
+                            ),
+                          _composerMenuItem(
+                            'image',
+                            Icons.image_outlined,
+                            '添加图片',
+                            enabled:
+                                _page._attachments.length <
+                                AssistantAttachment.maxCount,
+                          ),
+                          _composerMenuItem(
+                            'file',
+                            Icons.attach_file,
+                            '添加文件',
+                            enabled:
+                                _page._attachments.length <
+                                AssistantAttachment.maxCount,
+                          ),
+                        ],
                       ),
-                      icon: Icon(
-                        canStop
-                            ? Icons.stop_rounded
-                            : Icons.arrow_upward_rounded,
-                        size: AppLayout.iconMd,
-                        color: action == null
-                            ? AppColors.onDisabled
-                            : colors.onPrimary,
+                      if (_page._voice != null)
+                        IconButton(
+                          key: const Key('assistant-composer-voice'),
+                          tooltip: '语音输入',
+                          style: toolStyle,
+                          onPressed:
+                              controller.isBusy ||
+                                  controller.compacting ||
+                                  controller.initializing ||
+                                  controller.needsOutcomeResolution ||
+                                  _page._picking ||
+                                  _page._voice!.busy ||
+                                  _page._voice!.listening
+                              ? null
+                              : _toggleVoice,
+                          icon: const Icon(
+                            Icons.mic_none_rounded,
+                            size: AppLayout.iconMd,
+                          ),
+                        ),
+                      Expanded(
+                        child: Text(
+                          _page._attachments.isEmpty
+                              ? ''
+                              : '${_page._attachments.length}/${AssistantAttachment.maxCount} 个附件',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                      _reasoningSelector(controller),
+                      _contextIndicator(controller),
+                      IconButton.filled(
+                        key: const Key('assistant-send'),
+                        tooltip: canStop ? '停止本轮' : '发送',
+                        onPressed: action,
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size.square(
+                            AppLayout.touchTargetMin,
+                          ),
+                          foregroundColor: colors.onPrimary,
+                          backgroundColor: colors.primary,
+                          disabledForegroundColor: AppColors.onDisabled,
+                          disabledBackgroundColor: AppColors.disabled,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppLayout.radiusLg,
+                            ),
+                          ),
+                        ),
+                        icon: Icon(
+                          canStop
+                              ? Icons.stop_rounded
+                              : Icons.arrow_upward_rounded,
+                          size: AppLayout.iconMd,
+                          color: action == null
+                              ? AppColors.onDisabled
+                              : colors.onPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -334,6 +338,33 @@ class _AssistantComposer {
       );
     },
   );
+  Widget _voiceActions() {
+    final voice = _page._voice!;
+    return Row(
+      children: [
+        Tooltip(
+          message: '取消本次语音',
+          child: TextButton.icon(
+            key: const Key('assistant-composer-voice'),
+            onPressed: _page._cancelVoiceInput,
+            icon: const Icon(Icons.close_rounded, size: AppLayout.iconMd),
+            label: const Text('取消'),
+          ),
+        ),
+        const Spacer(),
+        Tooltip(
+          message: '结束录音并转文字',
+          child: FilledButton.icon(
+            key: const Key('assistant-send'),
+            onPressed: voice.listening ? voice.stop : null,
+            icon: const Icon(Icons.check_rounded, size: AppLayout.iconMd),
+            label: const Text('完成'),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _reasoningSelector(AssistantController controller) {
     final scale = MediaQuery.textScalerOf(context).scale(1);
     final available = (MediaQuery.sizeOf(context).width - AppLayout.space3Xl)
@@ -560,14 +591,16 @@ class _AssistantComposer {
 
   Future<void> _toggleVoice() async {
     final voice = _page._voice!;
-    if (voice.listening) {
-      await voice.stop();
-      return;
-    }
+    if (voice.busy || voice.listening || widget.controller.isBusy) return;
+    final before = _page._input.value;
+    final selection = before.selection;
+    final start = selection.isValid ? selection.start : before.text.length;
+    final end = selection.isValid ? selection.end : before.text.length;
+    _page._voiceDraftBefore = before;
+    _page._voicePrefix = before.text.substring(0, start);
+    _page._voiceSuffix = before.text.substring(end);
+    _page._voiceInputError = null;
     _page._inputFocus.unfocus();
-    _page._voicePrefix = _page._input.text.isEmpty
-        ? ''
-        : '${_page._input.text.trimRight()}\n';
     _page._recordingVoice = true;
     await voice.start();
   }

@@ -36,6 +36,10 @@ class AssistantOverlayService : Service() {
     private var windowManager: WindowManager? = null
     private var bubble: View? = null
     private var menu: View? = null
+    private var docked = false
+    private var dockLeft = false
+    private var positionX = -1
+    private var positionY = -1
 
     override fun onCreate() {
         super.onCreate()
@@ -138,9 +142,11 @@ class AssistantOverlayService : Service() {
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.TOP or Gravity.END
-            x = (12 * resources.displayMetrics.density).toInt()
-            y = resources.displayMetrics.heightPixels / 3
+            gravity = Gravity.TOP or Gravity.LEFT
+            val maxX = (resources.displayMetrics.widthPixels - size).coerceAtLeast(0)
+            x = if (positionX < 0) (maxX - dp(12)).coerceAtLeast(0) else positionX.coerceIn(0, maxX)
+            y = if (positionY < 0) resources.displayMetrics.heightPixels / 3 else positionY
+            if (docked) { width = dp(48); height = dp(64); x = if (dockLeft) 0 else resources.displayMetrics.widthPixels - width }
         }
         var downX = 0f
         var downY = 0f
@@ -162,23 +168,70 @@ class AssistantOverlayService : Service() {
                     val dy = (event.rawY - downY).toInt()
                     if (kotlin.math.abs(dx) + kotlin.math.abs(dy) > ViewConfiguration.get(this).scaledTouchSlop) moved = true
                     if (moved) {
-                        layout.x = (startX - dx).coerceAtLeast(0)
-                        layout.y = (startY + dy).coerceAtLeast(0)
+                        removeMenu()
+                        if (docked) {
+                            val inward = OverlayEdgeGeometry.inwardDistance(dockLeft, dx)
+                            if (inward > dp(24)) {
+                                docked = false
+                                layout.width = size
+                                layout.height = size
+                                layout.x = OverlayEdgeGeometry.revealedX(dockLeft, resources.displayMetrics.widthPixels, size, dp(16))
+                                downX = event.rawX
+                                downY = event.rawY
+                                startX = layout.x
+                                startY = layout.y
+                                renderDock(label, avatar)
+                            } else layout.y = (startY + dy).coerceIn(0, (resources.displayMetrics.heightPixels - layout.height).coerceAtLeast(0))
+                        } else {
+                            layout.x = (startX + dx).coerceIn(0, (resources.displayMetrics.widthPixels - size).coerceAtLeast(0))
+                            layout.y = (startY + dy).coerceIn(0, (resources.displayMetrics.heightPixels - size).coerceAtLeast(0))
+                        }
                         windowManager?.updateViewLayout(view, layout)
-                        positionMenu(layout)
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!moved) {
-                        if (menu == null) showMenu(layout) else removeMenu()
                         view.performClick()
+                    } else if (!docked) {
+                        val maxX = (resources.displayMetrics.widthPixels - size).coerceAtLeast(0)
+                        if (OverlayEdgeGeometry.nearEdge(layout.x, resources.displayMetrics.widthPixels, size, dp(12))) {
+                            dockLeft = layout.x < maxX / 2
+                            docked = true
+                            layout.width = dp(48)
+                            layout.height = dp(64)
+                            layout.x = if (dockLeft) 0 else resources.displayMetrics.widthPixels - layout.width
+                            layout.y = layout.y.coerceIn(0, (resources.displayMetrics.heightPixels - layout.height).coerceAtLeast(0))
+                            renderDock(label, avatar)
+                            windowManager?.updateViewLayout(view, layout)
+                        }
+                        positionX = layout.x
+                        positionY = layout.y
                     }
+                    positionX = layout.x
+                    positionY = layout.y
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    // 取消手势只保留位置，不误开菜单或触发吸边。
+                    positionX = layout.x
+                    positionY = layout.y
                     true
                 }
                 else -> true
             }
         }
+        label.setOnClickListener {
+            if (docked) {
+                docked = false
+                layout.width = size
+                layout.height = size
+                layout.x = OverlayEdgeGeometry.revealedX(dockLeft, resources.displayMetrics.widthPixels, size, dp(16))
+                renderDock(label, avatar)
+                windowManager?.updateViewLayout(label, layout)
+            } else if (menu == null) showMenu(layout) else removeMenu()
+        }
+        renderDock(label, avatar)
         try {
             windowManager?.addView(label, layout)
             bubble = label
@@ -186,6 +239,46 @@ class AssistantOverlayService : Service() {
             bubble = null
             reportOverlayFailure("无法显示助手悬浮入口", error)
         }
+    }
+
+    private fun renderDock(label: FrameLayout, avatar: ImageView) {
+        avatar.visibility = if (docked) View.GONE else View.VISIBLE
+        val shape = GradientDrawable().apply {
+            if (docked) {
+                setColor(0xFFE7F1EA.toInt())
+                cornerRadii = if (dockLeft) floatArrayOf(0f, 0f, dp(12).toFloat(), dp(12).toFloat(), dp(12).toFloat(), dp(12).toFloat(), 0f, 0f)
+                    else floatArrayOf(dp(12).toFloat(), dp(12).toFloat(), 0f, 0f, 0f, 0f, dp(12).toFloat(), dp(12).toFloat())
+            } else {
+                this.shape = GradientDrawable.OVAL
+                setColor(0xFFFFFFFF.toInt())
+            }
+            setStroke(dp(1), 0xFFD5E1D8.toInt())
+        }
+        label.background = if (docked) android.graphics.drawable.InsetDrawable(shape,
+            if (dockLeft) 0 else dp(24), 0, if (dockLeft) dp(24) else 0, 0) else shape
+        // 24dp 的可见把手，保留 48dp 命中区，不把头像裁成半个圆。
+        label.foreground = if (docked) GradientDrawable().apply {
+            setColor(0xFF769581.toInt())
+            cornerRadius = dp(2).toFloat()
+            setSize(dp(3), dp(24))
+        }.let { android.graphics.drawable.InsetDrawable(it, if (dockLeft) dp(10) else dp(34), dp(20), if (dockLeft) dp(34) else dp(10), dp(20)) } else null
+        label.elevation = if (docked) 0f else dp(4).toFloat()
+        label.contentDescription = if (docked) "助手已收起，向屏幕内滑动或轻点展开" else "AI 助手，轻点打开，拖到边缘收起"
+        if (Build.VERSION.SDK_INT >= 29) {
+            label.post {
+                // 仅让把手的小块区域接收侧滑，保留其余系统返回手势。
+                label.systemGestureExclusionRects = if (docked) listOf(android.graphics.Rect(if (dockLeft) 0 else dp(24), 0, if (dockLeft) dp(24) else label.width, label.height)) else emptyList()
+            }
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val shown = bubble != null
+        removeBubble()
+        positionX = positionX.coerceIn(0, (resources.displayMetrics.widthPixels - dp(56)).coerceAtLeast(0))
+        positionY = positionY.coerceIn(0, (resources.displayMetrics.heightPixels - dp(64)).coerceAtLeast(0))
+        if (shown) showBubble()
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
@@ -241,7 +334,6 @@ class AssistantOverlayService : Service() {
         val pending = prefs.getString(MainActivity.EXTRA_CAPTURE_PATH, null) != null
         option(if (pending) "截图已就绪 · 打开助手" else "打开 AI 助手", R.drawable.assistant_chat, pending) { openAssistant() }
         option("截屏提问", R.drawable.assistant_capture) { startCapture(false) }
-        option("长截图提问", R.drawable.assistant_capture) { startCapture(true) }
         option("关闭悬浮入口", R.drawable.assistant_close) {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(ENABLED_KEY, false).apply()
             stopSelf()
@@ -254,7 +346,7 @@ class AssistantOverlayService : Service() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.TOP or Gravity.END
+            gravity = Gravity.TOP or Gravity.LEFT
             x = bubbleLayout.x
             y = bubbleLayout.y
         }
@@ -309,9 +401,9 @@ class AssistantOverlayService : Service() {
         val panelWidth = params.width
         val panelHeight = panel.height.takeIf { it > 0 } ?: dp(160)
         val maxX = (metrics.widthPixels - panelWidth).coerceAtLeast(0)
-        val leftOfBubble = bubbleLayout.x + bubbleLayout.width + gap
-        val rightOfBubble = bubbleLayout.x - panelWidth - gap
-        params.x = (if (leftOfBubble <= maxX) leftOfBubble else rightOfBubble).coerceIn(0, maxX)
+        val afterBubble = bubbleLayout.x + bubbleLayout.width + gap
+        val beforeBubble = bubbleLayout.x - panelWidth - gap
+        params.x = (if (beforeBubble >= 0) beforeBubble else afterBubble).coerceIn(0, maxX)
         params.y = bubbleLayout.y.coerceIn(0, (metrics.heightPixels - panelHeight).coerceAtLeast(0))
         windowManager?.updateViewLayout(panel, params)
     }

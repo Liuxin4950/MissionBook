@@ -280,18 +280,11 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
             .accessibilityFeatures
             .disableAnimations,
       );
-      _launchTimer = Timer(reduced ? Duration.zero : AppMotion.launch, () {
-        if (mounted) setState(() => _launchComplete = true);
-        if (mounted && widget.notice != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _messenger.currentState?.showSnackBar(
-                SnackBar(content: Text(widget.notice!)),
-              );
-            }
-          });
-        }
-      });
+      if (_launchComplete) return;
+      _launchTimer = Timer(
+        reduced ? Duration.zero : AppMotion.launchHold,
+        _completeLaunch,
+      );
     });
     WidgetsBinding.instance.addObserver(this);
     _evidenceDeadlines = EvidenceDeadlineScheduler(
@@ -300,6 +293,21 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       onError: (error) => debugPrint('材料截止补算失败：$error'),
     );
     unawaited(_evidenceDeadlines!.start());
+  }
+
+  void _completeLaunch() {
+    if (!mounted || _launchComplete) return;
+    _launchTimer?.cancel();
+    setState(() => _launchComplete = true);
+    if (widget.notice != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _messenger.currentState?.showSnackBar(
+            SnackBar(content: Text(widget.notice!)),
+          );
+        }
+      });
+    }
   }
 
   Future<void> _loadOnboarding() async {
@@ -669,7 +677,10 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
         builder: (context) => AnimatedSwitcher(
           duration: AppMotion.resolve(context, AppMotion.quick),
           child: !_launchComplete || !_onboardingLoaded
-              ? const LaunchPage(key: ValueKey('launch-page'))
+              ? LaunchPage(
+                  key: const ValueKey('launch-page'),
+                  onContinue: _onboardingLoaded ? _completeLaunch : null,
+                )
               : !_onboardingCompleted
               ? OnboardingPage(
                   key: const ValueKey('onboarding-page'),

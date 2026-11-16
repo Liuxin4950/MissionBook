@@ -25,6 +25,7 @@
 | [app_selection_option.dart](../../../../lib/presentation/widgets/app_selection_option.dart) | 表单下拉和快捷选择菜单共用的选中项外观 |
 | [launch_page.dart](../../../../lib/presentation/launch/launch_page.dart) | 冷启动品牌页与减少动效处理 |
 | [onboarding_page.dart](../../../../lib/presentation/onboarding/onboarding_page.dart) | 首次体验三页路径、跳过与完成入口 |
+| [onboarding_scene.dart](../../../../lib/presentation/onboarding/onboarding_scene.dart) | 同一任务卡片的连续画布；手机纵向关系与平板横向关系 |
 | [onboarding_store.dart](../../../../lib/application/settings/onboarding_store.dart) | 本机 UI 引导完成标记契约 |
 
 ## 视觉角色
@@ -47,7 +48,11 @@
 
 ## 首次体验与媒体上下文
 
-冷启动品牌页和首次引导继续使用全局 `AppColors`、`AppLayout`、`AppMotion` 与现有品牌插画，不申请权限、不写业务数据库。首次引导只保存本机 UI 完成标记；引导页使用暖白卡片、森林绿主操作、三页短路径和可跳过入口。
+冷启动封面使用既有标识、品牌名和一句标语，移除大场景插画与加载进度条。普通启动停留 `launchHold` 2600ms，完成标记读回后可点“进入”提前离开；减少动效时不强制停留。首次引导不申请权限、不写业务数据库，只在完成或跳过成功后保存既有本机完成标记。设置的“帮助 → 使用引导”通过根 Navigator 全窗口重新查看，结束时回到原设置，不重写完成标记；避免平板半屏设置把引导也挤入详情区。
+
+首次引导以同一任务卡片接续“今天 → 目标 → 助手”，共享 `AnimationController` 的 0–2 进度驱动位置、尺寸、文字淡化与目标连线；无循环漂浮。手机保留已确认的纵向布局。可用宽度至少 600、高度至少 560 且字号缩放小于 1.7 时进入平板布局：示意画布改为 560×360 的横向归属关系，文案、步骤与按钮组成连续操作区。宽度至少 960 且宽高比至少 1.05 时，演示与操作分列；其余平板采用限宽纵向组合，不硬塞两列。窄窗口、短横屏和大字号使用可滚动内容与底部操作区。断点按逻辑像素和当前窗口计算，旋转与缩放保留步骤。
+
+画布属于带独立无障碍描述的操作示意，不发起业务写入；图中文字随画布缩放，主文案和按钮继续响应系统字号。触屏拖动与按钮驱动同一进度，左右方向键只换步骤；减少动效立即收敛到目的步骤，主按钮和跳过共用防重与失败重试。当前截图、交互与验收边界见[首次体验重做](../../../审查/2026-11-17-新手引导与封面.md)。
 
 相机和屏幕捕获保留黑色媒体画布以保证内容对比度，但操作面板仍复用品牌绿、暖白和 48dp 触控约束：相机使用中央快门与底部操作面板，长截图使用状态胶囊及“完成 / 取消”控制条，采集由服务自动轮询。媒体上下文是颜色表面的应用，不是新的主题。
 
@@ -62,7 +67,7 @@
 
 扩展导航阈值为 1200。双栏按内容宽度 480 + 16 + 360 判断，不能仅凭整个窗口进入 expanded 就强制分栏。表单两列按自身面板 560 判断；详情阅读区与仪表盘分别限宽。助手模型和服务配置使用等宽 AdaptiveColumns，两列各至少 480，并随系统字号增加所需空间，详见[助手界面布局](../../前端/助手与总结/总览.md#设置页面与自适应布局)。
 
-quick/standard/navigation/exit/entrance/launch 为 180/240/280/200/420/450ms。组件通过 AppMotion.resolve 响应减少动效，弹层、对话框与 PopupMenuButton 使用 AppMotion.overlayStyle 显式配置进入和退出。
+quick/standard/navigation/exit/entrance/launch 为 180/240/280/200/420/450ms；storyTransition 为 520ms，封面停留 launchHold 为 2600ms。组件通过 AppMotion.resolve 响应减少动效，弹层、对话框与 PopupMenuButton 使用 AppMotion.overlayStyle 显式配置进入和退出。
 
 ## 动效管理
 

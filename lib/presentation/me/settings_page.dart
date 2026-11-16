@@ -13,6 +13,7 @@ import '../widgets/app_settings_row.dart';
 import 'data_backup_page.dart';
 import 'motion_style_sheet.dart';
 import 'motion_preferences_sheet.dart';
+import '../onboarding/onboarding_page.dart';
 import '../assistant/entry/assistant_scope.dart';
 import '../assistant/settings/assistant_settings_page.dart';
 
@@ -227,6 +228,25 @@ class _SettingsPageState extends State<SettingsPage>
                 _buildPermissionSection(context),
                 _buildScheduleSection(context),
                 _buildBackupSection(context),
+                _section(
+                  '帮助',
+                  child: AppSettingsRow(
+                    key: const Key('settings-onboarding-entry'),
+                    icon: Icons.auto_stories_outlined,
+                    title: '使用引导',
+                    onTap: () =>
+                        Navigator.of(context, rootNavigator: true).push<void>(
+                          MaterialPageRoute(
+                            builder: (routeContext) => OnboardingPage(
+                              onFinish: () async {
+                                Navigator.of(routeContext).pop();
+                                return true;
+                              },
+                            ),
+                          ),
+                        ),
+                  ),
+                ),
                 _buildAboutSection(context),
               ],
             ),

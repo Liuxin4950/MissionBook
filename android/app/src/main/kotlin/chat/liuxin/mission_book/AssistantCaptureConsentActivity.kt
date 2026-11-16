@@ -50,7 +50,7 @@ class AssistantCaptureConsentActivity : Activity() {
     }
 
     override fun onBackPressed() {
-        if (longCapture && captureStarted && !captureCompleted) {
+        if (captureStarted && !captureCompleted) {
             try {
                 startService(Intent(this, AssistantScreenCaptureService::class.java)
                     .setAction(AssistantScreenCaptureService.ACTION_CANCEL_CAPTURE))
@@ -65,10 +65,9 @@ class AssistantCaptureConsentActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         longCapture = intent.getBooleanExtra(AssistantScreenCaptureService.EXTRA_LONG_CAPTURE, false)
-        if (longCapture) {
-            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
-            window.attributes = window.attributes.apply { alpha = 0f }
-        }
+        // 授权完成后由服务的截图遮罩接管触摸，底下保留原应用画面。
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
+        window.attributes = window.attributes.apply { alpha = 0f }
         val filter = IntentFilter(AssistantScreenCaptureService.ACTION_CAPTURE_READY)
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
         else registerReceiver(receiver, filter)
@@ -113,7 +112,13 @@ class AssistantCaptureConsentActivity : Activity() {
             cancelCapture("截屏服务启动失败")
             return
         }
-        if (!longCapture) handler.postDelayed({ cancelCapture("截屏超时，请重试") }, 10000)
+        // 选区现在由用户确认，不再用十秒定时器误关编辑中的截图。
+        handler.postDelayed({
+            if (!captureCompleted) {
+                startService(Intent(this, AssistantScreenCaptureService::class.java)
+                    .setAction(AssistantScreenCaptureService.ACTION_CANCEL_CAPTURE))
+            }
+        }, 5 * 60 * 1000L)
     }
 
     private fun cancelCapture(reason: String?) {

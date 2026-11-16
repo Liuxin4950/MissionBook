@@ -48,11 +48,21 @@ class AssistantScreenCaptureService : Service() {
     private var finalizing = false
     private var longCapture = false
     private var awaitingFrame = false
+    private var settlingFrame = false
     private var busy = false
     private var frameCount = 0
     private var controls: View? = null
     private var combined: Bitmap? = null
     private var previous: Bitmap? = null
+    private var preview: Bitmap? = null
+    private var editor: View? = null
+    private var captureRegion: Rect? = null
+    private var finishRequested = false
+    private var captureWidth = 0
+    private var captureHeight = 0
+    private var contentWidth = 0
+    private var contentHeight = 0
+    private var lastIssue: String? = null
     private val manager by lazy { getSystemService(WindowManager::class.java) }
     private val longPoll = Runnable {
         if (longCapture && !completed && !finalizing && !cancelled.get()) {
@@ -63,10 +73,11 @@ class AssistantScreenCaptureService : Service() {
         if (awaitingFrame && !completed) {
             awaitingFrame = false
             busy = false
-            if (longCapture) {
+            if (finishRequested && frameCount > 0) finishLongCapture()
+            else if (longCapture) {
                 showControls("未收到画面，滚动页面后系统会继续尝试")
                 scheduleLongPoll(500L)
-            } else finishCapture(null)
+            } else failCapture("暂未收到屏幕画面，请重试")
         }
     }
 
@@ -86,10 +97,19 @@ class AssistantScreenCaptureService : Service() {
             val metrics = DisplayMetrics()
             @Suppress("DEPRECATION")
             manager.defaultDisplay.getRealMetrics(metrics)
-            val source = ImageReader.newInstance(metrics.widthPixels, metrics.heightPixels, PixelFormat.RGBA_8888, 2)
+            captureWidth = metrics.widthPixels
+            captureHeight = metrics.heightPixels
+            val source = ImageReader.newInstance(captureWidth, captureHeight, PixelFormat.RGBA_8888, 2)
             reader = source
             source.setOnImageAvailableListener({ captureAvailable(it, metrics.widthPixels, metrics.heightPixels) }, handler)
             projection?.registerCallback(object : MediaProjection.Callback() {
+                override fun onCapturedContentResize(width: Int, height: Int) {
+                    if (contentWidth != 0 && (contentWidth != width || contentHeight != height)) {
+                        failCapture("被截画面尺寸已改变，请重新截图")
+                    }
+                    contentWidth = width
+                    contentHeight = height
+                }
                 override fun onStop() {
                     if (!finalizing && !completed) cancelCapture()
                 }
@@ -99,12 +119,12 @@ class AssistantScreenCaptureService : Service() {
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, source.surface, null, handler,
             )
             requestFrame()
-            if (longCapture) handler.postDelayed({
+            handler.postDelayed({
                 if (!completed && !finalizing) cancelCapture()
             }, 5 * 60 * 1000L)
         } catch (error: Exception) {
             Log.e(TAG, "截屏初始化失败", error)
-            finishCapture(null)
+            failCapture("截屏未能启动，请重试")
         }
         return START_NOT_STICKY
     }
@@ -123,23 +143,23 @@ class AssistantScreenCaptureService : Service() {
     private fun requestFrame() {
         if (completed || finalizing || busy) return
         busy = true
-        val hadControls = controls != null
+        // 先丢弃带工具条的旧缓冲；等待合成期间不消费新帧，避免静止页面
+        // 在工具条消失后只产出一帧却被旧监听提前丢弃。
+        runCatching { reader?.acquireLatestImage()?.close() }
+        settlingFrame = true
         hideControls()
-        if (!hadControls) {
-            awaitingFrame = true
-            handler.postDelayed(frameTimeout, 2500)
-            return
-        }
-        // 等待悬浮控制条从合成画面消失，再读取持续投影的新帧。
         handler.postDelayed({
+            settlingFrame = false
             if (!completed && !finalizing) {
                 awaitingFrame = true
-                handler.postDelayed(frameTimeout, 2500)
+                reader?.let { captureAvailable(it, captureWidth, captureHeight) }
+                if (awaitingFrame) handler.postDelayed(frameTimeout, 900)
             }
         }, 200)
     }
 
     private fun captureAvailable(source: ImageReader, width: Int, height: Int) {
+        if (settlingFrame) return
         val image = try { source.acquireLatestImage() } catch (error: Exception) {
             Log.e(TAG, "读取截屏帧失败", error)
             cancelCapture()
@@ -160,9 +180,16 @@ class AssistantScreenCaptureService : Service() {
             crop
         } catch (error: Exception) {
             Log.e(TAG, "复制截屏失败", error)
-            finishCapture(null)
+            failCapture("无法读取屏幕画面，请重试")
             return
         } finally { image.close() }
+        // 普通截图先冻结当前画面，等待用户选择；不提前返回聊天。
+        if (!longCapture) {
+            busy = false
+            preview = bitmap
+            showEditor(bitmap)
+            return
+        }
         worker.execute {
             var errorMessage: String? = null
             try {
@@ -177,16 +204,18 @@ class AssistantScreenCaptureService : Service() {
                 if (!completed) {
                     busy = false
                     if (errorMessage == null) frameCount++
-                    if (longCapture) {
+                    if (finishRequested && frameCount > 0) {
+                        finishLongCapture()
+                    } else if (longCapture) {
                         val noChange = errorMessage?.contains("画面没有变化") == true
                         if (frameCount >= 12) {
                             showControls("已达到 12 屏，请完成长截图")
                         } else if (noChange) {
                             showControls("滚动页面后，系统会自动记录下一屏")
-                            scheduleLongPoll(280L)
+                            scheduleLongPoll(1200L)
                         } else {
                             showControls(errorMessage)
-                            scheduleLongPoll(if (errorMessage == null) 420L else 900L)
+                            scheduleLongPoll(if (errorMessage == null) 1200L else 1600L)
                         }
                     } else if (errorMessage == null) finishLongCapture() else finishCapture(null)
                 }
@@ -195,10 +224,17 @@ class AssistantScreenCaptureService : Service() {
     }
 
     private fun acceptFrame(raw: Bitmap) {
-        val maxWidth = if (longCapture) 1080 else raw.width
-        val frame = if (raw.width > maxWidth) Bitmap.createScaledBitmap(
-            raw, maxWidth, (raw.height.toLong() * maxWidth / raw.width).toInt(), true,
-        ) else raw.copy(Bitmap.Config.ARGB_8888, false)
+        val region = captureRegion
+        val cropped = if (region != null) {
+            require(raw.width == captureWidth && raw.height == captureHeight) { "屏幕尺寸已改变，请重新截图" }
+            Bitmap.createBitmap(raw, region.left, region.top, region.width(), region.height())
+        } else raw
+        val maxWidth = if (longCapture) 1080 else cropped.width
+        val frame = try {
+            if (cropped.width > maxWidth) Bitmap.createScaledBitmap(
+                cropped, maxWidth, (cropped.height.toLong() * maxWidth / cropped.width).toInt(), true,
+            ) else cropped.copy(Bitmap.Config.ARGB_8888, false)
+        } finally { if (cropped !== raw) cropped.recycle() }
         try {
             val last = previous
             val old = combined
@@ -239,7 +275,9 @@ class AssistantScreenCaptureService : Service() {
     }
 
     private fun finishLongCapture() {
-        if (completed || finalizing || busy || frameCount == 0) return
+        if (completed || finalizing) return
+        if (busy) { finishRequested = true; return }
+        if (frameCount == 0) return
         finalizing = true
         handler.removeCallbacks(longPoll)
         hideControls()
@@ -258,7 +296,9 @@ class AssistantScreenCaptureService : Service() {
             } finally { recycleFrames() }
             val result = file
             handler.post {
-                if (completed || cancelled.get()) result?.delete() else finishCapture(result)
+                if (completed || cancelled.get()) result?.delete()
+                else if (result == null) failCapture("截图未能保存，请重试")
+                else finishCapture(result)
             }
         }
     }
@@ -281,115 +321,115 @@ class AssistantScreenCaptureService : Service() {
         } finally { if (bitmap !== source) bitmap.recycle() }
     }
 
+    private fun showEditor(bitmap: Bitmap) {
+        try {
+            check(Settings.canDrawOverlays(this))
+            val view = CaptureEditorView(this, bitmap,
+                onConfirm = { region -> completeSelection(region, false) },
+                onLongCapture = { region -> completeSelection(region, true) },
+                onCancel = { cancelCapture() },
+            )
+            manager.addView(view, WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+                if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                gravity = Gravity.TOP or Gravity.LEFT
+                if (Build.VERSION.SDK_INT >= 30) {
+                    setFitInsetsTypes(0)
+                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                } else if (Build.VERSION.SDK_INT >= 28) {
+                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
+            })
+            editor = view
+        } catch (error: Exception) {
+            Log.e(TAG, "截图选区显示失败", error)
+            failCapture("无法显示截图工具，请检查悬浮窗权限")
+        }
+    }
+
+    private fun hideEditor() {
+        editor?.let { try { manager.removeView(it) } catch (_: Exception) { } }
+        editor = null
+    }
+
+    private fun completeSelection(region: Rect, scrolling: Boolean) {
+        val image = preview ?: return
+        preview = null
+        captureRegion = region
+        hideEditor()
+        longCapture = scrolling
+        busy = true
+        worker.execute {
+            var failed = false
+            try { if (!cancelled.get()) acceptFrame(image) }
+            catch (error: Exception) { Log.e(TAG, "选区裁剪失败", error); failed = true }
+            finally { image.recycle() }
+            handler.post {
+                busy = false
+                if (completed) return@post
+                if (failed) { failCapture("截图裁剪失败，请重试"); return@post }
+                frameCount = 1
+                if (scrolling) { showControls(); scheduleLongPoll(1200L) }
+                else finishLongCapture()
+            }
+        }
+    }
+
     private fun showControls(message: String? = null) {
         if (completed || finalizing) return
         hideControls()
         try {
             check(Settings.canDrawOverlays(this))
             fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
-            val density = resources.displayMetrics.density
             val panel = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(12), dp(8), dp(12), dp(8))
-                background = GradientDrawable().apply {
-                    setColor(0xFFF7F8F5.toInt())
-                    cornerRadius = 20 * density
-                    setStroke(dp(1), 0xFFE0E5DD.toInt())
-                }
-                elevation = dp(8).toFloat()
-                contentDescription = "长截图控制条，已采集 $frameCount 屏"
-            }
-            val header = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                minimumHeight = dp(40)
-            }
-            header.addView(TextView(this).apply {
-                text = message ?: "自动记录 · 滚动页面后会继续采集"
-                textSize = 12f
-                setTextColor(0xFF282E2A.toInt())
-                maxLines = 2
-                ellipsize = android.text.TextUtils.TruncateAt.END
-            }, LinearLayout.LayoutParams(0, dp(40), 1f))
-            header.addView(TextView(this).apply {
-                text = "已采集 $frameCount/12"
-                textSize = 11f
-                setTextColor(0xFF244D3D.toInt())
-                gravity = Gravity.CENTER
-                setPadding(dp(10), 0, dp(10), 0)
+                setPadding(dp(8), dp(4), dp(8), dp(4))
                 background = GradientDrawable().apply {
-                    setColor(0xFFE7F1EA.toInt())
-                    cornerRadius = dp(20).toFloat()
+                    setColor(0xFFF7F8F5.toInt()); cornerRadius = dp(16).toFloat()
+                    setStroke(dp(1), 0xFFE0E7DF.toInt())
                 }
-            }, LinearLayout.LayoutParams(-2, dp(32)).apply { marginStart = dp(8) })
-            panel.addView(header)
-
-            val buttons = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER
+                elevation = dp(3).toFloat()
             }
-            fun action(
-                label: String,
-                icon: Int,
-                enabled: Boolean = true,
-                primary: Boolean = false,
-                action: () -> Unit,
-            ) {
-                val row = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.CENTER
-                    minimumHeight = dp(56)
-                    isEnabled = enabled
-                    isClickable = enabled
-                    contentDescription = label
-                    val fill = if (primary) 0xFFE7F1EA else 0x00F7F8F5
-                    background = RippleDrawable(
-                        ColorStateList.valueOf(0x33244D3D),
-                        GradientDrawable().apply {
-                            setColor(fill.toInt())
-                            cornerRadius = dp(12).toFloat()
-                        },
-                        null,
-                    )
-                    alpha = if (enabled) 1f else .42f
-                    setOnClickListener { if (enabled) action() }
+            panel.addView(TextView(this).apply {
+                text = when {
+                    message?.contains("达到") == true -> "已采集满 · $frameCount/12"
+                    message == null || message.contains("滚动页面") -> "滚动采集 · $frameCount/12"
+                    else -> "本屏未加入 · $frameCount/12"
                 }
-                row.addView(ImageView(this).apply {
-                    setImageResource(icon)
-                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                }, LinearLayout.LayoutParams(dp(20), dp(20)))
-                row.addView(TextView(this).apply {
-                    text = label
-                    textSize = 11f
-                    setTextColor(0xFF244D3D.toInt())
-                    gravity = Gravity.CENTER
-                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                }, LinearLayout.LayoutParams(-1, dp(22)))
-                buttons.addView(row, LinearLayout.LayoutParams(0, dp(60), 1f).apply {
-                    marginStart = dp(3)
-                    marginEnd = dp(3)
-                })
+                textSize = 12f; setTextColor(0xFF244D3D.toInt())
+                setPadding(dp(8), 0, dp(8), 0)
+                contentDescription = message ?: "长截图，已采集 $frameCount 屏，滚动原页面继续"
+                if (Build.VERSION.SDK_INT >= 26) tooltipText = message
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            fun action(label: String, callback: () -> Unit) {
+                panel.addView(TextView(this).apply {
+                    text = label; textSize = 13f; gravity = Gravity.CENTER
+                    minWidth = dp(48); minimumHeight = dp(48)
+                    setTextColor(0xFF244D3D.toInt()); isFocusable = true
+                    background = RippleDrawable(ColorStateList.valueOf(0x22244D3D), null, null)
+                    setOnClickListener { callback() }
+                }, LinearLayout.LayoutParams(-2, -2))
             }
-            action("完成", R.drawable.assistant_check, frameCount > 0, primary = true) { finishLongCapture() }
-            action("取消", R.drawable.assistant_close) { cancelCapture() }
-            panel.addView(buttons)
-
-            val metrics = resources.displayMetrics
-            val width = minOf(dp(360), metrics.widthPixels - dp(24)).coerceAtLeast(dp(240))
+            action("完成") { finishLongCapture() }
+            action("取消") { cancelCapture() }
             manager.addView(panel, WindowManager.LayoutParams(
-                width,
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                minOf(dp(360), resources.displayMetrics.widthPixels - dp(24)), -2,
                 if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT,
-            ).apply {
-                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                y = dp(20)
-            })
+            ).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL; y = dp(12) })
             controls = panel
+            if (message != null && message != lastIssue && !message.contains("滚动页面")) {
+                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
+            }
+            lastIssue = message
         } catch (error: Exception) {
             Log.e(TAG, "长截图控制条显示失败", error)
-            finishCapture(null)
+            failCapture("无法显示长截图操作栏，请检查悬浮窗权限")
         }
     }
 
@@ -411,6 +451,12 @@ class AssistantScreenCaptureService : Service() {
         else startForeground(NOTIFICATION_ID, notification)
     }
 
+    private fun failCapture(message: String) {
+        if (completed) return
+        android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
+        cancelCapture()
+    }
+
     private fun cancelCapture() {
         cancelled.set(true)
         handler.removeCallbacks(longPoll)
@@ -419,6 +465,7 @@ class AssistantScreenCaptureService : Service() {
 
     private fun releaseProjection() {
         awaitingFrame = false
+        settlingFrame = false
         display?.release()
         display = null
         reader?.close()
@@ -441,6 +488,9 @@ class AssistantScreenCaptureService : Service() {
         handler.removeCallbacksAndMessages(null)
         handler.removeCallbacks(longPoll)
         hideControls()
+        hideEditor()
+        preview?.recycle()
+        preview = null
         releaseProjection()
         getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).edit()
             .putBoolean(AssistantOverlayService.CAPTURE_PENDING_KEY, false).apply()
@@ -464,6 +514,14 @@ class AssistantScreenCaptureService : Service() {
         worker.shutdown()
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (!completed && !finalizing) {
+            android.widget.Toast.makeText(this, "屏幕方向已改变，请重新截图", android.widget.Toast.LENGTH_SHORT).show()
+            cancelCapture()
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
