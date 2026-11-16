@@ -162,7 +162,7 @@ class _AssistantContextSheet extends StatelessWidget {
                           '${usage.usage.outputTokens} tokens',
                         ),
                         if (cache != null) ...[
-                          const SizedBox(height: 8),
+                          const SizedBox(height: AppLayout.spaceSm),
                           _metric(
                             context,
                             '正文缓存命中',

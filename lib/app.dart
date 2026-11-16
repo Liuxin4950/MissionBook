@@ -61,6 +61,7 @@ import 'domain/notifications/reminder_request.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:path_provider/path_provider.dart';
 import 'presentation/launch/launch_page.dart';
+import 'core/theme/app_layout.dart';
 import 'core/theme/app_motion.dart';
 
 /// 装配本地数据库、任务仓储和业务入口，并提供全局主题及中文界面。
@@ -594,7 +595,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             CircularProgressIndicator(),
-                            SizedBox(height: 16),
+                            SizedBox(height: AppLayout.spaceLg),
                             Text('正在恢复数据，请稍候…'),
                           ],
                         ),

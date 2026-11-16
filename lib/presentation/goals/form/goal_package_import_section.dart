@@ -584,7 +584,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
               ),
             ),
           if (preview != null) ...[
-            const Divider(height: 32),
+            const Divider(height: AppLayout.space3Xl),
             Text(preview.title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppLayout.spaceXs),
             Text(

@@ -446,7 +446,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Divider(height: 24),
+        const Divider(height: AppLayout.spaceXxl),
         const Text('修正草稿 · 原材料会保留'),
         if (draft.type == ContentType.image)
           _image(
