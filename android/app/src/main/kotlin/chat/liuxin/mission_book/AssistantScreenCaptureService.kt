@@ -5,11 +5,14 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.ImageReader
@@ -25,7 +28,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import java.io.ByteArrayOutputStream
@@ -259,35 +262,106 @@ class AssistantScreenCaptureService : Service() {
         try {
             check(Settings.canDrawOverlays(this))
             fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+            val density = resources.displayMetrics.density
             val panel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(8), dp(4), dp(8), dp(4))
-                setBackgroundColor(0xFFF7FAF6.toInt())
-                addView(TextView(this@AssistantScreenCaptureService).apply {
-                    text = message ?: "向下滚动，保留部分上一屏内容后采集"
-                    textSize = 12f
-                    setTextColor(0xFF244D3D.toInt())
-                })
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                background = GradientDrawable().apply {
+                    setColor(0xFFF7F8F5.toInt())
+                    cornerRadius = 20 * density
+                    setStroke(dp(1), 0xFFE0E5DD.toInt())
+                }
+                elevation = dp(8).toFloat()
+                contentDescription = "长截图控制条，已采集 $frameCount 屏"
             }
-            val buttons = LinearLayout(this)
-            fun button(label: String, enabled: Boolean = true, action: () -> Unit) {
-                buttons.addView(Button(this).apply {
-                    text = label
-                    textSize = 12f
-                    minHeight = dp(48)
+            val header = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(40)
+            }
+            header.addView(TextView(this).apply {
+                text = message ?: "滚动页面后，继续采集下一屏"
+                textSize = 12f
+                setTextColor(0xFF282E2A.toInt())
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(0, dp(40), 1f))
+            header.addView(TextView(this).apply {
+                text = "已采集 $frameCount/12"
+                textSize = 11f
+                setTextColor(0xFF244D3D.toInt())
+                gravity = Gravity.CENTER
+                setPadding(dp(10), 0, dp(10), 0)
+                background = GradientDrawable().apply {
+                    setColor(0xFFE7F1EA.toInt())
+                    cornerRadius = dp(20).toFloat()
+                }
+            }, LinearLayout.LayoutParams(-2, dp(32)).apply { marginStart = dp(8) })
+            panel.addView(header)
+
+            val buttons = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+            fun action(
+                label: String,
+                icon: Int,
+                enabled: Boolean = true,
+                primary: Boolean = false,
+                action: () -> Unit,
+            ) {
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    minimumHeight = dp(56)
                     isEnabled = enabled
-                    setOnClickListener { action() }
+                    isClickable = enabled
+                    contentDescription = label
+                    val fill = if (primary) 0xFFE7F1EA else 0x00F7F8F5
+                    background = RippleDrawable(
+                        ColorStateList.valueOf(0x33244D3D),
+                        GradientDrawable().apply {
+                            setColor(fill.toInt())
+                            cornerRadius = dp(12).toFloat()
+                        },
+                        null,
+                    )
+                    alpha = if (enabled) 1f else .42f
+                    setOnClickListener { if (enabled) action() }
+                }
+                row.addView(ImageView(this).apply {
+                    setImageResource(icon)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, LinearLayout.LayoutParams(dp(20), dp(20)))
+                row.addView(TextView(this).apply {
+                    text = label
+                    textSize = 11f
+                    setTextColor(0xFF244D3D.toInt())
+                    gravity = Gravity.CENTER
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, LinearLayout.LayoutParams(-1, dp(22)))
+                buttons.addView(row, LinearLayout.LayoutParams(0, dp(60), 1f).apply {
+                    marginStart = dp(3)
+                    marginEnd = dp(3)
                 })
             }
-            button("采集一屏", frameCount < 12) { requestFrame() }
-            button("完成 ($frameCount)", frameCount > 0) { finishLongCapture() }
-            button("取消") { cancelCapture() }
+            action("继续", R.drawable.assistant_capture, frameCount < 12) { requestFrame() }
+            action("完成", R.drawable.assistant_check, frameCount > 0, primary = true) { finishLongCapture() }
+            action("取消", R.drawable.assistant_close) { cancelCapture() }
             panel.addView(buttons)
+
+            val metrics = resources.displayMetrics
+            val width = minOf(dp(360), metrics.widthPixels - dp(24)).coerceAtLeast(dp(240))
             manager.addView(panel, WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                width,
+                WindowManager.LayoutParams.WRAP_CONTENT,
                 if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT,
-            ).apply { gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; y = dp(20) })
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                y = dp(20)
+            })
             controls = panel
         } catch (error: Exception) {
             Log.e(TAG, "长截图控制条显示失败", error)

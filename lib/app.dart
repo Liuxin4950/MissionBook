@@ -16,7 +16,9 @@ import 'data/web/web_settings_store.dart';
 import 'data/web/public_http_client.dart';
 import 'presentation/records/shared/record_scope.dart';
 import 'application/settings/motion_settings.dart';
+import 'application/settings/onboarding_store.dart';
 import 'data/settings/motion_settings_store.dart';
+import 'data/settings/onboarding_store.dart';
 import 'presentation/widgets/motion_settings_scope.dart';
 import 'dart:async';
 import 'dart:io';
@@ -61,6 +63,7 @@ import 'domain/notifications/reminder_request.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:path_provider/path_provider.dart';
 import 'presentation/launch/launch_page.dart';
+import 'presentation/onboarding/onboarding_page.dart';
 import 'core/theme/app_layout.dart';
 import 'core/theme/app_motion.dart';
 
@@ -110,6 +113,10 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
   final _messenger = GlobalKey<ScaffoldMessengerState>();
   bool _launchComplete = false; // 应用启动完成标志
   Timer? _launchTimer;
+  late final OnboardingStore _onboarding;
+  bool _onboardingLoaded = false;
+  bool _onboardingCompleted = true;
+  bool _onboardingSaving = false;
   // late 表示这些属性稍后初始化。
   // final 表示初始化后不再换成另一个对象。
   late final AssistantController _assistant;
@@ -232,6 +239,8 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       runRestore: _runRestore,
     );
     _device = createAppDevice();
+    _onboarding = createOnboardingStore();
+    unawaited(_loadOnboarding());
     _motionSettings = createMotionSettings();
     final motionLoaded = _motionSettings.load();
     unawaited(motionLoaded);
@@ -291,6 +300,48 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       onError: (error) => debugPrint('材料截止补算失败：$error'),
     );
     unawaited(_evidenceDeadlines!.start());
+  }
+
+  Future<void> _loadOnboarding() async {
+    try {
+      final completed = await _onboarding.readCompleted();
+      if (!mounted) return;
+      setState(() {
+        _onboardingCompleted = completed;
+        _onboardingLoaded = true;
+      });
+    } catch (error, stack) {
+      // 引导状态是 UI 偏好；读取失败时不阻断主工作区，避免用户被困在启动页。
+      debugPrint('读取首次体验状态失败：$error\n$stack');
+      if (!mounted) return;
+      setState(() {
+        _onboardingCompleted = true;
+        _onboardingLoaded = true;
+      });
+    }
+  }
+
+  Future<bool> _finishOnboarding() async {
+    if (_onboardingSaving) return false;
+    setState(() {
+      _onboardingSaving = true;
+    });
+    try {
+      await _onboarding.markCompleted();
+      if (!mounted) return true;
+      setState(() {
+        _onboardingCompleted = true;
+        _onboardingSaving = false;
+      });
+      return true;
+    } catch (error, stack) {
+      debugPrint('保存首次体验状态失败：$error\n$stack');
+      if (!mounted) return false;
+      setState(() {
+        _onboardingSaving = false;
+      });
+      return false;
+    }
   }
 
   @override
@@ -617,8 +668,14 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       home: Builder(
         builder: (context) => AnimatedSwitcher(
           duration: AppMotion.resolve(context, AppMotion.quick),
-          child: _launchComplete
-              ? AppShell(
+          child: !_launchComplete || !_onboardingLoaded
+              ? const LaunchPage(key: ValueKey('launch-page'))
+              : !_onboardingCompleted
+              ? OnboardingPage(
+                  key: const ValueKey('onboarding-page'),
+                  onFinish: _finishOnboarding,
+                )
+              : AppShell(
                   key: const ValueKey('app-shell'),
                   assistant: _assistant,
                   missionService: _missionService,
@@ -626,8 +683,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
                   backupService: _backupService,
                   device: _device,
                   notifications: _notifications,
-                )
-              : const LaunchPage(key: ValueKey('launch-page')),
+                ),
         ),
       ),
     );

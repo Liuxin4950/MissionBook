@@ -330,6 +330,75 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
     super.dispose();
   }
 
+  Widget _mediaAction({
+    required String label,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) => Expanded(
+    child: TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: AppLayout.iconMd),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.onMedia,
+        disabledForegroundColor: AppColors.onMedia.withValues(alpha: .42),
+        minimumSize: const Size(0, AppLayout.touchTargetMin),
+        padding: const EdgeInsets.symmetric(horizontal: AppLayout.spaceSm),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        ),
+        backgroundColor: Colors.white.withValues(alpha: .1),
+      ),
+    ),
+  );
+
+  Widget _mediaShutter(CameraController? controller) {
+    final hasCapture = _capture != null;
+    final enabled = !_busy && (hasCapture || controller != null);
+    return SizedBox(
+      width: 84,
+      height: 84,
+      child: Tooltip(
+        message: hasCapture ? '重试保存照片' : '拍照',
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.onMedia, width: 4),
+            color: Colors.white.withValues(alpha: .16),
+          ),
+          child: Center(
+            child: IconButton(
+              key: const Key('evidence-camera-shoot'),
+              onPressed: enabled
+                  ? hasCapture
+                        ? _confirm
+                        : _shoot
+                  : null,
+              style: IconButton.styleFrom(
+                fixedSize: const Size(64, 64),
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.onPrimary,
+                disabledBackgroundColor: AppColors.primary.withValues(
+                  alpha: .45,
+                ),
+                disabledForegroundColor: AppColors.onPrimary.withValues(
+                  alpha: .7,
+                ),
+                shape: const CircleBorder(),
+                padding: EdgeInsets.zero,
+              ),
+              icon: Icon(
+                hasCapture ? Icons.check_rounded : Icons.camera_alt_rounded,
+                color: AppColors.onPrimary,
+                size: AppLayout.iconLg,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -368,9 +437,19 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(AppLayout.spaceXxl),
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: AppColors.onMedia),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: .52),
+                    borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppLayout.spaceLg),
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.onMedia),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -380,81 +459,106 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
                 Positioned(
                   top: AppLayout.spaceSm,
                   left: AppLayout.spaceSm,
-                  child: IconButton.filledTonal(
+                  child: IconButton(
                     tooltip: '返回',
                     onPressed: _busy
                         ? null
                         : (widget.onBack ?? widget.onCancel),
+                    style: IconButton.styleFrom(
+                      fixedSize: const Size(
+                        AppLayout.touchTargetMin,
+                        AppLayout.touchTargetMin,
+                      ),
+                      backgroundColor: Colors.black.withValues(alpha: .38),
+                      foregroundColor: AppColors.onMedia,
+                      disabledForegroundColor: AppColors.onMedia.withValues(
+                        alpha: .4,
+                      ),
+                      shape: const CircleBorder(),
+                    ),
                     icon: const Icon(Icons.arrow_back),
                   ),
                 ),
-                if (_capture == null && _maxZoom > _minZoom)
-                  Positioned(
-                    left: AppLayout.spaceLg,
-                    right: AppLayout.spaceLg,
-                    bottom: 92,
-                    child: _zoomControl(onMedia: true),
-                  ),
                 if (_capture != null)
                   Positioned(
                     top: AppLayout.spaceSm,
                     right: AppLayout.spaceSm,
-                    child: IconButton.filledTonal(
+                    child: IconButton(
                       tooltip: '重拍',
                       onPressed: _busy ? null : _retake,
-                      icon: const Icon(Icons.refresh),
+                      style: IconButton.styleFrom(
+                        fixedSize: const Size(
+                          AppLayout.touchTargetMin,
+                          AppLayout.touchTargetMin,
+                        ),
+                        backgroundColor: Colors.black.withValues(alpha: .38),
+                        foregroundColor: AppColors.onMedia,
+                        shape: const CircleBorder(),
+                      ),
+                      icon: const Icon(Icons.refresh_rounded),
                     ),
                   ),
                 Positioned(
-                  left: AppLayout.spaceLg,
-                  right: AppLayout.spaceLg,
-                  bottom: AppLayout.spaceXl,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      TextButton(
-                        onPressed: _busy ? null : widget.onChooseFile,
-                        child: const Text(
-                          '选择图片',
-                          style: TextStyle(color: AppColors.onMedia),
-                        ),
+                  left: AppLayout.spaceMd,
+                  right: AppLayout.spaceMd,
+                  bottom: AppLayout.spaceMd,
+                  child: Material(
+                    color: Colors.black.withValues(alpha: .48),
+                    borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppLayout.spaceSm),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_capture == null && _maxZoom > _minZoom)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppLayout.spaceSm,
+                              ),
+                              child: _zoomControl(onMedia: true),
+                            ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              _mediaAction(
+                                label: '选择图片',
+                                icon: Icons.photo_library_outlined,
+                                onPressed: _busy ? null : widget.onChooseFile,
+                              ),
+                              const SizedBox(width: AppLayout.spaceSm),
+                              _mediaShutter(controller),
+                              const SizedBox(width: AppLayout.spaceSm),
+                              _mediaAction(
+                                label: _capture == null ? '不记录图片' : '重拍',
+                                icon: _capture == null
+                                    ? Icons.close_rounded
+                                    : Icons.refresh_rounded,
+                                onPressed: _busy
+                                    ? null
+                                    : _capture == null
+                                    ? widget.onCancel
+                                    : _retake,
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      IconButton.filled(
-                        key: const Key('evidence-camera-shoot'),
-                        tooltip: _capture == null ? '拍照' : '重试保存照片',
-                        iconSize: AppLayout.iconXl,
-                        padding: const EdgeInsets.all(AppLayout.spaceLg),
-                        onPressed: _busy
-                            ? null
-                            : _capture != null
-                            ? _confirm
-                            : controller == null
-                            ? null
-                            : _shoot,
-                        icon: Icon(
-                          _capture == null ? Icons.camera_alt : Icons.check,
-                          color: AppColors.onPrimary,
-                        ),
-                      ),
-                      TextButton(
-                        key: const Key('camera-text-only'),
-                        onPressed: _busy ? null : widget.onCancel,
-                        child: const Text(
-                          '不记录图片',
-                          style: TextStyle(color: AppColors.onMedia),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
                 if (controller == null && _capture == null && !_busy)
                   Positioned(
-                    bottom: 100,
                     left: 0,
                     right: 0,
+                    bottom: 148,
                     child: Center(
                       child: TextButton(
                         onPressed: _start,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.onMedia,
+                          backgroundColor: Colors.black.withValues(alpha: .38),
+                        ),
                         child: const Text('重试相机'),
                       ),
                     ),

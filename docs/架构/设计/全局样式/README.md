@@ -23,6 +23,9 @@
 | [app_content_transition.dart](../../../../lib/presentation/widgets/app_content_transition.dart) | 保留子树状态的主导航内容进入 |
 | [widgets](../../../../lib/presentation/widgets) | 共享确认、空态、分区标题及图片加载反馈 |
 | [app_selection_option.dart](../../../../lib/presentation/widgets/app_selection_option.dart) | 表单下拉和快捷选择菜单共用的选中项外观 |
+| [launch_page.dart](../../../../lib/presentation/launch/launch_page.dart) | 冷启动品牌页与减少动效处理 |
+| [onboarding_page.dart](../../../../lib/presentation/onboarding/onboarding_page.dart) | 首次体验三页路径、跳过与完成入口 |
+| [onboarding_store.dart](../../../../lib/application/settings/onboarding_store.dart) | 本机 UI 引导完成标记契约 |
 
 ## 视觉角色
 
@@ -40,6 +43,13 @@
 跨区块及双栏间距统一用 16；区块内部按内容层级用 4/8/12/16。对话框、底部弹层和卡片保留各自的内边距，空态留白与 48 触控尺寸不随区块间距调整。组件自身的缩略图尺寸、相机比例和侧栏内容宽度可以有局部常量。不要把碰巧数值相同的 topBarHeight 当作图片尺寸；结构间距与相同用途的操作高度优先使用 token。
 
 当前产品只实现浅色主题；`MaterialApp` 显式使用 `ThemeMode.light`，系统暗色模式不会切换配色。
+
+
+## 首次体验与媒体上下文
+
+冷启动品牌页和首次引导继续使用全局 `AppColors`、`AppLayout`、`AppMotion` 与现有品牌插画，不申请权限、不写业务数据库。首次引导只保存本机 UI 完成标记；引导页使用暖白卡片、森林绿主操作、三页短路径和可跳过入口。
+
+相机和屏幕捕获保留黑色媒体画布以保证内容对比度，但操作面板仍复用品牌绿、暖白和 48dp 触控约束：相机使用中央快门与底部操作面板，长截图使用状态胶囊及“继续 / 完成 / 取消”控制条。媒体上下文是颜色表面的应用，不是新的主题。
 
 ## 布局与状态流
 
