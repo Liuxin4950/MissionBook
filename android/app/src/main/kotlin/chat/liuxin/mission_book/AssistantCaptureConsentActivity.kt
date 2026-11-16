@@ -27,13 +27,15 @@ class AssistantCaptureConsentActivity : Activity() {
                 captureCompleted = true
                 try {
                     startActivity(MainActivity.assistantIntent(this@AssistantCaptureConsentActivity, path))
+                    // 成功交给主 Activity 后不要立刻恢复悬浮球，避免它抢回前台焦点。
+                    finish()
+                    return
                 } catch (error: Exception) {
                     Log.e(TAG, "打开助手失败", error)
                     Toast.makeText(this@AssistantCaptureConsentActivity, "截图已保留，请打开 MissionBook 重试", Toast.LENGTH_LONG).show()
-                    restoreOverlayIfEnabled()
                 }
             }
-            // 部分系统静默拒绝后台启动；保留可点按的截图入口。
+            // 取消、失败或系统拒绝跳转时才恢复可点按的悬浮入口。
             restoreOverlayIfEnabled()
             finish()
         }

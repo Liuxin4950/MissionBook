@@ -498,7 +498,12 @@ class MainActivity : FlutterActivity() {
         // 所有悬浮入口共用同一个主 Activity；由 singleTask 接收 onNewIntent。
         fun assistantIntent(context: Context, capturePath: String? = null): Intent =
             Intent(context, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT,
+                )
                 if (capturePath != null) putExtra(EXTRA_CAPTURE_PATH, capturePath)
                 else putExtra(EXTRA_OPEN_ASSISTANT, true)
             }

@@ -54,11 +54,19 @@ class AssistantScreenCaptureService : Service() {
     private var combined: Bitmap? = null
     private var previous: Bitmap? = null
     private val manager by lazy { getSystemService(WindowManager::class.java) }
+    private val longPoll = Runnable {
+        if (longCapture && !completed && !finalizing && !cancelled.get()) {
+            requestFrame()
+        }
+    }
     private val frameTimeout = Runnable {
         if (awaitingFrame && !completed) {
             awaitingFrame = false
             busy = false
-            if (longCapture) showControls("未收到画面，请轻触原页面后重试") else finishCapture(null)
+            if (longCapture) {
+                showControls("未收到画面，滚动页面后系统会继续尝试")
+                scheduleLongPoll(500L)
+            } else finishCapture(null)
         }
     }
 
@@ -105,6 +113,12 @@ class AssistantScreenCaptureService : Service() {
     private fun getResultData(intent: Intent?): Intent? =
         if (Build.VERSION.SDK_INT >= 33) intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
         else intent?.getParcelableExtra(EXTRA_RESULT_DATA)
+
+    private fun scheduleLongPoll(delayMillis: Long) {
+        if (!longCapture || completed || finalizing || cancelled.get()) return
+        handler.removeCallbacks(longPoll)
+        handler.postDelayed(longPoll, delayMillis)
+    }
 
     private fun requestFrame() {
         if (completed || finalizing || busy) return
@@ -163,8 +177,18 @@ class AssistantScreenCaptureService : Service() {
                 if (!completed) {
                     busy = false
                     if (errorMessage == null) frameCount++
-                    if (longCapture) showControls(errorMessage)
-                    else if (errorMessage == null) finishLongCapture() else finishCapture(null)
+                    if (longCapture) {
+                        val noChange = errorMessage?.contains("画面没有变化") == true
+                        if (frameCount >= 12) {
+                            showControls("已达到 12 屏，请完成长截图")
+                        } else if (noChange) {
+                            showControls("滚动页面后，系统会自动记录下一屏")
+                            scheduleLongPoll(280L)
+                        } else {
+                            showControls(errorMessage)
+                            scheduleLongPoll(if (errorMessage == null) 420L else 900L)
+                        }
+                    } else if (errorMessage == null) finishLongCapture() else finishCapture(null)
                 }
             }
         }
@@ -217,6 +241,7 @@ class AssistantScreenCaptureService : Service() {
     private fun finishLongCapture() {
         if (completed || finalizing || busy || frameCount == 0) return
         finalizing = true
+        handler.removeCallbacks(longPoll)
         hideControls()
         releaseProjection()
         worker.execute {
@@ -280,7 +305,7 @@ class AssistantScreenCaptureService : Service() {
                 minimumHeight = dp(40)
             }
             header.addView(TextView(this).apply {
-                text = message ?: "滚动页面后，继续采集下一屏"
+                text = message ?: "自动记录 · 滚动页面后会继续采集"
                 textSize = 12f
                 setTextColor(0xFF282E2A.toInt())
                 maxLines = 2
@@ -345,7 +370,6 @@ class AssistantScreenCaptureService : Service() {
                     marginEnd = dp(3)
                 })
             }
-            action("继续", R.drawable.assistant_capture, frameCount < 12) { requestFrame() }
             action("完成", R.drawable.assistant_check, frameCount > 0, primary = true) { finishLongCapture() }
             action("取消", R.drawable.assistant_close) { cancelCapture() }
             panel.addView(buttons)
@@ -389,6 +413,7 @@ class AssistantScreenCaptureService : Service() {
 
     private fun cancelCapture() {
         cancelled.set(true)
+        handler.removeCallbacks(longPoll)
         finishCapture(null)
     }
 
@@ -414,6 +439,7 @@ class AssistantScreenCaptureService : Service() {
         if (completed) return
         completed = true
         handler.removeCallbacksAndMessages(null)
+        handler.removeCallbacks(longPoll)
         hideControls()
         releaseProjection()
         getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).edit()
