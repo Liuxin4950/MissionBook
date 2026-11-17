@@ -8,8 +8,6 @@ import 'package:agent_core/agent_core.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:uuid/uuid.dart';
 
-import '../../domain/repositories/memory_repository.dart'
-    show memoryVersionFields;
 import '../../domain/entities/execution_command.dart';
 import '../../domain/entities/execution_plan.dart';
 import '../../domain/entities/goal.dart';
@@ -17,6 +15,8 @@ import '../../domain/entities/mission.dart';
 import '../../domain/entities/mission_phase.dart';
 import '../../domain/entities/goal_node.dart';
 import '../../domain/entities/execution_event.dart';
+import '../../domain/entities/evidence.dart';
+import '../../domain/entities/failure_record.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/historical_completion.dart';
 import '../../domain/entities/schedule_proposal.dart';
@@ -59,9 +59,11 @@ class AssistantTools {
     required AssistantCallResolver resolveCall,
     List<AgentTool> extraTools = const [],
     MemoryService? memory,
+    String Function()? userStatement,
     DateTime Function()? clock,
     String timeZone = defaultScheduleTimeZone,
   }) : _memory = memory,
+       _userStatement = userStatement ?? (() => ''),
        _unifiedReader = unifiedReader,
        _missions = missions,
        _goals = goals,
@@ -85,6 +87,8 @@ class AssistantTools {
   }
   final UnifiedReader _unifiedReader;
   final MemoryService? _memory;
+  // 本轮最后一条真实用户消息；END 依据逐字校验用，与 contextTools 同一来源。
+  final String Function() _userStatement;
   static const _offsetSchema = {
     'type': 'integer',
     'minimum': 0,
@@ -292,9 +296,10 @@ class AssistantTools {
     'type': 'string',
     'description': description,
   };
-  static Map<String, Object?> _integer(String description) => {
+  static Map<String, Object?> _integer(String description, {int? maximum}) => {
     'type': 'integer',
     'minimum': 1,
+    'maximum': ?maximum,
     'description': description,
   };
   static Map<String, Object?> _boolean(String description) => {

@@ -57,6 +57,7 @@ void validateExecutionEvent(
   if (event.type == ExecutionEventType.extend) {
     final minutes = event.grantedDurationMinutes;
     // minutes 是取出的分钟数；null 表示没有提供，<= 0 表示非正数。
+    // 时间线读取保留旧版本已保存的正数额度；新命令的上限在事务写入口单独校验。
     if (minutes == null || minutes <= 0) {
       throw ArgumentError('延长事件必须提供大于 0 的增加分钟数');
     }
@@ -64,11 +65,11 @@ void validateExecutionEvent(
     throw ArgumentError('只有延长事件可以携带增加分钟数');
   }
 
-  // pause 表示“暂停”，reason 是暂停原因；!= 表示不等于，&& 表示条件同时成立。
+  // pause 携带暂停原因；end 携带用户完成依据原话（助手 END 必填，页面按钮结束可省略）。
   if (event.type != ExecutionEventType.pause &&
-      !event.isRetrospective &&
+      event.type != ExecutionEventType.end &&
       event.reason != null) {
-    throw ArgumentError('只有暂停事件可以携带暂停原因');
+    throw ArgumentError('只有暂停或结束事件可以携带原因或依据');
   }
 
   // end 表示“结束”；userReportedResult 是用户报告的完成或未完成结果。

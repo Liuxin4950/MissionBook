@@ -107,40 +107,63 @@ class _AssistantToolPreparation {
         },
       );
     }
-    if (toolName == 'saveMemory' &&
-        input['id'] != null &&
-        _tools._memory != null) {
-      final result = await _tools._memory.query(
-        search: input['id'] as String,
-        includeExpired: true,
-      );
-      final target = (result['items'] as List<Map<String, Object?>>)
-          .where((entry) => entry['id'] == input['id'])
-          .firstOrNull;
-      if (target == null) {
-        throw ToolRejected(
-          'not_found',
-          '记忆 ${jsonEncode(input['id'])} 不存在或已忘记；如果要新建，请不要传 id',
+    if (toolName == 'saveMemory' && _tools._memory != null) {
+      final entryId = input['id'] as String?;
+      final selectionId = input['selectionId'] as String?;
+      final itemId = input['itemId'] as String?;
+      if (entryId == null) {
+        if (selectionId != null || itemId != null) {
+          throw const ToolRejected(
+            'invalid_selection',
+            '新增记忆不能带更正清单；如需更正，必须提供 id、selectionId 和 itemId',
+          );
+        }
+      } else {
+        // 每次 AI 更正都绑定模型读取清单中的版本，不能重新读取最新版本后
+        // 静默覆盖用户在模型读取之后作出的更改。
+        if (sessionId == null || selectionId == null || itemId == null) {
+          throw const ToolRejected(
+            'stale_proposal',
+            '记忆更正必须引用当前会话 getMemory 返回的 selectionId 和 itemId；请重新查询后再更正',
+          );
+        }
+        final pinned = await _tools._memory.selectionItemVersion(
+          sessionId: sessionId,
+          selectionId: selectionId,
+          itemId: itemId,
+        );
+        if (pinned == null) {
+          throw const ToolRejected(
+            'invalid_selection',
+            '清单不存在、不属于当前会话或编号无效，请重新 getMemory',
+          );
+        }
+        if (pinned['id'] != entryId) {
+          throw const ToolRejected('invalid_selection', '清单条目与更正目标不一致');
+        }
+        return PreparedToolCall(
+          input,
+          snapshot: {
+            'targetTitle': pinned['content'],
+            'memoryVersion': pinned['version'],
+            'memoryTopic': pinned['topic'],
+          },
         );
       }
-      return PreparedToolCall(
-        input,
-        snapshot: {
-          'targetTitle': target['content'],
-          'memoryVersion': {
-            for (final field in memoryVersionFields) field: target[field],
-          },
-          'memoryTopic': target['topic_name'],
-        },
-      );
     }
 
     if (toolName == 'completeHistory') {
       final date = input['beforeDate'] as String;
       try {
         validateScheduledDate(date);
+        if (input['afterDate'] != null) {
+          validateScheduledDate(input['afterDate'] as String);
+          if ((input['afterDate'] as String).compareTo(date) >= 0) {
+            throw ArgumentError('起始日期必须早于截止日期');
+          }
+        }
       } on ArgumentError {
-        throw const ToolRejected('invalid_date', '请使用有效的截止日期');
+        throw const ToolRejected('invalid_date', '请使用有效的截止日期；起始日期需早于截止日期');
       }
       if (date.compareTo(_tools._today()) > 0 ||
           (input['statement'] as String).trim().isEmpty) {
@@ -155,7 +178,11 @@ class _AssistantToolPreparation {
       }
       final List<MissionDetail> past;
       try {
-        past = await _tools._missions.findHistoryScope(goal.id, date);
+        past = await _tools._missions.findHistoryScope(
+          goal.id,
+          date,
+          afterDate: input['afterDate'] as String?,
+        );
       } on ArgumentError catch (error) {
         throw ToolRejected('too_many', error.message?.toString() ?? '请缩小日期范围');
       }
@@ -295,9 +322,26 @@ class _AssistantToolPreparation {
           snapshot: {'detail': detail},
         );
       }
+      final basisError = endBasisError(input);
+      if (basisError != null) {
+        throw ToolRejected('user_basis_required', basisError);
+      }
       return PreparedToolCall(input, snapshot: {'detail': detail});
     }
     return PreparedToolCall(input);
+  }
+
+  /// END 依据的早期检查；执行器仍做权威校验，提案编辑后不能绕过。
+  String? endBasisError(Map<String, Object?> input) {
+    if (input['type'] != 'END') {
+      return input['basis'] != null ? '只有 END 可以携带完成依据' : null;
+    }
+    final basis = (input['basis'] as String?)?.trim() ?? '';
+    if (basis.isEmpty) return '结束任务必须提供用户完成依据的原话';
+    if (!_tools._userStatement().contains(basis)) {
+      return '完成依据必须逐字引用当前用户消息（本轮最后一条用户消息）中的连续原文，不能拼接或改写';
+    }
+    return null;
   }
 
   String? validate(String toolName, Map<String, Object?> input) {
@@ -316,6 +360,15 @@ class _AssistantToolPreparation {
     try {
       if (toolName == 'completeHistory') {
         validateScheduledDate(input['beforeDate'] as String);
+        if (input['afterDate'] != null) {
+          validateScheduledDate(input['afterDate'] as String);
+          if ((input['afterDate'] as String).compareTo(
+                input['beforeDate'] as String,
+              ) >=
+              0) {
+            return '起始日期必须早于截止日期';
+          }
+        }
         if ((input['beforeDate'] as String).compareTo(_tools._today()) > 0 ||
             (input['statement'] as String).trim().isEmpty) {
           return '请提供有效的历史日期范围和补记依据';
@@ -338,6 +391,10 @@ class _AssistantToolPreparation {
       }
       if (input['type'] == 'EXTEND' && input['minutes'] == null) {
         return '延长需要填写增加的分钟数';
+      }
+      if (toolName == 'executeMission') {
+        final basisError = endBasisError(input);
+        if (basisError != null) return basisError;
       }
     } on ArgumentError catch (error) {
       return userErrorMessage(error, fallback: '操作未完成，请重试；仍有问题时检查模型设置');

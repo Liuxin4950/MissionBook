@@ -26,6 +26,7 @@ class _MissionCommands {
     String? operationId,
   }) async {
     final missionId = original.mission.id;
+    // 先校验排期结构；上限需在事务内与当前排期比较，允许旧时长原值不变。
     validateMissionSchedule(schedule);
     if (missionId.trim().isEmpty ||
         title.trim().isEmpty ||
@@ -69,6 +70,11 @@ class _MissionCommands {
       if (current.mission.cancelledAt != null) {
         throw const MissionEditConflict('任务已取消，不能再编辑，请返回详情刷新');
       }
+      validateMissionScheduleForWrite(
+        schedule,
+        unchangedExistingDurationMinutes:
+            current.schedule.plannedDurationMinutes,
+      );
       if (current.events.isNotEmpty) {
         throw const MissionEditConflict('任务已经开始，不能再修改任务与排期');
       }

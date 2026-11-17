@@ -68,6 +68,33 @@ class _AssistantToolExecution {
         if (result is! Map || result['recordId'] != input['recordId']) {
           return null;
         }
+        final detail = await _tools._missions.findDetail(
+          missionId: input['missionId'] as String,
+        );
+        if (detail == null) return null;
+        final submittedAt = detail.evidence
+            .where((item) => item.sourceRecordId == input['recordId'])
+            .map((item) => item.submittedAt)
+            .firstOrNull;
+        final deadline = detail.schedule.evidenceDeadlineAt;
+        final missed =
+            detail.failures.any(
+              (failure) => failure.trigger == evidenceDeadlineMissedTrigger,
+            ) ||
+            (deadline != null &&
+                submittedAt != null &&
+                !submittedAt.isBefore(deadline));
+        final deadlineResult = deadline == null
+            ? EvidenceSubmissionResult.noDeadline
+            : missed
+            ? EvidenceSubmissionResult.deadlineMissed
+            : EvidenceSubmissionResult.submitted;
+        return ToolOutput.success(
+          jsonEncode({
+            ...Map<String, Object?>.from(result),
+            'deadlineStatus': evidenceDeadlineStatus(deadlineResult),
+          }),
+        );
       }
       if (toolName == 'manageMemory' && _tools._memory != null) {
         return ToolOutput.success(
@@ -239,6 +266,7 @@ class _AssistantToolExecution {
           id: context.idempotencyKey,
           goalId: prepared.input['goalId'] as String,
           beforeDate: prepared.input['beforeDate'] as String,
+          afterDate: prepared.input['afterDate'] as String?,
           statement: prepared.input['statement'] as String,
           originals:
               prepared.snapshot['historyMissions'] as List<MissionDetail>,
@@ -583,12 +611,32 @@ class _AssistantToolExecution {
     if (type != ExecutionEventType.end && report != null) {
       throw const ToolRejected('unexpected_report', '只有 END 可以携带用户报告');
     }
+    String? basis;
+    if (type == ExecutionEventType.end) {
+      basis = (values['basis'] as String?)?.trim();
+      if (basis == null || basis.isEmpty) {
+        throw const ToolRejected('basis_required', '结束任务必须提供用户完成依据的原话');
+      }
+      if (!_tools._userStatement().contains(basis)) {
+        final shown = basis.length > 200
+            ? '${basis.substring(0, 200)}…'
+            : basis;
+        throw ToolRejected(
+          'user_basis_required',
+          '结束未保存：basis 必须逐字引用当前用户消息（本轮最后一条用户消息）中明确说明完成结果的连续原文，保留换行标点，不能拼接、省略或改写。收到的 basis 是 ${jsonEncode(shown)}。',
+        );
+      }
+    } else if (values['basis'] != null) {
+      throw const ToolRejected('unexpected_basis', '只有 END 可以携带完成依据');
+    }
     final command = _tools._prepareWithoutWrite(
       () => _tools._missions.prepareExecution(
         detail: detail,
         type: type,
         minutes: values['minutes'] as int?,
-        reason: values['reason'] as String?,
+        reason: type == ExecutionEventType.end
+            ? basis
+            : values['reason'] as String?,
         report: report,
         submitOptionalEvidence: values['submitOptionalEvidence'] as bool?,
         userReasonCategory: values['userReasonCategory'] as String?,

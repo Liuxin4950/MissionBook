@@ -32,9 +32,11 @@ void main() {
   late GoalService goals;
   late AssistantTools tools;
   late String id;
+  var statement = '今天这节任务我做完了';
   final prepared = <String, PreparedToolCall>{};
   setUp(() async {
     prepared.clear();
+    statement = '今天这节任务我做完了';
     db = AppDatabase(executor: NativeDatabase.memory());
     repository = _LostResponseRepository(db, clock: () => now);
     missions = MissionService(repository, clock: () => now);
@@ -44,6 +46,7 @@ void main() {
       missions: missions,
       goals: goals,
       resolveCall: (callId) => prepared[callId]!,
+      userStatement: () => statement,
       clock: () => now,
     );
     final request = missions.prepareCreation(
@@ -65,12 +68,14 @@ void main() {
     String type, {
     String? report,
     int? minutes,
+    String? basis,
   }) async {
     final input = <String, Object?>{
       'missionId': id,
       'type': type,
       'report': ?report,
       'minutes': ?minutes,
+      'basis': basis,
     };
     prepared.putIfAbsent(callId, () => throw StateError('not prepared'));
     return tools.tools
@@ -90,17 +95,46 @@ void main() {
     String type, {
     String? report,
     int? minutes,
+    String? basis,
   }) async {
     prepared[callId] = await tools.prepare('executeMission', {
       'missionId': id,
       'type': type,
       'report': ?report,
       'minutes': ?minutes,
+      'basis': basis,
     });
   }
 
+  test('执行工具 Schema 固定要求 basis；非 END 显式传 null', () {
+    final schema = tools.tools
+        .singleWhere((tool) => tool.definition.name == 'executeMission')
+        .definition
+        .inputSchema;
+    expect(schema['required'] as List, contains('basis'));
+    expect(
+      tools.validate('executeMission', {
+        'missionId': id,
+        'type': 'START',
+        'basis': null,
+      }),
+      isNull,
+    );
+    expect(
+      tools.validate('executeMission', {
+        'missionId': id,
+        'type': 'END',
+        'report': 'COMPLETED',
+      }),
+      isNotNull,
+    );
+  });
+
   test('END 缺少用户报告时明确拒绝且零写入', () async {
-    await prepare('end', 'END');
+    prepared['end'] = PreparedToolCall(
+      {'missionId': id, 'type': 'END'},
+      snapshot: {'detail': (await missions.findDetail(missionId: id))!},
+    );
     await expectLater(
       run('end', 'END'),
       throwsA(
@@ -117,15 +151,111 @@ void main() {
         type,
         report: type == 'END' ? 'COMPLETED' : null,
         minutes: type == 'EXTEND' ? 5 : null,
+        basis: type == 'END' ? statement : null,
       );
-      final output = await run(type, type);
+      final output = await run(
+        type,
+        type,
+        report: type == 'END' ? 'COMPLETED' : null,
+        minutes: type == 'EXTEND' ? 5 : null,
+        basis: type == 'END' ? statement : null,
+      );
       expect(output.isError, isFalse);
       expect((jsonDecode(output.text) as Map)['event']['id'], 'test:$type');
     }
     final saved = (await missions.findDetail(missionId: id))!;
     expect(saved.events, hasLength(5));
     expect(saved.events.last.userReportedResult, UserReportedResult.completed);
+    expect(saved.events.last.reason, statement);
     expect(saved.phase, MissionPhase.closed);
+  });
+  test('END 缺少 basis 或依据不是用户原话时拒绝且零写入', () async {
+    await prepare('start', 'START');
+    await run('start', 'START');
+    // 直接固定提案，模拟绕过早期检查后执行器仍须拒绝。
+    prepared['no-basis'] = PreparedToolCall(
+      {'missionId': id, 'type': 'END', 'report': 'COMPLETED'},
+      snapshot: {'detail': (await missions.findDetail(missionId: id))!},
+    );
+    await expectLater(
+      run('no-basis', 'END', report: 'COMPLETED'),
+      throwsA(
+        isA<ToolRejected>().having((e) => e.code, 'code', 'basis_required'),
+      ),
+    );
+    await expectLater(
+      tools.prepare('executeMission', {
+        'missionId': id,
+        'type': 'END',
+        'report': 'COMPLETED',
+        'basis': '模型自己编的完成说法',
+      }),
+      throwsA(
+        isA<ToolRejected>().having(
+          (e) => e.code,
+          'code',
+          'user_basis_required',
+        ),
+      ),
+    );
+    prepared['fake'] = PreparedToolCall(
+      {
+        'missionId': id,
+        'type': 'END',
+        'report': 'COMPLETED',
+        'basis': '模型自己编的完成说法',
+      },
+      snapshot: {'detail': (await missions.findDetail(missionId: id))!},
+    );
+    await expectLater(
+      run('fake', 'END', report: 'COMPLETED', basis: '模型自己编的完成说法'),
+      throwsA(
+        isA<ToolRejected>().having(
+          (e) => e.code,
+          'code',
+          'user_basis_required',
+        ),
+      ),
+    );
+    final saved = (await missions.findDetail(missionId: id))!;
+    expect(saved.events.map((e) => e.type), [ExecutionEventType.start]);
+  });
+  test('非 END 动作携带 basis 被拒绝；END 重试按原依据幂等确认', () async {
+    await expectLater(
+      tools.prepare('executeMission', {
+        'missionId': id,
+        'type': 'START',
+        'basis': statement,
+      }),
+      throwsA(
+        isA<ToolRejected>().having(
+          (e) => e.code,
+          'code',
+          'user_basis_required',
+        ),
+      ),
+    );
+    await prepare('start', 'START');
+    await run('start', 'START');
+    await prepare('end', 'END', report: 'COMPLETED', basis: statement);
+    repository.loseResponse = true;
+    final first = await run(
+      'end',
+      'END',
+      report: 'COMPLETED',
+      basis: statement,
+    );
+    repository.loseResponse = false;
+    final second = await run(
+      'end',
+      'END',
+      report: 'COMPLETED',
+      basis: statement,
+    );
+    expect(jsonDecode(first.text)['event'], jsonDecode(second.text)['event']);
+    final saved = (await missions.findDetail(missionId: id))!;
+    expect(saved.events, hasLength(2));
+    expect(saved.events.last.reason, statement);
   });
   test('提交后丢失响应按固定事件编号找回，重试返回同一事件', () async {
     await prepare('start', 'START');

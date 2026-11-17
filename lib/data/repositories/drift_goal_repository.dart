@@ -278,7 +278,9 @@ class DriftGoalRepository implements GoalRepository {
       final depth = node.parentNodeId == null
           ? 1
           : depths[node.parentNodeId]! + 1;
-      if (depth > 12) throw ArgumentError('目标大纲不能超过 12 层');
+      if (depth > maxGoalNodeDepth) {
+        throw ArgumentError('目标大纲不能超过 $maxGoalNodeDepth 层');
+      }
       depths[node.id] = depth;
       GoalNodeCreation(
         id: node.id,
@@ -408,6 +410,17 @@ class DriftGoalRepository implements GoalRepository {
       await _requireGoal(request.goalId);
       final nodes = await _readNodes(request.goalId);
       _requireActiveParent(request.parentNodeId, nodes);
+      // 全树深度与导入同一上限；不能经单节点入口绕过大纲层数限制。
+      var depth = 1;
+      var parentId = request.parentNodeId;
+      final byId = {for (final node in nodes) node.id: node};
+      while (parentId != null) {
+        depth++;
+        if (depth > maxGoalNodeDepth) {
+          throw ArgumentError('目标大纲最多 $maxGoalNodeDepth 层，请改用更浅的层级');
+        }
+        parentId = byId[parentId]?.parentNodeId;
+      }
       final siblings = nodes.where(
         (node) => node.parentNodeId == request.parentNodeId,
       ); // 同级归档项也算在内，所以新节点总是追加到真实存储顺序末尾。

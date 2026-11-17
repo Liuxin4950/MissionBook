@@ -1,3 +1,7 @@
+/// 目标树全树统一深度上限；单节点创建、大纲导入与 AI 大纲共用，
+/// AI 大纲入口另有更严的 4 层生成限制。
+const maxGoalNodeDepth = 12;
+
 /// 表达已经保存的目标节点；父子关系与顺序共同决定大纲位置。
 class GoalNode {
   const GoalNode({

@@ -185,6 +185,10 @@ class AssistantController extends ChangeNotifier {
       goals: goals,
       resolveCall: _resolveCall,
       memory: memory,
+      userStatement: () =>
+          _session?.transcript.whereType<UserMessage>().lastOrNull?.text ??
+          _lastUserInput ??
+          '',
       extraTools:
           records != null && memory != null && analysis != null && web != null
           ? contextTools(

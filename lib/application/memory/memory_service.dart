@@ -66,6 +66,15 @@ class MemoryService {
     selectionId: selectionId,
     itemIds: itemIds,
   );
+  Future<Map<String, Object?>?> selectionItemVersion({
+    required String sessionId,
+    required String selectionId,
+    required String itemId,
+  }) => repository.selectionItemVersion(
+    sessionId: sessionId,
+    selectionId: selectionId,
+    itemId: itemId,
+  );
   Future<Map<String, Object?>> forgetSelection({
     required String sessionId,
     required String sourceMessageId,

@@ -86,8 +86,17 @@ class EvidenceCorrection {
   final EvidenceDraft item;
 }
 
-/// 材料均已保存；deadlineMissed 表示任务已有材料超时事实，重试返回相同结果。
-enum EvidenceSubmissionResult { submitted, deadlineMissed }
+/// 材料均已保存；deadlineMissed 表示本材料提交时刻已到/超过截止，
+/// noDeadline 表示该任务没有截止时刻。任务超时失败事实仍按执行规则独立固化。
+enum EvidenceSubmissionResult { submitted, deadlineMissed, noDeadline }
+
+/// 工具回执对外使用的明确截止状态；无截止日期时不伪称“按时”。
+String evidenceDeadlineStatus(EvidenceSubmissionResult result) =>
+    switch (result) {
+      EvidenceSubmissionResult.submitted => 'ON_TIME',
+      EvidenceSubmissionResult.deadlineMissed => 'DEADLINE_MISSED',
+      EvidenceSubmissionResult.noDeadline => 'NOT_APPLICABLE',
+    };
 
 class EvidenceConflict implements Exception {
   const EvidenceConflict(this.message);

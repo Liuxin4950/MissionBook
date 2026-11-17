@@ -201,7 +201,7 @@ List<AgentTool> contextTools({
     ),
     tool(
       'setRecordOwnership',
-      '设置记录自己的目标或节点归属；不提供目标和节点时清除归属。',
+      '设置记录自己的目标或节点归属；只传 nodeId 自动沿用该节点所属目标；goalId 和 nodeId 都省略表示清除归属，恢复独立记录。',
       {'recordId': s('记录稳定ID'), 'goalId': s('目标稳定ID'), 'nodeId': s('节点稳定ID')},
       (i, c) async {
         await records.setOwnership(
@@ -217,10 +217,10 @@ List<AgentTool> contextTools({
     ),
     tool(
       'useRecordAsMaterial',
-      '将记录当前内容作为任务材料提交快照，不改变记录归属。',
+      '将记录当前内容作为任务材料提交快照，不改变记录归属；返回 ON_TIME、DEADLINE_MISSED 或 NOT_APPLICABLE（无截止）。',
       {'recordId': s('记录稳定ID'), 'missionId': s('任务稳定ID')},
       (i, c) async {
-        await records.useAsMaterial(
+        final result = await records.useAsMaterial(
           i['recordId'] as String,
           i['missionId'] as String,
           operationId: commandId(c),
@@ -229,6 +229,7 @@ List<AgentTool> contextTools({
           'saved': true,
           'recordId': i['recordId'],
           'missionId': i['missionId'],
+          'deadlineStatus': evidenceDeadlineStatus(result),
         };
       },
       write: true,
@@ -239,15 +240,20 @@ List<AgentTool> contextTools({
         name,
         name == 'reportExecution'
             ? '按用户明确原话补记完成或未完成，保存发生日期和可选实际时段；没有START时不补造START。'
-            : '已结束任务追加实际日期/时间更正，保留原计时和完成报告。',
+            : '已结束任务追加实际日期/时间更正，保留原计时和完成报告，不接受完成结果字段。',
         {
           'missionId': s('任务稳定ID'),
-          'occurrenceDate': s('实际发生 YYYY-MM-DD'),
-          'actualStart': s('可选ISO8601，须含时区，与actualEnd一起填写'),
-          'actualEnd': s('可选ISO8601'),
+          'occurrenceDate': s('实际发生 YYYY-MM-DD，须与实际开始时刻的当地日期一致'),
+          'actualStart': s('可选ISO8601，须含时区，与actualEnd成对填写'),
+          'actualEnd': s('可选ISO8601，须含时区，与actualStart成对填写且不早于开始'),
           'basis': s('本轮用户明确原话中的依据'),
-          'completed': flag,
-          'submitOptionalEvidence': flag,
+          if (name == 'reportExecution') ...{
+            'completed': {
+              'type': 'boolean',
+              'description': '未结束任务必填；已结束任务省略表示只补时间声明，不改原完成结果',
+            },
+            'submitOptionalEvidence': flag,
+          },
         },
         (i, c) async {
           final basis = i['basis'] as String;
@@ -407,9 +413,11 @@ List<AgentTool> contextTools({
       'saveMemory',
       '保存有用户依据的稳定偏好、事实、习惯流程或有期限的约束，也可保存标注未验证的观察；不保存闲聊过程和任务进度。'
           '所有 certainty（stated、inferred、unverified）都必须以 basis 逐字引用当前用户消息；observation 只能为 unverified。一次只保存一条。'
-          '同一主题已有事实时不会静默覆盖：新说法另存为未验证条目并保留原事实；用户明确更正时带 id、原快照和原话。',
+          '同一主题已有事实时不会静默覆盖：新说法另存为未验证条目并保留原事实；用户明确更正时带 id 和原话，并引用 getMemory 清单的 selectionId/itemId 固定读取时的原版本。',
       {
         'id': s('修改已有条目时使用稳定ID'),
+        'selectionId': s('更正已有条目时必填：getMemory 返回的清单编号，与 itemId 一起固定读取时的原版本'),
+        'itemId': s('更正已有条目时必填：该清单中目标条目的固定编号，与 selectionId 成对提供'),
         'content': s('记忆正文'),
         'layer': {
           'type': 'string',
@@ -451,12 +459,34 @@ List<AgentTool> contextTools({
       },
       (i, c) async {
         final entryId = i['id'] as String?;
+        if (entryId == null &&
+            (i['selectionId'] != null || i['itemId'] != null)) {
+          throw const ToolRejected(
+            'invalid_selection',
+            '新增记忆不能带更正清单；如需更正，必须提供 id、selectionId 和 itemId',
+          );
+        }
         final layer = i['layer'] as String? ?? 'semantic';
         final certainty =
             i['certainty'] as String? ??
             (layer == 'observation' ? 'unverified' : 'stated');
         final basis = i['basis'] as String? ?? '';
         explicitBasis(basis, memoryBasis: true, entryId: entryId);
+        if (entryId != null &&
+            (i['selectionId'] is! String || i['itemId'] is! String)) {
+          throw const ToolRejected(
+            'stale_proposal',
+            '记忆更正必须引用 getMemory 返回的 selectionId 和 itemId',
+          );
+        }
+        final version =
+            snapshot?.call(c.callId)['memoryVersion'] as Map<String, Object?>?;
+        if (entryId != null && version == null) {
+          throw const ToolRejected(
+            'stale_proposal',
+            '记忆更正必须绑定 getMemory 清单中的读取版本，请重新查询后再更正',
+          );
+        }
         if (entryId != null && certainty != 'stated') {
           throw ToolRejected(
             'invalid_input',
@@ -464,14 +494,6 @@ List<AgentTool> contextTools({
           );
         }
         final id = entryId ?? commandId(c);
-        final version =
-            snapshot?.call(c.callId)['memoryVersion'] as Map<String, Object?>?;
-        if (entryId != null && version == null) {
-          throw ToolRejected(
-            'stale_proposal',
-            '记忆条目 ${jsonEncode(entryId)} 更正前需要重新查询并固定原记忆',
-          );
-        }
         final expiresAt = i['expiresAt'] == null
             ? (version?['expires_at'])
             : instant(i['expiresAt'] as String, '记忆期限').millisecondsSinceEpoch;

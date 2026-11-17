@@ -8,7 +8,7 @@ class _AssistantToolCatalog {
     final catalog = [
       AssistantTools._tool(
         'manageMissions',
-        '按明确编号或目标、截止日期、阶段统一批量取消或物理删除任务，最多10000项。delete 永久删除任务及其执行/材料，独立来源记录和聊天保留，不能恢复；cancel 只处理未开始任务并报告跳过数量；reset 仅撤销误标的已结束任务，把原执行和材料归档，追加自选排期回到未开始，可随后 updateMission/planMissions 改期。必须来自用户明确意图，不能用补记完成替代删除。宿主固定完整范围并原子校验，不需逐条先读；缺失任务或 reset 遇到未结束任务时会列出具体 missionId，cancel 跳过项在回执 skippedIds 中。',
+        '按明确编号或目标、截止日期、阶段统一批量取消或物理删除任务，最多10000项。delete 永久删除任务及其执行/材料，独立来源记录和聊天保留，不能恢复；cancel 只处理未开始任务并报告跳过数量；reset 仅撤销误标的已结束任务（已有 END 报告，即 closed 或 evidencePending；仅到点停止的 reportPending 不可撤销），把原执行和材料归档，追加自选排期回到未开始，可随后 updateMission/planMissions 改期。必须来自用户明确意图，不能用补记完成替代删除。宿主固定完整范围并原子校验，不需逐条先读；缺失任务或 reset 遇到未结束任务时会列出具体 missionId，cancel 跳过项在回执 skippedIds 中。',
         AssistantTools._schema(
           {
             'action': AssistantTools._enum('操作', ['cancel', 'delete', 'reset']),
@@ -57,11 +57,14 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'completeHistory',
-        '用户明确要求补记历史任务已完成时使用。按目标和截止日期（不含当日）一次预览并提交最多10000项；仅处理历史自报任务；无记录时补记完成，执行中或暂停时正常结束，跳过已结束、已取消及有材料要求的任务。保留原计划，记录本次补报的时间和依据，不伪造过去的开始时间或专注时长。不得因时间已过自行推断完成；不能用 START+END 批量绕过。',
+        '用户明确要求补记历史任务已完成时使用。按目标和截止日期（不含当日）一次预览并提交最多10000项，可选起始日期（含当日）缩小范围；仅处理历史自报任务；无记录时补记完成，执行中或暂停时正常结束，跳过已结束、已取消及有材料要求的任务。保留原计划，记录本次补报的时间和依据，不伪造过去的开始时间或专注时长。不得因时间已过自行推断完成；不能用 START+END 批量绕过。',
         AssistantTools._schema(
           {
             'goalId': AssistantTools._string('目标编号；先查真实目标'),
             'beforeDate': AssistantTools._string('截止日期 YYYY-MM-DD，不含这一天，不晚于今天'),
+            'afterDate': AssistantTools._string(
+              '可选起始日期 YYYY-MM-DD，含这一天，必须早于截止日期；用户只说某段时间时填写',
+            ),
             'statement': AssistantTools._string('用户明确提供完成事实的原话片段，不得改写或编造'),
           },
           required: ['goalId', 'beforeDate', 'statement'],
@@ -76,12 +79,15 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'retryMission',
-        '从已结束或已取消任务创建新的再次尝试，保留来源关联、归属、材料策略和原始记录。先用 getMission 核对来源，询问新日期；强制材料需用户提供本次新截止，不复制旧截止。不把原任务改回未开始。',
+        '用户认可原结果、想再做一遍时，从已结束或已取消任务创建新的再次尝试，保留来源关联、归属、材料策略和原始记录；撤销误标完成应改用 manageMissions(reset)。先用 getMission 核对来源，询问新日期；强制材料需用户提供本次新截止，不复制旧截止。不把原任务改回未开始。',
         AssistantTools._schema(
           {
             'missionId': AssistantTools._string('来源任务稳定编号'),
             'scheduledDate': AssistantTools._string('新尝试日期 YYYY-MM-DD'),
-            'plannedMinutes': AssistantTools._integer('计划分钟，省略沿用来源'),
+            'plannedMinutes': AssistantTools._integer(
+              '计划分钟，1–$maxPlannedDurationMinutes，省略沿用来源',
+              maximum: maxPlannedDurationMinutes,
+            ),
             'title': AssistantTools._string('新尝试名称，省略沿用来源'),
             'objective': AssistantTools._string('改进后的具体目标，省略沿用来源'),
             'steps': AssistantTools._stringArray('改进后的完整步骤，省略沿用来源'),
@@ -103,7 +109,7 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'getGoal',
-        '默认分页返回目标概览；指定 goal 读取当前层摘要、直接子节点和直接任务，指定 node 逐层深入。mission 指定任务，* 才分页读取整个子树任务评价。',
+        '默认分页返回目标概览；node/mission 必须先给 goal。指定 goal 读取当前层摘要、直接子节点和直接任务；node 缩小到该节点范围；mission 读取单个任务并校验属于该节点子树；mission=* 分页读取整个范围任务评价。',
         AssistantTools._schema({
           'goal': AssistantTools._string('目标ID或精确名称'),
           'node': AssistantTools._string('节点ID或精确名称'),
@@ -248,7 +254,10 @@ class _AssistantToolCatalog {
           {
             'title': AssistantTools._string('任务名称'),
             'scheduledDate': AssistantTools._string('计划日期 YYYY-MM-DD'),
-            'plannedMinutes': AssistantTools._integer('计划分钟数，大于 0'),
+            'plannedMinutes': AssistantTools._integer(
+              '计划分钟数，1–$maxPlannedDurationMinutes',
+              maximum: maxPlannedDurationMinutes,
+            ),
             'objective': AssistantTools._string('具体目标；省略时使用任务名称'),
             'fixedStartLocal': AssistantTools._string(
               '可选固定开始时间 HH:mm；不提供则为自选任务',
@@ -271,7 +280,10 @@ class _AssistantToolCatalog {
           {
             'missionId': AssistantTools._string('任务稳定编号'),
             'scheduledDate': AssistantTools._string('新计划日期 YYYY-MM-DD'),
-            'plannedMinutes': AssistantTools._integer('新计划分钟数；省略保持不变'),
+            'plannedMinutes': AssistantTools._integer(
+              '新计划分钟数，1–$maxPlannedDurationMinutes；省略保持不变',
+              maximum: maxPlannedDurationMinutes,
+            ),
             'timePolicy': AssistantTools._enum('FIXED 或 FLEXIBLE', [
               'FIXED',
               'FLEXIBLE',
@@ -295,7 +307,10 @@ class _AssistantToolCatalog {
             'description': AssistantTools._string('新说明；空串清空'),
             'why': AssistantTools._string('新原因；空串清空'),
             'scheduledDate': AssistantTools._string('新日期 YYYY-MM-DD'),
-            'plannedMinutes': AssistantTools._integer('计划分钟'),
+            'plannedMinutes': AssistantTools._integer(
+              '计划分钟，1–$maxPlannedDurationMinutes',
+              maximum: maxPlannedDurationMinutes,
+            ),
             'timePolicy': AssistantTools._enum('时间方式', ['FIXED', 'FLEXIBLE']),
             'fixedStartLocal': AssistantTools._string('HH:mm'),
           },
@@ -309,7 +324,7 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'executeMission',
-        '提交 START/PAUSE/RESUME/EXTEND/END。END 的报告结果必须来自用户明确陈述。',
+        '提交 START/PAUSE/RESUME/EXTEND/END。END 的报告结果必须来自用户明确陈述，basis 逐字引用该陈述原话并随事件保存。',
         AssistantTools._schema(
           {
             'missionId': AssistantTools._string('任务稳定编号'),
@@ -320,19 +335,27 @@ class _AssistantToolCatalog {
               'EXTEND',
               'END',
             ]),
-            'minutes': AssistantTools._integer('EXTEND 增加的分钟数'),
+            'minutes': AssistantTools._integer(
+              'EXTEND 增加的分钟数，1–$maxPlannedDurationMinutes',
+              maximum: maxPlannedDurationMinutes,
+            ),
             'reason': AssistantTools._string('PAUSE 的可选原因'),
             'report': AssistantTools._enum('END 用户报告', [
               'COMPLETED',
               'NOT_COMPLETED',
             ]),
+            'basis': {
+              'type': ['string', 'null'],
+              'description':
+                  'END 必须提供逐字原话；其他动作必须为 null。END 引用当前用户消息中明确说明完成结果的连续原文，保留换行标点，不改写',
+            },
             'submitOptionalEvidence': AssistantTools._boolean(
               '可选材料任务 END 时是否稍后提交',
             ),
             'userReasonCategory': AssistantTools._string('未完成原因分类'),
             'userReasonText': AssistantTools._string('未完成原因说明'),
           },
-          required: ['missionId', 'type'],
+          required: ['missionId', 'type', 'basis'],
         ),
         _owner._executeMission,
       ),

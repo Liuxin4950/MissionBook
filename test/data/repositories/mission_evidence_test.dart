@@ -187,7 +187,7 @@ void main() {
     expect(await repository.findPendingEvidence(), isEmpty);
     await expectLater(
       repository.submitEvidence(batch('optional')),
-      completion(EvidenceSubmissionResult.submitted),
+      completion(EvidenceSubmissionResult.noDeadline),
     );
   });
 
@@ -238,7 +238,7 @@ void main() {
     );
     expect(
       await repository.submitEvidence(submission),
-      EvidenceSubmissionResult.submitted,
+      EvidenceSubmissionResult.noDeadline,
     );
     final after = await detail('optional');
     expect(after.phase, MissionPhase.closed);
@@ -373,7 +373,7 @@ void main() {
     await database.customStatement('DROP TRIGGER fail_second_evidence');
     expect(
       await repository.submitEvidence(submission),
-      EvidenceSubmissionResult.submitted,
+      EvidenceSubmissionResult.noDeadline,
     );
     expect((await detail('optional')).evidence, hasLength(2));
   });
@@ -387,7 +387,7 @@ void main() {
     now = now.add(const Duration(days: 10));
     expect(
       await repository.submitEvidence(submission),
-      EvidenceSubmissionResult.submitted,
+      EvidenceSubmissionResult.noDeadline,
     );
     final saved = (await detail('optional')).evidence;
     expect(saved, hasLength(1));
@@ -645,7 +645,11 @@ void main() {
         repository.submitEvidence(
           batch(id, id: 'batch-$id', items: [text('text-$id')]),
         ),
-        completion(EvidenceSubmissionResult.submitted),
+        completion(
+          policy == VerificationPolicy.requiredEvidence
+              ? EvidenceSubmissionResult.submitted
+              : EvidenceSubmissionResult.noDeadline,
+        ),
       );
       await expectLater(
         repository.skipOptionalEvidence(id),

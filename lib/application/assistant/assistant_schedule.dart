@@ -59,7 +59,9 @@ class AssistantScheduleService {
             'plannedMinutes': {
               'type': 'integer',
               'minimum': 1,
-              'maximum': 1440,
+              'maximum': maxPlannedDurationMinutes,
+              'description':
+                  'CREATE 必填；RESCHEDULE 省略保留当前值，提供新值时必须为 1–$maxPlannedDurationMinutes',
             },
             'timePolicy': {
               'type': 'string',
@@ -179,7 +181,6 @@ class AssistantScheduleService {
         }
         originals[item['itemId'] as String] = detail;
         item['title'] = detail.mission.title;
-        item['plannedMinutes'] ??= detail.schedule.plannedDurationMinutes;
         final originalStart = detail.schedule.fixedStartAt;
         item['timePolicy'] ??= originalStart == null ? 'FLEXIBLE' : 'FIXED';
         if (item['timePolicy'] == 'FIXED' &&
@@ -293,7 +294,9 @@ class AssistantScheduleService {
         timeZone: zone,
         timePolicy: policy,
         fixedStartAt: start,
-        plannedDurationMinutes: item['plannedMinutes'] as int,
+        plannedDurationMinutes:
+            item['plannedMinutes'] as int? ??
+            original.schedule.plannedDurationMinutes,
         evidenceDeadlineAt: original.schedule.evidenceDeadlineAt,
         changedAt: _clock().toUtc(),
         changeReason: '助手整份计划改期',

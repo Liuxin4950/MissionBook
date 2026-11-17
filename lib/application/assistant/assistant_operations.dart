@@ -52,6 +52,13 @@ class _AssistantOperations {
         jsonEncode(input) != jsonEncode(pending.prepared.input)) {
       return '选择范围变化后需要重新查询并提出操作';
     }
+    if (pending.operation.toolName == 'saveMemory') {
+      for (final field in ['id', 'selectionId', 'itemId']) {
+        if (input[field] != pending.prepared.input[field]) {
+          return '记忆更正对象或读取版本不能在确认卡中更换，请重新查询并提出更正';
+        }
+      }
+    }
     if (pending.operation.toolName == 'planMissions') {
       final oldItems = {
         for (final item in AssistantScheduleService.rows(
@@ -78,7 +85,8 @@ class _AssistantOperations {
       }
     }
     if (pending.operation.toolName == 'completeHistory' &&
-        input['beforeDate'] != pending.prepared.input['beforeDate']) {
+        (input['beforeDate'] != pending.prepared.input['beforeDate'] ||
+            input['afterDate'] != pending.prepared.input['afterDate'])) {
       return '日期范围变化后需要重新预览，请取消并重新提出';
     }
     final validation = _controller._tools.validate(

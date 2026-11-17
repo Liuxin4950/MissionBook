@@ -240,13 +240,14 @@ class MissionService {
 
   Future<List<MissionDetail>> findHistoryScope(
     String goalId,
-    String beforeDate,
-  ) {
+    String beforeDate, {
+    String? afterDate,
+  }) {
     final Object source = repository;
     if (source is! HistoricalCompletionRepository) {
       throw StateError('当前存储不支持历史补记');
     }
-    return source.findHistoryScope(goalId, beforeDate);
+    return source.findHistoryScope(goalId, beforeDate, afterDate: afterDate);
   }
 
   Future<List<MissionDetail>> findActive() => repository.findActive();
@@ -585,6 +586,8 @@ class MissionService {
       plannedDurationMinutes: plannedDurationMinutes,
       timePolicy: timePolicy,
       fixedStartAt: fixedStartAt,
+      unchangedExistingDurationMinutes:
+          original.schedule.plannedDurationMinutes,
     );
     // 这里构造提案，不代表已经增加版本；仓储比较最新事实后才决定是否追加。
     final proposedSchedule = MissionScheduleRevision(
@@ -602,7 +605,11 @@ class MissionService {
       // 编辑时刻取服务注入时钟；执行事件时刻由仓储时钟在事务内提供。
       changedAt: _clock().toUtc(),
     );
-    validateMissionSchedule(proposedSchedule);
+    validateMissionScheduleForWrite(
+      proposedSchedule,
+      unchangedExistingDurationMinutes:
+          original.schedule.plannedDurationMinutes,
+    );
     if (content != null) {
       validateExecutionPlanContent(content.steps, content.notes);
     }
@@ -630,13 +637,20 @@ class MissionService {
     required int plannedDurationMinutes,
     required TimePolicy timePolicy,
     required DateTime? fixedStartAt,
-  }) => validateMissionScheduleFields(
-    scheduledDate: scheduledDate,
-    timeZone: timeZone,
-    plannedDurationMinutes: plannedDurationMinutes,
-    timePolicy: timePolicy,
-    fixedStartAt: fixedStartAt?.toUtc(),
-  );
+    int? unchangedExistingDurationMinutes,
+  }) {
+    validateMissionScheduleFields(
+      scheduledDate: scheduledDate,
+      timeZone: timeZone,
+      plannedDurationMinutes: plannedDurationMinutes,
+      timePolicy: timePolicy,
+      fixedStartAt: fixedStartAt?.toUtc(),
+    );
+    validatePlannedDurationForWrite(
+      plannedDurationMinutes,
+      unchangedExistingDurationMinutes: unchangedExistingDurationMinutes,
+    );
+  }
 
   /// 详情页传入当前任务编号；等待仓储事务完成，页面才能显示取消结果。
   Future<void> cancel({required String missionId, String? operationId}) async {
@@ -839,7 +853,11 @@ class MissionService {
 
   void _validatePlan(ScheduleProposal plan) {
     for (final item in plan.items) {
-      validateMissionSchedule(item.schedule);
+      validateMissionScheduleForWrite(
+        item.schedule,
+        unchangedExistingDurationMinutes:
+            item.original?.schedule.plannedDurationMinutes,
+      );
       if (item.creation != null) validateMissionCreation(item.creation!);
       final original = item.original;
       if (original != null) {

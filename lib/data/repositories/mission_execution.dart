@@ -102,6 +102,7 @@ class _MissionExecution {
                 jsonEncode({
                   'goalId': request.goalId,
                   'beforeDate': request.beforeDate,
+                  'afterDate': request.afterDate,
                   'statement': request.statement.trim(),
                   'missions': [for (final d in request.originals) version(d)],
                   'excluded': [for (final d in request.excluded) version(d)],
@@ -125,6 +126,7 @@ class _MissionExecution {
         final scope = await _repository.findHistoryScope(
           request.goalId,
           request.beforeDate,
+          afterDate: request.afterDate,
         );
         final originals = {
           for (final d in [...request.originals, ...request.excluded])
@@ -204,6 +206,7 @@ class _MissionExecution {
           'goalId': request.goalId,
           'completedCount': request.originals.length,
           'beforeDate': request.beforeDate,
+          'afterDate': request.afterDate,
           'recordedAt': now.toIso8601String(),
           'retrospectiveCount': request.originals
               .where((d) => d.events.isEmpty)
@@ -297,6 +300,11 @@ class _MissionExecution {
           throw const ExecutionConflict('同一操作编号对应的输入不同，请刷新后重新操作');
         }
         return event;
+      }
+      if (command.type == ExecutionEventType.extend &&
+          (command.grantedDurationMinutes == null ||
+              command.grantedDurationMinutes! > maxPlannedDurationMinutes)) {
+        throw ArgumentError('单次延长必须在 1–$maxPlannedDurationMinutes 分钟之间');
       }
       // 这里读取的是一整份任务详情：既要检查旧序号/阶段，也要核对开始绑定的排期。
       // 排期描述“打算什么时候做、做多久”；事件描述“实际开始/暂停过什么”。

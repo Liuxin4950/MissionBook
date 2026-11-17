@@ -326,8 +326,12 @@ abstract final class GoalPackageRules {
   }
 
   static int duration(Object? value, String path) {
-    if (value is! int || value < 1 || value > 1440) {
-      fail('INVALID_DURATION', path, '时长必须为 1–1440 的整数分钟');
+    if (value is! int || value < 1 || value > maxPlannedDurationMinutes) {
+      fail(
+        'INVALID_DURATION',
+        path,
+        '时长必须为 1–$maxPlannedDurationMinutes 的整数分钟',
+      );
     }
     return value;
   }

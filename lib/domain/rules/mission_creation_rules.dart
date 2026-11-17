@@ -24,7 +24,7 @@ void validateMissionCreation(MissionCreation request) {
     throw ArgumentError('新任务不能包含取消或材料放弃事实');
   }
   mission.ownership.validate();
-  validateMissionSchedule(schedule);
+  validateMissionScheduleForWrite(schedule);
   validateExecutionPlanContent(plan.steps, plan.notes);
   validateEvidenceRequirement(
     policy: mission.verificationPolicy,
@@ -33,6 +33,7 @@ void validateMissionCreation(MissionCreation request) {
   );
 }
 
+/// 校验已保存排期的结构事实；不把新产品上限追溯应用到旧数据读取。
 void validateMissionSchedule(MissionScheduleRevision schedule) =>
     validateMissionScheduleFields(
       scheduledDate: schedule.scheduledDate,
@@ -41,6 +42,31 @@ void validateMissionSchedule(MissionScheduleRevision schedule) =>
       timePolicy: schedule.timePolicy,
       fixedStartAt: schedule.fixedStartAt,
     );
+
+/// 校验新建或改动排期的时长上限。既有超限排期只有在原值不变时可被保留，
+/// 避免一条新规则使同一 schema 中原本可读的任务无法打开或编辑其他字段。
+void validateMissionScheduleForWrite(
+  MissionScheduleRevision schedule, {
+  int? unchangedExistingDurationMinutes,
+}) {
+  validateMissionSchedule(schedule);
+  validatePlannedDurationForWrite(
+    schedule.plannedDurationMinutes,
+    unchangedExistingDurationMinutes: unchangedExistingDurationMinutes,
+  );
+}
+
+/// 计划分钟数是正整数；新值最多24小时，唯一例外是原有值完全不变。
+void validatePlannedDurationForWrite(
+  int plannedDurationMinutes, {
+  int? unchangedExistingDurationMinutes,
+}) {
+  if (plannedDurationMinutes <= 0 ||
+      (plannedDurationMinutes > maxPlannedDurationMinutes &&
+          plannedDurationMinutes != unchangedExistingDurationMinutes)) {
+    throw ArgumentError('计划时长必须在 1–$maxPlannedDurationMinutes 分钟之间');
+  }
+}
 
 /// 表单在构造完整排期前也使用同一规则，避免页面与仓储各写一套校验。
 /// fixedStartAt 必须是 UTC 绝对时刻；本地输入由调用方先转换。

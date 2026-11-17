@@ -574,6 +574,205 @@ void main() {
     expect(outcomes.where((e) => e), hasLength(3));
     expect(await quota.used('2026-10'), 3);
   });
+  test('实际时段必须成对、有序且已经发生', () async {
+    final id = await seed();
+    await expectLater(
+      report(
+        id,
+        reportId: 'pair-1',
+        start: now.subtract(const Duration(hours: 1)),
+      ),
+      throwsArgumentError,
+    );
+    await expectLater(
+      report(
+        id,
+        reportId: 'pair-2',
+        start: now.subtract(const Duration(minutes: 30)),
+        end: now.subtract(const Duration(hours: 1)),
+      ),
+      throwsArgumentError,
+    );
+    await expectLater(
+      report(
+        id,
+        reportId: 'pair-3',
+        start: now.subtract(const Duration(hours: 1)),
+        end: now.add(const Duration(minutes: 1)),
+      ),
+      throwsArgumentError,
+    );
+    expect(await db.select(db.userExecutionReports).get(), isEmpty);
+    expect((await repo.findDetail(id))!.events, isEmpty);
+  });
+
+  test('材料提交回执区分按时与超时，超时保留失败事实', () async {
+    final service = RecordService(records, missions, missions.attachments);
+    final tools = contextTools(
+      records: service,
+      missions: missions,
+      memory: MemoryService(DriftMemoryRepository(db)),
+      analysis: DriftAnalysisStore(db),
+      analyze: (p, {imageKey, mime, json = false}) async => '摘要',
+      web: WebService(
+        settings: const SecureWebSettings(),
+        quota: DriftSearchQuota(db),
+        fetchClient: () => throw StateError('本测试不出网'),
+      ),
+      userStatement: () => '我上午已完成课程',
+    );
+    Future<String> pendingMission(String title) async {
+      final id = await seed(
+        policy: VerificationPolicy.requiredEvidence,
+        title: title,
+      );
+      var detail = (await repo.findDetail(id))!;
+      await missions.execute(
+        missions.prepareExecution(
+          detail: detail,
+          type: ExecutionEventType.start,
+        ),
+      );
+      detail = (await repo.findDetail(id))!;
+      await missions.execute(
+        missions.prepareExecution(
+          detail: detail,
+          type: ExecutionEventType.end,
+          report: UserReportedResult.completed,
+        ),
+      );
+      expect((await repo.findDetail(id))!.phase, MissionPhase.evidencePending);
+      return id;
+    }
+
+    final onTime = await pendingMission('按时任务');
+    await records.saveRecord(
+      const RecordDraft(
+        id: 'on-time-record',
+        type: ContentType.text,
+        source: ContentSource.user,
+        content: '按时笔记',
+      ),
+    );
+    final onTimeOutput = await tools
+        .firstWhere((t) => t.definition.name == 'useRecordAsMaterial')
+        .execute(
+          {'recordId': 'on-time-record', 'missionId': onTime},
+          ToolContext(
+            callId: 'on-time',
+            sessionId: 'session',
+            cancellation: CancellationToken(),
+          ),
+        );
+    expect((jsonDecode(onTimeOutput.text) as Map)['deadlineStatus'], 'ON_TIME');
+
+    final runningLate = await seed(
+      policy: VerificationPolicy.requiredEvidence,
+      title: '执行中晚交任务',
+    );
+    await missions.execute(
+      missions.prepareExecution(
+        detail: (await repo.findDetail(runningLate))!,
+        type: ExecutionEventType.start,
+      ),
+    );
+    now = now.add(const Duration(hours: 2));
+    await records.saveRecord(
+      const RecordDraft(
+        id: 'running-late-record',
+        type: ContentType.text,
+        source: ContentSource.user,
+        content: '执行中超过截止才提交',
+      ),
+    );
+    final runningLateOutput = await tools
+        .firstWhere((t) => t.definition.name == 'useRecordAsMaterial')
+        .execute(
+          {'recordId': 'running-late-record', 'missionId': runningLate},
+          ToolContext(
+            callId: 'running-late',
+            sessionId: 'session',
+            cancellation: CancellationToken(),
+          ),
+        );
+    expect(
+      (jsonDecode(runningLateOutput.text) as Map)['deadlineStatus'],
+      'DEADLINE_MISSED',
+    );
+    final runningDetail = (await repo.findDetail(runningLate))!;
+    expect(runningDetail.failures, isEmpty); // END 前还没有固化任务失败事实。
+    await missions.execute(
+      missions.prepareExecution(
+        detail: runningDetail,
+        type: ExecutionEventType.end,
+        report: UserReportedResult.completed,
+      ),
+    );
+    expect(
+      (await repo.findDetail(runningLate))!.failures.any(
+        (failure) => failure.trigger == 'EVIDENCE_DEADLINE_MISSED',
+      ),
+      isTrue,
+    );
+
+    final noDeadlineMission = await seed(
+      policy: VerificationPolicy.selfReport,
+      title: '无材料截止任务',
+    );
+    await records.saveRecord(
+      const RecordDraft(
+        id: 'no-deadline-record',
+        type: ContentType.text,
+        source: ContentSource.user,
+        content: '没有截止时间的笔记',
+      ),
+    );
+    final noDeadlineOutput = await tools
+        .firstWhere((t) => t.definition.name == 'useRecordAsMaterial')
+        .execute(
+          {'recordId': 'no-deadline-record', 'missionId': noDeadlineMission},
+          ToolContext(
+            callId: 'no-deadline',
+            sessionId: 'session',
+            cancellation: CancellationToken(),
+          ),
+        );
+    expect(
+      (jsonDecode(noDeadlineOutput.text) as Map)['deadlineStatus'],
+      'NOT_APPLICABLE',
+    );
+
+    final late = await pendingMission('超时任务');
+    now = now.add(const Duration(hours: 2));
+    await records.saveRecord(
+      const RecordDraft(
+        id: 'late-record',
+        type: ContentType.text,
+        source: ContentSource.user,
+        content: '超时笔记',
+      ),
+    );
+    final lateOutput = await tools
+        .firstWhere((t) => t.definition.name == 'useRecordAsMaterial')
+        .execute(
+          {'recordId': 'late-record', 'missionId': late},
+          ToolContext(
+            callId: 'late',
+            sessionId: 'session',
+            cancellation: CancellationToken(),
+          ),
+        );
+    final lateResult = jsonDecode(lateOutput.text) as Map;
+    expect(lateResult['saved'], true);
+    expect(lateResult['deadlineStatus'], 'DEADLINE_MISSED');
+    final detail = (await repo.findDetail(late))!;
+    expect(detail.evidence, isNotEmpty);
+    expect(
+      detail.failures.any((f) => f.trigger == 'EVIDENCE_DEADLINE_MISSED'),
+      isTrue,
+    );
+  });
+
   test('AI补记采用确认时快照；并发开始后拒绝旧提案，回执支持新写入恢复', () async {
     final id = await seed();
     final before = (await repo.findDetail(id))!;

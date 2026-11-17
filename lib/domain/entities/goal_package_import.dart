@@ -1,12 +1,14 @@
 import 'dart:convert';
 
+import 'goal_node.dart';
+
 /// 外部计划输入的资源预算；文件不能覆盖这些限制。
 abstract final class GoalImportLimits {
   static const fileBytes = 32 * 1024 * 1024;
   static const pasteBytes = 2 * 1024 * 1024;
   static const nodes = 500;
   static const missions = 10000;
-  static const depth = 12;
+  static const depth = maxGoalNodeDepth;
   static const jsonDepth = 64;
   static const jsonValues = 1000000;
   static const steps = 100000;

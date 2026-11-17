@@ -91,6 +91,36 @@ void main() {
         throwsArgumentError,
       );
     }
+    expect(
+      () => validateExecutionEvent(
+        event(type: ExecutionEventType.extend, grantedDurationMinutes: 1440),
+        VerificationPolicy.selfReport,
+      ),
+      returnsNormally,
+    );
+    // 旧版本允许更大的正数；读取时间线仍须保留已有事实。新写入上限
+    // 由任务命令的事务入口单独检查。
+    expect(
+      () => validateExecutionEvent(
+        event(type: ExecutionEventType.extend, grantedDurationMinutes: 1441),
+        VerificationPolicy.selfReport,
+      ),
+      returnsNormally,
+    );
+  });
+
+  test('END 可携带用户完成依据原话', () {
+    expect(
+      () => validateExecutionEvent(
+        event(
+          type: ExecutionEventType.end,
+          reason: '我今天把这节课做完了',
+          result: UserReportedResult.completed,
+        ),
+        VerificationPolicy.selfReport,
+      ),
+      returnsNormally,
+    );
   });
 
   test('每种动作均拒绝不属于自己的专属字段', () {
@@ -116,7 +146,7 @@ void main() {
             grantedDurationMinutes: 10,
             result: result,
           ),
-        if (type != ExecutionEventType.pause)
+        if (type != ExecutionEventType.pause && type != ExecutionEventType.end)
           event(
             type: type,
             scheduleRevisionId: revision,

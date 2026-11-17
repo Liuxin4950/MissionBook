@@ -24,6 +24,7 @@ class ExecutionCommand {
   final ExecutionEventType type; // 本次动作，例如 start（开始）。
   final String? scheduleRevisionId; // 仅开始携带 detail.schedule.id，防止使用旧计划。
   final int? grantedDurationMinutes;
+  // PAUSE 是暂停原因；END 是用户完成依据原话（补记/助手 END），页面按钮结束可为空。
   final String? reason;
   final UserReportedResult? userReportedResult;
   final bool? submitOptionalEvidence; // 仅可选材料且报告完成时，明确选择交或不交。

@@ -1,13 +1,14 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../../domain/entities/goal_node.dart';
 import '../../domain/entities/goal_outline_import.dart';
 
 /// 严格读取 v1 JSON 协议，所有错误都指向输入位置，确认前不写业务数据。
 abstract final class GoalOutlineParser {
   static const maxBytes = 2 * 1024 * 1024;
   static const maxNodes = 500;
-  static const maxDepth = 12;
+  static const maxDepth = maxGoalNodeDepth;
 
   static GoalOutlineImport parseText(String text) =>
       parseBytes(Uint8List.fromList(utf8.encode(text)));
@@ -43,7 +44,7 @@ abstract final class GoalOutlineParser {
     final keys = <String>{};
     var count = 0;
     GoalImportNode readNode(Object? raw, String path, int depth) {
-      if (depth > maxDepth) throw FormatException('$path 超过 12 层限制');
+      if (depth > maxDepth) throw FormatException('$path 超过 $maxDepth 层限制');
       if (++count > maxNodes) throw FormatException('$path 超过 500 个节点限制');
       final value = _object(raw, path);
       _fields(

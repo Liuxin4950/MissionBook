@@ -121,6 +121,35 @@ class DriftMemoryRepository extends DriftRepositorySupport
     };
   }
 
+  @override
+  Future<Map<String, Object?>?> selectionItemVersion({
+    required String sessionId,
+    required String selectionId,
+    required String itemId,
+  }) async {
+    final receipt = await (db.select(
+      db.operationReceipts,
+    )..where((t) => t.id.equals(selectionId))).getSingleOrNull();
+    if (receipt == null ||
+        receipt.kind != 'memory_selection' ||
+        receipt.entityId != sessionId) {
+      return null;
+    }
+    final selection = jsonDecode(receipt.resultJson) as Map<String, dynamic>;
+    for (final raw in selection['items'] as List) {
+      final item = Map<String, Object?>.from(raw as Map);
+      if (item['itemId'] == itemId) {
+        return {
+          'id': item['id'],
+          'version': Map<String, Object?>.from(item['_version'] as Map),
+          'topic': item['topic_name'],
+          'content': item['content'],
+        };
+      }
+    }
+    return null;
+  }
+
   Future<Map<String, Object?>> _inspectSelection(
     String sessionId,
     String selectionId,

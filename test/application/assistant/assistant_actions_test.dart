@@ -178,6 +178,49 @@ void main() {
     );
   });
 
+  test('afterDate 缩小补记范围；起始不早于截止时拒绝', () async {
+    final goalId = await seedHistory();
+    final ai = await controller('completeHistory', {
+      'goalId': goalId,
+      'beforeDate': '2026-10-29',
+      'afterDate': '2026-10-21',
+      'statement': '把今天以前的课程补记为已完成',
+    });
+    final sending = ai.send('把今天以前的课程补记为已完成');
+    await waiting(ai);
+    expect(ai.operations.single.historyMissions, hasLength(1));
+    expect(
+      ai.operations.single.historyMissions.single.schedule.scheduledDate,
+      '2026-10-21',
+    );
+    expect(ai.confirmProposal('action'), isNull);
+    await sending;
+    final finished = await missions.findFinished();
+    expect(finished, hasLength(1));
+    expect(finished.single.schedule.scheduledDate, '2026-10-21');
+    final untouched = (await missions.findForGoal(
+      goalId,
+    )).where((d) => d.schedule.scheduledDate == '2026-10-20').single;
+    expect(untouched.events, isEmpty);
+    final result =
+        jsonDecode(ai.transcript.whereType<ToolResultMessage>().single.text)
+            as Map;
+    expect(result['afterDate'], '2026-10-21');
+  });
+
+  test('afterDate 不早于 beforeDate 时整批拒绝且零写入', () async {
+    final goalId = await seedHistory();
+    final ai = await controller('completeHistory', {
+      'goalId': goalId,
+      'beforeDate': '2026-10-29',
+      'afterDate': '2026-10-29',
+      'statement': '把今天以前的课程补记为已完成',
+    }, full: true);
+    await ai.send('把今天以前的课程补记为已完成');
+    expect(await db.select(db.executionEvents).get(), isEmpty);
+    expect(ai.transcript.whereType<ToolResultMessage>().single.isError, isTrue);
+  });
+
   test('模型编造历史完成依据时，即使完整权限也不能写入', () async {
     final goalId = await seedHistory();
     final ai = await controller('completeHistory', {

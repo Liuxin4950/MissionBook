@@ -15,6 +15,7 @@ import '../../../domain/entities/failure_record.dart';
 import '../../../domain/entities/mission_detail.dart';
 import '../../../domain/entities/mission.dart';
 import '../../../domain/entities/mission_phase.dart';
+import '../../../domain/entities/mission_schedule_revision.dart';
 import '../../../domain/rules/execution_time_rules.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_top_bar.dart';
@@ -789,8 +790,13 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
               onPressed: canAct
                   ? () {
                       final minutes = int.tryParse(_minutes.text.trim());
-                      if (minutes == null || minutes <= 0) {
-                        setState(() => _inputError = '请输入大于0的整数分钟');
+                      if (minutes == null ||
+                          minutes <= 0 ||
+                          minutes > maxPlannedDurationMinutes) {
+                        setState(
+                          () => _inputError =
+                              '请输入 1–$maxPlannedDurationMinutes 的整数分钟',
+                        );
                         return;
                       }
                       _run(

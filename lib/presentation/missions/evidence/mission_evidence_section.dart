@@ -283,16 +283,18 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       );
       final result = await widget.service.submitEvidence(_pending!);
       if (!mounted) return;
-      if (result == EvidenceSubmissionResult.submitted) {
+      if (result == EvidenceSubmissionResult.deadlineMissed) {
         setState(() {
           _clearDrafts();
-          _receipt = '材料已提交，原始内容已保存。';
+          _receipt = '材料已保存，但提交时间已超过材料截止时间。';
           _expanded = false;
         });
       } else {
         setState(() {
           _clearDrafts();
-          _receipt = '材料已保存，但已超过提交期限；超时记录已保留。';
+          _receipt = result == EvidenceSubmissionResult.noDeadline
+              ? '材料已提交，当前任务没有材料截止时间。'
+              : '材料已提交，原始内容已保存。';
           _expanded = false;
         });
       }

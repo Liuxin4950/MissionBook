@@ -36,6 +36,30 @@ void main() {
     return (await service.findNodeById(request.id))!;
   }
 
+  test('单节点创建执行全树深度上限，不能绕过导入限制', () async {
+    String? parent;
+    for (var level = 1; level <= maxGoalNodeDepth; level++) {
+      parent = (await add('第$level层', parent: parent)).id;
+    }
+    await expectLater(
+      service.createNode(
+        service.prepareNodeCreation(
+          goalId: goalId,
+          parentNodeId: parent,
+          title: '超出上限的一层',
+        ),
+      ),
+      throwsA(
+        isA<ArgumentError>().having(
+          (error) => error.message,
+          'message',
+          contains('$maxGoalNodeDepth'),
+        ),
+      ),
+    );
+    expect(await service.findNodes(goalId), hasLength(maxGoalNodeDepth));
+  });
+
   test('创建请求不写库；顶层与子节点分别排序，文字整理后保存，成功才通知', () async {
     var notifications = 0;
     final subscription = service.changes.listen((_) => notifications++);

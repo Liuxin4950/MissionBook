@@ -9,12 +9,14 @@ class HistoricalCompletion {
     required this.statement,
     required List<MissionDetail> originals,
     required List<MissionDetail> excluded,
+    this.afterDate,
   }) : originals = List.unmodifiable(originals),
        excluded = List.unmodifiable(excluded);
 
   final String id;
   final String goalId;
   final String beforeDate; // 不含这一天。
+  final String? afterDate; // 可选起始日期，含这一天；缩小补记范围。
   final String statement; // 用户的补记依据，随事件保存。
   final List<MissionDetail> originals;
 

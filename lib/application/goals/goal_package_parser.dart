@@ -149,8 +149,13 @@ class GoalPackageParser {
     int? parentIndex;
     if (_nodePath(path)) {
       nodeIndex = _nodeCount++;
-      if (_nodeCount > GoalImportLimits.nodes || path.length ~/ 2 > 12) {
-        _fail('LIMIT_NODE_TREE', '最多 500 个节点、12 层', path);
+      if (_nodeCount > GoalImportLimits.nodes ||
+          path.length ~/ 2 > GoalImportLimits.depth) {
+        _fail(
+          'LIMIT_NODE_TREE',
+          '最多 ${GoalImportLimits.nodes} 个节点、${GoalImportLimits.depth} 层',
+          path,
+        );
       }
       for (final frame in _stack.reversed) {
         if (frame.nodeIndex != null) {

@@ -52,6 +52,13 @@ abstract interface class MemoryRepository {
     required String selectionId,
     required List<String> itemIds,
   });
+
+  /// 读取选择清单固定的条目版本快照；清单不存在、不属于当前会话或编号无效时返回 null。
+  Future<Map<String, Object?>?> selectionItemVersion({
+    required String sessionId,
+    required String selectionId,
+    required String itemId,
+  });
   Future<Map<String, Object?>> forgetSelection({
     required String sessionId,
     required String sourceMessageId,

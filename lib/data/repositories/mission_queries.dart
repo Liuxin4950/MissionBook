@@ -293,19 +293,28 @@ AND NOT EXISTS (
       });
   Future<List<MissionDetail>> findHistoryScope(
     String goalId,
-    String beforeDate,
-  ) => _repository.database.transaction(() async {
+    String beforeDate, {
+    String? afterDate,
+  }) => _repository.database.transaction(() async {
     validateScheduledDate(beforeDate);
+    if (afterDate != null) {
+      validateScheduledDate(afterDate);
+      if (afterDate.compareTo(beforeDate) >= 0) {
+        throw ArgumentError('起始日期必须早于截止日期');
+      }
+    }
     final database = _repository.database;
-    final rows = await database
-        .customSelect(
-          '''SELECT m.* FROM missions m WHERE m.goal_id=? AND COALESCE(
+    const latestDate = '''COALESCE(
             (SELECT scheduled_date FROM mission_schedule_revisions r
              WHERE r.mission_id=m.id ORDER BY r.revision_number DESC LIMIT 1), ''
-          ) < ? ORDER BY m.id LIMIT 10001''',
+          )''';
+    final rows = await database
+        .customSelect(
+          '''SELECT m.* FROM missions m WHERE m.goal_id=? AND $latestDate < ?${afterDate == null ? '' : ' AND $latestDate >= ?'} ORDER BY m.id LIMIT 10001''',
           variables: [
             Variable.withString(goalId),
             Variable.withString(beforeDate),
+            if (afterDate != null) Variable.withString(afterDate),
           ],
           readsFrom: {database.missions, database.missionScheduleRevisions},
         )

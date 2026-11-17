@@ -115,20 +115,18 @@ class RecordService {
     _missions.refreshAfterExternalCommit();
   }
 
-  /// 为任务提交当前内容快照，不改变来源记录的归属。
-  Future<void> useAsMaterial(
+  /// 为任务提交当前内容快照，不改变来源记录的归属；回执区分按时与超时提交。
+  Future<EvidenceSubmissionResult> useAsMaterial(
     String id,
     String missionId, {
     RecordDraft? expected,
     String? operationId,
-  }) async {
-    await _missions.useRecordAsMaterial(
-      id,
-      missionId,
-      expected: expected == null ? null : EvidenceDraft.fromContent(expected),
-      operationId: operationId,
-    );
-  }
+  }) => _missions.useRecordAsMaterial(
+    id,
+    missionId,
+    expected: expected == null ? null : EvidenceDraft.fromContent(expected),
+    operationId: operationId,
+  );
 
   Future<Map<String, Object?>> analysis(AnalysisScope scope, String id) =>
       _repository.analysis(scope, id);

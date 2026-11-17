@@ -50,7 +50,11 @@ class _MissionEvidence {
     if (current == null) {
       throw const EvidenceConflict('任务已被删除，请返回列表刷新；原提交不会重新执行');
     }
-    return _submissionResult(current);
+    final submittedAt = current.evidence
+        .where((item) => item.sourceRecordId == recordId)
+        .map((item) => item.submittedAt)
+        .firstOrNull;
+    return _submissionResult(current, submittedAt: submittedAt);
   }
 
   Future<EvidenceSubmissionResult> _attachRecordEvidence(
@@ -67,7 +71,11 @@ class _MissionEvidence {
         throw const EvidenceConflict('这条记录已用于其他任务；本轮暂不支持多任务引用');
       }
       // 先确认已提交事实，再读取可变来源，重试不重新捕获内容。
-      return _submissionResult((await _repository.findDetail(missionId))!);
+      final detail = (await _repository.findDetail(missionId))!;
+      final savedEvidence = detail.evidence
+          .where((item) => item.sourceRecordId == recordId)
+          .firstOrNull;
+      return _submissionResult(detail, submittedAt: savedEvidence?.submittedAt);
     }
     final row = await (_repository.database.select(
       _repository.database.records,
@@ -170,7 +178,10 @@ class _MissionEvidence {
         }
         // 也核对原批次关联事实，损坏历史不能被重试伪装为正常成功。
         final detail = await _repository.findDetail(submission.missionId);
-        return _submissionResult(detail!);
+        final submittedAt = saved
+            .map((item) => item.submittedAt)
+            .reduce((left, right) => left.isAfter(right) ? left : right);
+        return _submissionResult(detail!, submittedAt: submittedAt);
       }
       final detail = await _repository.findDetail(submission.missionId);
       if (detail == null) throw const EvidenceConflict('任务不存在，请刷新');
@@ -209,16 +220,27 @@ class _MissionEvidence {
         );
       }
       final saved = (await _repository.findDetail(submission.missionId))!;
-      return _submissionResult(saved);
+      return _submissionResult(saved, submittedAt: now);
     });
   }
 
-  EvidenceSubmissionResult _submissionResult(MissionDetail detail) =>
-      detail.failures.any(
-        (failure) => failure.trigger == evidenceDeadlineMissedTrigger,
-      )
-      ? EvidenceSubmissionResult.deadlineMissed
-      : EvidenceSubmissionResult.submitted;
+  EvidenceSubmissionResult _submissionResult(
+    MissionDetail detail, {
+    DateTime? submittedAt,
+  }) {
+    final deadline = detail.schedule.evidenceDeadlineAt;
+    if (deadline == null) return EvidenceSubmissionResult.noDeadline;
+    final hasDeadlineFailure = detail.failures.any(
+      (failure) => failure.trigger == evidenceDeadlineMissedTrigger,
+    );
+    // 执行中晚交的材料可以先保存，END 时才固化超时失败事实；本次回执仍按
+    // 本材料真实的事务提交时刻报告，响应恢复时也从已保存快照重算。
+    if (hasDeadlineFailure ||
+        (submittedAt != null && !submittedAt.isBefore(deadline))) {
+      return EvidenceSubmissionResult.deadlineMissed;
+    }
+    return EvidenceSubmissionResult.submitted;
+  }
 
   Future<Evidence> correctEvidence(EvidenceCorrection correction) async {
     final draft = correction.item;

@@ -10,6 +10,7 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'package:mission_book/domain/entities/mission_maintenance.dart';
+import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_detail.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/domain/entities/execution_command.dart';
@@ -20,8 +21,9 @@ void main() {
   late AppDatabase db;
   late DriftMissionRepository repo;
   late MissionService service;
-  final now = DateTime.utc(2026, 11, 3, 4);
+  var now = DateTime.utc(2026, 11, 3, 4);
   setUp(() {
+    now = DateTime.utc(2026, 11, 3, 4);
     db = AppDatabase(executor: NativeDatabase.memory());
     repo = DriftMissionRepository(db, clock: () => now);
     service = MissionService(repo, clock: () => now);
@@ -56,6 +58,98 @@ void main() {
       result: UserReportedResult.completed,
     );
   }
+
+  test('reset 撤销 closed 与 evidencePending，恢复同日期自选排期并归档原事实', () async {
+    final closed = await seed('已关闭');
+    await complete(closed);
+    final creation = service.prepareCreation(
+      title: '待材料',
+      scheduledDate: '2026-11-02',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 20,
+      verificationPolicy: VerificationPolicy.requiredEvidence,
+      verificationCriteria: '课堂笔记',
+      evidenceDeadlineAt: now.add(const Duration(days: 1)),
+    );
+    await service.createPrepared(creation);
+    var detail = (await repo.findDetail(creation.mission.id))!;
+    await service.execute(
+      service.prepareExecution(
+        detail: detail,
+        type: ExecutionEventType.start,
+        commandId: 'ev-start',
+      ),
+    );
+    detail = (await repo.findDetail(creation.mission.id))!;
+    await service.execute(
+      service.prepareExecution(
+        detail: detail,
+        type: ExecutionEventType.end,
+        report: UserReportedResult.completed,
+        commandId: 'ev-end',
+      ),
+    );
+    expect(
+      (await repo.findDetail(creation.mission.id))!.phase,
+      MissionPhase.evidencePending,
+    );
+    final proposal = await service.prepareMaintenance(
+      action: MissionMaintenanceAction.reset,
+      ids: [closed, creation.mission.id],
+    );
+    final result = await service.applyMaintenance(
+      proposal,
+      operationId: 'reset-1',
+    );
+    expect(result['count'], 2);
+    for (final id in [closed, creation.mission.id]) {
+      final reset = (await repo.findDetail(id))!;
+      expect(reset.phase, MissionPhase.notStarted);
+      expect(reset.events, isEmpty);
+      expect(reset.schedule.timePolicy, TimePolicy.flexible);
+      expect(reset.schedule.fixedStartAt, isNull);
+      expect(reset.schedule.scheduledDate, '2026-11-02');
+      expect(await repo.executionArchives(id), isNotEmpty);
+    }
+  });
+
+  test('仅到点停止的 reportPending 没有误标可撤，reset 明确拒绝', () async {
+    now = DateTime.utc(2026, 11, 3, 3, 10);
+    final creation = service.prepareCreation(
+      title: '固定课程',
+      scheduledDate: '2026-11-03',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 20,
+      timePolicy: TimePolicy.fixed,
+      fixedStartAt: DateTime.utc(2026, 11, 3, 3),
+    );
+    await service.createPrepared(creation);
+    final detail = (await repo.findDetail(creation.mission.id))!;
+    await service.execute(
+      service.prepareExecution(
+        detail: detail,
+        type: ExecutionEventType.start,
+        commandId: 'fixed-start',
+      ),
+    );
+    now = DateTime.utc(2026, 11, 3, 4);
+    await repo.reconcileScheduledEnds();
+    final stopped = (await repo.findDetail(creation.mission.id))!;
+    expect(stopped.phase, MissionPhase.reportPending);
+    await expectLater(
+      service.prepareMaintenance(
+        action: MissionMaintenanceAction.reset,
+        ids: [creation.mission.id],
+      ),
+      throwsA(
+        isA<ArgumentError>().having(
+          (error) => error.message,
+          'message',
+          contains(creation.mission.id),
+        ),
+      ),
+    );
+  });
 
   test('批量维护失败指出具体任务编号', () async {
     await expectLater(

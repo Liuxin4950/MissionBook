@@ -103,6 +103,20 @@ void main() {
   AgentTool tool(String name) =>
       tools.singleWhere((t) => t.definition.name == name);
 
+  test('时间更正工具不接受完成结果字段；补报工具说明缺省语义', () {
+    final correction = tool('correctExecutionTime').definition.inputSchema;
+    final correctionFields = (correction['properties'] as Map).keys.toSet();
+    expect(correctionFields.contains('completed'), isFalse);
+    expect(correctionFields.contains('submitOptionalEvidence'), isFalse);
+    final reportSchema = tool('reportExecution').definition.inputSchema;
+    final completed = (reportSchema['properties'] as Map)['completed'] as Map;
+    expect(completed['description'], contains('只补时间声明'));
+    final start = (reportSchema['properties'] as Map)['actualStart'] as Map;
+    final end = (reportSchema['properties'] as Map)['actualEnd'] as Map;
+    expect(start['description'], contains('成对'));
+    expect(end['description'], contains('成对'));
+  });
+
   for (final certainty in ['stated', 'inferred', 'unverified']) {
     for (final basis in <String?>[
       null,
@@ -155,6 +169,8 @@ void main() {
   test('AI明确更正传快照和explicitCorrection，不冒充用户手动编辑', () async {
     await tool('saveMemory').execute({
       'id': 'existing',
+      'selectionId': 'memory-selection:read-1',
+      'itemId': '1',
       'content': '早上跑步',
       'layer': 'semantic',
       'certainty': 'stated',
@@ -170,6 +186,8 @@ void main() {
     await expectLater(
       tool('saveMemory').execute({
         'id': 'existing',
+        'selectionId': 'memory-selection:read-2',
+        'itemId': '1',
         'content': '早上跑步',
         'layer': 'semantic',
         'certainty': 'inferred',
@@ -180,10 +198,37 @@ void main() {
     expect(memory.writes, isEmpty);
   });
 
+  test('AI记忆更正缺少读取清单引用时拒绝，不静默刷新快照', () async {
+    await expectLater(
+      tool('saveMemory').execute({
+        'id': 'existing',
+        'content': '早上跑步',
+        'layer': 'semantic',
+        'certainty': 'stated',
+        'basis': original,
+      }, context('missing-selection')),
+      throwsA(isA<ToolRejected>()),
+    );
+    await expectLater(
+      tool('saveMemory').execute({
+        'selectionId': 'memory-selection:read-3',
+        'itemId': '1',
+        'content': '早上跑步',
+        'layer': 'semantic',
+        'certainty': 'stated',
+        'basis': original,
+      }, context('missing-id')),
+      throwsA(isA<ToolRejected>()),
+    );
+    expect(memory.writes, isEmpty);
+  });
+
   test('schema、工具描述和prompt统一要求所有certainty有basis，支持五层', () {
     final save = tool('saveMemory').definition;
     expect(save.inputSchema['required'] as List, contains('basis'));
     final properties = save.inputSchema['properties'] as Map;
+    expect((properties['selectionId'] as Map)['description'], contains('必填'));
+    expect((properties['itemId'] as Map)['description'], contains('必填'));
     expect(
       (properties['layer'] as Map)['description'],
       contains('episodic=有跨会话价值'),
