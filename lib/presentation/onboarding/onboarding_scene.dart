@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_layout.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/theme/colors.dart';
 
@@ -134,7 +135,7 @@ class OnboardingScene extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     decoration: BoxDecoration(
                       color: AppColors.primarySoft,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppLayout.radiusMd),
                     ),
                     child: const Text(
                       '想每天读一会儿书',
@@ -217,7 +218,7 @@ class _Sheet extends StatelessWidget {
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
       color: AppColors.card,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppLayout.radiusLg),
       border: Border.all(color: AppColors.hairline),
     ),
     child: Padding(padding: const EdgeInsets.all(20), child: child),
@@ -235,7 +236,7 @@ class _TaskRow extends StatelessWidget {
         height: 32,
         decoration: BoxDecoration(
           color: AppColors.primary,
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(AppLayout.radiusXxs),
         ),
       ),
       const SizedBox(width: 12),

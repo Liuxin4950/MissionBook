@@ -38,6 +38,7 @@ abstract final class AppLayout {
   static const paneMinContentWidth = paneLeftMin + paneGap + paneRightMin;
 
   // 形状 token：按用途分层，页面不再直接写圆角数字。
+  static const radiusXxs = 2.0; // 细条端点等极小装饰。
   static const radiusXs = 4.0; // 进度端点、微型装饰。
   static const radiusSm = 8.0; // 标签、内部小块。
   static const radiusMd = 12.0; // 输入框、代码块、小图标底。

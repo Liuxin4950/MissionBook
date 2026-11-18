@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/colors.dart';
 import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_typography.dart';
 import '../../application/errors/user_error_message.dart';
 
 /// 支持相机的平台在草稿区直接取景，失败时保留草稿并允许选择文件。
@@ -902,11 +903,11 @@ class _ZoomDialPainter extends CustomPainter {
       final painter = TextPainter(
         text: TextSpan(
           text: _label(preset),
-          style: TextStyle(
-            color: selected ? selectedColor : lineColor,
-            fontSize: selected ? 13 : 11,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
-          ),
+          style:
+              (selected
+                      ? AppTypography.zoomTickSelected
+                      : AppTypography.zoomTick)
+                  .copyWith(color: selected ? selectedColor : lineColor),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -929,11 +930,7 @@ class _ZoomDialPainter extends CustomPainter {
     final current = TextPainter(
       text: TextSpan(
         text: _label(zoom),
-        style: TextStyle(
-          color: selectedColor,
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-        ),
+        style: AppTypography.zoomValue.copyWith(color: selectedColor),
       ),
       textDirection: TextDirection.ltr,
     )..layout();

@@ -435,7 +435,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                                   color: i == _page
                                       ? AppColors.primary
                                       : AppColors.hairline,
-                                  borderRadius: BorderRadius.circular(4),
+                                  borderRadius: BorderRadius.circular(
+                                    AppLayout.radiusXs,
+                                  ),
                                 ),
                               ),
                             ],

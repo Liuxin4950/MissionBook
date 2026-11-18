@@ -69,6 +69,15 @@ abstract final class AppTypography {
     fontWeight: FontWeight.w500,
     color: AppColors.textSecondary,
   );
+
+  /// 取景变焦刻度盘由 Canvas 绘制文字，颜色在绘制时按选中状态给出。
+  static const zoomTickSelected = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w700,
+  );
+  static const zoomTick = TextStyle(fontSize: 11, fontWeight: FontWeight.w400);
+  static const zoomValue = TextStyle(fontSize: 14, fontWeight: FontWeight.w700);
+
   // 操作文字继承按钮前景色，不在文字角色中固定品牌色。
   static const primaryAction = TextStyle(
     fontSize: 14,
