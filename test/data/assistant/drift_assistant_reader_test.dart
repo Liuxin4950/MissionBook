@@ -7,10 +7,51 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/data/assistant/drift_assistant_reader.dart';
+import 'package:mission_book/data/assistant/drift_unified_reader.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 
 void main() {
+  test('日程工具投影保留分页和完整派生阶段，不返回正文、摘要和重复引用', () async {
+    final db = AppDatabase(executor: NativeDatabase.memory());
+    final missions = MissionService(DriftMissionRepository(db));
+    try {
+      for (var i = 0; i < 21; i++) {
+        await missions.create(
+          title: '日程 $i',
+          scheduledDate: '2026-10-29',
+          timeZone: 'UTC',
+          plannedDurationMinutes: 30,
+          notes: '只在详情读取的正文',
+        );
+      }
+      final reader = DriftUnifiedReader(db);
+      final page = await reader.getSchedule(date: '2026-10-29');
+      expect(page['total'], 21);
+      expect(page['nextOffset'], 20);
+      for (final item in (page['items'] as List).cast<Map<String, Object?>>()) {
+        expect(
+          item.keys,
+          unorderedEquals([
+            'id',
+            'title',
+            'phase',
+            'timeZone',
+            'plannedMinutes',
+          ]),
+        );
+        expect(item['phase'], 'notStarted');
+      }
+      expect(jsonEncode(page).length, lessThan(3500));
+      expect(
+        (await reader.getSchedule(date: '2026-10-29', offset: 20))['items'],
+        hasLength(1),
+      );
+    } finally {
+      await missions.dispose();
+      await db.close();
+    }
+  });
   test('超长方案只按Unicode字符分页；SQL注入式标题只是普通检索文字', () async {
     final db = AppDatabase(executor: NativeDatabase.memory());
     final missions = MissionService(DriftMissionRepository(db));

@@ -49,6 +49,7 @@ part 'assistant_sessions.dart';
 part 'assistant_configuration.dart';
 part 'assistant_operations.dart';
 part 'assistant_model_gateway.dart';
+part 'assistant_recent_conversations.dart';
 
 enum AssistantReferenceType { mission, goal, node }
 
@@ -402,7 +403,10 @@ class AssistantController extends ChangeNotifier {
     _errorMessage = null;
     _notifyListeners();
     try {
-      final result = await _requireSession().resume();
+      final session = _requireSession();
+      await _sessions._removeStaleRecentContext(session);
+      if (_sendCancelled) return;
+      final result = await session.resume();
       _errorMessage = _connectionInterrupted
           ? '连接中断已恢复，可以继续本轮或发送新消息'
           : result.failure?.message;
@@ -496,6 +500,7 @@ class AssistantController extends ChangeNotifier {
     _notifyListeners();
     try {
       await _sessions._refreshMemoryContext(session);
+      await _sessions._removeStaleRecentContext(session);
       return await session.compact();
     } finally {
       _compacting = false;
@@ -516,6 +521,14 @@ class AssistantController extends ChangeNotifier {
   }
 
   ProviderCatalog get providerCatalog => _settings.catalog;
+
+  Map<String, AgentModel> _overridesFor(AgentConfiguration configuration) => {
+    for (final profile in configuration.profiles)
+      profile.id: ?_modelOverrides[profile.id],
+  };
+  bool get recentConversationSummaries => _settings.recentConversationSummaries;
+  Future<void> setRecentConversationSummaries(bool enabled) =>
+      _config.setRecentConversationSummaries(enabled);
   List<ProviderConfig> get providers => _settings.catalog.providers;
   List<ProviderModel> get providerModels => _settings.catalog.models;
   String get defaultProfileId => _settings.defaultProfileId;
@@ -646,11 +659,13 @@ class AssistantController extends ChangeNotifier {
   Future<ProviderSaveReceipt> saveProvider({
     required ProviderConfig provider,
     required List<ProviderModel> models,
+    Set<String> deletedProfileIds = const {},
     String? credential,
     bool clearCredential = false,
   }) => _config.saveProvider(
     provider: provider,
     models: models,
+    deletedProfileIds: deletedProfileIds,
     credential: credential,
     clearCredential: clearCredential,
   );

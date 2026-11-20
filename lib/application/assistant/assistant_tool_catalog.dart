@@ -408,7 +408,7 @@ class _AssistantToolCatalog {
             final output = await tool.execute(input, context);
             return _owner._formatOutput(
               output,
-              includeTimeContext: tool.readOnly,
+              includeTimeContext: tool.definition.name == 'getSchedule',
             );
           },
         ),

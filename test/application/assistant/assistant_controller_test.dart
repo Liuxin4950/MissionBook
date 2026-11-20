@@ -201,6 +201,128 @@ void main() {
     expect(blocks(model.requests.last), hasLength(1));
   });
 
+  test('新会话请求最多三个摘要，失败单独跳过，关闭后不再注入', () async {
+    settings.recentConversationSummaries = false;
+    settings.catalog = settings.catalog.copyWith(
+      selection: const ModelSelection(
+        defaultProfileId: 'deepseek-chat',
+        summaryProfileId: 'deepseek',
+      ),
+    );
+    final main = ScriptedModel([
+      for (var i = 0; i < 6; i++) (_) => textResponse('回答 $i'),
+    ]);
+    final summary = ScriptedModel([
+      (_) => textResponse('保留 A'),
+      (_) => throw const ModelException('test_failure', '摘要失败'),
+      (_) => textResponse('保留 B'),
+    ]);
+    var tick = 0;
+    final ai = makeController(
+      main,
+      sessionStore: DriftSessionStore(
+        database,
+        clock: () => now.add(Duration(milliseconds: tick++)),
+      ),
+      modelOverrides: {'deepseek': summary},
+    );
+    await ai.initialize();
+    for (var i = 0; i < 4; i++) {
+      await ai.startNewSession();
+      final content = [TextBlock(text: '议题编号 $i')];
+      if (i == 3) {
+        content.add(
+          TextBlock(text: '${AssistantAttachment.textPrefix}不要进入摘要的文件正文'),
+        );
+      }
+      await ai.sendMessage(UserMessage.withContent(content: content));
+    }
+    await ai.setRecentConversationSummaries(true);
+    await ai.startNewSession();
+    expect((await ai.send('你好'))?.answer, '回答 4');
+    expect(main.requests.last.tools, isEmpty);
+    expect(summary.requests, hasLength(3));
+    final joined = summary.requests
+        .expand((r) => r.messages)
+        .map((m) => m.text)
+        .join();
+    expect(
+      joined,
+      allOf(contains('议题编号 1'), contains('议题编号 2'), contains('议题编号 3')),
+    );
+    expect(joined, isNot(anyOf(contains('议题编号 0'), contains('文件正文'))));
+    Iterable<ContextMessage> briefs() => main.requests.last.messages
+        .whereType<ContextMessage>()
+        .where((m) => m.source.startsWith('mission_book_recent:'));
+    expect(briefs(), hasLength(2));
+    await ai.setRecentConversationSummaries(false);
+    expect((await ai.send('继续'))?.answer, '回答 5');
+    expect(briefs(), isEmpty);
+    expect(summary.requests, hasLength(3));
+  });
+
+  test('任务会话首轮直接收到有界步骤，不继承全局聊天', () async {
+    await missions.create(
+      title: '练习接口',
+      scheduledDate: '2026-10-29',
+      timeZone: 'Asia/Shanghai',
+      plannedDurationMinutes: 30,
+      steps: ['先安装 requests', '再发送 GET'],
+    );
+    final id = (await missions.findAllDetails()).single.mission.id;
+    final model = ScriptedModel([
+      (_) => textResponse('全局'),
+      (_) => textResponse('先安装 requests'),
+    ]);
+    final ai = makeController(model);
+    await ai.initialize();
+    await ai.send('全局聊天');
+    await ai.openMissionReference(id);
+    expect((await ai.send('我看不懂'))?.answer, '先安装 requests');
+    final request = model.requests.last;
+    expect(
+      request.messages
+          .whereType<ContextMessage>()
+          .singleWhere((m) => m.source == 'mission_book_referenced_plan')
+          .text,
+      contains('先安装 requests'),
+    );
+    expect(
+      request.messages.whereType<ContextMessage>().any(
+        (m) => m.source.startsWith('mission_book_recent:'),
+      ),
+      false,
+    );
+    expect(model.requests, hasLength(2));
+  });
+
+  test('删除模型保护活动选择，保留历史快照，摘要选择回到默认', () async {
+    final ai = makeController(ScriptedModel([(_) => textResponse('历史回答')]));
+    await ai.initialize();
+    await ai.setDefaultModels(main: 'deepseek');
+    await ai.send('保留这段历史');
+    final id = ai.currentSessionId!;
+    final provider = ai.providerCatalog.providerOf('deepseek-anthropic');
+    Future<ProviderSaveReceipt> remove() => ai.saveProvider(
+      provider: provider,
+      models: const [],
+      deletedProfileIds: const {'deepseek'},
+    );
+    await expectLater(remove(), throwsStateError);
+    await ai.setDefaultModels(main: 'deepseek-chat', summary: 'deepseek');
+    await expectLater(remove(), throwsStateError);
+    await ai.startNewSession();
+    await remove();
+    expect(ai.providerCatalog.modelOfProfile('deepseek'), isNull);
+    expect(ai.providerCatalog.selection.summaryProfileId, isNull);
+    await ai.openConversation(id);
+    expect(ai.transcript.whereType<AssistantMessage>().single.text, '历史回答');
+    expect(ai.modelProfileId, 'deepseek');
+    expect(await ai.send('继续'), isNull);
+    await ai.selectSessionModel('deepseek-chat');
+    expect(ai.modelProfileId, 'deepseek-chat');
+  });
+
   test('直接采用记忆的旧回答在遗忘后不回流，原始对话仍可查看', () async {
     final memory = MemoryService(DriftMemoryRepository(database));
     await memory.save({

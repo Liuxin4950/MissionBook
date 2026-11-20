@@ -296,7 +296,10 @@ final class AgentSession {
 
   // 终端的 input 从这里进入：先包装成用户消息，再交给 _run 处理一轮。
   Future<AgentRunResult> send(String input) => _run(UserMessage(text: input));
-  Future<AgentRunResult> sendMessage(UserMessage message) => _run(message);
+  Future<AgentRunResult> sendMessage(
+    UserMessage message, {
+    bool includeTools = true,
+  }) => _run(message, includeTools: includeTools);
 
   Future<AgentRunResult> resume() {
     _checkIdle();
@@ -308,7 +311,10 @@ final class AgentSession {
     return _run(null);
   }
 
-  Future<AgentRunResult> _run(UserMessage? input) async {
+  Future<AgentRunResult> _run(
+    UserMessage? input, {
+    bool includeTools = true,
+  }) async {
     _checkIdle();
     if (input != null &&
         input.text.trim().isEmpty &&
@@ -316,12 +322,13 @@ final class AgentSession {
       throw ArgumentError('用户输入不能为空');
     }
     if (needsOutcomeResolution) throw StateError('先核对结果未知的工具，再继续这个会话');
+    final turnTools = includeTools ? _runtime.tools : const <AgentTool>[];
     if (input != null) {
       if (_state.messageById(input.id) != null) throw ArgumentError('用户消息编号重复');
       final candidate = ModelRequest(
         systemPrompt: systemPrompt,
         messages: [input],
-        tools: _runtime.tools.map((tool) => tool.definition).toList(),
+        tools: turnTools.map((tool) => tool.definition).toList(),
         maxOutputTokens: outputTokens,
         reasoningEffort: reasoningEffort,
         jsonOutput: _state.jsonOutput,
@@ -356,7 +363,7 @@ final class AgentSession {
       loop = AgentLoop(
         model: _runtime._models.model(modelProfile),
         systemPrompt: systemPrompt,
-        tools: _runtime.tools,
+        tools: turnTools,
         authorize: _runtime.authorize,
         maxSteps: _runtime.configuration.maxSteps,
         compactor: _compactor(),

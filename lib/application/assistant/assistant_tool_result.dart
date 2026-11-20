@@ -32,7 +32,6 @@ class AssistantToolResultFormatter {
         'now': _instant(now, _location),
         'today':
             '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
-        'format': 'ISO 8601，含时区偏移；日期字段为 YYYY-MM-DD；时长保留字段声明的单位',
       };
     }
     return ToolOutput.success(jsonEncode(formatted)).bounded();

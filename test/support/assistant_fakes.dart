@@ -13,6 +13,7 @@ class MemoryAssistantSettingsStore implements AssistantSettingsStore {
   final reasoningEfforts = <String, ReasoningEffort>{};
   String? warning;
   bool failNextCatalogSave = false;
+  bool recentConversationSummaries = false;
 
   String? _pendingDefault;
 
@@ -65,6 +66,7 @@ class MemoryAssistantSettingsStore implements AssistantSettingsStore {
       hasTranscriptionCredential: transcriptionCredential != null,
       persona: persona,
       reasoningEfforts: Map.unmodifiable(reasoningEfforts),
+      recentConversationSummaries: recentConversationSummaries,
       catalogWarning: warning,
     );
   }
@@ -78,6 +80,10 @@ class MemoryAssistantSettingsStore implements AssistantSettingsStore {
   @override
   Future<void> savePermissionMode(AssistantPermissionMode mode) async =>
       permissionMode = mode;
+
+  @override
+  Future<void> saveRecentConversationSummaries(bool enabled) async =>
+      recentConversationSummaries = enabled;
 
   @override
   Future<void> saveSpeechSettings(AssistantSpeechSettings settings) async =>

@@ -17,7 +17,7 @@ import 'assistant_settings_form.dart';
 
 /// 服务目录总览：默认/摘要/当前会话模型与服务列表。
 ///
-/// 本页不持有草稿，保存动作只发生在单个服务的编辑页，避免多处写入互相覆盖。
+/// 本页的模型选择和接续偏好即时保存，服务与模型编辑由子页一次提交。
 class AssistantModelSettingsPage extends StatelessWidget {
   const AssistantModelSettingsPage({super.key, required this.controller});
   final AssistantController controller;
@@ -160,6 +160,28 @@ class _ModelOverviewState extends State<_ModelOverview> {
                                 '${catalog.selection.summaryProfileId == null ? '跟随默认 · ' : ''}${_describe(summaryModel, catalog.providerForProfile(summaryModel?.profileId ?? ''))}',
                             enabled: !_busy,
                             onTap: _chooseSummary,
+                          ),
+                          const Divider(height: 1),
+                          AppSettingsRow(
+                            icon: Icons.history,
+                            title: '接续近期会话',
+                            subtitle: '最多 3 个同范围会话 · 消耗摘要模型额度',
+                            enabled: !_busy && !_controller.isBusy,
+                            trailing: Semantics(
+                              label: '接续近期会话',
+                              child: Switch(
+                                key: const Key('assistant-recent-summaries'),
+                                value: _controller.recentConversationSummaries,
+                                onChanged: _busy || _controller.isBusy
+                                    ? null
+                                    : (value) => _run(
+                                        () => _controller
+                                            .setRecentConversationSummaries(
+                                              value,
+                                            ),
+                                      ),
+                              ),
+                            ),
                           ),
                           if (sessionOpen) ...[
                             const Divider(height: 1),

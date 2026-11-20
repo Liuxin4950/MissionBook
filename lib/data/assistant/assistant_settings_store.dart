@@ -31,6 +31,7 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
   static const _speechKey = 'assistant_speech_settings';
   static const _personaKey = 'assistant_persona';
   static const _reasoningKey = 'assistant_reasoning_efforts';
+  static const _recentSummariesKey = 'assistant_recent_conversation_summaries';
   final FlutterSecureStorage _storage;
 
   @override
@@ -89,6 +90,8 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
       catalog: catalog,
       configuredCredentials: configured,
       reasoningEfforts: reasoningEfforts,
+      recentConversationSummaries:
+          await _storage.read(key: _recentSummariesKey) == 'true',
       persona: persona,
       hasTranscriptionCredential:
           await resolveCredential('MISSIONBOOK_TRANSCRIPTION_API_KEY') != null,
@@ -178,6 +181,10 @@ class SecureAssistantSettingsStore implements AssistantSettingsStore {
   Future<void> savePermissionMode(AssistantPermissionMode mode) async {
     await _storage.write(key: _permissionKey, value: mode.name);
   }
+
+  @override
+  Future<void> saveRecentConversationSummaries(bool enabled) =>
+      _storage.write(key: _recentSummariesKey, value: enabled.toString());
 
   @override
   Future<void> saveSpeechSettings(AssistantSpeechSettings settings) async {

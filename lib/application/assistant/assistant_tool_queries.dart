@@ -13,13 +13,7 @@ class _AssistantToolQueries {
         result['message'] as String? ?? '读取失败',
       );
     }
-    final text = _tools
-        ._formatOutput(
-          ToolOutput.success(jsonEncode(result)),
-          includeTimeContext: true,
-        )
-        .text;
-    return ToolOutput.success(text);
+    return ToolOutput.success(jsonEncode(result));
   }
 
   Future<ToolOutput> _scheduleQuery(Map<String, Object?> input, _) async =>

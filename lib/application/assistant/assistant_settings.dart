@@ -228,6 +228,7 @@ class AssistantSettings {
     this.hasTranscriptionCredential = false,
     this.persona = const AssistantPersona(),
     this.reasoningEfforts = const {},
+    this.recentConversationSummaries = false,
     this.catalogWarning,
   });
 
@@ -241,6 +242,7 @@ class AssistantSettings {
   final AssistantPermissionMode permissionMode;
   final AssistantPersona persona;
   final Map<String, ReasoningEffort> reasoningEfforts;
+  final bool recentConversationSummaries;
 
   /// 目录损坏后回退时的提示；正常读取为 null。
   final String? catalogWarning;
@@ -265,6 +267,7 @@ abstract interface class AssistantSettingsStore {
   Future<void> saveSelection(ModelSelection selection);
   Future<void> saveReasoningEffort(String profileId, ReasoningEffort effort);
   Future<void> savePermissionMode(AssistantPermissionMode mode);
+  Future<void> saveRecentConversationSummaries(bool enabled);
   Future<void> saveSpeechSettings(AssistantSpeechSettings settings);
   Future<void> savePersona(AssistantPersona persona);
 }

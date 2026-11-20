@@ -373,7 +373,7 @@ class DriftUnifiedReader implements UnifiedReader {
           ? <Map<String, Object?>>[]
           : [
               for (final d in selected.skip(offset).take(20))
-                await _missionIndex(d),
+                missionIndexProjection(d, DateTime.now().toUtc()),
             ];
       final next = offset + items.length;
       return {
@@ -397,6 +397,7 @@ class DriftUnifiedReader implements UnifiedReader {
           nodeId: nodeId,
           offset: offset,
         ),
+        includeAnalysis: false,
       );
     }
     final r = await resolve('missions', mission, goalId: goalId);
@@ -447,7 +448,10 @@ class DriftUnifiedReader implements UnifiedReader {
     ),
   };
 
-  Future<Map<String, Object?>> enhance(Map<String, Object?> page) async {
+  Future<Map<String, Object?>> enhance(
+    Map<String, Object?> page, {
+    bool includeAnalysis = true,
+  }) async {
     final list = page['items'] as List;
     final details = await DriftMissionRepository(
       db,
@@ -457,8 +461,18 @@ class DriftUnifiedReader implements UnifiedReader {
       final item = raw as Map<String, Object?>;
       final d = byId[item['id']];
       if (d != null) {
-        item.addAll(await _missionIndex(d));
+        if (includeAnalysis) {
+          item.addAll(await _missionIndex(d));
+        } else {
+          item
+            ..clear()
+            ..addAll(missionIndexProjection(d, DateTime.now().toUtc()));
+        }
       }
+    }
+    if (!includeAnalysis) {
+      page.remove('references');
+      page.remove('scope');
     }
     page['hint'] =
         '已返回本页任务关键事实与摘要；指定 getMission(mission:稳定ID) 获取方案概览和详情入口，nextOffset 继续查询下一页。';
@@ -476,10 +490,36 @@ class DriftUnifiedReader implements UnifiedReader {
   }
 
   @override
-  Future<Map<String, Object?>> getSchedule({
-    String? date,
-    int offset = 0,
-  }) async => enhance(
-    await taskReader.missions(date: date ?? _today(), offset: offset),
-  );
+  Future<Map<String, Object?>> getSchedule({String? date, int offset = 0}) =>
+      db.transaction(() async {
+        final day = date ?? _today();
+        final page = await taskReader.missions(date: day, offset: offset);
+        final items = page['items'] as List;
+        final details = await DriftMissionRepository(db).findDetailsByIds([
+          for (final item in items) (item as Map)['id'] as String,
+        ]);
+        final byId = {for (final detail in details) detail.mission.id: detail};
+        return {
+          'date': day,
+          'total': page['total'],
+          'offset': offset,
+          if (page['nextOffset'] != null) 'nextOffset': page['nextOffset'],
+          'items': [
+            for (final item in items)
+              if (byId[(item as Map)['id']] case final detail?)
+                {
+                  'id': detail.mission.id,
+                  'title': String.fromCharCodes(
+                    detail.mission.title.runes.take(120),
+                  ),
+                  'phase': detail.phase.name,
+                  if (detail.schedule.fixedStartAt case final start?)
+                    'fixedStartAt': start.toIso8601String(),
+                  if (detail.schedule.timeZone != defaultScheduleTimeZone)
+                    'timeZone': detail.schedule.timeZone,
+                  'plannedMinutes': detail.schedule.plannedDurationMinutes,
+                },
+          ],
+        };
+      });
 }

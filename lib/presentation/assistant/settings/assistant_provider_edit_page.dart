@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:agent_core/agent_core.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../application/assistant/assistant_controller.dart';
 import '../../../application/errors/user_error_message.dart';
@@ -10,6 +11,8 @@ import '../../widgets/adaptive_columns.dart';
 import '../../widgets/adaptive_sheet.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/app_dropdown_form_field.dart';
+import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/app_settings_row.dart';
 import '../shared/assistant_reasoning_display.dart';
 import 'assistant_settings_form.dart';
 import 'assistant_model_picker.dart';
@@ -44,6 +47,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
   late bool _requiresCredential;
   late List<ProviderModel> _models;
   late List<ProviderModel> _initialModels;
+  final _deletedProfileIds = <String>{};
 
   bool _saving = false;
   bool _fetching = false;
@@ -368,6 +372,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                   model: model,
                   onEdit: _busy ? null : () => _editModel(model),
                   onToggle: _busy ? null : () => _toggleModelArchived(model),
+                  onDelete: _busy ? null : () => _deleteModel(model),
                 ),
               const SizedBox(height: AppLayout.spaceSm),
               OutlinedButton.icon(
@@ -408,6 +413,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
       final receipt = await widget.controller.saveProvider(
         provider: provider,
         models: _models,
+        deletedProfileIds: _deletedProfileIds,
         credential: _credential.text,
         clearCredential: _clearCredential,
       );
@@ -418,6 +424,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
         _credentialRef = _initialProvider!.credentialRef;
         _initialModels = saved.modelsOfProvider(receipt.providerId);
         _models = [..._initialModels];
+        _deletedProfileIds.clear();
         _credential.clear();
         _clearCredential = false;
         _result = receipt.warnings.isEmpty
@@ -510,15 +517,8 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
     _editModel(_models.last);
   }
 
-  String _newProfileId() {
-    final used = {
-      for (final model in widget.controller.providerCatalog.models)
-        model.profileId,
-      for (final model in _models) model.profileId,
-    };
-    // 本地身份独立生成，供应商编号可以包含任意字符或超过 64 字符。
-    return ProviderCatalog.nextId('model', used);
-  }
+  // 删除后不复用旧会话保存的模型编号。
+  String _newProfileId() => 'model-${const Uuid().v4()}';
 
   Future<void> _editModel(ProviderModel? model) async {
     final result = await showAdaptiveSheet<ProviderModel>(
@@ -553,76 +553,74 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
       ];
     });
   }
+
+  Future<void> _deleteModel(ProviderModel model) async {
+    final saved = _initialModels.any(
+      (item) => item.profileId == model.profileId,
+    );
+    if (saved &&
+        !await AppConfirmDialog.show(
+          context: context,
+          title: '删除模型',
+          message: '保存后将删除「${model.label}」的配置，历史聊天仍保留。',
+          confirmText: '删除',
+        )) {
+      return;
+    }
+    if (!mounted || _busy) return;
+    setState(() {
+      if (saved) _deletedProfileIds.add(model.profileId);
+      _models = _models
+          .where((item) => item.profileId != model.profileId)
+          .toList();
+    });
+  }
 }
 
 class _ProviderModelRow extends StatelessWidget {
-  const _ProviderModelRow({required this.model, this.onEdit, this.onToggle});
+  const _ProviderModelRow({
+    required this.model,
+    this.onEdit,
+    this.onToggle,
+    this.onDelete,
+  });
 
   final ProviderModel model;
   final VoidCallback? onEdit;
   final VoidCallback? onToggle;
+  final VoidCallback? onDelete;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
+  Widget build(BuildContext context) => AppSettingsRow(
+    icon: Icons.memory_outlined,
+    title: model.label,
+    subtitle: [
+      if (model.label != model.modelId) model.modelId,
+      if (model.archived) '已停用',
+      '上下文 ${model.contextWindowTokens} · 输出 ${model.maxOutputTokens}',
+    ].join(' · '),
+    onTap: onEdit,
     enabled: onEdit != null,
-    label: '编辑模型',
-    child: InkWell(
-      onTap: onEdit,
-      borderRadius: BorderRadius.circular(AppLayout.radiusMd),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Tooltip(
-                    message: model.modelId,
-                    excludeFromSemantics: true,
-                    child: Text(
-                      model.label,
-                      semanticsLabel: model.label == model.modelId
-                          ? model.label
-                          : '${model.label}，${model.modelId}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                  ),
-                  const SizedBox(height: AppLayout.spaceXs),
-                  Text(
-                    model.archived
-                        ? '已停用'
-                        : '上下文 ${model.contextWindowTokens} · 回复 ${model.maxOutputTokens}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: AppLayout.spaceSm),
-            IconButton(
-              key: Key('assistant-provider-toggle-${model.profileId}'),
-              tooltip: model.archived ? '恢复模型' : '停用模型',
-              constraints: const BoxConstraints.tightFor(
-                width: AppLayout.touchTargetMin,
-                height: AppLayout.touchTargetMin,
-              ),
-              onPressed: onToggle,
-              icon: Icon(
-                model.archived
-                    ? Icons.play_circle_outline
-                    : Icons.pause_circle_outline,
-                size: AppLayout.iconMd,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
+    trailing: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          key: Key('assistant-provider-toggle-${model.profileId}'),
+          tooltip: model.archived ? '恢复模型' : '停用模型',
+          onPressed: onToggle,
+          icon: Icon(
+            model.archived
+                ? Icons.play_circle_outline
+                : Icons.pause_circle_outline,
+          ),
         ),
-      ),
+        IconButton(
+          key: Key('assistant-provider-delete-${model.profileId}'),
+          tooltip: '删除模型',
+          onPressed: onDelete,
+          icon: const Icon(Icons.delete_outline),
+        ),
+      ],
     ),
   );
 }

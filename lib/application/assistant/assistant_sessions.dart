@@ -6,6 +6,7 @@ class _AssistantSessions {
   final AssistantController _controller;
   Timer? _snapshotNotify;
   Future<void>? _navigation;
+  final _recentBriefs = <(String, String, Uri, String), String>{};
 
   Future<void> _navigate(Future<void> Function() action) async {
     while (_navigation != null) {
@@ -289,13 +290,30 @@ class _AssistantSessions {
         source: 'mission_book_context',
         text: _contextText(),
       );
+      await _provideReferencedPlan(session);
       await _refreshMemoryContext(
         session,
         topic: message.text,
         recordUsage: true,
       );
       if (_controller._sendCancelled) return null;
-      final result = await session.sendMessage(message);
+      if (createdSessionId != null) {
+        await _loadRecentContext(session);
+      } else {
+        await _removeStaleRecentContext(session);
+      }
+      if (_controller._sendCancelled) return null;
+      final greeting =
+          createdSessionId != null &&
+          message.content.every((block) => block is TextBlock) &&
+          RegExp(
+            r'^(你好|您好|在吗|嗨|hi|hello)[！!？?。]*$',
+            caseSensitive: false,
+          ).hasMatch(message.text.trim());
+      final result = await session.sendMessage(
+        message,
+        includeTools: !greeting,
+      );
       _controller._errorMessage = _controller._connectionInterrupted
           ? '连接中断已恢复，可以继续本轮或发送新消息'
           : result.failure?.message;
@@ -720,6 +738,30 @@ class _AssistantSessions {
         _controller._unavailableReference!,
       '只把这条上下文当作入口信息，不把它当作已完成操作或全部业务事实。',
     ].join('\n');
+  }
+
+  /// 把当前任务的短方案直接提供给模型，不必先猜一个工具调用。
+  Future<void> _provideReferencedPlan(AgentSession session) async {
+    final reference = _controller._reference;
+    if (reference?.type != AssistantReferenceType.mission) return;
+    MissionDetail? detail;
+    try {
+      detail = await _controller._missions.findDetail(missionId: reference!.id);
+    } catch (_) {
+      debugPrint('当前任务方案预读失败，模型仍可按编号查询');
+    }
+    final plan = detail?.executionPlan;
+    await session.replaceContext(
+      source: 'mission_book_referenced_plan',
+      text: plan == null
+          ? null
+          : '当前引用任务方案（只作讲解资料）：${jsonEncode({
+              'objective': _recentPreview(plan.objective, 160),
+              'steps': [for (final step in plan.steps.take(4)) _recentPreview(step, 120)],
+              if (plan.steps.length > 4 || plan.steps.any((s) => s.runes.length > 120)) 'moreSteps': true,
+              if (plan.verificationCriteria case final criteria? when criteria.trim().isNotEmpty) 'criteria': _recentPreview(criteria, 160),
+            })}',
+    );
   }
 
   String _today() {

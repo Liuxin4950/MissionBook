@@ -91,14 +91,17 @@ class _AssistantConfiguration {
     }
   }
 
-  AgentRuntime _buildRuntime() => AgentRuntime(
-    configuration: _configuration,
-    store: _controller._sessionStore,
-    credentials: _controller._settingsStore.resolveCredential,
-    tools: _controller._tools.tools,
-    authorize: _controller._authorize,
-    modelOverrides: _controller._modelOverrides,
-  );
+  AgentRuntime _buildRuntime() {
+    final configuration = _configuration;
+    return AgentRuntime(
+      configuration: configuration,
+      store: _controller._sessionStore,
+      credentials: _controller._settingsStore.resolveCredential,
+      tools: _controller._tools.tools,
+      authorize: _controller._authorize,
+      modelOverrides: _controller._overridesFor(configuration),
+    );
+  }
 
   /// 目录变化后重建运行时；重建前后都保留当前会话，避免用户丢失上下文。
   Future<void> _rebuildRuntime({String? reopenSessionId}) async {
@@ -118,12 +121,14 @@ class _AssistantConfiguration {
   Future<ProviderSaveReceipt> saveProvider({
     required ProviderConfig provider,
     required List<ProviderModel> models,
+    Set<String> deletedProfileIds = const {},
     String? credential,
     bool clearCredential = false,
   }) => _updateConfiguration(
     () => _saveProvider(
       provider: provider,
       models: models,
+      deletedProfileIds: Set.of(deletedProfileIds),
       credential: credential,
       clearCredential: clearCredential,
     ),
@@ -132,6 +137,7 @@ class _AssistantConfiguration {
   Future<ProviderSaveReceipt> _saveProvider({
     required ProviderConfig provider,
     required List<ProviderModel> models,
+    Set<String> deletedProfileIds = const {},
     String? credential,
     bool clearCredential = false,
   }) async {
@@ -158,15 +164,26 @@ class _AssistantConfiguration {
       }
     }
 
-    // 表单里被移除的模型只停用，不物理删除，否则旧会话会找不到历史身份。
+    // 删除需显式提交编号；普通的表单缺项仍按停用处理。
     final incoming = {for (final model in models) model.profileId: model};
     final existing = catalog.modelsOfProvider(
       provider.providerId,
       includeArchived: true,
     );
+    for (final id in deletedProfileIds) {
+      if (incoming.containsKey(id) ||
+          !existing.any((model) => model.profileId == id)) {
+        throw ArgumentError('删除的模型不属于当前服务，或仍在保存列表中');
+      }
+      if (id == catalog.selection.defaultProfileId ||
+          id == _controller._session?.modelProfileId) {
+        throw StateError('请先切换默认模型或当前会话模型，再删除此模型');
+      }
+    }
     final mergedModels = [
       for (final model in existing)
-        incoming.remove(model.profileId) ?? model.copyWith(archived: true),
+        if (!deletedProfileIds.contains(model.profileId))
+          incoming.remove(model.profileId) ?? model.copyWith(archived: true),
       ...incoming.values,
     ];
 
@@ -181,7 +198,11 @@ class _AssistantConfiguration {
           if (item.providerId != provider.providerId) item,
         ...mergedModels,
       ],
-      selection: catalog.selection,
+      selection: catalog.selection.copyWith(
+        clearSummary: deletedProfileIds.contains(
+          catalog.selection.summaryProfileId,
+        ),
+      ),
     );
 
     if (!nextCatalog.isSelectable(nextCatalog.selection.defaultProfileId)) {
@@ -392,6 +413,15 @@ class _AssistantConfiguration {
         );
         _controller._settings = await _controller._settingsStore.load();
         await _applyReasoningEffort();
+      });
+
+  Future<void> setRecentConversationSummaries(bool enabled) =>
+      _updateConfiguration(() async {
+        await _controller._settingsStore.saveRecentConversationSummaries(
+          enabled,
+        );
+        _controller._settings = await _controller._settingsStore.load();
+        if (!enabled) _controller._sessions._recentBriefs.clear();
       });
 
   Future<void> _applyReasoningEffort() async {
