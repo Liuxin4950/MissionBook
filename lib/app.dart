@@ -32,6 +32,8 @@ import 'package:flutter/services.dart';
 import 'application/missions/mission_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/app_typography.dart';
+import 'core/theme/colors.dart';
 import 'data/local/app_database.dart';
 import 'data/repositories/drift_mission_repository.dart';
 import 'app_shell.dart';
@@ -40,7 +42,7 @@ import 'application/assistant/assistant_speech.dart';
 import 'application/assistant/assistant_supervision.dart';
 import 'data/assistant/assistant_settings_store.dart';
 import 'data/assistant/drift_session_store.dart';
-import 'data/assistant/android_assistant_bridge.dart';
+import 'data/assistant/assistant_workspace_bridge.dart';
 import 'data/assistant/configured_assistant_speech.dart';
 import 'presentation/assistant/entry/assistant_scope.dart';
 import 'application/attachments/attachment_file_service.dart';
@@ -72,8 +74,12 @@ import 'core/theme/app_motion.dart';
 
 part 'app_services.dart';
 
-/// 保证 Android 无界面启动时也只装配一份业务服务。
+/// 确保后台入口共享一个工作区，并让 Windows 先呈现启动界面。
 void runMissionBook() {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    runApp(const App());
+    return;
+  }
   final runtime = _AppRuntime()..install();
   runApp(App._(runtime));
 }
@@ -90,30 +96,114 @@ class App extends StatefulWidget {
 
 /// 恢复后用新身份重新装配整个工作区，旧页面与会话缓存不会跨库沿用。
 class _AppHostState extends State<App> {
-  late final _runtime = widget._runtime ?? _AppRuntime();
+  _AppRuntime? _runtime;
+  Object? _startupError;
   String? _notice;
+
   @override
-  Widget build(BuildContext context) => ValueListenableBuilder(
-    valueListenable: _runtime,
-    builder: (_, services, _) => services == null
-        ? const SizedBox.shrink()
-        : _AppWorkspace(
-            key: ObjectKey(services),
-            services: services,
-            notice: _notice,
-            onRestoreFinished: (notice) {
-              if (!mounted) return;
-              _notice = notice;
-              unawaited(_runtime.reload(services));
-            },
+  void initState() {
+    super.initState();
+    if (widget._runtime != null ||
+        kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.windows) {
+      _runtime = widget._runtime ?? _AppRuntime();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _startDesktopWorkspace();
+    });
+  }
+
+  void _startDesktopWorkspace() {
+    try {
+      // Release the first frame before synchronously assembling database and services.
+      final runtime = _AppRuntime()..install();
+      if (!mounted) {
+        unawaited(runtime.closeWorkspace());
+        runtime.dispose();
+        return;
+      }
+      setState(() {
+        _runtime = runtime;
+        _startupError = null;
+      });
+    } catch (error, stack) {
+      debugPrint('桌面工作区启动失败：$error\n$stack');
+      if (!mounted) return;
+      setState(() => _startupError = error);
+    }
+  }
+
+  Widget _buildDesktopStartup() => MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: AppTheme.light,
+    home: Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppLayout.spaceXl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 40,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(height: AppLayout.spaceMd),
+                const Text('正在准备书祺', style: AppTypography.pageTitle),
+                const SizedBox(height: AppLayout.spaceSm),
+                Text(
+                  _startupError == null ? '正在打开本机工作区…' : '工作区启动失败，请检查运行环境后重试。',
+                  style: AppTypography.metadata,
+                  textAlign: TextAlign.center,
+                ),
+                if (_startupError == null) ...[
+                  const SizedBox(height: AppLayout.spaceLg),
+                  const CircularProgressIndicator(semanticsLabel: '正在启动'),
+                ] else ...[
+                  const SizedBox(height: AppLayout.spaceLg),
+                  FilledButton.icon(
+                    onPressed: _startDesktopWorkspace,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('重试'),
+                  ),
+                ],
+              ],
+            ),
           ),
+        ),
+      ),
+    ),
   );
 
   @override
+  Widget build(BuildContext context) {
+    final runtime = _runtime;
+    if (runtime == null) return _buildDesktopStartup();
+    return ValueListenableBuilder(
+      valueListenable: runtime,
+      builder: (_, services, _) => services == null
+          ? const SizedBox.shrink()
+          : _AppWorkspace(
+              key: ObjectKey(services),
+              services: services,
+              notice: _notice,
+              onRestoreFinished: (notice) {
+                if (!mounted) return;
+                _notice = notice;
+                unawaited(runtime.reload(services));
+              },
+            ),
+    );
+  }
+
+  @override
   void dispose() {
-    if (widget._runtime == null) {
-      unawaited(_runtime.closeWorkspace());
-      _runtime.dispose();
+    final runtime = _runtime;
+    if (widget._runtime == null && runtime != null) {
+      unawaited(runtime.closeWorkspace());
+      runtime.dispose();
     }
     super.dispose();
   }
@@ -196,6 +286,9 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     _onboarding = createOnboardingStore();
     unawaited(_loadOnboarding());
     _motionSettings = createMotionSettings();
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      _motionSettings.addListener(_syncDesktopOverlayMotion);
+    }
     final motionLoaded = _motionSettings.load();
     unawaited(motionLoaded);
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
@@ -247,6 +340,21 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       onError: (error) => debugPrint('材料截止补算失败：$error'),
     );
     unawaited(_evidenceDeadlines!.start());
+  }
+
+  void _syncDesktopOverlayMotion() {
+    unawaited(() async {
+      try {
+        await const MethodChannel('mission_book/device').invokeMethod<void>(
+          'syncAssistantOverlayMotion',
+          _motionSettings.preference.name,
+        );
+      } on MissingPluginException {
+        // Widget 测试可只装配 Flutter 界面。
+      } on PlatformException catch (error) {
+        debugPrint('桌面悬浮球动效同步失败：${error.code}');
+      }
+    }());
   }
 
   void _completeLaunch() {
@@ -313,7 +421,9 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     if (state == AppLifecycleState.hidden ||
         state == AppLifecycleState.paused) {
       _assistant.setForeground(false);
-      unawaited(_assistantVoice.cancel());
+      if (widget.services._overlay?.desktopVoiceActive != true) {
+        unawaited(_assistantVoice.cancel());
+      }
     }
     if (state == AppLifecycleState.detached) {
       _assistant.setForeground(false);
@@ -639,7 +749,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
               : AppShell(
                   key: const ValueKey('app-shell'),
                   assistant: _assistant,
-                  androidAssistant: widget.services._overlay,
+                  assistantWorkspace: widget.services._overlay,
                   missionService: _missionService,
                   goalService: _goalService,
                   backupService: _backupService,

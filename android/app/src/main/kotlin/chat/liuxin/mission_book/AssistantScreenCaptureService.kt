@@ -56,6 +56,7 @@ class AssistantScreenCaptureService : Service() {
     private var settlingFrame = false
     private var busy = false
     private var frameCount = 0
+    private var emptyFrameRetries = 0
     private var controls: View? = null
     private var combined: Bitmap? = null
     private var previous: Bitmap? = null
@@ -65,6 +66,9 @@ class AssistantScreenCaptureService : Service() {
     private var finishRequested = false
     private var captureWidth = 0
     private var captureHeight = 0
+    private var initialContentSizeResolved = false
+    private var capturedContentSizeReceived = false
+    private var manualSelectionStarted = false
     private var contentWidth = 0
     private var contentHeight = 0
     private var lastIssue: String? = null
@@ -76,6 +80,7 @@ class AssistantScreenCaptureService : Service() {
     }
     private val frameTimeout = Runnable {
         if (awaitingFrame && !completed) {
+            Log.w(TAG, "等待投影帧超时，选区预览=${preview != null}，重试=$emptyFrameRetries")
             if (frameResult != null) { finishSample(null); return@Runnable }
             awaitingFrame = false
             busy = false
@@ -83,7 +88,22 @@ class AssistantScreenCaptureService : Service() {
             else if (longCapture) {
                 showControls("未收到画面，滚动页面后系统会继续尝试")
                 scheduleLongPoll(500L)
+            } else if (preview == null && emptyFrameRetries < MAX_EMPTY_FRAME_RETRIES) {
+                emptyFrameRetries++
+                if (emptyFrameRetries == 1) {
+                    android.widget.Toast.makeText(this, "正在等待所选应用画面…", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                handler.postDelayed({
+                    if (ticket != null && !completed && !finalizing && preview == null) requestFrame()
+                }, EMPTY_FRAME_RETRY_DELAY_MS)
             } else failCapture("暂未收到屏幕画面，请重试")
+        }
+    }
+    private val initialContentSizeTimeout = Runnable {
+        if (!initialContentSizeResolved && !watching && ticket != null && !completed) {
+            // Android 14+ reports the chosen app size immediately; fall back to display metrics on OEMs that omit it.
+            initialContentSizeResolved = true
+            requestFrame()
         }
     }
 
@@ -92,9 +112,26 @@ class AssistantScreenCaptureService : Service() {
             if (ticket != null && intent.getStringExtra(EXTRA_TICKET) == ticket) cancelCapture()
             return START_NOT_STICKY
         }
+        if (intent?.action == ACTION_CONFIRM_SELECTION) {
+            val targetTicket = intent.getStringExtra(EXTRA_TICKET)
+            val region = getResultRegion(intent)
+            if (targetTicket == ticket && region != null && preview != null && !completed && !finalizing) {
+                completeSelection(region, intent.getBooleanExtra(EXTRA_SCROLLING, false))
+            } else {
+                Log.w(TAG, "忽略失效的截图选区 ticketMatch=${targetTicket == ticket} hasRegion=${region != null}")
+            }
+            return START_NOT_STICKY
+        }
         if (projection != null || finalizing || completed) return START_NOT_STICKY
         ticket = intent?.getStringExtra(EXTRA_TICKET)
+        Log.d(TAG, "Capture service start; ticket=${ticket != null}, startId=$startId")
         watching = intent?.getBooleanExtra(EXTRA_WATCH, false) == true
+        emptyFrameRetries = 0
+        initialContentSizeResolved = watching || Build.VERSION.SDK_INT < 34
+        capturedContentSizeReceived = false
+        manualSelectionStarted = false
+        contentWidth = 0
+        contentHeight = 0
         try {
             startCaptureForeground()
             // 主动画面监督搁置；只接受手动截图的票据，不获取持续投影。
@@ -115,11 +152,7 @@ class AssistantScreenCaptureService : Service() {
             projection?.registerCallback(object : MediaProjection.Callback() {
                 override fun onCapturedContentResize(width: Int, height: Int) {
                     if (watching) resizeObservation(width, height)
-                    else if (contentWidth != 0 && (contentWidth != width || contentHeight != height)) {
-                        failCapture("被截画面尺寸已改变，请重新截图")
-                    }
-                    contentWidth = width
-                    contentHeight = height
+                    else resizeManualCapture(width, height)
                 }
                 override fun onStop() {
                     if (projection == null) return
@@ -132,6 +165,7 @@ class AssistantScreenCaptureService : Service() {
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, if (watching) null else source.surface, null, handler,
             )
             check(display != null)
+            Log.d(TAG, "VirtualDisplay created ${captureWidth}x$captureHeight; waitingForContentSize=${!initialContentSizeResolved}")
             if (watching) observer = this else beginManualTimer()
         } catch (error: Exception) {
             Log.e(TAG, "截屏初始化失败", error)
@@ -144,6 +178,11 @@ class AssistantScreenCaptureService : Service() {
     private fun getResultData(intent: Intent?): Intent? =
         if (Build.VERSION.SDK_INT >= 33) intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
         else intent?.getParcelableExtra(EXTRA_RESULT_DATA)
+
+    @Suppress("DEPRECATION")
+    private fun getResultRegion(intent: Intent?): Rect? =
+        if (Build.VERSION.SDK_INT >= 33) intent?.getParcelableExtra(EXTRA_REGION, Rect::class.java)
+        else intent?.getParcelableExtra(EXTRA_REGION)
 
     private fun scheduleLongPoll(delayMillis: Long) {
         if (!longCapture || completed || finalizing || cancelled.get()) return
@@ -160,14 +199,67 @@ class AssistantScreenCaptureService : Service() {
 
     private fun beginManualTimer() {
         val current = ticket
-        requestFrame()
+        if (initialContentSizeResolved) requestFrame()
+        else handler.postDelayed(initialContentSizeTimeout, 600L)
         handler.postDelayed({
             if (current == ticket && ticket != null && !completed && !finalizing) cancelCapture()
         }, 5 * 60 * 1000L)
     }
 
+    /** 单应用投影要等系统返回所选窗口尺寸，再同步调整虚拟屏与 ImageReader 输出面。 */
+    private fun resizeManualCapture(width: Int, height: Int) {
+        if (stopping || completed || finalizing || width <= 0 || height <= 0) return
+        val firstSize = !capturedContentSizeReceived
+        capturedContentSizeReceived = true
+        initialContentSizeResolved = true
+        handler.removeCallbacks(initialContentSizeTimeout)
+        contentWidth = width
+        contentHeight = height
+        Log.d(TAG, "手动投影内容尺寸：${width}x$height，首次=$firstSize")
+        if (width == captureWidth && height == captureHeight) {
+            if (firstSize && !busy) requestFrame()
+            return
+        }
+        if (manualSelectionStarted) {
+            failCapture("被截应用窗口尺寸已改变，请重新截图")
+            return
+        }
+
+        val activeTicket = ticket ?: return
+        if (preview != null) {
+            android.widget.Toast.makeText(this, "所选应用画面已调整，正在更新截图", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        requestSerial++
+        handler.removeCallbacks(frameTimeout)
+        awaitingFrame = false
+        settlingFrame = false
+        busy = false
+        emptyFrameRetries = 0
+        hideEditor()
+        preview?.recycle()
+        preview = null
+        try {
+            display?.surface = null
+            reader?.setOnImageAvailableListener(null, null)
+            reader?.close()
+            reader = null
+            checkNotNull(display).resize(width, height, resources.configuration.densityDpi)
+            val source = openReader(width, height)
+            display?.surface = source.surface
+            captureWidth = width
+            captureHeight = height
+            handler.post {
+                if (ticket == activeTicket && !completed && !finalizing) requestFrame()
+            }
+        } catch (error: Exception) {
+            Log.e(TAG, "调整单应用截图尺寸失败 ($width x $height)", error)
+            failCapture("所选应用画面暂时无法读取，请重新截图")
+        }
+    }
+
     private fun resizeObservation(width: Int, height: Int) {
         if (stopping || (width == captureWidth && height == captureHeight)) return
+        capturedContentSizeReceived = true
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
         manager.defaultDisplay.getRealMetrics(metrics)
@@ -181,8 +273,10 @@ class AssistantScreenCaptureService : Service() {
             display?.surface = null
             reader?.close()
             display?.resize(width, height, metrics.densityDpi)
-            captureWidth = width; captureHeight = height
-            openReader(width, height)
+            val source = openReader(width, height)
+            display?.surface = source.surface
+            captureWidth = width
+            captureHeight = height
         }.onFailure { endObservation() }
     }
 
@@ -226,9 +320,9 @@ class AssistantScreenCaptureService : Service() {
 
     private fun requestFrame() {
         if (completed || finalizing || busy) return
+        Log.d(TAG, "Requesting frame ${captureWidth}x$captureHeight")
         busy = true
-        // 先丢弃带工具条的旧缓冲；等待合成期间不消费新帧，避免静止页面
-        // 在工具条消失后只产出一帧却被旧监听提前丢弃。
+        // 先丢弃旧缓冲；等待合成期间持续释放过渡帧，settle 结束后再取稳定帧。
         runCatching { reader?.acquireLatestImage()?.close() }
         settlingFrame = true
         hideControls()
@@ -250,17 +344,24 @@ class AssistantScreenCaptureService : Service() {
     }
 
     private fun captureAvailable(source: ImageReader, width: Int, height: Int) {
-        if (source !== reader || settlingFrame) return
+        if (source !== reader) return
+        if (settlingFrame) {
+            // 过渡帧也需释放，否则 ImageReader 的 maxImages 缓冲会被系统切换帧占满。
+            runCatching { source.acquireLatestImage()?.close() }
+            return
+        }
         val image = try { source.acquireLatestImage() } catch (error: Exception) {
             Log.e(TAG, "读取截屏帧失败", error)
             if (frameResult != null) finishSample(null) else cancelCapture()
             return
         } ?: return
+        Log.d(TAG, "收到投影帧 ${image.width}x${image.height}，目标缓冲=${width}x$height，等待=$awaitingFrame")
         if (!awaitingFrame || completed) {
             image.close()
             return
         }
         awaitingFrame = false
+        emptyFrameRetries = 0
         handler.removeCallbacks(frameTimeout)
         val bitmap = try {
             val plane = image.planes.single()
@@ -423,27 +524,10 @@ class AssistantScreenCaptureService : Service() {
 
     private fun showEditor(bitmap: Bitmap) {
         try {
-            check(Settings.canDrawOverlays(this))
-            val view = CaptureEditorView(this, bitmap,
-                onConfirm = { region -> completeSelection(region, false) },
-                onLongCapture = { region -> completeSelection(region, true) },
-                onCancel = { cancelCapture() },
-            )
-            manager.addView(view, WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-                if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT,
-            ).apply {
-                gravity = Gravity.TOP or Gravity.LEFT
-                if (Build.VERSION.SDK_INT >= 30) {
-                    setFitInsetsTypes(0)
-                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-                } else if (Build.VERSION.SDK_INT >= 28) {
-                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-                }
-            })
-            editor = view
+            val activeTicket = checkNotNull(ticket)
+            // MediaProjection 的单应用隐私模式会隐藏 TYPE_APPLICATION_OVERLAY；编辑界面改由可见 Activity 承载。
+            AssistantCaptureConsentActivity.presentEditor(this, activeTicket, bitmap)
+            Log.d(TAG, "已请求截图编辑 Activity，预览=${bitmap.width}x${bitmap.height}")
         } catch (error: Exception) {
             Log.e(TAG, "截图选区显示失败", error)
             failCapture("无法显示截图工具，请检查悬浮窗权限")
@@ -457,6 +541,7 @@ class AssistantScreenCaptureService : Service() {
 
     private fun completeSelection(region: Rect, scrolling: Boolean) {
         val image = preview ?: return
+        manualSelectionStarted = true
         preview = null
         captureRegion = region
         hideEditor()
@@ -589,7 +674,9 @@ class AssistantScreenCaptureService : Service() {
         requestSerial++
         handler.removeCallbacks(longPoll)
         handler.removeCallbacks(frameTimeout)
+        handler.removeCallbacks(initialContentSizeTimeout)
         awaitingFrame = false; settlingFrame = false
+        emptyFrameRetries = 0
         hideControls()
         hideEditor()
         preview?.recycle()
@@ -628,6 +715,7 @@ class AssistantScreenCaptureService : Service() {
 
     override fun onDestroy() {
         cancelled.set(true)
+        handler.removeCallbacks(initialContentSizeTimeout)
         if (watching) endObservation() else if (!completed) finishCapture(null)
         worker.execute { recycleFrames() }
         worker.shutdown()
@@ -666,12 +754,17 @@ class AssistantScreenCaptureService : Service() {
         }
         const val ACTION_CAPTURE_READY = "chat.liuxin.mission_book.CAPTURE_READY"
         const val ACTION_CANCEL_CAPTURE = "chat.liuxin.mission_book.CANCEL_CAPTURE"
+        const val ACTION_CONFIRM_SELECTION = "chat.liuxin.mission_book.CONFIRM_SELECTION"
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
         const val EXTRA_TICKET = "assistant_capture_ticket"
         const val EXTRA_WATCH = "assistant_enable_projection"
+        const val EXTRA_SCROLLING = "assistant_capture_scrolling"
+        const val EXTRA_REGION = "assistant_capture_region"
         private const val CHANNEL_ID = "assistant_screen_capture"
         private const val NOTIFICATION_ID = 7405
+        private const val MAX_EMPTY_FRAME_RETRIES = 2
+        private const val EMPTY_FRAME_RETRY_DELAY_MS = 350L
         private const val TAG = "AssistantCapture"
     }
 }

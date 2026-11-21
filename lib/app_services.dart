@@ -84,9 +84,15 @@ class _AppServices {
       operationTimeout: const Duration(seconds: 60),
     );
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      _overlay = AndroidAssistantBridge(
+      _overlay = AssistantWorkspaceBridge(
         _assistant,
         speech: speech,
+        supervision: AssistantSupervision(_assistant, _missionService),
+      )..install();
+    } else if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      _overlay = AssistantWorkspaceBridge(
+        _assistant,
+        desktopVoice: _assistantVoice,
         supervision: AssistantSupervision(_assistant, _missionService),
       )..install();
     }
@@ -103,7 +109,7 @@ class _AppServices {
   late final AssistantVoiceController _assistantVoice;
   late final AttachmentCoordinator _attachments;
   late final AttachmentStore _attachmentStore;
-  AndroidAssistantBridge? _overlay;
+  AssistantWorkspaceBridge? _overlay;
   Future<void> Function()? closeFrontend;
   Future<void>? _closing;
 

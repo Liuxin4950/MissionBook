@@ -8,19 +8,30 @@ import 'package:uuid/uuid.dart';
 import '../../application/assistant/assistant_attachment.dart';
 import '../../application/assistant/assistant_controller.dart';
 import '../../application/assistant/assistant_schedule.dart';
+import '../../application/assistant/assistant_speech.dart';
 import '../../application/assistant/assistant_supervision.dart';
 import '../../application/errors/user_error_message.dart';
 import 'configured_assistant_speech.dart';
 
 /// 连接原生悬浮窗与同一个助手控制器，不持有另外一份聊天。
-class AndroidAssistantBridge {
-  AndroidAssistantBridge(this.assistant, {this.speech, this.supervision});
+class AssistantWorkspaceBridge {
+  AssistantWorkspaceBridge(
+    this.assistant, {
+    this.speech,
+    this.desktopVoice,
+    this.supervision,
+  });
 
   static const channel = MethodChannel('mission_book/assistant_workspace');
-  static AndroidAssistantBridge? _active;
+  static AssistantWorkspaceBridge? _active;
   static int _serial = 0;
   final AssistantController assistant;
   final ConfiguredAssistantSpeech? speech;
+  final AssistantVoiceController? desktopVoice;
+  String? _desktopVoiceDraft;
+  int _desktopVoiceRevision = 0;
+  bool get desktopVoiceActive => _desktopVoiceDraft != null;
+
   final AssistantSupervision? supervision;
   String? _voiceTicket;
   final int generation = ++_serial;
@@ -30,6 +41,7 @@ class AndroidAssistantBridge {
   ({String id, Uint8List bytes, String? missionId})? _record;
   Timer? _push;
   bool _watching = false;
+  bool _compact = false;
   int _watchRevision = 0;
   int _snapshotRevision = 0;
   bool _sending = false;
@@ -42,6 +54,8 @@ class AndroidAssistantBridge {
     channel.setMethodCallHandler(_handle);
     assistant.addListener(_changed);
     assistant.liveActivity.addListener(_changed);
+    desktopVoice?.addListener(_changed);
+    if (desktopVoice != null) assistant.draftChanges.addListener(_changed);
     unawaited(_notifyHost('ready'));
   }
 
@@ -51,12 +65,15 @@ class AndroidAssistantBridge {
     supervision?.close();
     if (_voiceTicket != null) unawaited(speech?.cancel());
     _voiceTicket = null;
+    if (desktopVoiceActive) unawaited(_cancelDesktopVoice());
     _watching = false;
     _push?.cancel();
     if (!_current) return;
     _active = null;
     assistant.removeListener(_changed);
     assistant.liveActivity.removeListener(_changed);
+    desktopVoice?.removeListener(_changed);
+    if (desktopVoice != null) assistant.draftChanges.removeListener(_changed);
     channel.setMethodCallHandler(null);
     unawaited(_notifyHost('unavailable'));
   }
@@ -86,9 +103,15 @@ class AndroidAssistantBridge {
   }
 
   void _changed() {
+    if (_desktopVoiceDraft != null &&
+        _desktopVoiceDraft != assistant.draftKey) {
+      unawaited(_cancelDesktopVoice());
+    }
     if (!_watching || !_current || _push?.isActive == true) return;
     _push = Timer(const Duration(milliseconds: 140), () {
-      if (_watching && _current) unawaited(_notifyHost('state', _snapshot()));
+      if (_watching && _current) {
+        unawaited(_notifyHost('state', _snapshot(compact: _compact)));
+      }
     });
   }
 
@@ -148,8 +171,12 @@ class AndroidAssistantBridge {
           final revision = ++_watchRevision;
           await assistant.initialize();
           if (!_current) throw StateError('助手正在重建');
-          if (revision == _watchRevision) _watching = true;
-          return _snapshot();
+          final compact = desktopVoice != null && args['compact'] == true;
+          if (revision == _watchRevision) {
+            _watching = true;
+            _compact = compact;
+          }
+          return _snapshot(compact: compact);
         case 'unwatch':
           _watchRevision++;
           _watching = false;
@@ -171,6 +198,9 @@ class AndroidAssistantBridge {
             );
           }
           return true;
+        case 'voiceCancel':
+          if (desktopVoiceActive) await _cancelDesktopVoice();
+          return null;
         case 'cancelVoice':
           if (_voiceTicket == args['ticket']) {
             _voiceTicket = null;
@@ -211,7 +241,38 @@ class AndroidAssistantBridge {
             throw StateError('草稿已在另一处修改');
           }
           assistant.draft = args['text'] as String;
-          return true;
+          return desktopVoice == null ? true : _snapshot(compact: _compact);
+        case 'newSession':
+          if (desktopVoice == null || assistant.isBusy) {
+            throw StateError('请先结束当前操作');
+          }
+          await assistant.startNewSession();
+          return _snapshot(compact: false);
+        case 'voiceStart':
+          final voice = desktopVoice;
+          if (voice == null ||
+              desktopVoiceActive ||
+              voice.busy ||
+              voice.listening ||
+              assistant.isBusy) {
+            throw StateError('麦克风或会话正在使用');
+          }
+          _desktopVoiceDraft = assistant.draftKey;
+          _desktopVoiceRevision++;
+          unawaited(voice.start());
+          return _snapshot(compact: false);
+        case 'voiceFinish':
+          final voice = desktopVoice;
+          final key = _desktopVoiceDraft;
+          if (voice == null || key == null || key != assistant.draftKey) {
+            throw StateError('录音对应的会话已切换');
+          }
+          final revision = _desktopVoiceRevision;
+          await voice.stop();
+          if (!_current || revision != _desktopVoiceRevision) return null;
+          final response = {'text': voice.text, 'error': voice.error};
+          await _cancelDesktopVoice();
+          return response;
         case 'image':
         case 'stageRecord':
         case 'removeImage':
@@ -232,9 +293,17 @@ class AndroidAssistantBridge {
             return id;
           }
           assistant.saveAttachments(null, [...files]..removeAt(index));
-          return _snapshot();
+          return _snapshot(compact: false);
         case 'send':
-          if (assistant.isBusy || _sending) throw StateError('请先结束当前操作');
+          if (assistant.isBusy || _sending || desktopVoiceActive) {
+            throw StateError('请先结束当前操作');
+          }
+          if (desktopVoice != null && args.containsKey('text')) {
+            if (args['previous'] != assistant.draft) {
+              throw StateError('草稿已在另一处修改');
+            }
+            assistant.draft = args['text'] as String;
+          }
           final text = assistant.draft.trim();
           final files = assistant.attachmentsFor(null);
           if (text.isEmpty && files.isEmpty) throw StateError('请输入内容或添加图片');
@@ -253,7 +322,7 @@ class AndroidAssistantBridge {
           assistant.saveAttachments(key, []);
           _sending = true;
           unawaited(_send(message, key, original, files));
-          return _snapshot();
+          return _snapshot(compact: false);
         case 'confirm':
         case 'reject':
         case 'checkOutcome':
@@ -292,6 +361,13 @@ class AndroidAssistantBridge {
     }
   }
 
+  Future<void> _cancelDesktopVoice() async {
+    _desktopVoiceDraft = null;
+    _desktopVoiceRevision++;
+    await desktopVoice?.cancel();
+    _changed();
+  }
+
   Future<void> _send(
     UserMessage message,
     String key,
@@ -303,6 +379,7 @@ class AndroidAssistantBridge {
         message,
         confirmWrites: true,
         readCurrentUse: _readCurrentUse,
+        foregroundPlatform: desktopVoice != null ? 'Windows' : 'Android',
       );
     } catch (_) {
       if (_current) await _notifyHost('error', '消息未能发送，请查看会话');
@@ -351,9 +428,10 @@ class AndroidAssistantBridge {
   String _version(AssistantOperation item) =>
       _proposalVersions[item.input] ??= const Uuid().v4();
 
-  Map<String, Object?> _snapshot() {
+  Map<String, Object?> _snapshot({bool compact = false}) {
     final activity = assistant.activity;
-    final recent = assistant.transcript.reversed
+    final recent = (compact ? const <AgentMessage>[] : assistant.transcript)
+        .reversed
         .where(
           (message) =>
               (message is UserMessage || message is AssistantMessage) &&
@@ -366,6 +444,7 @@ class AndroidAssistantBridge {
     return {
       'generation': generation,
       'revision': ++_snapshotRevision,
+      if (desktopVoice != null) 'compact': compact,
       'key': assistant.draftKey,
       'title': assistant.sessionTitle,
       'name': assistant.persona.name,
@@ -385,15 +464,28 @@ class AndroidAssistantBridge {
       ],
       // 正文缓冲在请求结束后仍保留。只有当前请求在流式输出时才展示它；
       // 完成、重试间隙和工具阶段由已保存消息接管，不按文字内容去重。
-      'partial': assistant.isRunning && activity.modelRequestRunning
+      'partial': !compact && assistant.isRunning && activity.modelRequestRunning
           ? _short(activity.text, 2600)
           : '',
       'busy': assistant.isBusy || _sending,
       'running': assistant.isRunning,
+      if (desktopVoice != null) ...{
+        'canUseImages': assistant.supportsImages,
+        'voice': desktopVoiceActive
+            ? {
+                'starting': desktopVoice!.starting,
+                'listening': desktopVoice!.listening,
+                'busy': desktopVoice!.busy,
+                'error': desktopVoice!.error,
+                'seconds': desktopVoice!.elapsedSeconds,
+              }
+            : null,
+      },
       'operations': [
-        for (final item in assistant.operations.reversed.take(8))
-          if (item.status != AssistantOperationStatus.running || item.isWrite)
-            _operation(item),
+        if (!compact)
+          for (final item in assistant.operations.reversed.take(8))
+            if (item.status != AssistantOperationStatus.running || item.isWrite)
+              _operation(item),
       ],
       'error': assistant.errorMessage,
     };

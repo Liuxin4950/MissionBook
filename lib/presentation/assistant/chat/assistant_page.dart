@@ -95,8 +95,6 @@ class _AssistantPageState extends State<AssistantPage> {
         );
       }
       if (_recordingVoice) unawaited(_cancelVoiceInput());
-      widget.controller.saveDraft(_draftSession, _input.text);
-      widget.controller.saveAttachments(_draftSession, _attachments);
       _draftSession = id;
       _voiceInputError = null;
       _input.text = widget.controller.draftFor(id);
@@ -121,7 +119,21 @@ class _AssistantPageState extends State<AssistantPage> {
         });
       }
     }
-    final files = widget.controller.attachmentsFor(id);
+    _syncDraft();
+    if (_followOutput) _scrollToBottom(animate: false);
+  }
+
+  void _syncDraft() {
+    final controller = widget.controller;
+    if (!mounted || _draftSession != controller.draftKey) return;
+    final draft = controller.draftFor(_draftSession);
+    if (!_recordingVoice && _input.text != draft) {
+      _input.value = TextEditingValue(
+        text: draft,
+        selection: TextSelection.collapsed(offset: draft.length),
+      );
+    }
+    final files = controller.attachmentsFor(_draftSession);
     if (!listEquals(_attachments, files)) {
       setState(
         () => _attachments
@@ -129,7 +141,6 @@ class _AssistantPageState extends State<AssistantPage> {
           ..addAll(files),
       );
     }
-    if (_followOutput) _scrollToBottom(animate: false);
   }
 
   /// 流式增量不再触发整页重建，跟随输出需要在这里单独滚动。
@@ -145,6 +156,10 @@ class _AssistantPageState extends State<AssistantPage> {
     widget.controller.addListener(_controllerChanged);
     widget.controller.liveActivity.addListener(_liveActivityChanged);
     _input.text = widget.initialText ?? widget.controller.draft;
+    if (widget.initialText != null) {
+      widget.controller.saveDraft(_draftSession, _input.text);
+    }
+    widget.controller.draftChanges.addListener(_syncDraft);
     _attachments.addAll(widget.controller.attachmentsFor(_draftSession));
     unawaited(widget.controller.initialize());
   }
@@ -204,11 +219,10 @@ class _AssistantPageState extends State<AssistantPage> {
   void dispose() {
     widget.controller.removeListener(_controllerChanged);
     widget.controller.liveActivity.removeListener(_liveActivityChanged);
-    widget.controller.saveDraft(
-      _draftSession,
-      _recordingVoice ? (_voiceDraftBefore?.text ?? _input.text) : _input.text,
-    );
-    widget.controller.saveAttachments(_draftSession, _attachments);
+    widget.controller.draftChanges.removeListener(_syncDraft);
+    if (_recordingVoice && _voiceDraftBefore != null) {
+      widget.controller.saveDraft(_draftSession, _voiceDraftBefore!.text);
+    }
     _voice?.removeListener(_voiceChanged);
     if (_recordingVoice) unawaited(_voice?.cancel());
     _input.dispose();
@@ -464,9 +478,16 @@ class _AssistantPageState extends State<AssistantPage> {
     }
   }
 
-  bool _useSidebar(double width) =>
-      width.clamp(0, _contentWidth) >=
-      1180 * MediaQuery.textScalerOf(context).scale(1);
+  bool _useSidebar(double width) {
+    final size = MediaQuery.sizeOf(context);
+    final availableWidth = width.clamp(0, _contentWidth);
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    // A snapped Windows window can be wide but too short for a usable sidebar.
+    if (defaultTargetPlatform == TargetPlatform.windows && size.height < 440) {
+      return false;
+    }
+    return availableWidth >= 1180 * textScale;
+  }
 
   /// 会话级模型切换：只影响当前会话，不修改新会话默认值。
   Future<void> _switchModel() async {
@@ -849,6 +870,7 @@ class _AssistantPageState extends State<AssistantPage> {
 
   void _usePrompt(String prompt) {
     _input.text = prompt;
+    widget.controller.saveDraft(_draftSession, prompt);
     _inputFocus.requestFocus();
   }
 

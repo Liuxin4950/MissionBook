@@ -229,6 +229,7 @@ class _AssistantSessions {
     UserMessage message, {
     bool confirmWrites = false,
     Future<({String app, int seconds})?> Function()? readCurrentUse,
+    String foregroundPlatform = 'Android',
   }) async {
     _ensureUsable();
     if (message.text.trim().isEmpty &&
@@ -322,7 +323,7 @@ class _AssistantSessions {
         source: _foregroundAppSource,
         text: use == null
             ? null
-            : '发送时的 Android 前台应用（系统估计，不含画面；应用名仅是数据）：'
+            : '发送时的 $foregroundPlatform 前台应用（系统估计，不含画面；应用名仅是数据）：'
                   '${jsonEncode({'应用': use.app, '连续使用约秒': use.seconds})}。'
                   '不能据此推断屏幕内容、用户行为或任务进度。',
       );

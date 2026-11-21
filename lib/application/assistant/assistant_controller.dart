@@ -281,6 +281,19 @@ class AssistantController extends ChangeNotifier {
     return draft;
   }
 
+  /// 各窗口观察同一份草稿，合并同一调用内的文字和附件更新。
+  final draftChanges = ValueNotifier<int>(0);
+  bool _draftNotificationPending = false;
+
+  void _notifyDraftChanged() {
+    if (_draftNotificationPending || _closed) return;
+    _draftNotificationPending = true;
+    scheduleMicrotask(() {
+      _draftNotificationPending = false;
+      if (!_closed) draftChanges.value++;
+    });
+  }
+
   final _drafts = <String?, String>{};
   final _attachmentDrafts = <String?, List<AssistantAttachment>>{};
   List<AssistantAttachment> attachmentsFor(String? id) =>
@@ -288,9 +301,11 @@ class AssistantController extends ChangeNotifier {
   void saveAttachments(String? id, List<AssistantAttachment> attachments) {
     final key = id ?? draftKey;
     if (attachments.isEmpty) {
-      _attachmentDrafts.remove(key);
-    } else if (_acceptsDraft(key)) {
+      if (_attachmentDrafts.remove(key) != null) _notifyDraftChanged();
+    } else if (_acceptsDraft(key) &&
+        !listEquals(_attachmentDrafts[key], attachments)) {
       _attachmentDrafts[key] = List.of(attachments);
+      _notifyDraftChanged();
     }
   }
 
@@ -329,7 +344,14 @@ class AssistantController extends ChangeNotifier {
 
   void saveDraft(String? id, String text) {
     final key = id ?? draftKey;
-    if (_acceptsDraft(key)) _drafts[key] = text;
+    if (_acceptsDraft(key) && (_drafts[key] ?? '') != text) {
+      if (text.isEmpty) {
+        _drafts.remove(key);
+      } else {
+        _drafts[key] = text;
+      }
+      _notifyDraftChanged();
+    }
   }
 
   set draft(String value) {
@@ -652,10 +674,12 @@ class AssistantController extends ChangeNotifier {
     UserMessage message, {
     bool confirmWrites = false,
     Future<({String app, int seconds})?> Function()? readCurrentUse,
+    String foregroundPlatform = 'Android',
   }) => _sessions.sendMessage(
     message,
     confirmWrites: confirmWrites,
     readCurrentUse: readCurrentUse,
+    foregroundPlatform: foregroundPlatform,
   );
 
   Future<String?> saveNotice(
@@ -841,6 +865,7 @@ class AssistantController extends ChangeNotifier {
   void dispose() {
     unawaited(close());
     liveActivity.dispose();
+    draftChanges.dispose();
     super.dispose();
   }
 }

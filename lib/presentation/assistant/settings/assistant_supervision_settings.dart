@@ -63,19 +63,19 @@ class _AssistantSupervisionSettingsState
     });
     try {
       if (enabled != null || paused != null) {
-        final state = await _device
-            .invokeMapMethod<String, Object?>('configureObservation', {
-              if (enabled != null) 'enabled': enabled,
-              if (paused != null) 'paused': paused,
-            });
+        final state = await _device.invokeMapMethod<String, Object?>(
+          'configureObservation',
+          {'enabled': ?enabled, 'paused': ?paused},
+        );
         if (mounted) setState(() => _state = state);
       }
       if (mounted && authorize && _state?['granted'] != true) {
         await _device.invokeMethod<void>('requestUsageAccess');
       }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = userErrorMessage(error, fallback: '应用感知设置未生效'));
+      }
     } finally {
       if (mounted) {
         setState(() => _busy = false);

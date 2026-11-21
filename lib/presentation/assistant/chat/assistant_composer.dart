@@ -73,6 +73,7 @@ class _AssistantComposer {
                           final draft = controller.takeUnsentDraft();
                           if (draft == null) return;
                           _page._input.text = draft.text;
+                          controller.saveDraft(_page._draftSession, draft.text);
                           _page._update(
                             () => _page._attachments.addAll(draft.attachments),
                           );
@@ -578,6 +579,7 @@ class _AssistantComposer {
           _page._input.text.isEmpty &&
           _page._attachments.isEmpty) {
         _page._input.text = text;
+        widget.controller.saveDraft(sourceDraft, text);
         _page._update(() => _page._attachments.addAll(files));
       } else {
         widget.controller.retainUnsentDraft(

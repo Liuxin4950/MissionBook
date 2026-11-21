@@ -3,9 +3,13 @@ import 'package:flutter/services.dart';
 
 import '../../application/assistant/assistant_settings.dart';
 
-/// 将已保存角色的展示字段同步给 Android 系统气泡。
+/// 将已保存角色的展示字段同步给原生悬浮入口。
 Future<void> syncAssistantOverlayPersona(AssistantPersona persona) async {
-  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  if (kIsWeb ||
+      (defaultTargetPlatform != TargetPlatform.android &&
+          defaultTargetPlatform != TargetPlatform.windows)) {
+    return;
+  }
   try {
     await const MethodChannel(
       'mission_book/device',

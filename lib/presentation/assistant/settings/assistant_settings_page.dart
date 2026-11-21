@@ -71,6 +71,11 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
   bool? _overlayEnabled;
   bool _overlayBusy = false;
 
+  bool get _overlaySupported =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.windows);
+
   Future<void> _loadOverlay() async {
     try {
       final enabled = await const MethodChannel(
@@ -109,7 +114,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    if (_overlaySupported) {
       unawaited(_loadOverlay());
     }
     for (final field in [_personaName, _userAddress]) {
@@ -128,8 +133,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed &&
         !_overlayBusy &&
-        !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.android) {
+        _overlaySupported) {
       unawaited(_loadOverlay());
     }
   }
@@ -397,6 +401,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
           if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) ...[
             const SizedBox(height: AppLayout.spaceLg),
             const AssistantSupervisionSettings(),
+          ],
+          if (_overlaySupported) ...[
             const SizedBox(height: AppLayout.spaceLg),
             AppSectionCard(
               padding: EdgeInsets.zero,
@@ -407,6 +413,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                     ? '正在读取悬浮窗状态…'
                     : _overlayBusy
                     ? '正在切换悬浮窗…'
+                    : defaultTargetPlatform == TargetPlatform.windows
+                    ? '在桌面和其他应用上快速截图、问书祺'
                     : '离开应用后显示 AI 悬浮入口',
                 trailing: Semantics(
                   container: true,

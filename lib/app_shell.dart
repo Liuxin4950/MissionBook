@@ -3,8 +3,9 @@ import 'dart:async';
 import 'presentation/today/today_page.dart';
 import 'package:flutter/services.dart';
 import 'application/assistant/assistant_controller.dart';
-import 'data/assistant/android_assistant_bridge.dart';
+import 'data/assistant/assistant_workspace_bridge.dart';
 import 'presentation/assistant/entry/assistant_launcher.dart';
+import 'presentation/assistant/entry/assistant_scope.dart';
 import 'application/missions/mission_service.dart';
 import 'application/notifications/app_notification_service.dart';
 import 'core/theme/app_layout.dart';
@@ -34,7 +35,7 @@ class AppShell extends StatefulWidget {
     required this.device,
     this.notifications,
     this.assistant,
-    this.androidAssistant,
+    this.assistantWorkspace,
     this.clock = DateTime.now,
   });
   // App 传入共享任务服务，本层转交给今天、历史及当前任务栏。
@@ -46,7 +47,7 @@ class AppShell extends StatefulWidget {
   // 通知动作的 UI 部分由外壳承接：打开 END 确认、旧按钮提示刷新。
   final AppNotificationService? notifications;
   final AssistantController? assistant;
-  final AndroidAssistantBridge? androidAssistant;
+  final AssistantWorkspaceBridge? assistantWorkspace;
 
   /// 今天页使用的日期时钟；测试传入固定时刻，避免随运行日期改变查询。
   final DateTime Function() clock;
@@ -109,7 +110,13 @@ class _AppShellState extends State<AppShell> {
           await widget.assistant!.openConversation(id);
         }
         if (!mounted) return;
-        await _assistantEntry.currentState?.openGlobalAssistant();
+        final entry = _assistantEntry.currentState;
+        if (entry != null && ModalRoute.of(context)?.isCurrent == true) {
+          await entry.openGlobalAssistant();
+        } else {
+          await widget.assistant?.prepareExternalEntry();
+          if (mounted) await showAssistantConversation(context);
+        }
       }
     } on PlatformException {
       // 桌面和 Web 没有 Android 悬浮入口。
@@ -143,7 +150,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _consumeAssistantRecord() async {
-    final bridge = widget.androidAssistant;
+    final bridge = widget.assistantWorkspace;
     if (bridge == null) return;
     try {
       final id = await _overlayChannel.invokeMethod<String>(

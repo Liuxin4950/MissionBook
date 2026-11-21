@@ -27,14 +27,33 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  assistant_overlay_ = std::make_unique<WindowsAssistantOverlay>(
+      GetHandle(), flutter_controller_->engine()->messenger(), project_);
   flutter::MethodChannel<flutter::EncodableValue> device_channel(
       flutter_controller_->engine()->messenger(), "mission_book/device",
       &flutter::StandardMethodCodec::GetInstance());
-  device_channel.SetMethodCallHandler([](const auto& call, auto result) {
+  device_channel.SetMethodCallHandler([this](const auto& call, auto result) {
     if (call.method_name() == "capabilities") {
       flutter::EncodableMap values;
       values[flutter::EncodableValue("version")] = flutter::EncodableValue(FLUTTER_VERSION);
       result->Success(flutter::EncodableValue(values));
+    } else if (call.method_name() == "syncAssistantOverlayPersona" ||
+               call.method_name() == "syncAssistantOverlayMotion") {
+      if (call.arguments()) {
+        assistant_overlay_->SetAppearance(
+            call.method_name() == "syncAssistantOverlayPersona" ? "persona" : "motion",
+            *call.arguments());
+      }
+      result->Success();
+    } else if (call.method_name() == "assistantOverlayEnabled") {
+      result->Success(flutter::EncodableValue(assistant_overlay_->enabled()));
+    } else if (call.method_name() == "toggleAssistantOverlay") {
+      const bool enabled = !assistant_overlay_->enabled();
+      if (assistant_overlay_->SetEnabled(enabled)) {
+        result->Success(flutter::EncodableValue(enabled));
+      } else {
+        result->Error("overlay_preference", "无法切换桌面悬浮球，请重试");
+      }
     } else {
       result->NotImplemented();
     }
@@ -54,6 +73,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  assistant_overlay_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -76,8 +96,25 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case kMissionBookActivateMessage:
+      if (IsIconic(hwnd)) {
+        ShowWindow(hwnd, SW_RESTORE);
+      } else {
+        ShowWindow(hwnd, SW_SHOW);
+      }
+      SetForegroundWindow(hwnd);
+      return 0;
+    case WM_GETMINMAXINFO: {
+      auto* info = reinterpret_cast<MINMAXINFO*>(lparam);
+      const UINT window_dpi = GetDpiForWindow(hwnd);
+      const int dpi = window_dpi ? static_cast<int>(window_dpi) : 96;
+      RECT client{0, 0, MulDiv(350, dpi, 96), MulDiv(340, dpi, 96)};
+      AdjustWindowRectExForDpi(&client, WS_OVERLAPPEDWINDOW, FALSE, 0, dpi);
+      info->ptMinTrackSize = {client.right - client.left, client.bottom - client.top};
+      return 0;
+    }
     case WM_FONTCHANGE:
-      flutter_controller_->engine()->ReloadSystemFonts();
+      if (flutter_controller_) flutter_controller_->engine()->ReloadSystemFonts();
       break;
   }
 

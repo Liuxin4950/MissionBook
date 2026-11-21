@@ -7,6 +7,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [提醒恢复与资源释放](提醒恢复与资源释放.md) | 损坏提醒归档、系统撤销、编号重建、有界队列、后台只读与关闭顺序 |
+| [Windows 桌面助手](Windows桌面助手.md) | 可选安装目录、启动恢复、悬浮球与共享会话 |
 
 ## 恢复与释放
 
@@ -75,10 +76,12 @@ DeviceCapabilities 以唯一的 DevicePlatform 标识平台；通知、准时提
 ## Android 跨应用助手
 
 - [AssistantWorkspaceHost](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantWorkspaceHost.kt) 让 MainActivity、悬浮和监督服务按需持有同一个主 FlutterEngine。[App 工作区](../../../../lib/app_services.dart)在页面构建前装配同一份业务资源，与计划任务唤醒引擎分开。最后一个持有者释放时先等工作区关闭。备份恢复先禁用监督、撤掉旧桥接，再重建工作区；有代次的回调不能落到新工作区。
-- [悬浮服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayService.kt)由本机开关和系统悬浮权限控制。进入或离开 MissionBook 不隐藏头像；打开完整会话、任务或记录只收面板，手动截图才临时隐藏头像。点头像先展开「截图、语音、文字」，聊天内容按高度滚动。窗口在同一屏幕坐标内避开头像、系统栏和键盘。
-- [截图服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantScreenCaptureService.kt)仅开放手动单次授权，保留原编辑器的选区、全屏、长截图及一次性草稿交付。主动画面授权和取样已搁置。原生临时图交付后删除，未消费缓存到期清理。
+- [悬浮服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayService.kt)由本机开关和系统悬浮权限控制。进入或离开 MissionBook 不隐藏头像；打开完整会话、任务或记录只收面板，手动截图才临时隐藏头像。点头像先展开独立圆形动作球，聊天内容按高度滚动。窗口在同一屏幕坐标内避开头像、系统栏和键盘。
+- [截图服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantScreenCaptureService.kt)仅开放手动单次授权，保留原编辑器的选区、全屏、长截图及一次性草稿交付。Android 14+ 选择单应用后按系统回调尺寸同步调整虚拟屏与图像缓冲，首帧迟到时有限重试。主动画面授权和取样已搁置。原生临时图交付后删除，未消费缓存到期清理。
 - [应用使用情况](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantUsageMonitorService.kt)需开启本机开关并授予 Android 使用情况访问。定时读取用于本地排期提醒，不调模型。发送悬浮消息时尝试现读，把当前 App 名称和估算连续时长交给本轮会话模型，不另选模型，不发送历史清单或截图。锁屏、暂停、无权限或查不到时不提供。授权偏好不进备份，前台信号不是任务执行事实。
 - [可见录音窗口](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayVoiceActivity.kt)仅由点按开始，提交短 PCM 到现有配置转写，结果回填同一草稿，取消不发送。未发草稿只保证同工作区进程内保留。原生 UI、投影、语音、系统手势和后台恢复仍以目标设备体验为准。
+
+手动截图的授权/编辑 Activity 只负责申请投影、选择区域和结束自身；完成或取消时直接 `finish()` 返回截图前的应用，不调用 `MainActivity.assistantIntent()`。截图服务完成编码后仍通过 `AssistantOverlayService` 将图片交给当前悬浮草稿，并重新显示悬浮聊天，因此截图不会强制打开 MissionBook AI 页面。
 
 
 ## 系统提醒调用链
