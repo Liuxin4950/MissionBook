@@ -585,7 +585,13 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
               onCreate: _openCreate,
             ),
             const SizedBox(height: AppLayout.spaceMd),
-            _ScheduleOverview(missions: missions),
+            _ScheduleOverview(
+              missions: missions,
+              now: _loadedDate == display.scheduleDateKey(_today)
+                  ? _today
+                  : null,
+              onOpen: _openDetail,
+            ),
           ],
         );
         Widget schedule = ScheduleSection(
@@ -1310,12 +1316,44 @@ TextStyle _todayMetadataStyle(BuildContext context) =>
 
 /// 当前查询只有排期事实，概览统计真实安排，不推断完成或执行次数。
 class _ScheduleOverview extends StatelessWidget {
-  const _ScheduleOverview({required this.missions});
+  const _ScheduleOverview({
+    required this.missions,
+    required this.now,
+    required this.onOpen,
+  });
   final display.TodayMissionGroups missions;
+  final DateTime? now;
+  final ValueChanged<String> onOpen;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final at = now;
+    final current = at == null
+        ? null
+        : [...missions.fixed, ...missions.flexible]
+                  .where(
+                    (item) =>
+                        item.phase == MissionPhase.running ||
+                        item.phase == MissionPhase.reportPending,
+                  )
+                  .firstOrNull ??
+              missions.fixed
+                  .where(
+                    (item) =>
+                        item.phase == MissionPhase.notStarted &&
+                        display.isInPlannedTimeSlot(item, at),
+                  )
+                  .firstOrNull;
+    final next = at == null
+        ? null
+        : missions.fixed
+              .where(
+                (item) =>
+                    item.phase == MissionPhase.notStarted &&
+                    item.fixedStartAt?.isAfter(at) == true,
+              )
+              .firstOrNull;
     final totalMinutes = [
       ...missions.fixed,
       ...missions.flexible,
@@ -1340,6 +1378,29 @@ class _ScheduleOverview extends StatelessWidget {
               header: true,
               child: Text('安排概览', style: theme.textTheme.labelLarge),
             ),
+            if (current != null || next != null) ...[
+              for (final (label, item) in [
+                (
+                  current?.phase == MissionPhase.reportPending ? '待确认' : '现在',
+                  current,
+                ),
+                ('接下来', next),
+              ])
+                if (item != null)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      identical(item, current)
+                          ? Icons.near_me_outlined
+                          : Icons.next_plan_outlined,
+                    ),
+                    title: Text(item.title),
+                    subtitle: Text(label),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => onOpen(item.id),
+                  ),
+            ],
             const SizedBox(height: AppLayout.spaceMd),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,

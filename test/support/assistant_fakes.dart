@@ -17,12 +17,13 @@ class MemoryAssistantSettingsStore implements AssistantSettingsStore {
 
   String? _pendingDefault;
 
-  String get profileId => catalog.selection.defaultProfileId;
+  String? get profileId => catalog.selection.defaultProfileId;
 
   /// 测试可在构建目录前声明默认模型；目录出现后再真正生效。
-  set profileId(String value) {
+  set profileId(String? value) {
     _pendingDefault = value;
-    if (catalog.models.any((model) => model.profileId == value)) {
+    if (value == null ||
+        catalog.models.any((model) => model.profileId == value)) {
       catalog = catalog.copyWith(
         selection: ModelSelection(defaultProfileId: value),
       );

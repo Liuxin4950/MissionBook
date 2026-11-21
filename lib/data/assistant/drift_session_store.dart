@@ -27,6 +27,60 @@ class DriftSessionStore implements AssistantConversationStore {
   final Duration _writerLease;
   final _uuid = const Uuid();
 
+  static const _briefPrefix = 'assistant.recentBrief.';
+  static bool isDerivedSetting(Object? key) =>
+      key is String && key.startsWith(_briefPrefix);
+
+  @override
+  Future<String?> readRecentBrief(String id, String revision) async {
+    final row =
+        await (_database.select(_database.appSettings)
+              ..where((table) => table.key.equals('$_briefPrefix$id')))
+            .getSingleOrNull();
+    if (row == null) return null;
+    try {
+      final data = jsonDecode(row.value);
+      if (data is Map &&
+          data['revision'] == revision &&
+          data['brief'] is String) {
+        return data['brief'] as String;
+      }
+    } on FormatException {
+      /* 派生缓存可重新生成。 */
+    }
+    return null;
+  }
+
+  @override
+  Future<void> saveRecentBrief(String id, String revision, String brief) =>
+      _database.transaction(() async {
+        if (await _sessionById(id) == null) return;
+        await _database
+            .into(_database.appSettings)
+            .insertOnConflictUpdate(
+              AppSettingsCompanion.insert(
+                key: '$_briefPrefix$id',
+                value: jsonEncode({'revision': revision, 'brief': brief}),
+                updatedAt: _nowMilliseconds,
+              ),
+            );
+        final expired =
+            await (_database.select(_database.appSettings)
+                  ..where((table) => table.key.like('$_briefPrefix%'))
+                  ..orderBy([
+                    (table) => OrderingTerm.desc(table.updatedAt),
+                    (table) => OrderingTerm.asc(table.key),
+                  ])
+                  ..limit(100, offset: 12))
+                .get();
+        if (expired.isNotEmpty) {
+          await (_database.delete(_database.appSettings)..where(
+                (table) => table.key.isIn(expired.map((row) => row.key)),
+              ))
+              .go();
+        }
+      });
+
   int get _nowMilliseconds => _clock().toUtc().millisecondsSinceEpoch;
   int get _leaseUntil => _nowMilliseconds + _writerLease.inMilliseconds;
 
@@ -195,6 +249,9 @@ class DriftSessionStore implements AssistantConversationStore {
       final sessions = _database.delete(_database.assistantSessions);
       sessions.where((table) => table.id.equals(id));
       await sessions.go();
+      await (_database.delete(
+        _database.appSettings,
+      )..where((table) => table.key.equals('$_briefPrefix$id'))).go();
     });
   }
 

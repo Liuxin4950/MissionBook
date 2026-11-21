@@ -11,6 +11,13 @@ class _AssistantModelGateway {
   AgentConfiguration get _configuration => _controller._configuration;
   final _requests = <CancellationToken, _ModelRequestOwner>{};
 
+  /// 目录删除时停止仍持有旧配置的独立请求。
+  void cancelIndependentRequests() {
+    for (final token in _requests.keys) {
+      token.cancel();
+    }
+  }
+
   /// 主会话、停止和关闭由控制器直接通知，不靠周期轮询猜测请求是否仍有效。
   void interruptObsoleteRequests() {
     for (final entry in _requests.entries) {
@@ -26,6 +33,7 @@ class _AssistantModelGateway {
   Future<T> _request<T>({
     required _ModelRequestOwner owner,
     required Duration timeout,
+    CancellationToken? cancellation,
     required Future<T> Function(ModelRegistry registry, CancellationToken token)
     run,
   }) async {
@@ -35,7 +43,7 @@ class _AssistantModelGateway {
       credentials: _controller._settingsStore.resolveCredential,
       overrides: _controller._overridesFor(configuration),
     );
-    final token = CancellationToken();
+    final token = cancellation ?? CancellationToken();
     _requests[token] = owner;
     final timer = Timer(timeout, () => token.cancel(deadlineExceeded: true));
     try {
@@ -155,6 +163,9 @@ class _AssistantModelGateway {
     }
     _controller._ensureUsable();
     final profileId = modelProfileId;
+    if (!_controller.isProfileSelectable(profileId)) {
+      throw StateError('请先选择可用模型');
+    }
     final configuration = _configuration;
     final profile = configuration.profile(profileId);
     return _request(

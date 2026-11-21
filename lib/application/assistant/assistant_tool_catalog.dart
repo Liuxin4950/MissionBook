@@ -141,9 +141,11 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'getSchedule',
-        '分页读取指定日期日程，默认今天。',
+        '读取指定日期日程，默认今天。回答有无时间、会不会冲突时，先确认日期和起止，传入 startAt 和 endAt 完整核对时间窗；不可从某一页推断有空。',
         AssistantTools._schema({
           'date': AssistantTools._string('YYYY-MM-DD'),
+          'startAt': AssistantTools._string('活动起点，ISO 8601 含时区，精确到分钟'),
+          'endAt': AssistantTools._string('活动终点，ISO 8601 含时区，精确到分钟'),
           'offset': AssistantTools._offsetSchema,
         }),
         _owner._scheduleQuery,

@@ -10,7 +10,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.Context
 import android.content.pm.ServiceInfo
+import android.graphics.Rect
+import android.hardware.display.DisplayManager
 import android.graphics.PixelFormat
 import android.graphics.BitmapFactory
 import android.content.res.ColorStateList
@@ -19,31 +22,49 @@ import android.util.Base64
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.InsetDrawable
 import android.os.Build
 import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
+import android.view.Display
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.ViewConfiguration
 import android.widget.TextView
 import android.widget.Toast
-import android.widget.LinearLayout
+import java.util.concurrent.Executors
 
 class AssistantOverlayService : Service() {
+    private lateinit var overlayContext: Context
+    private val windowType get() = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE
     private var windowManager: WindowManager? = null
-    private var bubble: View? = null
+    private var bubble: FrameLayout? = null
     private var menu: View? = null
     private var docked = false
     private var dockLeft = false
     private var positionX = -1
     private var positionY = -1
+    private var takingCapture = false
+    private var captureTicket: String? = null
+    private var latestNotice: Map<*, *>? = null
+    private var pendingPanelAction: (() -> Unit)? = null
+    private val workspaceLease = Any()
+    private val fileReader = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         super.onCreate()
-        windowManager = getSystemService(WindowManager::class.java)
+        overlayContext = if (Build.VERSION.SDK_INT >= 30) {
+            val display = getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+            createDisplayContext(display).createWindowContext(windowType, null)
+        } else this
+        windowManager = overlayContext.getSystemService(WindowManager::class.java)
         createNotificationChannel()
         val builder = if (Build.VERSION.SDK_INT >= 26) {
             Notification.Builder(this, CHANNEL_ID)
@@ -70,16 +91,31 @@ class AssistantOverlayService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+        active = this
+        AssistantWorkspaceHost.acquire(this, workspaceLease)
+        AssistantWorkspaceHost.onReady = { (menu as? AssistantOverlayPanel)?.let(::loadPanel) }
+        AssistantWorkspaceHost.onState = { (menu as? AssistantOverlayPanel)?.render(it) }
+        AssistantWorkspaceHost.onError = { (menu as? AssistantOverlayPanel)?.showError(it) }
+        AssistantWorkspaceHost.onUnavailable = {
+            takingCapture = false
+            captureTicket = null
+            latestNotice = null
+            removeMenu()
+            showBubble()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action != ACTION_STOP && !getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(ENABLED_KEY, false)) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (!Settings.canDrawOverlays(this)) {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(ENABLED_KEY, false).apply()
             stopSelf()
             return START_NOT_STICKY
         }
         when (intent?.action) {
-            ACTION_HIDE -> removeBubble()
             ACTION_REFRESH -> {
                 if (bubble != null) {
                     removeBubble()
@@ -96,11 +132,11 @@ class AssistantOverlayService : Service() {
     }
 
     private fun showBubble() {
-        if (bubble != null || !Settings.canDrawOverlays(this)) return
-        val size = (56 * resources.displayMetrics.density).toInt()
+        if (bubble != null || takingCapture || !Settings.canDrawOverlays(this)) return
+        val size = dp(56)
         val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         val name = prefs.getString("persona_name", "书祺") ?: "书祺"
-        val label = FrameLayout(this).apply {
+        val label = FrameLayout(overlayContext).apply {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(0xFFFFFFFF.toInt())
@@ -108,12 +144,10 @@ class AssistantOverlayService : Service() {
             }
             elevation = dp(4).toFloat()
             clipToOutline = true
-            val inset = dp(3)
-            setPadding(inset, inset, inset, inset)
             contentDescription = "$name，AI 助手"
             isClickable = true
         }
-        val avatar = ImageView(this).apply {
+        val avatar = ImageView(overlayContext).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFFE7F1EA.toInt()) }
             clipToOutline = true
@@ -136,17 +170,18 @@ class AssistantOverlayService : Service() {
         val layout = WindowManager.LayoutParams(
             size,
             size,
-            if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else WindowManager.LayoutParams.TYPE_PHONE,
+            windowType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.TOP or Gravity.LEFT
-            val maxX = (resources.displayMetrics.widthPixels - size).coerceAtLeast(0)
-            x = if (positionX < 0) (maxX - dp(12)).coerceAtLeast(0) else positionX.coerceIn(0, maxX)
-            y = if (positionY < 0) resources.displayMetrics.heightPixels / 3 else positionY
-            if (docked) { width = dp(48); height = dp(64); x = if (dockLeft) 0 else resources.displayMetrics.widthPixels - width }
+            useScreenCoordinates(this)
+            val bounds = safeFrame()
+            if (docked) { width = dp(48); height = dp(64) }
+            x = if (docked) { if (dockLeft) bounds.left else bounds.right - width }
+                else if (positionX < 0) bounds.right - width - dp(12) else positionX
+            y = if (positionY < 0) bounds.top + bounds.height() / 3 else positionY
+            clampBall(this, bounds)
         }
         var downX = 0f
         var downY = 0f
@@ -169,23 +204,21 @@ class AssistantOverlayService : Service() {
                     if (kotlin.math.abs(dx) + kotlin.math.abs(dy) > ViewConfiguration.get(this).scaledTouchSlop) moved = true
                     if (moved) {
                         removeMenu()
+                        val bounds = safeFrame()
                         if (docked) {
                             val inward = OverlayEdgeGeometry.inwardDistance(dockLeft, dx)
                             if (inward > dp(24)) {
-                                docked = false
-                                layout.width = size
-                                layout.height = size
-                                layout.x = OverlayEdgeGeometry.revealedX(dockLeft, resources.displayMetrics.widthPixels, size, dp(16))
+                                revealBall(label, layout, bounds)
                                 downX = event.rawX
                                 downY = event.rawY
                                 startX = layout.x
                                 startY = layout.y
-                                renderDock(label, avatar)
-                            } else layout.y = (startY + dy).coerceIn(0, (resources.displayMetrics.heightPixels - layout.height).coerceAtLeast(0))
+                            } else layout.y = startY + dy
                         } else {
-                            layout.x = (startX + dx).coerceIn(0, (resources.displayMetrics.widthPixels - size).coerceAtLeast(0))
-                            layout.y = (startY + dy).coerceIn(0, (resources.displayMetrics.heightPixels - size).coerceAtLeast(0))
+                            layout.x = startX + dx
+                            layout.y = startY + dy
                         }
+                        clampBall(layout, bounds)
                         windowManager?.updateViewLayout(view, layout)
                     }
                     true
@@ -194,15 +227,15 @@ class AssistantOverlayService : Service() {
                     if (!moved) {
                         view.performClick()
                     } else if (!docked) {
-                        val maxX = (resources.displayMetrics.widthPixels - size).coerceAtLeast(0)
-                        if (OverlayEdgeGeometry.nearEdge(layout.x, resources.displayMetrics.widthPixels, size, dp(12))) {
-                            dockLeft = layout.x < maxX / 2
+                        val bounds = safeFrame()
+                        if (OverlayEdgeGeometry.nearEdge(layout.x - bounds.left, bounds.width(), size, dp(12))) {
+                            dockLeft = layout.x + size / 2 < bounds.centerX()
                             docked = true
                             layout.width = dp(48)
                             layout.height = dp(64)
-                            layout.x = if (dockLeft) 0 else resources.displayMetrics.widthPixels - layout.width
-                            layout.y = layout.y.coerceIn(0, (resources.displayMetrics.heightPixels - layout.height).coerceAtLeast(0))
-                            renderDock(label, avatar)
+                            layout.x = if (dockLeft) bounds.left else bounds.right - layout.width
+                            clampBall(layout, bounds)
+                            renderDock(label)
                             windowManager?.updateViewLayout(view, layout)
                         }
                         positionX = layout.x
@@ -222,16 +255,9 @@ class AssistantOverlayService : Service() {
             }
         }
         label.setOnClickListener {
-            if (docked) {
-                docked = false
-                layout.width = size
-                layout.height = size
-                layout.x = OverlayEdgeGeometry.revealedX(dockLeft, resources.displayMetrics.widthPixels, size, dp(16))
-                renderDock(label, avatar)
-                windowManager?.updateViewLayout(label, layout)
-            } else if (menu == null) showMenu(layout) else removeMenu()
+            if (menu == null) showMenu(layout) else removeMenu()
         }
-        renderDock(label, avatar)
+        renderDock(label)
         try {
             windowManager?.addView(label, layout)
             bubble = label
@@ -241,33 +267,45 @@ class AssistantOverlayService : Service() {
         }
     }
 
-    private fun renderDock(label: FrameLayout, avatar: ImageView) {
-        avatar.visibility = if (docked) View.GONE else View.VISIBLE
+    private fun revealBall(label: FrameLayout, layout: WindowManager.LayoutParams, bounds: Rect) {
+        val size = dp(56)
+        docked = false
+        layout.x = bounds.left + OverlayEdgeGeometry.revealedX(dockLeft, bounds.width(), size, dp(16))
+        layout.y += (layout.height - size) / 2
+        layout.width = size
+        layout.height = size
+        clampBall(layout, bounds)
+        positionX = layout.x
+        positionY = layout.y
+        renderDock(label)
+    }
+
+    private fun renderDock(label: FrameLayout) {
+        label.getChildAt(0).visibility = if (docked) View.GONE else View.VISIBLE
         val shape = GradientDrawable().apply {
-            if (docked) {
-                setColor(0xFFE7F1EA.toInt())
-                cornerRadii = if (dockLeft) floatArrayOf(0f, 0f, dp(12).toFloat(), dp(12).toFloat(), dp(12).toFloat(), dp(12).toFloat(), 0f, 0f)
-                    else floatArrayOf(dp(12).toFloat(), dp(12).toFloat(), 0f, 0f, 0f, 0f, dp(12).toFloat(), dp(12).toFloat())
-            } else {
-                this.shape = GradientDrawable.OVAL
-                setColor(0xFFFFFFFF.toInt())
-            }
+            this.shape = GradientDrawable.OVAL
+            setColor(0xFFFFFFFF.toInt())
             setStroke(dp(1), 0xFFD5E1D8.toInt())
         }
-        label.background = if (docked) android.graphics.drawable.InsetDrawable(shape,
-            if (dockLeft) 0 else dp(24), 0, if (dockLeft) dp(24) else 0, 0) else shape
-        // 24dp 的可见把手，保留 48dp 命中区，不把头像裁成半个圆。
+        // 只缩窄可见把手，48dp × 64dp 的触控区域保持不变。
+        val gripX = if (dockLeft) 8 else 36
+        label.background = if (docked) android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT) else shape
         label.foreground = if (docked) GradientDrawable().apply {
-            setColor(0xFF769581.toInt())
+            setColor(0xFF244D3D.toInt())
             cornerRadius = dp(2).toFloat()
-            setSize(dp(3), dp(24))
-        }.let { android.graphics.drawable.InsetDrawable(it, if (dockLeft) dp(10) else dp(34), dp(20), if (dockLeft) dp(34) else dp(10), dp(20)) } else null
+        }.let { InsetDrawable(it, dp(gripX), dp(11), dp(44 - gripX), dp(11)) } else null
+        // 把手的 InsetDrawable 不能改变 View 的实际触控范围；切回头像时清除残留内边距。
+        val padding = if (docked) 0 else dp(3)
+        label.setPadding(padding, padding, padding, padding)
+        label.clipToOutline = !docked
         label.elevation = if (docked) 0f else dp(4).toFloat()
         label.contentDescription = if (docked) "助手已收起，向屏幕内滑动或轻点展开" else "AI 助手，轻点打开，拖到边缘收起"
         if (Build.VERSION.SDK_INT >= 29) {
             label.post {
-                // 仅让把手的小块区域接收侧滑，保留其余系统返回手势。
-                label.systemGestureExclusionRects = if (docked) listOf(android.graphics.Rect(if (dockLeft) 0 else dp(24), 0, if (dockLeft) dp(24) else label.width, label.height)) else emptyList()
+                // 仅让可见把手区域接收侧滑，保留其余系统返回手势。
+                label.systemGestureExclusionRects = if (docked) {
+                    listOf(Rect(dp(gripX), dp(11), dp(gripX + 4), label.height - dp(11)))
+                } else emptyList()
             }
         }
     }
@@ -275,112 +313,285 @@ class AssistantOverlayService : Service() {
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         val shown = bubble != null
+        val reopen = menu != null
+        val chatting = (menu as? AssistantOverlayPanel)?.inConversation == true
         removeBubble()
-        positionX = positionX.coerceIn(0, (resources.displayMetrics.widthPixels - dp(56)).coerceAtLeast(0))
-        positionY = positionY.coerceIn(0, (resources.displayMetrics.heightPixels - dp(64)).coerceAtLeast(0))
         if (shown) showBubble()
+        if (shown && reopen) {
+            (bubble?.layoutParams as? WindowManager.LayoutParams)?.let {
+                if (chatting) showPanel(it, true) else showMenu(it)
+            }
+        }
     }
 
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    private fun dp(value: Int): Int = (value * overlayContext.resources.displayMetrics.density + .5f).toInt()
 
-    private fun openAssistant() {
-        removeBubble()
-        val capture = getSharedPreferences(PREFS, MODE_PRIVATE).getString(MainActivity.EXTRA_CAPTURE_PATH, null)
-        val intent = MainActivity.assistantIntent(this, capture)
-        try { startActivity(intent) }
-        catch (error: Exception) { reportOverlayFailure("无法打开助手", error); showBubble() }
+    private fun useScreenCoordinates(params: WindowManager.LayoutParams) {
+        params.gravity = Gravity.TOP or Gravity.LEFT
+        params.flags = params.flags or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+        params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+        if (Build.VERSION.SDK_INT >= 30) {
+            params.fitInsetsTypes = 0
+            params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+        } else if (Build.VERSION.SDK_INT >= 28) {
+            params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun safeFrame(withIme: Boolean = false): Rect {
+        val wm = requireNotNull(windowManager)
+        if (Build.VERSION.SDK_INT >= 30) {
+            val metrics = wm.currentWindowMetrics
+            val insets = metrics.windowInsets
+            val bars = insets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+            val keyboard = if (withIme) insets.getInsets(WindowInsets.Type.ime()).bottom else 0
+            return Rect(bars.left, bars.top, metrics.bounds.width() - bars.right,
+                metrics.bounds.height() - maxOf(bars.bottom, keyboard)).also { frame ->
+                // 某些输入法只向获得焦点的窗口报告可视区域，而不是向 WindowContext 报告。
+                if (withIme) (menu ?: bubble)?.takeIf { it.isAttachedToWindow }?.let { view ->
+                    val visible = Rect().also(view::getWindowVisibleDisplayFrame)
+                    if (!visible.isEmpty) frame.intersect(visible)
+                }
+            }
+        }
+        val real = android.util.DisplayMetrics().also { wm.defaultDisplay.getRealMetrics(it) }
+        val bounds = Rect(0, 0, real.widthPixels, real.heightPixels)
+        val view = if (withIme) menu ?: bubble else bubble
+        view?.takeIf { it.isAttachedToWindow }?.let {
+            val visible = Rect().also(it::getWindowVisibleDisplayFrame)
+            if (!visible.isEmpty) bounds.intersect(visible)
+        }
+        return bounds
+    }
+
+    private fun clampBall(params: WindowManager.LayoutParams, frame: Rect) {
+        params.x = params.x.coerceIn(frame.left, maxOf(frame.left, frame.right - params.width))
+        params.y = params.y.coerceIn(frame.top, maxOf(frame.top, frame.bottom - params.height))
+    }
+
+    private fun openAssistant(missionId: String? = null) {
+        try {
+            startActivity(MainActivity.assistantIntent(this, missionId))
+            removeMenu()
+        } catch (error: Exception) {
+            reportOverlayFailure("无法打开任务或会话", error)
+        }
     }
 
     private fun showMenu(bubbleLayout: WindowManager.LayoutParams) {
         if (menu != null) return
-        val density = resources.displayMetrics.density
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            background = GradientDrawable().apply {
-                setColor(0xFFFFFFFF.toInt())
-                cornerRadius = 16 * density
-                setStroke((1 * density).toInt(), 0xFFE0E7DF.toInt())
-            }
+        if (docked) {
+            val label = bubble ?: return
+            revealBall(label, bubbleLayout, safeFrame())
+            windowManager?.updateViewLayout(label, bubbleLayout)
         }
-        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
-        panel.elevation = dp(8).toFloat()
-        fun option(label: String, icon: Int, highlighted: Boolean = false, action: () -> Unit) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                minimumHeight = dp(48)
-                setPadding(dp(12), 0, dp(12), 0)
-                contentDescription = label
-                isFocusable = true
-                background = RippleDrawable(ColorStateList.valueOf(0x22244D3D), GradientDrawable().apply {
-                    setColor(if (highlighted) 0xFFE7F1EA.toInt() else 0xFFFFFFFF.toInt())
-                    cornerRadius = dp(12).toFloat()
-                }, null)
-                setOnClickListener { action() }
-            }
-            row.addView(ImageView(this).apply {
-                setImageResource(icon)
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LinearLayout.LayoutParams(dp(20), dp(20)))
-            row.addView(TextView(this).apply {
-                text = label
-                textSize = 12f
-                setTextColor(0xFF282E2A.toInt())
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LinearLayout.LayoutParams(-1, -2).apply { marginStart = dp(12) })
-            panel.addView(row)
-        }
-        val pending = prefs.getString(MainActivity.EXTRA_CAPTURE_PATH, null) != null
-        option(if (pending) "截图已就绪 · 打开助手" else "打开 AI 助手", R.drawable.assistant_chat, pending) { openAssistant() }
-        option("截屏提问", R.drawable.assistant_capture) { startCapture(false) }
-        option("关闭悬浮入口", R.drawable.assistant_close) {
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(ENABLED_KEY, false).apply()
-            stopSelf()
-        }
+        val ball = Rect(bubbleLayout.x, bubbleLayout.y,
+            bubbleLayout.x + bubbleLayout.width, bubbleLayout.y + bubbleLayout.height)
+        val placement = AssistantOverlayQuickMenu.place(safeFrame(), ball, ::dp)
+            ?: return showPanel(bubbleLayout)
+        val quick = AssistantOverlayQuickMenu(
+            overlayContext,
+            placement,
+            menuMotionDuration(),
+            onText = ::openChat,
+            onVoice = ::openVoice,
+            onCapture = ::startCapture,
+            onOpen = { openAssistant() },
+            onUsage = ::toggleUsage,
+            usageTitle = ::usageTitle,
+        )
         val params = WindowManager.LayoutParams(
-            dp(192),
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            placement.window.width(),
+            placement.window.height(),
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.TOP or Gravity.LEFT
-            x = bubbleLayout.x
-            y = bubbleLayout.y
+            useScreenCoordinates(this)
+            x = placement.window.left
+            y = placement.window.top
         }
         try {
-            val duration = menuMotionDuration()
-            panel.alpha = if (duration == 0L) 1f else 0f
-            panel.translationY = if (duration == 0L) 0f else dp(4).toFloat()
-            windowManager?.addView(panel, params)
-            menu = panel
-            positionMenu(bubbleLayout)
-            panel.post { if (menu === panel) positionMenu(bubbleLayout) }
-            if (duration > 0L) {
-                panel.animate().alpha(1f).translationY(0f)
-                    .setDuration(duration)
-                    .setInterpolator(PathInterpolator(.22f, .8f, .24f, 1f))
-                    .start()
-            }
+            windowManager?.addView(quick, params)
+            menu = quick
         } catch (error: Exception) {
-            if (menu === panel) removeMenu() else menu = null
-            reportOverlayFailure("无法显示助手快捷菜单", error)
+            reportOverlayFailure("无法显示助手操作菜单", error)
         }
     }
 
-    private fun startCapture(longCapture: Boolean) {
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(CAPTURE_PENDING_KEY, true).apply()
-        removeBubble()
+    private fun showPanel(
+        bubbleLayout: WindowManager.LayoutParams,
+        conversation: Boolean = false,
+        afterLoad: (() -> Unit)? = null,
+    ) {
+        if (menu is AssistantOverlayPanel) return
+        if (menu != null) removeMenu()
+        if (docked) {
+            val label = bubble ?: return
+            revealBall(label, bubbleLayout, safeFrame())
+            windowManager?.updateViewLayout(label, bubbleLayout)
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            useScreenCoordinates(this)
+        }
+        val panel = AssistantOverlayPanel(
+            overlayContext,
+            ::startCapture,
+            ::startVoice,
+            { openAssistant() },
+            ::openAssistant,
+            onRecord = { id ->
+                try { startActivity(MainActivity.assistantIntent(this, recordId = id)); removeMenu() }
+                catch (_: Exception) { (menu as? AssistantOverlayPanel)?.showError("无法打开记录") }
+            },
+        ) {
+            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            menu?.let { windowManager?.updateViewLayout(it, params) }
+        }
         try {
-            startActivity(Intent(this, AssistantCaptureConsentActivity::class.java)
-                .putExtra(AssistantScreenCaptureService.EXTRA_LONG_CAPTURE, longCapture)
+            if (conversation) panel.openConversation()
+            if (!placePanel(panel, params, bubbleLayout)) return
+            windowManager?.addView(panel, params)
+            menu = panel
+            latestNotice?.let { panel.notice(it) { latestNotice = null } }
+            var queued = false
+            fun reposition() {
+                if (queued || menu !== panel) return
+                queued = true
+                panel.postOnAnimation {
+                    queued = false
+                    if (menu !== panel) return@postOnAnimation
+                    val oldX = params.x; val oldY = params.y; val oldWidth = params.width
+                    if (placePanel(panel, params, bubbleLayout) &&
+                        (params.x != oldX || params.y != oldY || params.width != oldWidth)) {
+                        windowManager?.updateViewLayout(panel, params)
+                    }
+                }
+            }
+            panel.viewTreeObserver.addOnGlobalLayoutListener { reposition() }
+            panel.setOnApplyWindowInsetsListener { view, insets -> reposition(); view.onApplyWindowInsets(insets) }
+            val duration = menuMotionDuration()
+            if (duration > 0L) {
+                panel.alpha = 0f
+                panel.animate().alpha(1f).setDuration(duration)
+                    .setInterpolator(PathInterpolator(.22f, .8f, .24f, 1f)).start()
+            }
+            pendingPanelAction = afterLoad
+            loadPanel(panel)
+        } catch (error: Exception) {
+            if (menu === panel) removeMenu()
+            reportOverlayFailure("无法显示助手对话", error)
+        }
+    }
+
+    private fun openChat() {
+        (bubble?.layoutParams as? WindowManager.LayoutParams)?.let { showPanel(it, true) }
+    }
+
+    private fun loadPanel(panel: AssistantOverlayPanel) {
+        panel.load {
+            if (menu === panel) {
+                pendingPanelAction?.also {
+                    pendingPanelAction = null
+                    it()
+                }
+            }
+        }
+    }
+
+    private fun openVoice() {
+        (bubble?.layoutParams as? WindowManager.LayoutParams)?.let { showPanel(it, false) { startVoice() } }
+    }
+
+    private fun usageTitle(): String {
+        val status = AssistantUsageMonitorService.status(this)
+        return if (status["enabled"] == true && status["paused"] != true) "监督中" else "监督"
+    }
+
+    private fun toggleUsage() {
+        val status = AssistantUsageMonitorService.status(this)
+        if (status["enabled"] != true) {
+            Toast.makeText(this, "请先在助手设置中开启应用感知", Toast.LENGTH_SHORT).show()
+            return
+        }
+        AssistantUsageMonitorService.configure(this, mapOf("paused" to (status["paused"] != true)))
+        (menu as? AssistantOverlayQuickMenu)?.showMoreActions(animate = false)
+    }
+
+    private fun startCapture() {
+        if (takingCapture) return
+        takingCapture = true
+        AssistantWorkspaceHost.call("beginCapture", failure = {
+            takingCapture = false
+            (menu as? AssistantOverlayPanel)?.showError(it)
+                ?: Toast.makeText(this, it, Toast.LENGTH_SHORT).show()
+        }) { value ->
+            val ticket = value as? String
+            if (ticket == null) { takingCapture = false; return@call }
+            if (active !== this) {
+                takingCapture = false
+                AssistantWorkspaceHost.call("capture", mapOf("ticket" to ticket), failure = {})
+                return@call
+            }
+            captureTicket = ticket
+            removeBubble()
+            try {
+                startActivity(Intent(this, AssistantCaptureConsentActivity::class.java)
+                    .putExtra(AssistantScreenCaptureService.EXTRA_TICKET, ticket)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (error: Exception) {
+                finishCapture(ticket, null)
+                reportOverlayFailure("无法打开系统截屏授权", error)
+            }
+        }
+    }
+
+    private fun finishCapture(ticket: String, file: File?) {
+        if (ticket != captureTicket) { file?.delete(); return }
+        captureTicket = null
+        fun deliver(bytes: ByteArray?) {
+            if (active !== this) return
+            takingCapture = false
+            AssistantWorkspaceHost.call("capture", mapOf("ticket" to ticket, "bytes" to bytes), failure = {
+                Toast.makeText(this, it, Toast.LENGTH_SHORT).show()
+                reopenAfterCapture()
+            }) { reopenAfterCapture() }
+        }
+        if (file == null) { deliver(null); return }
+        fileReader.execute {
+            val bytes = try {
+                file.takeIf { it.length() in 1L..MainActivity.MAX_ASSISTANT_CAPTURE_BYTES }?.readBytes()
+            } catch (_: Exception) { null }
+            finally { file.delete() }
+            mainHandler.post {
+                if (bytes == null && active === this) Toast.makeText(this, "截图读取失败", Toast.LENGTH_SHORT).show()
+                deliver(bytes)
+            }
+        }
+    }
+
+    private fun reopenAfterCapture() {
+        if (active !== this) return
+        showBubble()
+        (bubble?.layoutParams as? WindowManager.LayoutParams)?.let { showPanel(it) }
+    }
+
+    private fun startVoice() {
+        val target = (menu as? AssistantOverlayPanel)?.draftKey() ?: return
+        (menu as? AssistantOverlayPanel)?.hideKeyboard()
+        try {
+            startActivity(Intent(this, AssistantOverlayVoiceActivity::class.java)
+                .putExtra(AssistantOverlayVoiceActivity.EXTRA_DRAFT, target)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (error: Exception) {
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(CAPTURE_PENDING_KEY, false).apply()
-            reportOverlayFailure("无法打开系统截屏授权", error)
-            showBubble()
+            (menu as? AssistantOverlayPanel)?.showError("无法打开录音，请使用文字输入")
         }
     }
 
@@ -393,23 +604,33 @@ class AssistantOverlayService : Service() {
         }
     }
 
-    private fun positionMenu(bubbleLayout: WindowManager.LayoutParams) {
-        val panel = menu ?: return
-        val params = panel.layoutParams as? WindowManager.LayoutParams ?: return
-        val metrics = resources.displayMetrics
-        val gap = (8 * metrics.density).toInt()
-        val panelWidth = params.width
-        val panelHeight = panel.height.takeIf { it > 0 } ?: dp(160)
-        val maxX = (metrics.widthPixels - panelWidth).coerceAtLeast(0)
-        val afterBubble = bubbleLayout.x + bubbleLayout.width + gap
-        val beforeBubble = bubbleLayout.x - panelWidth - gap
-        params.x = (if (beforeBubble >= 0) beforeBubble else afterBubble).coerceIn(0, maxX)
-        params.y = bubbleLayout.y.coerceIn(0, (metrics.heightPixels - panelHeight).coerceAtLeast(0))
-        windowManager?.updateViewLayout(panel, params)
+    private fun placePanel(panel: AssistantOverlayPanel, params: WindowManager.LayoutParams,
+                           ball: WindowManager.LayoutParams): Boolean {
+        val frame = safeFrame(withIme = true).apply { inset(dp(8), dp(8)) }
+        val location = intArrayOf(ball.x, ball.y)
+        // 刚从把手展开时，旧 View 仍在边缘；这帧先用新头像窗口的布局参数。
+        bubble?.takeIf { it.isLaidOut && it.width == ball.width && it.height == ball.height }
+            ?.getLocationOnScreen(location)
+        val (x, y) = location
+        val slot = OverlayPanelPlacement.choose(
+            OverlayPanelPlacement.Box(frame.left, frame.top, frame.right, frame.bottom),
+            OverlayPanelPlacement.Box(x, y, x + ball.width, y + ball.height),
+            dp(if (panel.inConversation) 328 else 220), dp(if (panel.inConversation) 256 else 172), dp(10),
+        ) ?: return false
+        panel.limitHeight(minOf(slot.height, dp(if (panel.inConversation) 384 else 316)))
+        panel.measure(View.MeasureSpec.makeMeasureSpec(slot.width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(slot.height, View.MeasureSpec.AT_MOST))
+        params.x = slot.x
+        params.y = slot.y(panel.measuredHeight)
+        params.width = slot.width
+        return true
     }
 
     private fun removeMenu() {
+        pendingPanelAction = null
         menu?.let { view ->
+            (view as? AssistantOverlayPanel)?.hideKeyboard()
+            AssistantWorkspaceHost.call("unwatch", failure = {})
             view.animate().cancel()
             try { windowManager?.removeView(view) } catch (_: Exception) { }
         }
@@ -446,7 +667,18 @@ class AssistantOverlayService : Service() {
 
     @Suppress("DEPRECATION")
     override fun onDestroy() {
+        captureTicket?.let { AssistantWorkspaceHost.call("capture", mapOf("ticket" to it), failure = {}) }
+        captureTicket = null
         removeBubble()
+        fileReader.shutdown()
+        if (active === this) {
+            active = null
+            AssistantWorkspaceHost.onReady = null
+            AssistantWorkspaceHost.onState = null
+            AssistantWorkspaceHost.onUnavailable = null
+            AssistantWorkspaceHost.onError = null
+        }
+        AssistantWorkspaceHost.release(workspaceLease)
         if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE)
         else stopForeground(true)
         super.onDestroy()
@@ -455,13 +687,40 @@ class AssistantOverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        private var active: AssistantOverlayService? = null
+
+        internal fun showNotice(notice: Map<*, *>): Boolean {
+            val service = active ?: return false
+            if (service.takingCapture || !Settings.canDrawOverlays(service)) return false
+            if (service.latestNotice != null) return false
+            service.latestNotice = notice
+            val panel = service.menu as? AssistantOverlayPanel
+            if (panel != null) panel.notice(notice) { service.latestNotice = null }
+            else service.reopenAfterCapture()
+            return service.menu != null
+        }
+
+        internal fun maskForSample(masked: Boolean) {
+            val value = if (masked) View.INVISIBLE else View.VISIBLE
+            active?.bubble?.visibility = value
+            active?.menu?.visibility = value
+        }
+
+        internal fun captureDone(ticket: String?, file: File?) {
+            val service = active
+            if (service == null || ticket == null) file?.delete()
+            else service.finishCapture(ticket, file)
+        }
+
+        internal fun voiceDone(draft: String) {
+            val panel = active?.menu as? AssistantOverlayPanel ?: return
+            panel.showVoiceDraft(draft)
+        }
         const val ACTION_REFRESH = "chat.liuxin.mission_book.overlay.REFRESH"
         const val ACTION_SHOW = "chat.liuxin.mission_book.overlay.SHOW"
-        const val ACTION_HIDE = "chat.liuxin.mission_book.overlay.HIDE"
         const val ACTION_STOP = "chat.liuxin.mission_book.overlay.STOP"
         const val PREFS = "assistant_overlay"
         const val ENABLED_KEY = "enabled"
-        const val CAPTURE_PENDING_KEY = "capture_pending"
         private const val TAG = "AssistantOverlay"
         private const val CHANNEL_ID = "assistant_overlay"
         private const val NOTIFICATION_ID = 7402

@@ -9,6 +9,29 @@ import 'package:mission_book/data/assistant/assistant_settings_store.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('删除整项服务后读回空目录，不恢复默认服务', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    const store = SecureAssistantSettingsStore();
+    await store.saveCatalog(
+      ProviderCatalog(
+        providers: [],
+        models: [],
+        selection: const ModelSelection(defaultProfileId: null),
+      ),
+    );
+    final loaded = await store.load();
+    expect(loaded.catalog.providers, isEmpty);
+    expect(loaded.catalog.models, isEmpty);
+    expect(loaded.defaultProfileId, isNull);
+    final config = loaded.catalog.compileConfiguration(
+      base: AgentConfiguration.deepSeek(),
+    );
+    expect(config.defaultModelProfile, ProviderCatalog.unconfiguredProfileId);
+    expect(
+      config.profiles.any((profile) => profile.provider == 'deepseek'),
+      isFalse,
+    );
+  });
   test('保存和重读角色同步系统悬浮头像，恢复内置头像清除自定义内容', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     const channel = MethodChannel('mission_book/device');

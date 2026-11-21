@@ -7,6 +7,7 @@ import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../widgets/adaptive_columns.dart';
+import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_expansion.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/app_settings_row.dart';
@@ -227,6 +228,16 @@ class _ModelOverviewState extends State<_ModelOverview> {
                               ].join(' · '),
                               enabled: !_busy,
                               onTap: () => _openProvider(provider),
+                              trailing: IconButton(
+                                key: Key(
+                                  'assistant-delete-provider-${provider.providerId}',
+                                ),
+                                tooltip: '删除服务：${provider.displayName}',
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: _busy || _controller.isBusy
+                                    ? null
+                                    : () => _deleteProvider(provider),
+                              ),
                             ),
                             const Divider(height: 1),
                           ],
@@ -321,6 +332,34 @@ class _ModelOverviewState extends State<_ModelOverview> {
       ),
     );
     if (mounted) setState(() {});
+  }
+
+  Future<void> _deleteProvider(ProviderConfig provider) async {
+    if (_busy || _controller.isBusy) return;
+    final catalog = _controller.providerCatalog;
+    final clearsDefault =
+        catalog.providerForProfile(_controller.defaultProfileId)?.providerId ==
+        provider.providerId;
+    final confirmed = await AppConfirmDialog.show(
+      context: context,
+      title: '删除服务',
+      message:
+          '将移除「${provider.displayName}」及其模型，历史聊天保留。'
+          '${clearsDefault ? '删除后需重新选择默认模型。' : ''}',
+      confirmText: '删除',
+    );
+    if (!confirmed || !mounted) return;
+    await _run(() async {
+      final result = await _controller.deleteProvider(provider.providerId);
+      if (!mounted) return;
+      final message = [
+        '已删除「${provider.displayName}」',
+        ...result.warnings,
+      ].join('；');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    });
   }
 
   Future<void> _chooseDefault() => _pickAndApply(

@@ -37,6 +37,7 @@
 | [CaptureSelectionView.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/CaptureSelectionView.kt) | 当前真实画面与遮罩、框选/移动/四角调整 |
 | [CaptureSelection.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/CaptureSelection.kt) | 可独立验证的矩形像素几何 |
 | [OverlayEdgeGeometry.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/OverlayEdgeGeometry.kt) | 左右边缘收起与呼出的坐标规则 |
+| [OverlayPanelPlacement.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/OverlayPanelPlacement.kt) / [AssistantOverlayPanel.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayPanel.kt) | 在头像以外的可用区域定位；分别呈现工具、草稿与对话 |
 | [LongCaptureMatcher.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/LongCaptureMatcher.kt) | 相邻帧滚动位移、固定栏识别及不可靠拼接拒绝 |
 
 ## 相机状态流
@@ -73,18 +74,11 @@ DeviceCapabilities 以唯一的 DevicePlatform 标识平台；通知、准时提
 
 ## Android 跨应用助手
 
-Android 跨应用助手从助手设置中显式启用，获得悬浮窗权限后才启动前台气泡。点击气泡切换菜单，拖动跟手且限制在屏幕内；拖向左右边缘后收起为浅绿把手（可见 24×64dp，命中宽 48dp），从把手向内滑动 24dp 或点按可展开。仅把手所在的小块区域申请系统手势排除，屏幕其他边缘仍用于系统返回。应用回到前台时隐藏，离开后再显示；旋转后重新限制坐标，角色刷新不主动显示隐藏入口。
-
-菜单提供打开助手、截屏提问和关闭入口。截屏每次通过系统 MediaProjection 确认，采集首帧后在当前画面上显示原生冻结遮罩，顶部集中“局部 / 全屏 / 长截图 / 完成 / 取消”，默认局部。用户拖出矩形、框内移动、四角调整，确认后按原图像素坐标裁剪；不再先回聊天再选择范围。窄屏 / 大字号工具栏可横向滚动，刘海和系统栏单独留出操作位置。选择长截图时，有选区则持续采集选区，无选区则使用全屏；共用本次投影，自由滚动、自动采集变化并匹配拼接，顶部显示屏数及完成/取消，最多 12 屏、5 分钟取消。采集前短暂移除控制条，等待合成期间保留新帧，200ms 后读取；控制条不进入图片，不申请无障碍权限，不自动滚动。屏幕旋转或被截内容尺寸变化则取消并提示重新截图，避免沿用旧坐标。
-
-授权 Activity 使用独立的 `${applicationId}.capture` 任务归属且不进入最近任务，避免授权时把主应用带到被截画面前；服务通过包内广播通知完成。主 MainActivity 使用 singleTask 和应用默认任务归属；悬浮打开和截图返回共用 MainActivity.assistantIntent，已有主 Activity 从 onNewIntent 接收图片或打开请求；失败、超时和取消恢复悬浮入口并提示。完成或取消时释放投影。普通截图现在等待用户确认，原十秒超时已改为同一五分钟资源上限。实现及验证范围见[本轮修复](../../../审查/2026-11-17-语音与截图交互修复.md)。
-
-取消授权、系统授权窗口无法打开或截屏服务启动失败时，先清除待截屏标记，再在悬浮入口仍启用且有系统权限的情况下恢复气泡，并提示用户。气泡或快捷菜单 `addView` 失败不再静默：记录日志并提示；权限已撤销时同步关闭设置开关并停止前台服务。`MainActivity` 启动时清理 `assistant_capture` 下超过一小时的未消费截图，但保留当前待交接文件；截图路径暂存于本机偏好，重新打开应用时继续交接。consumePendingCapture 读取通过目录及大小校验的文件，AppShell 串行交付，助手草稿接收成功后通过 acknowledgeCapture 删除已交付文件。读图或接收失败保留缓存供再次回到应用时重试；草稿仍为进程内状态。该链路尚未通过目标 HyperOS 真机验收，不代表 Windows 系统入口。
-
-
-系统气泡头像及菜单标题来自已保存的角色设置。SecureAssistantSettingsStore 读取和保存角色时，通过 syncAssistantOverlayPersona 将名称、内置头像选项及自定义 PNG 同步到本机原生展示偏好，原生默认头像读取打包的书祺资源。刷新仅重建已显示的气泡，不主动显示隐藏入口。菜单采用白色圆角、森林绿线性图标、12sp 选项及至少 48dp 触控。截图工具栏沿用暖白与森林绿；长截图控制条为顶部单行计数与“完成 / 取消”，不再在菜单中单列长截图或显示大段采集说明。待交接截图存在时提供“截图已就绪 · 打开助手”。
-
-2026-11-08 在 25060RK16C、Android 16 / HyperOS OS3.0.303.0.WONCNXM 上复现单应用截图完成后启动被拒绝，日志记录 Permission Denied Activity，MIUIOP(10021) 为 ignore。改用本应用任务恢复后，选择系统设置的单应用截图与整屏截图均自动回到聊天并加入草稿，且预览图内容正确。未修改系统后台弹出权限。冷进程、主任务已移除及其他系统版本仍需分别验收。
+- [AssistantWorkspaceHost](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantWorkspaceHost.kt) 让 MainActivity、悬浮和监督服务按需持有同一个主 FlutterEngine。[App 工作区](../../../../lib/app_services.dart)在页面构建前装配同一份业务资源，与计划任务唤醒引擎分开。最后一个持有者释放时先等工作区关闭。备份恢复先禁用监督、撤掉旧桥接，再重建工作区；有代次的回调不能落到新工作区。
+- [悬浮服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayService.kt)由本机开关和系统悬浮权限控制。进入或离开 MissionBook 不隐藏头像；打开完整会话、任务或记录只收面板，手动截图才临时隐藏头像。点头像先展开「截图、语音、文字」，聊天内容按高度滚动。窗口在同一屏幕坐标内避开头像、系统栏和键盘。
+- [截图服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantScreenCaptureService.kt)仅开放手动单次授权，保留原编辑器的选区、全屏、长截图及一次性草稿交付。主动画面授权和取样已搁置。原生临时图交付后删除，未消费缓存到期清理。
+- [应用使用情况](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantUsageMonitorService.kt)需开启本机开关并授予 Android 使用情况访问。定时读取用于本地排期提醒，不调模型。发送悬浮消息时尝试现读，把当前 App 名称和估算连续时长交给本轮会话模型，不另选模型，不发送历史清单或截图。锁屏、暂停、无权限或查不到时不提供。授权偏好不进备份，前台信号不是任务执行事实。
+- [可见录音窗口](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayVoiceActivity.kt)仅由点按开始，提交短 PCM 到现有配置转写，结果回填同一草稿，取消不发送。未发草稿只保证同工作区进程内保留。原生 UI、投影、语音、系统手势和后台恢复仍以目标设备体验为准。
 
 
 ## 系统提醒调用链
@@ -147,4 +141,6 @@ flutter build apk --release --target-platform android-arm64
 
 常驻通知在 Android 16 模拟器实际点击“全部清除”后验证四种状态保留，并验证未来提醒仍在队列、END/取消后撤销及迟到外观失效。超级岛协议投影已有运行、冻结和时钟回拨测试；模拟器不支持小米超级岛，厂商外观与鉴权仍待已开通的小米设备验收。具体数据与复验步骤见[本轮通知记录](../../../审查/2026-11-04-常驻提醒与超级岛.md)。
 
-跨应用悬浮菜单宽 192dp，不显示角色名称标题，四个选项各保留至少 48dp 触控高度。
+跨应用悬浮聊天面板最大宽 328dp。点击侧边把手会先恢复完整头像，再按新位置放面板；向内拖动也复用同一恢复逻辑。聊天正文和输入用 12sp，保留系统字体缩放；发送按钮触控区保持 48dp，生成中在原位切成停止按钮，不在消息列表另放操作。
+
+悬浮入口的工具层与聊天层分离：`AssistantOverlayService` 点击主球先显示 `AssistantOverlayQuickMenu`，文字、语音、截图和更多四个动作球在主球的屏幕内侧排成圆弧，左右镜像，从主球中心向各自位置展开。接近屏幕上下边缘时移动整组按钮以免裁掉。更多层仍可打开会话、截图和切换应用感知；聊天继续由 `AssistantOverlayPanel` 和同一 `AssistantWorkspaceHost` 承担。侧边收起保留 48dp × 64dp 的透明触控区，可见绿色把手为 4dp × 42dp。

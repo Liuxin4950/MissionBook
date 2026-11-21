@@ -11,6 +11,13 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
     <application
         android:fullBackupContent="@xml/assistant_backup_rules"
         android:dataExtractionRules="@xml/assistant_data_extraction_rules"
@@ -45,6 +52,11 @@
             android:taskAffinity="${applicationId}.capture"
             android:excludeFromRecents="true"
             android:theme="@style/AssistantCaptureTheme" />
+        <activity android:name=".AssistantOverlayVoiceActivity"
+            android:exported="false"
+            android:taskAffinity="${applicationId}.voice"
+            android:excludeFromRecents="true"
+            android:theme="@style/AssistantCaptureTheme" />
         <service android:name=".PlannedExecutionService" android:exported="false"
             android:foregroundServiceType="shortService" />
         <service android:name=".AssistantOverlayService" android:exported="false"
@@ -54,6 +66,11 @@
         </service>
         <service android:name=".AssistantScreenCaptureService" android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+        <service android:name=".AssistantUsageMonitorService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-enabled app activity supervision and schedule reminders" />
+        </service>
         <service android:name=".PlannedExecutionJob" android:exported="true"
             android:permission="android.permission.BIND_JOB_SERVICE" />
         <receiver android:name=".PlannedAlarmReceiver" android:exported="false">

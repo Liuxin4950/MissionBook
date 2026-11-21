@@ -13,6 +13,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../../../domain/rules/mission_attention_rules.dart';
 import '../../widgets/app_visibility.dart';
 import '../../assistant/entry/assistant_launcher.dart';
+import '../../assistant/entry/assistant_scope.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';
 
@@ -748,6 +749,19 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                 actionFeedback: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (notStarted && AssistantScope.maybeOf(context) != null)
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: TextButton.icon(
+                          icon: const Icon(Icons.auto_awesome_outlined),
+                          label: const Text('我卡住了'),
+                          onPressed: () => openAssistant(
+                            context,
+                            missionId: detail.mission.id,
+                            prompt: '我看不懂这项任务。请根据已保存的步骤和验收要求，先带我做第一步。',
+                          ),
+                        ),
+                      ),
                     if (overdue) ...[
                       Text(
                         '计划时段已过，请确认完成情况，也可以改期或现在补做。',

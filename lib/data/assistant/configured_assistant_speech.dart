@@ -22,6 +22,61 @@ class ConfiguredAssistantSpeech
   AssistantSpeech? _current;
   int _generation = 0;
   bool _disposed = false;
+  http.Client? _externalClient;
+
+  /// 由 Android 可见录音窗口提供 PCM，使用同一本地或远程转写配置。
+  Future<String> transcribePcm(Uint8List pcm) async {
+    if (_disposed) throw StateError('语音服务已关闭');
+    if (pcm.length < 3200 || pcm.length > 960000 || pcm.length.isOdd) {
+      throw const FormatException('录音为空或超出长度限制');
+    }
+    final generation = ++_generation;
+    await _current?.cancel();
+    _externalClient?.close();
+    final saved = await settings.load();
+    if (generation != _generation) return '';
+    Future<String> recognize() async {
+      if (saved.speech.useTranscription) {
+        final key = await settings.resolveCredential(
+          'MISSIONBOOK_TRANSCRIPTION_API_KEY',
+        );
+        if (generation != _generation) return '';
+        final client = http.Client();
+        _externalClient = client;
+        try {
+          return await transcribeAudio(
+            client,
+            saved.speech,
+            key,
+            pcmToWav(pcm),
+          );
+        } finally {
+          client.close();
+          if (identical(_externalClient, client)) _externalClient = null;
+        }
+      }
+      if (!_local.supported || !await _local.hasModel()) {
+        throw const FormatException('语音模型未就绪，请先配置或使用文字');
+      }
+      if (!await _local.prepare()) throw const FormatException('语音模型未能加载');
+      if (generation != _generation) return '';
+      return _local.transcribe(pcm);
+    }
+
+    final result = (await recognize().timeout(
+      const Duration(seconds: 60),
+      onTimeout: () {
+        if (generation == _generation) {
+          _externalClient?.close();
+          _externalClient = null;
+        }
+        throw const FormatException('语音转写超时');
+      },
+    )).trim();
+    if (generation != _generation) return '';
+    if (!hasRecognizedSpeech(result)) throw const FormatException('没有识别到清晰语音');
+    return result;
+  }
 
   @override
   Future<void> warmUp() async {
@@ -40,6 +95,8 @@ class ConfiguredAssistantSpeech
   }) async {
     if (_disposed) throw StateError('语音服务已关闭');
     final generation = ++_generation;
+    _externalClient?.close();
+    _externalClient = null;
     await _current?.cancel();
     final saved = await settings.load();
     if (generation != _generation) return false;
@@ -99,6 +156,8 @@ class ConfiguredAssistantSpeech
   @override
   Future<void> cancel() async {
     ++_generation;
+    _externalClient?.close();
+    _externalClient = null;
     await _current?.cancel();
   }
 
@@ -107,6 +166,8 @@ class ConfiguredAssistantSpeech
     if (_disposed) return;
     _disposed = true;
     ++_generation;
+    _externalClient?.close();
+    _externalClient = null;
     final current = _current;
     _current = null;
     try {

@@ -16,13 +16,63 @@ class _AssistantToolQueries {
     return ToolOutput.success(jsonEncode(result));
   }
 
-  Future<ToolOutput> _scheduleQuery(Map<String, Object?> input, _) async =>
-      _readResult(
-        await _tools._unifiedReader.getSchedule(
-          date: input['date'] as String?,
-          offset: input['offset'] as int? ?? 0,
+  Future<ToolOutput> _scheduleQuery(Map<String, Object?> input, _) async {
+    if (input['startAt'] != null || input['endAt'] != null) {
+      DateTime? instant(Object? value) =>
+          value is String && RegExp(r'(Z|[+-]\d\d:\d\d)$').hasMatch(value)
+          ? DateTime.tryParse(value)
+          : null;
+      final start = instant(input['startAt']);
+      final end = instant(input['endAt']);
+      if (start == null ||
+          end == null ||
+          start.second != 0 ||
+          end.second != 0 ||
+          start.microsecond != 0 ||
+          end.microsecond != 0 ||
+          start.millisecond != 0 ||
+          end.millisecond != 0 ||
+          !end.isAfter(start) ||
+          end.difference(start) > const Duration(days: 1)) {
+        return ToolOutput.failure('invalid_window', '请提供明确的起止时间及其时区，时间窗不超过一天');
+      }
+      final day = tz.TZDateTime.from(
+        start,
+        tz.getLocation(defaultScheduleTimeZone),
+      );
+      final probe = _tools._missions.prepareCreation(
+        title: '可用时段查询',
+        scheduledDate: day.toIso8601String().substring(0, 10),
+        timeZone: defaultScheduleTimeZone,
+        plannedDurationMinutes: end.difference(start).inMinutes,
+        timePolicy: TimePolicy.fixed,
+        fixedStartAt: start,
+      );
+      final conflicts = await _tools._missions.checkPlan(
+        ScheduleProposal(
+          id: probe.mission.id,
+          items: [ScheduleProposalItem.create(id: 'window', value: probe)],
         ),
       );
+      return _readResult({
+        'startAt': start.toIso8601String(),
+        'endAt': end.toIso8601String(),
+        'timeZone': defaultScheduleTimeZone,
+        'conflictCount': conflicts.length,
+        'conflicts': [
+          for (final item in conflicts.take(8))
+            {'missionId': item.otherMissionId, 'message': item.message},
+        ],
+      });
+    }
+    return _readResult(
+      await _tools._unifiedReader.getSchedule(
+        date: input['date'] as String?,
+        offset: input['offset'] as int? ?? 0,
+      ),
+    );
+  }
+
   Future<ToolOutput> _missionQuery(Map<String, Object?> input, _) async =>
       _readResult(
         await _tools._unifiedReader.getMission(

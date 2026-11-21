@@ -295,8 +295,10 @@ class AssistantController extends ChangeNotifier {
   }
 
   /// 系统截图经校验后加入当前草稿，通知已经打开的聊天页刷新。
-  void addCapturedAttachment(AssistantAttachment attachment) {
-    final files = attachmentsFor(draftKey);
+  void addCapturedAttachment(AssistantAttachment attachment, {String? target}) {
+    final key = target ?? draftKey;
+    if (!_acceptsDraft(key)) throw StateError('原会话已删除');
+    final files = attachmentsFor(key);
     if (files.length >= AssistantAttachment.maxCount ||
         files.fold<int>(
               attachment.bytes.length,
@@ -305,7 +307,7 @@ class AssistantController extends ChangeNotifier {
             AssistantAttachment.maxTotalBytes) {
       throw const FormatException('当前草稿附件已达上限，请先移除部分附件');
     }
-    saveAttachments(draftKey, [...files, attachment]);
+    saveAttachments(key, [...files, attachment]);
     _notifyListeners();
   }
 
@@ -340,6 +342,7 @@ class AssistantController extends ChangeNotifier {
   bool _localLoading = false;
   bool _closed = false;
   bool _sending = false;
+  bool _confirmExternalWrites = false;
   bool _changingConversation = false;
   bool _sendCancelled = false;
   final Duration resumeGrace;
@@ -387,6 +390,7 @@ class AssistantController extends ChangeNotifier {
 
   bool get canContinueInterrupted =>
       !isBusy &&
+      isProfileSelectable(modelProfileId) &&
       !needsOutcomeResolution &&
       const [
         AgentStopReason.cancelled,
@@ -405,6 +409,10 @@ class AssistantController extends ChangeNotifier {
     try {
       final session = _requireSession();
       await _sessions._removeStaleRecentContext(session);
+      if (_sendCancelled) return;
+      // 中断后可能从另一入口恢复，未核实写操作重新确认。
+      _confirmExternalWrites = true;
+      await session.replaceContext(source: _foregroundAppSource, text: null);
       if (_sendCancelled) return;
       final result = await session.resume();
       _errorMessage = _connectionInterrupted
@@ -531,13 +539,13 @@ class AssistantController extends ChangeNotifier {
       _config.setRecentConversationSummaries(enabled);
   List<ProviderConfig> get providers => _settings.catalog.providers;
   List<ProviderModel> get providerModels => _settings.catalog.models;
-  String get defaultProfileId => _settings.defaultProfileId;
+  String? get defaultProfileId => _settings.defaultProfileId;
   String? get catalogWarning => _settings.catalogWarning;
   ProviderModel? modelForProfile(String profileId) =>
       _settings.catalog.modelOfProfile(profileId);
   ProviderConfig? providerForProfile(String profileId) =>
       _settings.catalog.providerForProfile(profileId);
-  bool isProfileSelectable(String profileId) =>
+  bool isProfileSelectable(String? profileId) =>
       _settings.catalog.isSelectable(profileId);
   ReasoningEffort reasoningEffortFor(String profileId) =>
       _settings.reasoningEfforts[profileId] ??
@@ -558,7 +566,13 @@ class AssistantController extends ChangeNotifier {
   }
 
   String get modelProfileId =>
-      _session?.modelProfileId ?? _settings.defaultProfileId;
+      _session?.modelProfileId ??
+      _settings.defaultProfileId ??
+      ProviderCatalog.unconfiguredProfileId;
+  String get modelDisplayName =>
+      modelForProfile(modelProfileId)?.label ??
+      _session?.modelProfile.model ??
+      '未选择模型';
   String get sessionTitle =>
       _session?.title ??
       (_reference == null
@@ -634,8 +648,20 @@ class AssistantController extends ChangeNotifier {
 
   Future<AgentRunResult?> send(String input) => _sessions.send(input);
 
-  Future<AgentRunResult?> sendMessage(UserMessage message) =>
-      _sessions.sendMessage(message);
+  Future<AgentRunResult?> sendMessage(
+    UserMessage message, {
+    bool confirmWrites = false,
+    Future<({String app, int seconds})?> Function()? readCurrentUse,
+  }) => _sessions.sendMessage(
+    message,
+    confirmWrites: confirmWrites,
+    readCurrentUse: readCurrentUse,
+  );
+
+  Future<String?> saveNotice(
+    AssistantMessage notice,
+    CancellationToken token,
+  ) => _sessions.saveNotice(notice, token);
 
   void stop() => _sessions.stop();
 
@@ -670,7 +696,11 @@ class AssistantController extends ChangeNotifier {
     clearCredential: clearCredential,
   );
 
-  Future<void> setDefaultModels({required String main, String? summary}) =>
+  /// 已删除模型的历史消息仍使用会话快照回放。
+  Future<ProviderSaveReceipt> deleteProvider(String providerId) =>
+      _config.deleteProvider(providerId);
+
+  Future<void> setDefaultModels({required String? main, String? summary}) =>
       _config.setDefaultModels(main: main, summary: summary);
 
   /// 只影响当前会话的主模型，不修改新会话默认值。

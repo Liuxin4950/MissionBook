@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show listEquals;
 import 'dart:async';
 import 'presentation/today/today_page.dart';
 import 'package:flutter/services.dart';
 import 'application/assistant/assistant_controller.dart';
+import 'data/assistant/android_assistant_bridge.dart';
 import 'presentation/assistant/entry/assistant_launcher.dart';
 import 'application/missions/mission_service.dart';
 import 'application/notifications/app_notification_service.dart';
@@ -15,6 +15,7 @@ import 'presentation/missions/detail/mission_detail_page.dart';
 import 'domain/entities/mission_phase.dart';
 import 'presentation/missions/shared/active_missions_bar.dart';
 import 'presentation/missions/history/mission_history_page.dart';
+import 'presentation/records/list/records_page.dart';
 import 'application/goals/goal_service.dart';
 import 'presentation/goals/list/goals_page.dart';
 import 'application/backup/backup_service.dart';
@@ -33,6 +34,7 @@ class AppShell extends StatefulWidget {
     required this.device,
     this.notifications,
     this.assistant,
+    this.androidAssistant,
     this.clock = DateTime.now,
   });
   // App 传入共享任务服务，本层转交给今天、历史及当前任务栏。
@@ -44,6 +46,7 @@ class AppShell extends StatefulWidget {
   // 通知动作的 UI 部分由外壳承接：打开 END 确认、旧按钮提示刷新。
   final AppNotificationService? notifications;
   final AssistantController? assistant;
+  final AndroidAssistantBridge? androidAssistant;
 
   /// 今天页使用的日期时钟；测试传入固定时刻，避免随运行日期改变查询。
   final DateTime Function() clock;
@@ -78,14 +81,16 @@ class _AppShellState extends State<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         unawaited(_consumePendingAssistantOpen());
-        unawaited(_consumePendingCapture());
+        unawaited(_consumeAssistantMission());
+        unawaited(_consumeAssistantRecord());
       }
     });
   }
 
   Future<void> _handleOverlayCall(MethodCall call) async {
     if (call.method == 'pendingOpen') await _consumePendingAssistantOpen();
-    if (call.method == 'pendingCapture') await _consumePendingCapture();
+    if (call.method == 'pendingMission') await _consumeAssistantMission();
+    if (call.method == 'pendingRecord') await _consumeAssistantRecord();
   }
 
   Future<void> _consumePendingAssistantOpen() async {
@@ -94,52 +99,80 @@ class _AppShellState extends State<AppShell> {
         'consumePendingOpen',
       );
       if (pending == true && mounted) {
+        final id = await _overlayChannel.invokeMethod<String>(
+          'consumeAssistantSession',
+        );
+        if (!mounted) return;
+        if (id != null && widget.assistant != null) {
+          await widget.assistant!.initialize();
+          if (!mounted) return;
+          await widget.assistant!.openConversation(id);
+        }
+        if (!mounted) return;
         await _assistantEntry.currentState?.openGlobalAssistant();
       }
     } on PlatformException {
       // 桌面和 Web 没有 Android 悬浮入口。
     } on MissingPluginException {
       // 桌面和 Web 没有 Android 悬浮入口。
+    } on StateError {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('当前会话正在运行，或提醒已删除')));
+      }
     }
   }
 
-  bool _consumingCapture = false;
-  bool _captureRequested = false;
-  Uint8List? _acceptedCapture;
-  Future<void> _consumePendingCapture() async {
-    if (_consumingCapture) {
-      _captureRequested = true;
-      return;
-    }
-    _consumingCapture = true;
+  Future<void> _consumeAssistantMission() async {
     try {
-      do {
-        _captureRequested = false;
-        final bytes = await _overlayChannel.invokeMethod<Uint8List>(
-          'consumePendingCapture',
-        );
-        if (bytes != null && mounted) {
-          final accepted =
-              listEquals(_acceptedCapture, bytes) ||
-              await _assistantEntry.currentState?.openCapturedScreen(bytes) ==
-                  true;
-          if (accepted == true) {
-            _acceptedCapture = bytes;
-            await _overlayChannel.invokeMethod<void>('acknowledgeCapture');
-            _acceptedCapture = null;
-          }
-        }
-      } while (_captureRequested && mounted);
+      final id = await _overlayChannel.invokeMethod<String>(
+        'consumePendingMission',
+      );
+      if (!mounted || id == null) return;
+      await _openExternalMission(id);
+    } on MissingPluginException {
+      // 当前平台没有 Android 悬浮入口。
     } on PlatformException {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('截屏未能载入助手，请重新截取')));
+        ).showSnackBar(const SnackBar(content: Text('无法打开任务，请从日程重新查看')));
+      }
+    }
+  }
+
+  Future<void> _consumeAssistantRecord() async {
+    final bridge = widget.androidAssistant;
+    if (bridge == null) return;
+    try {
+      final id = await _overlayChannel.invokeMethod<String>(
+        'consumeAssistantRecord',
+      );
+      if (!mounted || id == null) return;
+      final image = bridge.takeRecord(id);
+      if (image == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('这张截图已失效')));
+        return;
+      }
+      await Navigator.of(context, rootNavigator: true).push<void>(
+        MaterialPageRoute(
+          builder: (_) => RecordEditor(
+            initialImage: image.bytes,
+            missionId: image.missionId,
+          ),
+        ),
+      );
+    } on PlatformException {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('无法打开记录草稿')));
       }
     } on MissingPluginException {
-      // 桌面和 Web 没有 Android 投屏入口。
-    } finally {
-      _consumingCapture = false;
+      // 当前设备没有悬浮记录入口。
     }
   }
 
@@ -175,33 +208,10 @@ class _AppShellState extends State<AppShell> {
     try {
       if (action.result == NotificationActionResult.openEndConfirm ||
           action.result == NotificationActionResult.openMission) {
-        final detail = await widget.missionService.findDetail(
-          missionId: action.missionId,
-        );
-        if (detail == null || !mounted) return;
-        final executing =
-            detail.phase == MissionPhase.running ||
-            (detail.phase == MissionPhase.paused ||
-                detail.phase == MissionPhase.reportPending);
-        await _detailPane.open<void>(
-          DetailPaneEntry(
-            executing ? '任务执行' : '任务详情',
-            (_) => executing
-                ? MissionExecutionPage(
-                    detail: detail,
-                    service: widget.missionService,
-                    clock: widget.clock,
-                    openEndConfirm:
-                        action.result ==
-                        NotificationActionResult.openEndConfirm,
-                  )
-                : MissionDetailPage(
-                    missionId: detail.mission.id,
-                    missionService: widget.missionService,
-                  ),
-          ),
-          // 通知进入任务时保留下面尚未保存的页面，返回后继续原草稿。
-          replace: DetailPaneReplace.none,
+        await _openExternalMission(
+          action.missionId,
+          openEndConfirm:
+              action.result == NotificationActionResult.openEndConfirm,
         );
         return;
       }
@@ -234,6 +244,42 @@ class _AppShellState extends State<AppShell> {
     } finally {
       _selectingPage = false;
     }
+  }
+
+  Future<void> _openExternalMission(
+    String id, {
+    bool openEndConfirm = false,
+  }) async {
+    final detail = await widget.missionService.findDetail(missionId: id);
+    if (!mounted) return;
+    if (detail == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('任务已不存在')));
+      return;
+    }
+    final executing = const {
+      MissionPhase.running,
+      MissionPhase.paused,
+      MissionPhase.reportPending,
+    }.contains(detail.phase);
+    await _detailPane.open<void>(
+      DetailPaneEntry(
+        executing ? '任务执行' : '任务详情',
+        (_) => executing
+            ? MissionExecutionPage(
+                detail: detail,
+                service: widget.missionService,
+                clock: widget.clock,
+                openEndConfirm: openEndConfirm,
+              )
+            : MissionDetailPage(
+                missionId: id,
+                missionService: widget.missionService,
+              ),
+      ),
+      replace: DetailPaneReplace.none,
+    );
   }
 
   @override

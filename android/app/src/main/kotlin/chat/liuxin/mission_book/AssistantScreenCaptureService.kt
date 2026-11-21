@@ -39,6 +39,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class AssistantScreenCaptureService : Service() {
     private var projection: MediaProjection? = null
+    private var ticket: String? = null
+    private var watching = false
+    private var stopping = false
+    private var frameResult: ((ByteArray?) -> Unit)? = null
+    private var requestSerial = 0
     private var display: VirtualDisplay? = null
     private var reader: ImageReader? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -71,6 +76,7 @@ class AssistantScreenCaptureService : Service() {
     }
     private val frameTimeout = Runnable {
         if (awaitingFrame && !completed) {
+            if (frameResult != null) { finishSample(null); return@Runnable }
             awaitingFrame = false
             busy = false
             if (finishRequested && frameCount > 0) finishLongCapture()
@@ -83,13 +89,19 @@ class AssistantScreenCaptureService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_CANCEL_CAPTURE) {
-            cancelCapture()
+            if (ticket != null && intent.getStringExtra(EXTRA_TICKET) == ticket) cancelCapture()
             return START_NOT_STICKY
         }
         if (projection != null || finalizing || completed) return START_NOT_STICKY
-        longCapture = intent?.getBooleanExtra(EXTRA_LONG_CAPTURE, false) == true
+        ticket = intent?.getStringExtra(EXTRA_TICKET)
+        watching = intent?.getBooleanExtra(EXTRA_WATCH, false) == true
         try {
             startCaptureForeground()
+            // 主动画面监督搁置；只接受手动截图的票据，不获取持续投影。
+            if (watching || ticket == null) {
+                stopSelf()
+                return START_NOT_STICKY
+            }
             val code = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
             val data = getResultData(intent)
             check(code == -1 && data != null)
@@ -99,32 +111,31 @@ class AssistantScreenCaptureService : Service() {
             manager.defaultDisplay.getRealMetrics(metrics)
             captureWidth = metrics.widthPixels
             captureHeight = metrics.heightPixels
-            val source = ImageReader.newInstance(captureWidth, captureHeight, PixelFormat.RGBA_8888, 2)
-            reader = source
-            source.setOnImageAvailableListener({ captureAvailable(it, metrics.widthPixels, metrics.heightPixels) }, handler)
+            val source = openReader(captureWidth, captureHeight)
             projection?.registerCallback(object : MediaProjection.Callback() {
                 override fun onCapturedContentResize(width: Int, height: Int) {
-                    if (contentWidth != 0 && (contentWidth != width || contentHeight != height)) {
+                    if (watching) resizeObservation(width, height)
+                    else if (contentWidth != 0 && (contentWidth != width || contentHeight != height)) {
                         failCapture("被截画面尺寸已改变，请重新截图")
                     }
                     contentWidth = width
                     contentHeight = height
                 }
                 override fun onStop() {
-                    if (!finalizing && !completed) cancelCapture()
+                    if (projection == null) return
+                    if (watching) endObservation()
+                    else if (!finalizing && !completed) cancelCapture()
                 }
             }, handler)
             display = projection?.createVirtualDisplay(
                 "MissionBookAssistantCapture", metrics.widthPixels, metrics.heightPixels, metrics.densityDpi,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, source.surface, null, handler,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, if (watching) null else source.surface, null, handler,
             )
-            requestFrame()
-            handler.postDelayed({
-                if (!completed && !finalizing) cancelCapture()
-            }, 5 * 60 * 1000L)
+            check(display != null)
+            if (watching) observer = this else beginManualTimer()
         } catch (error: Exception) {
             Log.e(TAG, "截屏初始化失败", error)
-            failCapture("截屏未能启动，请重试")
+            if (watching) endObservation() else failCapture("截屏未能启动，请重试")
         }
         return START_NOT_STICKY
     }
@@ -140,6 +151,79 @@ class AssistantScreenCaptureService : Service() {
         handler.postDelayed(longPoll, delayMillis)
     }
 
+    private fun openReader(width: Int, height: Int): ImageReader {
+        val source = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+        reader = source
+        source.setOnImageAvailableListener({ captureAvailable(it, width, height) }, handler)
+        return source
+    }
+
+    private fun beginManualTimer() {
+        val current = ticket
+        requestFrame()
+        handler.postDelayed({
+            if (current == ticket && ticket != null && !completed && !finalizing) cancelCapture()
+        }, 5 * 60 * 1000L)
+    }
+
+    private fun resizeObservation(width: Int, height: Int) {
+        if (stopping || (width == captureWidth && height == captureHeight)) return
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        manager.defaultDisplay.getRealMetrics(metrics)
+        if (width != metrics.widthPixels || height != metrics.heightPixels) {
+            endObservation() // 单应用/未知范围不能当作跨应用观察。
+            return
+        }
+        if (ticket != null && !completed) cancelCapture()
+        if (frameResult != null) finishSample(null)
+        runCatching {
+            display?.surface = null
+            reader?.close()
+            display?.resize(width, height, metrics.densityDpi)
+            captureWidth = width; captureHeight = height
+            openReader(width, height)
+        }.onFailure { endObservation() }
+    }
+
+    private fun observeFrame(result: (ByteArray?) -> Unit) {
+        if (stopping || !watching || busy || ticket != null || completed || frameResult != null) {
+            result(null); return
+        }
+        frameResult = result
+        AssistantOverlayService.maskForSample(true)
+        requestFrame()
+    }
+
+    private fun finishSample(bytes: ByteArray?) {
+        val result = frameResult ?: return
+        frameResult = null
+        requestSerial++
+        busy = false; awaitingFrame = false; settlingFrame = false
+        handler.removeCallbacks(frameTimeout)
+        runCatching { display?.surface = null }
+        AssistantOverlayService.maskForSample(false)
+        result(bytes)
+    }
+
+    private fun encodeSample(bitmap: Bitmap): ByteArray? {
+        val maxSize = maxOf(bitmap.width, bitmap.height)
+        val scaled = if (maxSize <= 720) bitmap else Bitmap.createScaledBitmap(bitmap,
+            maxOf(1, bitmap.width * 720 / maxSize), maxOf(1, bitmap.height * 720 / maxSize), true)
+        try {
+            // 不发送近乎全黑的系统保护画面或无效帧。
+            var visible = 0
+            for (row in 1..8) for (column in 1..8) {
+                if (scaled.getPixel(column * scaled.width / 9, row * scaled.height / 9) and 0x00FFFFFF > 0x101010) visible++
+            }
+            if (visible < 5) return null
+            return ByteArrayOutputStream().use { bytes ->
+                if (scaled.compress(Bitmap.CompressFormat.JPEG, 66, bytes) && bytes.size() <= 256 * 1024) bytes.toByteArray()
+                else null
+            }
+        } finally { if (scaled !== bitmap) scaled.recycle() }
+    }
+
     private fun requestFrame() {
         if (completed || finalizing || busy) return
         busy = true
@@ -148,7 +232,14 @@ class AssistantScreenCaptureService : Service() {
         runCatching { reader?.acquireLatestImage()?.close() }
         settlingFrame = true
         hideControls()
+        val current = ++requestSerial
+        try { if (watching) display?.surface = reader?.surface }
+        catch (_: Exception) {
+            if (frameResult != null) finishSample(null) else failCapture("暂时无法使用当前投影")
+            return
+        }
         handler.postDelayed({
+            if (current != requestSerial) return@postDelayed
             settlingFrame = false
             if (!completed && !finalizing) {
                 awaitingFrame = true
@@ -159,10 +250,10 @@ class AssistantScreenCaptureService : Service() {
     }
 
     private fun captureAvailable(source: ImageReader, width: Int, height: Int) {
-        if (settlingFrame) return
+        if (source !== reader || settlingFrame) return
         val image = try { source.acquireLatestImage() } catch (error: Exception) {
             Log.e(TAG, "读取截屏帧失败", error)
-            cancelCapture()
+            if (frameResult != null) finishSample(null) else cancelCapture()
             return
         } ?: return
         if (!awaitingFrame || completed) {
@@ -180,9 +271,18 @@ class AssistantScreenCaptureService : Service() {
             crop
         } catch (error: Exception) {
             Log.e(TAG, "复制截屏失败", error)
-            failCapture("无法读取屏幕画面，请重试")
+            if (frameResult != null) finishSample(null) else failCapture("无法读取屏幕画面，请重试")
             return
         } finally { image.close() }
+        val sample = frameResult
+        if (sample != null) {
+            worker.execute {
+                val output = try { encodeSample(bitmap) } catch (_: Exception) { null }
+                finally { bitmap.recycle() }
+                handler.post { if (frameResult === sample) finishSample(output) }
+            }
+            return
+        }
         // 普通截图先冻结当前画面，等待用户选择；不提前返回聊天。
         if (!longCapture) {
             busy = false
@@ -281,7 +381,7 @@ class AssistantScreenCaptureService : Service() {
         finalizing = true
         handler.removeCallbacks(longPoll)
         hideControls()
-        releaseProjection()
+        if (!watching) releaseProjection() else runCatching { display?.surface = null }
         worker.execute {
             var file: File? = null
             try {
@@ -446,7 +546,7 @@ class AssistantScreenCaptureService : Service() {
         }
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
         val notification = builder.setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle(if (longCapture) "正在采集长截图" else "正在截取屏幕").setOngoing(true).build()
+            .setContentTitle(if (watching) "书祺 · 画面取样已授权" else "正在截取屏幕").setOngoing(true).build()
         if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
         else startForeground(NOTIFICATION_ID, notification)
     }
@@ -464,6 +564,7 @@ class AssistantScreenCaptureService : Service() {
     }
 
     private fun releaseProjection() {
+        requestSerial++
         awaitingFrame = false
         settlingFrame = false
         display?.release()
@@ -483,33 +584,51 @@ class AssistantScreenCaptureService : Service() {
     }
 
     private fun finishCapture(file: File?) {
-        if (completed) return
+        if (completed) { file?.delete(); return }
         completed = true
-        handler.removeCallbacksAndMessages(null)
+        requestSerial++
         handler.removeCallbacks(longPoll)
+        handler.removeCallbacks(frameTimeout)
+        awaitingFrame = false; settlingFrame = false
         hideControls()
         hideEditor()
         preview?.recycle()
         preview = null
-        releaseProjection()
-        getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).edit()
-            .putBoolean(AssistantOverlayService.CAPTURE_PENDING_KEY, false).apply()
-        if (file != null) {
-            getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).edit()
-                .putString(MainActivity.EXTRA_CAPTURE_PATH, file.absolutePath).apply()
-            Log.i(TAG, "截图文件已就绪，发送完成广播: ${file.absolutePath}")
+        val done = ticket
+        ticket = null
+        AssistantOverlayService.captureDone(done, file)
+        if (done != null) sendBroadcast(Intent(ACTION_CAPTURE_READY).setPackage(packageName).putExtra(EXTRA_TICKET, done))
+        if (!watching || stopping) {
+            releaseProjection()
+            stopSelf()
         } else {
-            Log.w(TAG, "截图未生成，发送失败广播")
+            runCatching { display?.surface = null }
+            // 取消旧长截图后，等 worker 完成再允许下一张复用投影。
+            worker.execute {
+                recycleFrames()
+                handler.post {
+                    if (stopping) return@post
+                    completed = false; finalizing = false; busy = false; longCapture = false
+                    frameCount = 0; finishRequested = false; captureRegion = null; lastIssue = null
+                    cancelled.set(false)
+                }
+            }
         }
-        sendBroadcast(Intent(ACTION_CAPTURE_READY).setPackage(packageName).apply {
-            if (file != null) putExtra(MainActivity.EXTRA_CAPTURE_PATH, file.absolutePath)
-        })
+    }
+
+    private fun endObservation() {
+        if (stopping) return
+        stopping = true
+        if (observer === this) observer = null
+        AssistantWorkspaceHost.call("invalidateObservation", failure = {})
+        finishSample(null)
+        if (ticket != null && !completed) cancelCapture() else releaseProjection()
         stopSelf()
     }
 
     override fun onDestroy() {
         cancelled.set(true)
-        if (!completed) finishCapture(null)
+        if (watching) endObservation() else if (!completed) finishCapture(null)
         worker.execute { recycleFrames() }
         worker.shutdown()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -518,7 +637,7 @@ class AssistantScreenCaptureService : Service() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (!completed && !finalizing) {
+        if (ticket != null && !completed && !finalizing) {
             android.widget.Toast.makeText(this, "屏幕方向已改变，请重新截图", android.widget.Toast.LENGTH_SHORT).show()
             cancelCapture()
         }
@@ -527,11 +646,30 @@ class AssistantScreenCaptureService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        private var observer: AssistantScreenCaptureService? = null
+        internal val observationActive get() = observer?.projection != null
+
+        internal fun stopObservation() { observer?.endObservation() }
+
+        internal fun takeObservationFrame(result: (ByteArray?) -> Unit) {
+            val source = observer
+            if (source == null) result(null) else source.observeFrame(result)
+        }
+
+        /** 返回 null 表示没有可复用投影；false 表示当前资源忙。 */
+        internal fun manualFromObservation(id: String): Boolean? {
+            val source = observer ?: return null
+            if (source.stopping || source.completed || source.busy || source.ticket != null || source.frameResult != null) return false
+            source.ticket = id
+            source.beginManualTimer()
+            return true
+        }
         const val ACTION_CAPTURE_READY = "chat.liuxin.mission_book.CAPTURE_READY"
         const val ACTION_CANCEL_CAPTURE = "chat.liuxin.mission_book.CANCEL_CAPTURE"
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
-        const val EXTRA_LONG_CAPTURE = "long_capture"
+        const val EXTRA_TICKET = "assistant_capture_ticket"
+        const val EXTRA_WATCH = "assistant_enable_projection"
         private const val CHANNEL_ID = "assistant_screen_capture"
         private const val NOTIFICATION_ID = 7405
         private const val TAG = "AssistantCapture"

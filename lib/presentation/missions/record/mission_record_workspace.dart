@@ -2,6 +2,7 @@ import '../../../core/theme/app_motion.dart';
 import '../../../domain/entities/analysis_scope.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../records/analysis/analysis_panel.dart';
+import '../../assistant/entry/assistant_scope.dart';
 import '../execution/execution_report_button.dart';
 import '../../records/shared/record_scope.dart';
 import 'dart:async';
@@ -223,6 +224,20 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
       body: MissionPageBody(
         listKey: const Key('mission-record-list'),
         children: [
+          if (AssistantScope.maybeOf(context) != null)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                icon: const Icon(Icons.auto_awesome_outlined),
+                label: const Text('复盘与下一步'),
+                onPressed: () => openAssistant(
+                  context,
+                  missionId: detail.mission.id,
+                  prompt:
+                      '根据这次真实执行报告、已提交材料和可用总结复盘，区分已确认与未知，并给我一项后续任务或再次尝试的建议。不要修改历史记录。',
+                ),
+              ),
+            ),
           if (_refreshError != null)
             OutlinedButton.icon(
               key: const Key('record-refresh-retry'),

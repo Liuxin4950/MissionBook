@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../application/attachments/attachment_coordinator.dart';
 import '../../application/attachments/attachment_file_service.dart';
 import '../../application/backup/backup_service.dart';
+import '../assistant/drift_session_store.dart';
 import '../local/app_database.dart';
 import '../repositories/drift_mission_repository.dart';
 import 'backup_archive.dart';
@@ -75,6 +76,9 @@ class DatabaseBackupRestorer implements BackupRestorer {
     final names = database.allTables
         .map((table) => table.actualTableName)
         .toSet();
+    rows['app_settings']?.removeWhere(
+      (row) => DriftSessionStore.isDerivedSetting(row['key']),
+    );
     if (!setEquals(rows.keys.toSet(), names)) {
       throw const FormatException('备份表不完整或不属于当前应用');
     }
@@ -136,7 +140,9 @@ class DatabaseBackupRestorer implements BackupRestorer {
         rows: rows,
         files: sourceFiles,
         resourceFiles: (payload['resources'] as Map).cast<String, Uint8List>(),
-        resources: (payload['resourceKinds'] as List).cast<BackupResource>().toSet(),
+        resources: (payload['resourceKinds'] as List)
+            .cast<BackupResource>()
+            .toSet(),
         fingerprint: await _fingerprint(),
         exportedAt: DateTime.parse(payload['exportedAt'] as String),
         counts: Map.unmodifiable(

@@ -7,9 +7,11 @@ class RecordEditor extends StatefulWidget {
     this.goalId,
     this.nodeId,
     this.missionId,
+    this.initialImage,
   });
   final bool capture;
   final String? goalId, nodeId, missionId;
+  final Uint8List? initialImage;
   @override
   State<RecordEditor> createState() => _RecordEditorState();
 }
@@ -34,7 +36,16 @@ class _RecordEditorState extends State<RecordEditor> {
       _goal = widget.goalId;
       _node = widget.nodeId;
       _mission = widget.missionId;
-      if (widget.capture &&
+      if (widget.initialImage case final image?) {
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+          try {
+            await _capture(image, DateTime.now());
+          } catch (_) {
+            /* 表单已显示具体失败。 */
+          }
+        });
+      } else if (widget.capture &&
           !kIsWeb &&
           defaultTargetPlatform == TargetPlatform.android) {
         _camera = true;

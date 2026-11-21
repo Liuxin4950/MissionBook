@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
+import android.media.projection.MediaProjectionConfig
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -16,29 +17,15 @@ import android.widget.Toast
 
 @Suppress("DEPRECATION")
 class AssistantCaptureConsentActivity : Activity() {
-    private var longCapture = false
+    private val ticket get() = intent.getStringExtra(AssistantScreenCaptureService.EXTRA_TICKET)
+    private val watching get() = intent.getBooleanExtra(AssistantScreenCaptureService.EXTRA_WATCH, false)
     private var captureStarted = false
     private var captureCompleted = false
     private val handler = Handler(Looper.getMainLooper())
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            val path = intent?.getStringExtra(MainActivity.EXTRA_CAPTURE_PATH)
-            if (path != null) {
-                captureCompleted = true
-                Log.i(TAG, "截图完成，准备拉回助手: $path")
-                try {
-                    startActivity(MainActivity.assistantIntent(this@AssistantCaptureConsentActivity, path))
-                    Log.i(TAG, "助手 Intent 已提交")
-                    // 成功交给主 Activity 后不要立刻恢复悬浮球，避免它抢回前台焦点。
-                    finish()
-                    return
-                } catch (error: Exception) {
-                    Log.e(TAG, "打开助手失败", error)
-                    Toast.makeText(this@AssistantCaptureConsentActivity, "截图已保留，请打开 MissionBook 重试", Toast.LENGTH_LONG).show()
-                }
-            }
-            // 取消、失败或系统拒绝跳转时才恢复可点按的悬浮入口。
-            restoreOverlayIfEnabled()
+            if (intent?.getStringExtra(AssistantScreenCaptureService.EXTRA_TICKET) != ticket) return
+            captureCompleted = true
             finish()
         }
     }
@@ -53,29 +40,33 @@ class AssistantCaptureConsentActivity : Activity() {
         if (captureStarted && !captureCompleted) {
             try {
                 startService(Intent(this, AssistantScreenCaptureService::class.java)
-                    .setAction(AssistantScreenCaptureService.ACTION_CANCEL_CAPTURE))
+                    .setAction(AssistantScreenCaptureService.ACTION_CANCEL_CAPTURE)
+                    .putExtra(AssistantScreenCaptureService.EXTRA_TICKET, ticket))
             } catch (error: Exception) {
                 Log.w(TAG, "取消长截图服务失败", error)
             }
-            handler.postDelayed({ restoreOverlayIfEnabled() }, 300L)
+            handler.postDelayed({ AssistantOverlayService.captureDone(ticket, null) }, 300L)
+        } else if (!captureCompleted) {
+            AssistantOverlayService.captureDone(ticket, null)
         }
         super.onBackPressed()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        longCapture = intent.getBooleanExtra(AssistantScreenCaptureService.EXTRA_LONG_CAPTURE, false)
         // 授权完成后由服务的截图遮罩接管触摸，底下保留原应用画面。
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
         window.attributes = window.attributes.apply { alpha = 0f }
         val filter = IntentFilter(AssistantScreenCaptureService.ACTION_CAPTURE_READY)
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
         else registerReceiver(receiver, filter)
+        if (ticket == null || watching) { finish(); return }
         // 系统重建授权页时由原请求返回，避免再次申请同一投影会话。
         if (savedInstanceState != null) return
         val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val request = try {
-            manager.createScreenCaptureIntent()
+            if (watching && Build.VERSION.SDK_INT >= 34) manager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
+            else manager.createScreenCaptureIntent()
         } catch (error: Exception) {
             Log.e(TAG, "无法创建系统截屏授权", error)
             cancelCapture("无法打开系统截屏授权")
@@ -102,7 +93,8 @@ class AssistantCaptureConsentActivity : Activity() {
         val capture = Intent(this, AssistantScreenCaptureService::class.java).apply {
             putExtra(AssistantScreenCaptureService.EXTRA_RESULT_CODE, resultCode)
             putExtra(AssistantScreenCaptureService.EXTRA_RESULT_DATA, data)
-            putExtra(AssistantScreenCaptureService.EXTRA_LONG_CAPTURE, longCapture)
+            putExtra(AssistantScreenCaptureService.EXTRA_TICKET, ticket)
+            putExtra(AssistantScreenCaptureService.EXTRA_WATCH, watching)
         }
         try {
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(capture) else startService(capture)
@@ -112,35 +104,23 @@ class AssistantCaptureConsentActivity : Activity() {
             cancelCapture("截屏服务启动失败")
             return
         }
+        if (watching) { finish(); return }
         // 选区现在由用户确认，不再用十秒定时器误关编辑中的截图。
         handler.postDelayed({
             if (!captureCompleted) {
                 startService(Intent(this, AssistantScreenCaptureService::class.java)
-                    .setAction(AssistantScreenCaptureService.ACTION_CANCEL_CAPTURE))
+                    .setAction(AssistantScreenCaptureService.ACTION_CANCEL_CAPTURE)
+                    .putExtra(AssistantScreenCaptureService.EXTRA_TICKET, ticket))
             }
         }, 5 * 60 * 1000L)
     }
 
     private fun cancelCapture(reason: String?) {
-        getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
-            .edit().putBoolean(AssistantOverlayService.CAPTURE_PENDING_KEY, false).apply()
-        restoreOverlayIfEnabled()
+        AssistantOverlayService.captureDone(ticket, null)
         reason?.let { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
         finish()
     }
 
-    private fun restoreOverlayIfEnabled() {
-        val prefs = getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
-        if (!prefs.getBoolean(AssistantOverlayService.ENABLED_KEY, false)) return
-        if (!Settings.canDrawOverlays(this)) return
-        try {
-            val intent = Intent(this, AssistantOverlayService::class.java)
-                .setAction(AssistantOverlayService.ACTION_SHOW)
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
-        } catch (error: Exception) {
-            Log.e(TAG, "恢复助手悬浮入口失败", error)
-        }
-    }
 
     companion object {
         private const val REQUEST_CAPTURE = 7404

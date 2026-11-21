@@ -2452,6 +2452,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  assistantTest('删除整项服务可取消，确认后从列表移除', (tester) async {
+    final store = MemoryAssistantSettingsStore();
+    await mount(tester, ScriptedModel([]), settingsStore: store);
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => AssistantModelSettingsPage(controller: assistant),
+          ),
+        );
+    await tester.pumpAndSettle();
+    final action = find.byKey(
+      const Key('assistant-delete-provider-deepseek-api'),
+    );
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(action, findsOneWidget);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+    expect(action, findsNothing);
+    expect(store.catalog.selection.defaultProfileId, isNull);
+  });
+
   assistantTest('服务模型停用只改草稿，放弃后原配置仍然可用', (tester) async {
     final store = MemoryAssistantSettingsStore();
     await mount(tester, ScriptedModel([]), settingsStore: store);

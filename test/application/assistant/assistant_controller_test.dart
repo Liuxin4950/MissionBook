@@ -323,6 +323,53 @@ void main() {
     expect(ai.modelProfileId, 'deepseek-chat');
   });
 
+  test('删除整项服务，最后一个也可删除，保留历史及尚共用的 Key', () async {
+    final model = ScriptedModel([(_) => textResponse('历史回答')]);
+    final ai = makeController(model);
+    await ai.initialize();
+    await ai.setDefaultModels(main: 'deepseek-chat', summary: 'deepseek-chat');
+    await ai.send('创建历史');
+    final id = ai.currentSessionId;
+
+    await ai.deleteProvider('deepseek-api');
+    expect(ai.defaultProfileId, isNull);
+    expect(ai.providerCatalog.selection.summaryProfileId, isNull);
+    expect(ai.providerCatalog.modelOfProfile('deepseek-chat'), isNull);
+    expect(
+      await settings.resolveCredential('DEEPSEEK_API_KEY'),
+      'test-credential',
+    );
+    expect(ai.currentSessionId, id);
+    expect(ai.transcript.whereType<AssistantMessage>().single.text, '历史回答');
+    expect(await ai.send('不能继续调用已删除的服务'), isNull);
+
+    await ai.deleteProvider('deepseek-anthropic');
+    expect(ai.providers, isEmpty);
+    expect(ai.currentSessionId, id);
+    expect(await settings.resolveCredential('DEEPSEEK_API_KEY'), isNull);
+    await ai.startNewSession();
+    expect(ai.hasCredential, isFalse);
+    expect(ai.modelDisplayName, '未选择模型');
+    expect(await ai.send('尚未选择模型'), isNull);
+    expect(model.requests, hasLength(1));
+  });
+
+  test('删除整项服务保存失败不清凭据', () async {
+    final ai = makeController(ScriptedModel([]));
+    await ai.initialize();
+    await ai.deleteProvider('deepseek-anthropic');
+    settings.failNextCatalogSave = true;
+    await expectLater(ai.deleteProvider('deepseek-api'), throwsStateError);
+    expect(
+      ai.providerCatalog.providerOf('deepseek-api').providerId,
+      'deepseek-api',
+    );
+    expect(
+      await settings.resolveCredential('DEEPSEEK_API_KEY'),
+      'test-credential',
+    );
+  });
+
   test('直接采用记忆的旧回答在遗忘后不回流，原始对话仍可查看', () async {
     final memory = MemoryService(DriftMemoryRepository(database));
     await memory.save({

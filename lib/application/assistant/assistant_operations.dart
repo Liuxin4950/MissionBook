@@ -175,6 +175,20 @@ class _AssistantOperations {
     CancellationToken cancellation,
   ) async {
     final toolName = tool.name;
+    if (_controller._confirmExternalWrites &&
+        (toolName == 'createMission' ||
+            (toolName == 'updateMission' &&
+                call.input.keys.any(
+                  const {
+                    'scheduledDate',
+                    'fixedStartLocal',
+                    'plannedMinutes',
+                  }.contains,
+                )))) {
+      return const ToolDecision.deny(
+        '悬浮日程需使用 planMissions，即使只安排一项，以便核对时间和显示确认。',
+      );
+    }
     if (toolName == 'completeHistory' && !_hasHistorySource(call.input)) {
       return const ToolDecision.deny('补记依据必须来自本会话的用户原话');
     }
@@ -218,9 +232,10 @@ class _AssistantOperations {
             prepared.snapshot['planOriginals'] as Map<String, MissionDetail>
         ..planPreviewReady = true;
     }
-    if (!_controller._settings.permissionMode.requiresConfirmation(
-      isWrite: isWrite,
-    )) {
+    if (!(isWrite && _controller._confirmExternalWrites) &&
+        !_controller._settings.permissionMode.requiresConfirmation(
+          isWrite: isWrite,
+        )) {
       operation.status = AssistantOperationStatus.running;
       return ToolDecision.allowWithInput(prepared.input);
     }

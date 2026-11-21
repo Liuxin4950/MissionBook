@@ -27,6 +27,7 @@ import 'data/notifications/planned_alarm_bridge.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'application/missions/mission_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -36,8 +37,10 @@ import 'data/repositories/drift_mission_repository.dart';
 import 'app_shell.dart';
 import 'application/assistant/assistant_controller.dart';
 import 'application/assistant/assistant_speech.dart';
+import 'application/assistant/assistant_supervision.dart';
 import 'data/assistant/assistant_settings_store.dart';
 import 'data/assistant/drift_session_store.dart';
+import 'data/assistant/android_assistant_bridge.dart';
 import 'data/assistant/configured_assistant_speech.dart';
 import 'presentation/assistant/entry/assistant_scope.dart';
 import 'application/attachments/attachment_file_service.dart';
@@ -67,9 +70,19 @@ import 'presentation/onboarding/onboarding_page.dart';
 import 'core/theme/app_layout.dart';
 import 'core/theme/app_motion.dart';
 
+part 'app_services.dart';
+
+/// 保证 Android 无界面启动时也只装配一份业务服务。
+void runMissionBook() {
+  final runtime = _AppRuntime()..install();
+  runApp(App._(runtime));
+}
+
 /// 装配本地数据库、任务仓储和业务入口，并提供全局主题及中文界面。
 class App extends StatefulWidget {
-  const App({super.key});
+  const App({super.key}) : _runtime = null;
+  const App._(this._runtime);
+  final _AppRuntime? _runtime;
 
   @override
   State<App> createState() => _AppHostState();
@@ -77,30 +90,44 @@ class App extends StatefulWidget {
 
 /// 恢复后用新身份重新装配整个工作区，旧页面与会话缓存不会跨库沿用。
 class _AppHostState extends State<App> {
-  int _generation = 0;
+  late final _runtime = widget._runtime ?? _AppRuntime();
   String? _notice;
   @override
-  Widget build(BuildContext context) => _AppWorkspace(
-    key: ValueKey(_generation),
-    notice: _notice,
-    onRestoreFinished: (notice) {
-      if (mounted) {
-        setState(() {
-          _notice = notice;
-          _generation++;
-        });
-      }
-    },
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: _runtime,
+    builder: (_, services, _) => services == null
+        ? const SizedBox.shrink()
+        : _AppWorkspace(
+            key: ObjectKey(services),
+            services: services,
+            notice: _notice,
+            onRestoreFinished: (notice) {
+              if (!mounted) return;
+              _notice = notice;
+              unawaited(_runtime.reload(services));
+            },
+          ),
   );
+
+  @override
+  void dispose() {
+    if (widget._runtime == null) {
+      unawaited(_runtime.closeWorkspace());
+      _runtime.dispose();
+    }
+    super.dispose();
+  }
 }
 
 class _AppWorkspace extends StatefulWidget {
   const _AppWorkspace({
     super.key,
+    required this.services,
     this.notice,
     required this.onRestoreFinished,
   });
   final String? notice;
+  final _AppServices services;
   final void Function(String) onRestoreFinished;
   @override
   State<_AppWorkspace> createState() => _AppState();
@@ -119,15 +146,16 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
   bool _onboardingSaving = false;
   // late 表示这些属性稍后初始化。
   // final 表示初始化后不再换成另一个对象。
-  late final AssistantController _assistant;
-  late final RecordService _records;
-  late final MemoryService _memory;
-  late final AnalysisService _analysis;
-  late final WebService _web;
-  late final AssistantVoiceController _assistantVoice;
-  late final AppDatabase _database; // 定义数据库连接器
-  late final MissionService _missionService; // 业务操作对象
-  late final GoalService _goalService; // 目标服务，与任务服务共用数据库。
+  AssistantController get _assistant => widget.services._assistant;
+  RecordService get _records => widget.services._records;
+  MemoryService get _memory => widget.services._memory;
+  AnalysisService get _analysis => widget.services._analysis;
+  WebService get _web => widget.services._web;
+  AssistantVoiceController get _assistantVoice =>
+      widget.services._assistantVoice;
+  AppDatabase get _database => widget.services._database;
+  MissionService get _missionService => widget.services._missionService;
+  GoalService get _goalService => widget.services._goalService;
   late final BackupExporter _backupService; // 备份服务，负责导出数据。
   late final MotionSettings _motionSettings;
   late final AppDevice _device; // 设备服务，负责平台能力。
@@ -145,84 +173,10 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    // Flutter 创建这个 State 后调用一次 initState。
-    // 不传 executor，由 AppDatabase 按平台选择原生文件或浏览器存储。
-    _database = AppDatabase();
-    // 将同一个数据库交给真实仓储。
-    final repository = DriftMissionRepository(_database);
-    // 这里只创建一个共享的任务业务对象，不执行创建或查询。
-    // 页面稍后通过 create / findScheduledOn / findDetail 选择具体操作；
-    // 三个方法使用同一个仓储、同一个数据库连接。
-    // 平台能力只在 App 装配；业务服务依赖可注入接口，不反向引用 data 实现。
-    final attachmentStore = attachment_platform.createImageStore();
-    final attachments = AttachmentCoordinator(
-      referencedKeys: repository.referencedAttachmentKeys,
-      files: AttachmentFileService(
-        store: attachmentStore,
-        picker: attachment_platform.createImagePicker(),
-        filePicker: attachment_platform.createFilePicker(),
-      ),
-    );
-    _missionService = MissionService(repository, attachments: attachments);
-    // 启动即回收无引用原件：崩溃或取消留下的副本不必等用户下次打开编辑器才清理。
-    // 协调器只执行一次并与提交互斥；失败只记录，不影响启动和后续准备。
-    unawaited(() async {
-      try {
-        await attachments.initialize();
-      } catch (error) {
-        debugPrint('启动清理无引用附件失败：$error');
-      }
-    }());
-    final packages = GoalPackageImportService(
-      stage: GoalImportDatabase(),
-      repository: DriftGoalPackageRepository(_database),
-      onCommitted: () {
-        _goalService.refreshAfterExternalCommit();
-        _missionService.refreshAfterExternalCommit();
-      },
-    );
-    _goalService = GoalService(
-      DriftGoalRepository(_database),
-      filePicker: goal_file_platform.createGoalFilePicker(),
-      packages: packages,
-    );
-    // 记录与记忆各自负责内容和长期上下文，所有仓储共享同一个数据库连接。
-    final recordRepository = DriftRecordRepository(
-      _database,
-      materials: repository,
-    );
-    _memory = MemoryService(DriftMemoryRepository(_database));
-    _records = RecordService(recordRepository, _missionService, attachments);
-    final analysisStore = DriftAnalysisStore(_database);
-    _web = WebService(
-      settings: const SecureWebSettings(),
-      quota: DriftSearchQuota(_database),
-      fetchClient: publicHttpClient,
-    );
-    _assistant = AssistantController(
-      records: _records,
-      memory: _memory,
-      analysis: analysisStore,
-      unifiedReader: DriftUnifiedReader(_database),
-      web: _web,
-      sessionStore: DriftSessionStore(_database),
-      settingsStore: const SecureAssistantSettingsStore(),
-      missions: _missionService,
-      goals: _goalService,
-    );
-    _analysis = AnalysisService(
-      preferencesStore: const SecureAnalysisPreferences(),
-      memorySettings: DriftMemorySettingsStore(_database),
-      missions: _missionService,
-      store: analysisStore,
-      model: _assistant.analyze,
-      mainBusy: () => _assistant.isRunning,
-    );
+    widget.services.closeFrontend = _closeFrontend;
+    final attachments = widget.services._attachments;
+    final attachmentStore = widget.services._attachmentStore;
     unawaited(_analysis.start());
-    _assistantVoice = AssistantVoiceController(
-      ConfiguredAssistantSpeech(const SecureAssistantSettingsStore()),
-      operationTimeout: const Duration(seconds: 60),
-    );
     _backupService = ManagedBackupService(
       exporter: DatabaseBackupService(
         database: _database,
@@ -361,7 +315,10 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       _assistant.setForeground(false);
       unawaited(_assistantVoice.cancel());
     }
-    if (state == AppLifecycleState.detached) _assistant.stop();
+    if (state == AppLifecycleState.detached) {
+      _assistant.setForeground(false);
+      if (widget.services._overlay == null) _assistant.stop();
+    }
     if (state == AppLifecycleState.resumed) _assistant.setForeground(true);
     final foreground =
         state == AppLifecycleState.resumed ||
@@ -559,6 +516,8 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
   Future<void> _stopForRestore() async {
     // 先解绑旧工作区；重建后旧 State.dispose 不能清掉新工作区的通道监听。
     _plannedBridge?.dispose();
+    await widget.services._overlay?.resetObservation();
+    widget.services.stopExternalEntry();
     final stopped = await closeResources([
       (name: 'voice', close: _assistantVoice.cancel),
       (name: 'assistant', close: _assistant.close),
@@ -588,10 +547,12 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
   void _logCloseFailure(String name, Object error, StackTrace stack) =>
       debugPrint('资源释放失败 [$name]：${error.runtimeType}\n$stack');
 
-  Future<void> _closeWorkspace() async {
+  Future<void> _closeFrontend() async {
+    WidgetsBinding.instance.removeObserver(this);
+    _launchTimer?.cancel();
+    if (_restoreShutdown == null) _plannedBridge?.dispose();
     await closeResources([
       (name: 'restore', close: () async => _restoreShutdown),
-      (name: 'voice', close: _assistantVoice.close),
       (
         name: 'notification initialization',
         close: () async => _notificationInitialization,
@@ -603,18 +564,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
         close: () async => _plannedMissions?.dispose(),
       ),
       (name: 'notifications', close: () async => _notifications?.dispose()),
-      (name: 'assistant', close: _assistant.close),
-      (name: 'analysis', close: _analysis.dispose),
-      (
-        name: 'goal import',
-        close: () async => _goalService.packages?.dispose(),
-      ),
-      (name: 'missions', close: _missionService.dispose),
-      (name: 'goals', close: _goalService.dispose),
-      (name: 'assistant listeners', close: _assistant.dispose),
-      (name: 'voice listeners', close: _assistantVoice.dispose),
       (name: 'motion', close: _motionSettings.dispose),
-      (name: 'database', close: _database.close),
     ], onError: _logCloseFailure);
     _pendingNotificationResponses.clear();
   }
@@ -689,6 +639,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
               : AppShell(
                   key: const ValueKey('app-shell'),
                   assistant: _assistant,
+                  androidAssistant: widget.services._overlay,
                   missionService: _missionService,
                   goalService: _goalService,
                   backupService: _backupService,
@@ -702,13 +653,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _launchTimer?.cancel();
-    if (_restoreShutdown == null) _plannedBridge?.dispose();
-    // Flutter 移除这个 State 时调用 dispose。
-    // close 返回 Future，但 dispose 不能等待异步完成；
-    // unawaited 明确表示在这里发起关闭，不等待它。
-    unawaited(_closeWorkspace());
+    unawaited(widget.services.close());
     super.dispose();
   }
 }

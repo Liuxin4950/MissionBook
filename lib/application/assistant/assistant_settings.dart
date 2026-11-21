@@ -247,9 +247,9 @@ class AssistantSettings {
   /// 目录损坏后回退时的提示；正常读取为 null。
   final String? catalogWarning;
 
-  String get defaultProfileId => catalog.selection.defaultProfileId;
+  String? get defaultProfileId => catalog.selection.defaultProfileId;
 
-  bool profileHasCredential(String profileId) {
+  bool profileHasCredential(String? profileId) {
     final provider = catalog.providerForProfile(profileId);
     if (provider == null) return false;
     if (!provider.requiresCredential) return true;

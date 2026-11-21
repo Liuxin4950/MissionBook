@@ -2,6 +2,7 @@ import '../../widgets/app_dropdown_form_field.dart';
 import 'package:mission_book/presentation/missions/execution/execution_widgets.dart';
 import 'dart:async';
 import '../../assistant/entry/assistant_launcher.dart';
+import '../../assistant/entry/assistant_scope.dart';
 
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';
@@ -863,6 +864,19 @@ class _MissionExecutionPageState extends State<MissionExecutionPage>
                     Padding(
                       padding: const EdgeInsets.only(top: AppLayout.spaceSm),
                       child: Text('${i + 1}. ${detail.executionPlan.steps[i]}'),
+                    ),
+                  if (AssistantScope.maybeOf(context) != null)
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.auto_awesome_outlined),
+                        label: const Text('我卡住了'),
+                        onPressed: () => openAssistant(
+                          context,
+                          missionId: detail.mission.id,
+                          prompt: '我卡住了。根据当前任务的方案和验收要求帮我确认下一步，不要猜测我已经做完哪些步骤。',
+                        ),
+                      ),
                     ),
                   if (detail.executionPlan.notes?.trim().isNotEmpty == true)
                     Text(detail.executionPlan.notes!),

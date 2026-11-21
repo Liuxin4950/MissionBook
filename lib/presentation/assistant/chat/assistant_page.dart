@@ -256,7 +256,7 @@ class _AssistantPageState extends State<AssistantPage> {
                       child: AppPageHeader(
                         title: controller.persona.name,
                         subtitle: Text(
-                          '${controller.sessionTitle} · ${controller.modelForProfile(controller.modelProfileId)?.label ?? controller.modelProfileId}',
+                          '${controller.sessionTitle} · ${controller.modelDisplayName}',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         action: Row(
@@ -290,12 +290,7 @@ class _AssistantPageState extends State<AssistantPage> {
                             children: [
                               Flexible(
                                 child: Text(
-                                  controller
-                                          .modelForProfile(
-                                            controller.modelProfileId,
-                                          )
-                                          ?.label ??
-                                      controller.modelProfileId,
+                                  controller.modelDisplayName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),

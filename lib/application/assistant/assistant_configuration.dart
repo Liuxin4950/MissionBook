@@ -205,7 +205,8 @@ class _AssistantConfiguration {
       ),
     );
 
-    if (!nextCatalog.isSelectable(nextCatalog.selection.defaultProfileId)) {
+    if (nextCatalog.selection.defaultProfileId != null &&
+        !nextCatalog.isSelectable(nextCatalog.selection.defaultProfileId)) {
       throw StateError('请先把默认模型切换到其他模型，再停用当前默认模型');
     }
     final currentModel = _controller._session?.modelProfileId;
@@ -270,6 +271,62 @@ class _AssistantConfiguration {
     );
   }
 
+  /// 删除服务和其模型。提交前不清 Key，且保留其他服务共用的凭据。
+  Future<ProviderSaveReceipt> deleteProvider(String providerId) =>
+      _updateConfiguration(() async {
+        final catalog = _controller._settings.catalog;
+        final provider = catalog.providerOf(providerId);
+        final removed = catalog
+            .modelsOfProvider(providerId)
+            .map((model) => model.profileId)
+            .toSet();
+        final next = catalog.copyWith(
+          providers: catalog.providers
+              .where((item) => item.providerId != providerId)
+              .toList(),
+          models: catalog.models
+              .where((item) => item.providerId != providerId)
+              .toList(),
+          selection: catalog.selection.copyWith(
+            clearDefault: removed.contains(catalog.selection.defaultProfileId),
+            clearSummary: removed.contains(catalog.selection.summaryProfileId),
+          ),
+        );
+        final store = _controller._settingsStore;
+        final sessionId = _controller.currentSessionId;
+        final warnings = <String>[];
+        _controller._gateway.cancelIndependentRequests();
+        try {
+          await store.saveCatalog(next);
+        } on Object {
+          final AssistantSettings persisted;
+          try {
+            persisted = await store.load();
+          } on Object {
+            throw StateError('无法核实删除结果，凭据已保留，请重新打开模型设置');
+          }
+          if (jsonEncode(persisted.catalog.toJson()) !=
+              jsonEncode(next.toJson())) {
+            rethrow;
+          }
+        }
+        try {
+          await _rebuildRuntime(reopenSessionId: sessionId);
+        } on Object {
+          warnings.add('当前会话未能重新打开，请从历史进入');
+        }
+        if (!next.providers.any(
+          (item) => item.credentialRef == provider.credentialRef,
+        )) {
+          try {
+            await store.saveCredential(provider.credentialRef, '');
+          } on Object {
+            warnings.add('旧 Key 未能清理，已停止使用该引用');
+          }
+        }
+        return ProviderSaveReceipt(providerId: providerId, warnings: warnings);
+      });
+
   Future<void> setProviderArchived(String providerId, bool archived) =>
       _updateConfiguration(() async {
         final settings = _controller._settings;
@@ -331,14 +388,14 @@ class _AssistantConfiguration {
       });
 
   /// 默认主模型用于新会话，摘要选择同时应用到当前会话。
-  Future<void> setDefaultModels({required String main, String? summary}) =>
+  Future<void> setDefaultModels({required String? main, String? summary}) =>
       _updateConfiguration(() async {
         final settings = _controller._settings;
         final catalog = settings.catalog;
-        if (!catalog.isSelectable(main)) {
+        if (main != null && !catalog.isSelectable(main)) {
           throw StateError('该模型已停用，不能设为默认模型');
         }
-        if (!settings.profileHasCredential(main)) {
+        if (main != null && !settings.profileHasCredential(main)) {
           throw StateError('该服务还没有配置凭据');
         }
         if (summary != null) {
@@ -421,7 +478,6 @@ class _AssistantConfiguration {
           enabled,
         );
         _controller._settings = await _controller._settingsStore.load();
-        if (!enabled) _controller._sessions._recentBriefs.clear();
       });
 
   Future<void> _applyReasoningEffort() async {

@@ -58,6 +58,7 @@ Future<void> openAssistant(
   String? missionId,
   String? goalId,
   String? nodeId,
+  String? prompt,
 }) async {
   final scope = AssistantScope.of(context);
   try {
@@ -72,6 +73,9 @@ Future<void> openAssistant(
       await scope.controller.openGlobalConversation();
     }
     if (!context.mounted) return;
+    if (prompt != null && scope.controller.draft.trim().isEmpty) {
+      scope.controller.draft = prompt;
+    }
     await showAssistantConversation(context);
   } catch (error) {
     if (context.mounted) {

@@ -67,12 +67,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
     final catalog = widget.controller.providerCatalog;
     final existing = widget.provider;
     _initialProvider = existing;
-    _providerId =
-        existing?.providerId ??
-        ProviderCatalog.nextId(
-          'provider',
-          catalog.providers.map((provider) => provider.providerId),
-        );
+    _providerId = existing?.providerId ?? const Uuid().v4();
     _credentialRef =
         existing?.credentialRef ??
         ProviderCatalog.credentialRefFor(_providerId);

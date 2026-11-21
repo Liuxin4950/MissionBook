@@ -20,6 +20,7 @@ import '../../me/data_backup_page.dart';
 import 'assistant_model_settings_page.dart';
 import 'assistant_settings_form.dart';
 import 'assistant_speech_settings_page.dart';
+import 'assistant_supervision_settings.dart';
 
 import '../../../application/assistant/assistant_controller.dart';
 import '../../../core/theme/app_layout.dart';
@@ -331,7 +332,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                   icon: Icons.auto_awesome_outlined,
                   title: 'AI 模型',
                   subtitle:
-                      '${widget.controller.providerCatalog.modelOfProfile(widget.controller.defaultProfileId)?.label ?? widget.controller.defaultProfileId} · ${widget.controller.providerCatalog.providers.where((provider) => !provider.archived).length} 个服务',
+                      '${widget.controller.providerCatalog.modelOfProfile(widget.controller.defaultProfileId)?.label ?? '未选择默认模型'} · ${widget.controller.providerCatalog.providers.where((provider) => !provider.archived).length} 个服务',
                   onTap: _saving || widget.controller.isBusy
                       ? null
                       : () => Navigator.of(context).push<void>(
@@ -394,6 +395,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
           const SizedBox(height: AppLayout.spaceLg),
           _buildPermissionSection(),
           if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) ...[
+            const SizedBox(height: AppLayout.spaceLg),
+            const AssistantSupervisionSettings(),
             const SizedBox(height: AppLayout.spaceLg),
             AppSectionCard(
               padding: EdgeInsets.zero,

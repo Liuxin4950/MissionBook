@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../application/backup/backup_service.dart';
 import '../../application/attachments/attachment_coordinator.dart';
+import '../assistant/drift_session_store.dart';
 import '../local/app_database.dart';
 import '../repositories/drift_mission_repository.dart';
 import 'backup_archive.dart';
@@ -28,12 +29,15 @@ class DatabaseBackupService implements BackupExporter {
   Future<Uint8List> create({
     Set<BackupResource> resources = defaultBackupResources,
   }) async {
-    final files = await (attachments?.synchronized(() => _collectFiles(resources)) ??
-        _collectFiles(resources));
+    final files =
+        await (attachments?.synchronized(() => _collectFiles(resources)) ??
+            _collectFiles(resources));
     return compute(_encode, files);
   }
 
-  Future<Map<String, Uint8List>> _collectFiles(Set<BackupResource> resources) async {
+  Future<Map<String, Uint8List>> _collectFiles(
+    Set<BackupResource> resources,
+  ) async {
     final snapshot = await database.transaction(() async {
       final tables = <String, List<Map<String, Object?>>>{};
       for (final table in database.allTables) {
@@ -41,6 +45,11 @@ class DatabaseBackupService implements BackupExporter {
         tables[name] =
             (await database.customSelect('SELECT * FROM "$name"').get())
                 .map((row) => row.data)
+                .where(
+                  (row) =>
+                      name != 'app_settings' ||
+                      !DriftSessionStore.isDerivedSetting(row['key']),
+                )
                 .toList();
       }
       return (

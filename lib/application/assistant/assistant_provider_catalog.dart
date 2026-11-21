@@ -215,19 +215,22 @@ class ProviderModel {
 class ModelSelection {
   const ModelSelection({required this.defaultProfileId, this.summaryProfileId});
 
-  final String defaultProfileId;
+  final String? defaultProfileId;
 
   /// 为 null 表示跟随默认模型；摘要模型首期全局唯一。
   final String? summaryProfileId;
 
-  String get effectiveSummaryProfileId => summaryProfileId ?? defaultProfileId;
+  String? get effectiveSummaryProfileId => summaryProfileId ?? defaultProfileId;
 
   ModelSelection copyWith({
     String? defaultProfileId,
     String? summaryProfileId,
+    bool clearDefault = false,
     bool clearSummary = false,
   }) => ModelSelection(
-    defaultProfileId: defaultProfileId ?? this.defaultProfileId,
+    defaultProfileId: clearDefault
+        ? null
+        : defaultProfileId ?? this.defaultProfileId,
     summaryProfileId: clearSummary
         ? null
         : (summaryProfileId ?? this.summaryProfileId),
@@ -239,7 +242,9 @@ class ModelSelection {
   };
 
   factory ModelSelection.fromJson(Map<String, Object?> json) => ModelSelection(
-    defaultProfileId: _readString(json, 'defaultProfileId'),
+    defaultProfileId: json['defaultProfileId'] == null
+        ? null
+        : _readString(json, 'defaultProfileId'),
     summaryProfileId: json['summaryProfileId'] is String
         ? json['summaryProfileId'] as String
         : null,
@@ -270,7 +275,8 @@ class ProviderCatalog {
         throw ArgumentError('模型 ${model.profileId} 引用了不存在的服务');
       }
     }
-    if (!profileIds.contains(selection.defaultProfileId)) {
+    if (selection.defaultProfileId != null &&
+        !profileIds.contains(selection.defaultProfileId)) {
       throw ArgumentError('默认模型引用了不存在的配置');
     }
     if (selection.summaryProfileId != null &&
@@ -280,6 +286,17 @@ class ProviderCatalog {
   }
 
   static const currentVersion = 1;
+  // 基座要求有效默认配置；未配置时只用于构建本地会话和读取历史，不能选用或请求。
+  static const unconfiguredProfileId = '@unconfigured';
+  static final _unconfiguredProfile = ModelProfile(
+    id: unconfiguredProfileId,
+    provider: 'mission_book',
+    model: '未选择模型',
+    endpoint: Uri.https('unconfigured.invalid', '/'),
+    protocol: ModelProtocol.chatCompletions,
+    credentialKey: 'MISSIONBOOK_NO_MODEL',
+    supportsImages: false,
+  );
   final int version;
   final List<ProviderConfig> providers;
   final List<ProviderModel> models;
@@ -290,10 +307,10 @@ class ProviderCatalog {
     orElse: () => throw ArgumentError('不存在服务：$providerId'),
   );
 
-  ProviderModel? modelOfProfile(String profileId) =>
+  ProviderModel? modelOfProfile(String? profileId) =>
       models.where((model) => model.profileId == profileId).firstOrNull;
 
-  ProviderConfig? providerForProfile(String profileId) {
+  ProviderConfig? providerForProfile(String? profileId) {
     final model = modelOfProfile(profileId);
     if (model == null) return null;
     return providers
@@ -302,7 +319,7 @@ class ProviderCatalog {
   }
 
   /// 一个模型能否被新会话或当前会话选用：自身与服务都未停用。
-  bool isSelectable(String profileId) {
+  bool isSelectable(String? profileId) {
     final model = modelOfProfile(profileId);
     if (model == null || model.archived) return false;
     final provider = providerForProfile(profileId);
@@ -359,8 +376,12 @@ class ProviderCatalog {
     Map<String, ReasoningEffort> reasoningEfforts = const {},
   }) {
     final compiled = compileProfiles();
-    if (compiled.isEmpty) return base;
+    final requested = selection.defaultProfileId;
+    final selected = requested != null && isSelectable(requested)
+        ? requested
+        : unconfiguredProfileId;
     final profiles = [
+      if (selected == unconfiguredProfileId) _unconfiguredProfile,
       for (final profile in compiled)
         if (reasoningEfforts[profile.id] case final effort?)
           ModelProfile.fromJson({
@@ -370,14 +391,11 @@ class ProviderCatalog {
         else
           profile,
     ];
-    final selected =
-        profiles.any((profile) => profile.id == selection.defaultProfileId)
-        ? selection.defaultProfileId
-        : profiles.first.id;
     final summaryCandidate = selection.effectiveSummaryProfileId;
     // 摘要模型停用或所属服务停用时回退到主模型，避免后台总结静默失败。
     final summary =
-        profiles.any((profile) => profile.id == summaryCandidate) &&
+        summaryCandidate != null &&
+            profiles.any((profile) => profile.id == summaryCandidate) &&
             isSelectable(summaryCandidate)
         ? summaryCandidate
         : selected;
@@ -539,16 +557,6 @@ class ProviderCatalog {
       '_',
     );
     return 'MISSIONBOOK_PROVIDER_${normalized}_KEY';
-  }
-
-  /// 生成不与现有条目冲突的稳定编号。
-  static String nextId(String prefix, Iterable<String> existing) {
-    final used = existing.toSet();
-    var index = 1;
-    while (used.contains('$prefix-$index')) {
-      index++;
-    }
-    return '$prefix-$index';
   }
 }
 

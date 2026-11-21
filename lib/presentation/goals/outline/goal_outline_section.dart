@@ -7,6 +7,7 @@ import '../../records/shared/record_scope.dart';
 import 'dart:async';
 
 import '../../assistant/entry/assistant_launcher.dart';
+import '../../assistant/entry/assistant_scope.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show listEquals;
@@ -674,7 +675,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                 if (AssistantEntryScope.maybeOf(context) != null)
                   PopupMenuItem(
                     value: _NodeAction.assistant,
-                    child: menuLabel(Icons.auto_awesome_outlined, '问助手'),
+                    child: menuLabel(Icons.auto_awesome_outlined, '安排下一步'),
                   ),
               ],
         onSelected: (action) {
@@ -689,7 +690,13 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                 ),
               );
             case _NodeAction.assistant:
-              AssistantEntryScope.maybeOf(context)?.openNode(node.id);
+              unawaited(
+                openAssistant(
+                  context,
+                  nodeId: node.id,
+                  prompt: '先看看这个节点已有的任务和记录。告诉我接下来可以继续哪项任务；没有合适的，请提出一项可确认的安排。',
+                ),
+              );
             case _NodeAction.createMission:
               final section = _taskSections[node.id]?.currentState;
               if (section != null) unawaited(section.createMission());

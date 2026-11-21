@@ -478,6 +478,18 @@ final class AgentSession {
     );
   }
 
+  /// 宿主可把主动提醒保存为独立会话的第一条助手消息，不伪造用户输入。
+  Future<void> recordAssistantNotice(AssistantMessage message) async {
+    if (message.text.trim().isEmpty ||
+        message.content.any((block) => block is! TextBlock)) {
+      throw ArgumentError('主动提醒只能包含非空正文');
+    }
+    await _mutate(() async {
+      if (transcript.isNotEmpty) throw StateError('主动提醒应使用独立会话');
+      await _record('message_added', {'message': encodeMessage(message)});
+    });
+  }
+
   /// 用最新一份同来源上下文替换旧块；传空文本表示移除，避免每轮累积过期资料。
   /// 原始记录仍在 transcript 与日志中；当前块随压缩保留，替换或移除后退出模型投影。
   Future<void> replaceContext({

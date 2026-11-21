@@ -27,23 +27,33 @@ import java.util.concurrent.Executors
  * 长期依赖 ContentProvider 的临时授权。
  */
 class MainActivity : FlutterActivity() {
+    private val workspaceLease = Any()
+    override fun provideFlutterEngine(context: Context): FlutterEngine =
+        AssistantWorkspaceHost.acquire(context, workspaceLease)
+
+    override fun shouldDestroyEngineWithHost(): Boolean = false
+
     private var pendingBackupResult: MethodChannel.Result? = null
     private var pendingBackupFile: File? = null
     private var pendingFileResult: MethodChannel.Result? = null
     private var pendingFileLimit = MAX_ATTACHMENT_BYTES
     private var pendingOverlayResult: MethodChannel.Result? = null
     private var pendingAssistantOpen = false
-    private var pendingCapturePath: String? = null
-    private var deliveredCapturePath: String? = null
+    private var pendingMission: String? = null
+    private var pendingAssistantSession: String? = null
+    private var pendingAssistantRecord: String? = null
     private var assistantOverlayChannel: MethodChannel? = null
+    private var deviceChannel: MethodChannel? = null
+    private var fileSelectorChannel: MethodChannel? = null
     // ContentProvider 读取、能力查询和文件写入交给后台线程，避免阻塞 Flutter 界面。
     private val fileCopyExecutor = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingAssistantOpen = intent?.getBooleanExtra(EXTRA_OPEN_ASSISTANT, false) == true
-        pendingCapturePath = intent?.getStringExtra(EXTRA_CAPTURE_PATH)
-            ?: getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).getString(EXTRA_CAPTURE_PATH, null)
+        pendingMission = intent?.getStringExtra(EXTRA_ASSISTANT_MISSION)
+        pendingAssistantSession = intent?.getStringExtra(EXTRA_ASSISTANT_SESSION)
+        pendingAssistantRecord = intent?.getStringExtra(EXTRA_ASSISTANT_RECORD)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -58,34 +68,37 @@ class MainActivity : FlutterActivity() {
                     "consumePendingOpen" -> {
                         val pending = pendingAssistantOpen
                         pendingAssistantOpen = false
+                        intent?.removeExtra(EXTRA_OPEN_ASSISTANT)
                         result.success(pending)
                     }
-                    "consumePendingCapture" -> consumePendingCapture(result)
-                    "acknowledgeCapture" -> {
-                        deliveredCapturePath?.let { path ->
-                            val source = File(path).canonicalFile
-                            if (source.path.startsWith(assistantCaptureRoot().canonicalPath + File.separator)) source.delete()
-                        }
-                        if (pendingCapturePath == deliveredCapturePath) {
-                            pendingCapturePath = null
-                            getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).edit().remove(EXTRA_CAPTURE_PATH).apply()
-                            intent?.removeExtra(EXTRA_CAPTURE_PATH)
-                        }
-                        deliveredCapturePath = null
-                        result.success(null)
+                    "consumeAssistantSession" -> {
+                        val id = pendingAssistantSession
+                        pendingAssistantSession = null
+                        intent?.removeExtra(EXTRA_ASSISTANT_SESSION)
+                        result.success(id)
+                    }
+                    "consumePendingMission" -> {
+                        val id = pendingMission
+                        pendingMission = null
+                        intent?.removeExtra(EXTRA_ASSISTANT_MISSION)
+                        result.success(id)
+                    }
+                    "consumeAssistantRecord" -> {
+                        val id = pendingAssistantRecord
+                        pendingAssistantRecord = null
+                        intent?.removeExtra(EXTRA_ASSISTANT_RECORD)
+                        result.success(id)
                     }
                     else -> result.notImplemented()
                 }
             }
         }
-        val keepCapturePath = intent?.getStringExtra(EXTRA_CAPTURE_PATH)
-            ?: getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).getString(EXTRA_CAPTURE_PATH, null)
         fileCopyExecutor.execute {
             fileSelectorCacheRoot().deleteRecursively()
-            deleteStaleAssistantCaptures(keepCapturePath)
+            deleteStaleAssistantCaptures()
         }
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mission_book/device")
-            .setMethodCallHandler { call, result ->
+        deviceChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mission_book/device")
+        deviceChannel?.setMethodCallHandler { call, result ->
                 try {
                     when (call.method) {
                         "capabilities" -> {
@@ -144,6 +157,15 @@ class MainActivity : FlutterActivity() {
                         }
                         "toggleAssistantOverlay" -> toggleAssistantOverlay(result)
                         "assistantOverlayEnabled" -> result.success(overlayEnabled() && Settings.canDrawOverlays(this))
+                        "observationStatus" -> result.success(AssistantUsageMonitorService.status(this))
+                        "configureObservation" -> {
+                            AssistantUsageMonitorService.configure(this, call.arguments as? Map<*, *> ?: emptyMap<String, Any?>())
+                            result.success(AssistantUsageMonitorService.status(this))
+                        }
+                        "requestUsageAccess" -> {
+                            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                            result.success(null)
+                        }
                         "saveBackup" -> {
                             check(pendingBackupResult == null) { "已有备份保存窗口" }
                             val source = File(requireNotNull(call.argument<String>("path"))).canonicalFile
@@ -168,13 +190,18 @@ class MainActivity : FlutterActivity() {
                     result.error("device_operation_failed", error.message, null)
                 }
             }
-        MethodChannel(
+        fileSelectorChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             FILE_SELECTOR_CHANNEL,
-        ).setMethodCallHandler(::handleFileSelectorCall)
+        )
+        fileSelectorChannel?.setMethodCallHandler(::handleFileSelectorCall)
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        deviceChannel?.setMethodCallHandler(null)
+        deviceChannel = null
+        fileSelectorChannel?.setMethodCallHandler(null)
+        fileSelectorChannel = null
         assistantOverlayChannel?.setMethodCallHandler(null)
         assistantOverlayChannel = null
         PlannedAlarm.detachPrimary()
@@ -183,49 +210,31 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        Log.i(TAG, "收到助手外部 Intent: open=${intent.getBooleanExtra(EXTRA_OPEN_ASSISTANT, false)}, capture=${intent.getStringExtra(EXTRA_CAPTURE_PATH) != null}")
         setIntent(intent)
+        pendingAssistantSession = intent.getStringExtra(EXTRA_ASSISTANT_SESSION)
+        intent.getStringExtra(EXTRA_ASSISTANT_RECORD)?.let { id ->
+            pendingAssistantRecord = id
+            assistantOverlayChannel?.invokeMethod("pendingRecord", null)
+        }
         if (intent.getBooleanExtra(EXTRA_OPEN_ASSISTANT, false)) {
             pendingAssistantOpen = true
             assistantOverlayChannel?.invokeMethod("pendingOpen", null)
         }
-        intent.getStringExtra(EXTRA_CAPTURE_PATH)?.let { path ->
-            pendingCapturePath = path
-            assistantOverlayChannel?.invokeMethod("pendingCapture", null)
-        }
-    }
-
-    private fun consumePendingCapture(result: MethodChannel.Result) {
-        val path = pendingCapturePath ?: run { result.success(null); return }
-        fileCopyExecutor.execute {
-            try {
-                val root = assistantCaptureRoot().canonicalFile
-                val source = File(path).canonicalFile
-                check(source.path.startsWith(root.path + File.separator) && source.isFile) { "截屏缓存无效" }
-                check(source.length() <= MAX_ASSISTANT_CAPTURE_BYTES) { "截屏文件超出大小限制" }
-                val bytes = source.readBytes()
-                runOnUiThread { deliveredCapturePath = path; result.success(bytes) }
-            } catch (error: Exception) {
-                Log.e(TAG, "读取助手截屏失败", error)
-                runOnUiThread { result.error("capture_read_failed", error.message, null) }
-            }
+        intent.getStringExtra(EXTRA_ASSISTANT_MISSION)?.let { id ->
+            pendingMission = id
+            assistantOverlayChannel?.invokeMethod("pendingMission", null)
         }
     }
 
     override fun onResume() {
         super.onResume()
-        if (pendingCapturePath == null) {
-            pendingCapturePath = getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE).getString(EXTRA_CAPTURE_PATH, null)
+        runCatching { AssistantUsageMonitorService.resumeIfAuthorized(this) }
+        if (pendingAssistantOpen) assistantOverlayChannel?.invokeMethod("pendingOpen", null)
+        if (pendingMission != null) assistantOverlayChannel?.invokeMethod("pendingMission", null)
+        if (pendingAssistantRecord != null) assistantOverlayChannel?.invokeMethod("pendingRecord", null)
+        if (overlayEnabled() && Settings.canDrawOverlays(this)) {
+            runCatching { sendOverlayAction(AssistantOverlayService.ACTION_SHOW) }
         }
-        if (pendingCapturePath != null) assistantOverlayChannel?.invokeMethod("pendingCapture", null)
-        if (overlayEnabled()) sendOverlayAction(AssistantOverlayService.ACTION_HIDE)
-    }
-
-    override fun onPause() {
-        if (overlayEnabled() && !capturePending()) {
-            sendOverlayAction(AssistantOverlayService.ACTION_SHOW)
-        }
-        super.onPause()
     }
 
     private fun toggleAssistantOverlay(result: MethodChannel.Result) {
@@ -273,12 +282,9 @@ class MainActivity : FlutterActivity() {
         getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
             .getBoolean(AssistantOverlayService.ENABLED_KEY, false)
 
-    private fun capturePending(): Boolean =
-        getSharedPreferences(AssistantOverlayService.PREFS, MODE_PRIVATE)
-            .getBoolean(AssistantOverlayService.CAPTURE_PENDING_KEY, false)
-
     private fun sendOverlayAction(action: String) {
-        startService(Intent(this, AssistantOverlayService::class.java).setAction(action))
+        val intent = Intent(this, AssistantOverlayService::class.java).setAction(action)
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
     }
 
     private fun handleFileSelectorCall(call: MethodCall, result: MethodChannel.Result) {
@@ -476,13 +482,11 @@ class MainActivity : FlutterActivity() {
 
     private fun assistantCaptureRoot(): File = File(cacheDir, ASSISTANT_CAPTURE_DIR)
 
-    private fun deleteStaleAssistantCaptures(keepPath: String?) {
+    private fun deleteStaleAssistantCaptures() {
         val files = assistantCaptureRoot().listFiles() ?: return
         val cutoff = System.currentTimeMillis() - STALE_ASSISTANT_CAPTURE_MILLIS
-        val keep = runCatching { keepPath?.let { File(it).canonicalFile } }.getOrNull()
         for (file in files) {
             if (!file.isFile || file.lastModified() >= cutoff) continue
-            if (keep != null && runCatching { file.canonicalFile }.getOrNull() == keep) continue
             file.delete()
         }
     }
@@ -493,11 +497,12 @@ class MainActivity : FlutterActivity() {
     override fun onDestroy() {
         fileCopyExecutor.shutdown()
         super.onDestroy()
+        AssistantWorkspaceHost.release(workspaceLease)
     }
 
     companion object {
         // 所有悬浮入口共用同一个主 Activity；由 singleTask 接收 onNewIntent。
-        fun assistantIntent(context: Context, capturePath: String? = null): Intent =
+        fun assistantIntent(context: Context, missionId: String? = null, sessionId: String? = null, recordId: String? = null): Intent =
             Intent(context, MainActivity::class.java).apply {
                 addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -505,8 +510,12 @@ class MainActivity : FlutterActivity() {
                         Intent.FLAG_ACTIVITY_SINGLE_TOP or
                         Intent.FLAG_ACTIVITY_REORDER_TO_FRONT,
                 )
-                if (capturePath != null) putExtra(EXTRA_CAPTURE_PATH, capturePath)
-                else putExtra(EXTRA_OPEN_ASSISTANT, true)
+                when {
+                    missionId != null -> putExtra(EXTRA_ASSISTANT_MISSION, missionId)
+                    recordId != null -> putExtra(EXTRA_ASSISTANT_RECORD, recordId)
+                    else -> putExtra(EXTRA_OPEN_ASSISTANT, true)
+                }
+                if (sessionId != null) putExtra(EXTRA_ASSISTANT_SESSION, sessionId)
             }
 
         const val MAX_ATTACHMENT_BYTES = 20L * 1024L * 1024L
@@ -518,7 +527,9 @@ class MainActivity : FlutterActivity() {
         const val OVERLAY_PERMISSION_REQUEST_CODE = 43023
         const val ASSISTANT_OVERLAY_CHANNEL = "mission_book/assistant_overlay"
         const val EXTRA_OPEN_ASSISTANT = "assistant_overlay_open"
-        const val EXTRA_CAPTURE_PATH = "assistant_capture_path"
+        private const val EXTRA_ASSISTANT_MISSION = "assistant_mission_id"
+        private const val EXTRA_ASSISTANT_SESSION = "assistant_session_id"
+        private const val EXTRA_ASSISTANT_RECORD = "assistant_record_ticket"
         const val ASSISTANT_CAPTURE_DIR = "assistant_capture"
         const val MAX_ASSISTANT_CAPTURE_BYTES = 4L * 1024L * 1024L
         private const val STALE_ASSISTANT_CAPTURE_MILLIS = 60L * 60L * 1000L
