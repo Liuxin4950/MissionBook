@@ -314,8 +314,13 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
         );
       },
     );
-    _notificationInitialization = _initNotifications();
-    unawaited(_notificationInitialization);
+    // Windows 通知插件在初始化时会同步回调平台生命周期；放到首帧之后，
+    // 避免在 build/persistentCallbacks 阶段触发调度器断言。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _notificationInitialization = _initNotifications();
+      unawaited(_notificationInitialization!);
+    });
     // 首帧先呈现品牌页；短暂过渡后才装载四个主页面。
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await motionLoaded;
@@ -522,6 +527,11 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     if (kIsWeb) {
       // Web 没有系统提醒能力，也不能在运行期访问本机应用支持目录。
       debugPrint('当前浏览器不支持系统提醒');
+      return;
+    }
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      // 临时对照：确认 Windows 原生 abort 是否来自通知插件初始化。
+      debugPrint('Windows 通知初始化暂时跳过');
       return;
     }
     final plugin = FlutterLocalNotificationsPlugin();

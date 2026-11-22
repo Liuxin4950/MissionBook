@@ -19,6 +19,7 @@ part 'windows_overlay_chat.dart';
 /// Renders the native desktop overlay with the main engine as its sole workspace.
 void runWindowsAssistantOverlay() {
   WidgetsFlutterBinding.ensureInitialized();
+  debugPrint('Windows overlay isolate started');
   runApp(
     MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -81,7 +82,23 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
   void initState() {
     super.initState();
     _channel.setMethodCallHandler(_receive);
-    unawaited(_call('ready'));
+    unawaited(_announce());
+  }
+
+  /// 原生宿主在创建窗口后才安装通道处理器；首条 ready 若早到会被丢弃。
+  /// 收到成功回执才停止，避免悬浮球因一次握手失败永久不显示。
+  Future<void> _announce() async {
+    for (var attempt = 0; attempt < 50 && mounted; attempt++) {
+      try {
+        await _channel.invokeMethod<void>('ready');
+        return;
+      } on PlatformException {
+        // 宿主尚未就绪，短暂等待后重试。
+      } on MissingPluginException {
+        // 宿主引擎仍在装配。
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
   }
 
   @override

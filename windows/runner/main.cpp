@@ -11,6 +11,7 @@
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  AppendDebugLog("main start");
   constexpr wchar_t kSingleInstanceName[] =
       L"Local\\MissionBook.SingleInstance";
   HANDLE single_instance = CreateMutexW(nullptr, FALSE, kSingleInstanceName);
@@ -58,6 +59,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
+  AppendDebugLog("project ready");
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
@@ -71,10 +73,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     size.width = std::clamp(MulDiv(width, 96, dpi) - 30, 350, 1280);
     size.height = std::clamp(MulDiv(height, 96, dpi) - 30, 340, 720);
   }
+  AppendDebugLog("window create begin");
   if (!window.Create(L"Mission Book", origin, size)) {
     CloseHandle(single_instance);
     return EXIT_FAILURE;
   }
+  AppendDebugLog("window created");
   window.SetQuitOnClose(true);
   if (!window.Show()) {
     CloseHandle(single_instance);

@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <optional>
 #include <string>
 #include <utility>
@@ -30,6 +32,28 @@ constexpr auto kClass = L"MissionBook.AssistantOverlay";
 constexpr auto kPreferenceKey = L"Software\\MissionBook";
 constexpr UINT_PTR kUsageTimer = 1;
 constexpr UINT kRefreshLayout = WM_APP + 71;
+
+void Trace(const std::string& message) {
+  wchar_t directory[MAX_PATH]{};
+  const DWORD length = GetModuleFileNameW(nullptr, directory, MAX_PATH);
+  if (length == 0) return;
+  std::wstring path(directory, length);
+  const auto slash = path.find_last_of(L"\\/");
+  path.resize(slash == std::wstring::npos ? 0 : slash + 1);
+  path += L"missionbook-overlay.log";
+  const HANDLE file = CreateFileW(path.c_str(), FILE_APPEND_DATA,
+      FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
+      FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return;
+  const std::string line =
+      std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now().time_since_epoch()).count()) +
+      ' ' + message + "\r\n";
+  DWORD written = 0;
+  WriteFile(file, line.data(), static_cast<DWORD>(line.size()), &written,
+            nullptr);
+  CloseHandle(file);
+}
 
 const Value* Field(const Value* args, const char* name) {
   const auto* map = args ? std::get_if<Map>(args) : nullptr;
@@ -129,6 +153,7 @@ class WindowsAssistantOverlay::Host {
         result->NotImplemented();
       }
     });
+    Trace("Host created enabled=" + std::to_string(enabled_));
   }
 
   ~Host() {
@@ -153,6 +178,7 @@ class WindowsAssistantOverlay::Host {
   }
 
   bool SetEnabled(bool enabled) {
+    Trace("SetEnabled " + std::to_string(enabled));
     if (enabled && !EnsureWindow()) return false;
     if (!SavePreference(L"AssistantOverlay", enabled)) return false;
     enabled_ = enabled;
@@ -181,6 +207,7 @@ class WindowsAssistantOverlay::Host {
   }
 
   bool EnsureWindow() {
+    Trace("EnsureWindow begin");
     if (window_) return true;
     const auto module = GetModuleHandleW(nullptr);
     WNDCLASSW klass{};
@@ -199,10 +226,13 @@ class WindowsAssistantOverlay::Host {
     window_ = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_TOPMOST, kClass, L"书祺悬浮球",
         WS_POPUP | WS_CLIPCHILDREN, center_.x - size / 2, center_.y - size / 2,
         size, size, nullptr, nullptr, module, this);
+    Trace("EnsureWindow window=" + std::to_string(window_ != nullptr));
     if (!window_) return false;
     auto overlay_project = project_;
     overlay_project.set_dart_entrypoint("windowsAssistantOverlayMain");
     controller_ = std::make_unique<flutter::FlutterViewController>(size, size, overlay_project);
+    Trace("EnsureWindow controller=" + std::to_string(controller_->engine() != nullptr) +
+          "," + std::to_string(controller_->view() != nullptr));
     if (!controller_->engine() || !controller_->view()) {
       controller_.reset();
       DestroyWindow(window_);
@@ -210,6 +240,7 @@ class WindowsAssistantOverlay::Host {
     }
     UrlLauncherWindowsRegisterWithRegistrar(
         controller_->engine()->GetRegistrarForPlugin("UrlLauncherWindows"));
+    Trace("EnsureWindow url_launcher registered");
     child_ = controller_->view()->GetNativeWindow();
     SetParent(child_, window_);
     MoveWindow(child_, 0, 0, size, size, TRUE);
@@ -219,6 +250,7 @@ class WindowsAssistantOverlay::Host {
       ClientCall(call, std::move(result));
     });
     controller_->ForceRedraw();
+    Trace("EnsureWindow done");
     return true;
   }
 
@@ -235,6 +267,7 @@ class WindowsAssistantOverlay::Host {
   void WorkspaceEvent(const Call& call, std::unique_ptr<Reply> result) {
     const auto& method = call.method_name();
     const auto* args = call.arguments();
+    Trace("WorkspaceEvent " + method);
     if (method == "ready" && args) {
       generation_ = *args;
       if (enabled_ && !EnsureWindow()) {
@@ -314,6 +347,7 @@ class WindowsAssistantOverlay::Host {
   void ClientCall(const Call& call, std::unique_ptr<Reply> result) {
     const auto& method = call.method_name();
     const auto* args = call.arguments();
+    Trace("ClientCall " + method);
     if (method == "ready") {
       client_ready_ = true;
       result->Success();
@@ -710,7 +744,11 @@ class WindowsAssistantOverlay::Host {
   }
 
   void Layout() {
-    if (!enabled_ || !window_ || !client_ready_ || capturing_) return;
+    if (!enabled_ || !window_ || !client_ready_ || capturing_) {
+      Trace("Layout skipped");
+      return;
+    }
+    Trace("Layout begin mode=" + mode_);
     const auto monitor = MonitorFromPoint(center_, MONITOR_DEFAULTTONEAREST);
     MONITORINFO info{sizeof(info)};
     if (!GetMonitorInfoW(monitor, &info)) return;
@@ -782,7 +820,9 @@ class WindowsAssistantOverlay::Host {
     Publish("layout", Value(Map{{Value("parts"), Value(std::move(shapes))},
         {Value("w"), Value(Width(bounds))}, {Value("h"), Value(Height(bounds))},
         {Value("dock"), Value(dock_)}, {Value("usage"), Value(usage_)}}));
+    Trace("Layout published");
     if (client_painted_ && !IsWindowVisible(window_)) ShowWindow(window_, SW_SHOWNOACTIVATE);
+    Trace("Layout done");
   }
 
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam,

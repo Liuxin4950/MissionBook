@@ -5,6 +5,7 @@
 #include <flutter/standard_method_codec.h>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "utils.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -12,6 +13,7 @@ FlutterWindow::FlutterWindow(const flutter::DartProject& project)
 FlutterWindow::~FlutterWindow() {}
 
 bool FlutterWindow::OnCreate() {
+  AppendDebugLog("OnCreate begin");
   if (!Win32Window::OnCreate()) {
     return false;
   }
@@ -26,9 +28,12 @@ bool FlutterWindow::OnCreate() {
   if (!flutter_controller_->engine() || !flutter_controller_->view()) {
     return false;
   }
+  AppendDebugLog("plugins registered");
   RegisterPlugins(flutter_controller_->engine());
+  AppendDebugLog("overlay ctor begin");
   assistant_overlay_ = std::make_unique<WindowsAssistantOverlay>(
       GetHandle(), flutter_controller_->engine()->messenger(), project_);
+  AppendDebugLog("overlay ctor done");
   flutter::MethodChannel<flutter::EncodableValue> device_channel(
       flutter_controller_->engine()->messenger(), "mission_book/device",
       &flutter::StandardMethodCodec::GetInstance());

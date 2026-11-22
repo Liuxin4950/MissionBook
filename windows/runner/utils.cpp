@@ -6,6 +6,26 @@
 #include <windows.h>
 
 #include <iostream>
+#include <string>
+
+void AppendDebugLog(const std::string& message) {
+  wchar_t directory[MAX_PATH]{};
+  const DWORD length = GetModuleFileNameW(nullptr, directory, MAX_PATH);
+  if (length == 0) return;
+  std::wstring path(directory, length);
+  const auto slash = path.find_last_of(L"\\/");
+  path.resize(slash == std::wstring::npos ? 0 : slash + 1);
+  path += L"missionbook-run.log";
+  const HANDLE file = CreateFileW(path.c_str(), FILE_APPEND_DATA,
+      FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
+      FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (file == INVALID_HANDLE_VALUE) return;
+  const std::string line = message + "\r\n";
+  DWORD written = 0;
+  WriteFile(file, line.data(), static_cast<DWORD>(line.size()), &written,
+            nullptr);
+  CloseHandle(file);
+}
 
 void CreateAndAttachConsole() {
   if (::AllocConsole()) {

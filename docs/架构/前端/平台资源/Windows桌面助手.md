@@ -20,7 +20,7 @@ flowchart LR
     I --> K[保留 AppData 用户数据]
 ```
 
-签名边界与设备验收要求见[Windows 安装器说明](../../../../windows/installer/README.md)。
+签名边界与设备验收要求见[Windows 安装器说明](../../../../windows/installer/README.md)。本机出现 `_createDevFS`、数据库只读或启动后点击无响应时，先按[Windows 运行与完整性排错](../../../开发/Windows运行排错.md)检查目录完整性标签，再判断业务代码。
 ## 调用链
 
 ```mermaid
