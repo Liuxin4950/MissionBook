@@ -9,6 +9,7 @@ import '../../../core/theme/colors.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_empty_state.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_interactive_surface.dart';
 
 class AssistantHistoryPage extends StatefulWidget {
   const AssistantHistoryPage({super.key, required this.controller});
@@ -127,85 +128,80 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
       rows.add(
         Padding(
           padding: const EdgeInsets.only(bottom: AppLayout.spaceXs),
-          child: Material(
-            color: selected ? AppColors.primarySoft : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppLayout.radiusLg),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              key: ValueKey('assistant-conversation-${conversation.id}'),
-              onTap: controller.isBusy
-                  ? null
-                  : () => _open(context, conversation),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppLayout.spaceMd,
-                  AppLayout.spaceMd,
-                  0,
-                  AppLayout.spaceMd,
+          child: AppInteractiveSurface(
+            key: ValueKey('assistant-conversation-${conversation.id}'),
+            selected: selected,
+            enabled: !controller.isBusy,
+            onTap: controller.isBusy
+                ? null
+                : () => _open(context, conversation),
+            semanticsLabel: conversation.title,
+            borderRadius: AppLayout.radiusMd,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppLayout.spaceMd,
+              vertical: AppLayout.spaceMd,
+            ),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.primarySoft,
+                  foregroundColor: AppColors.primary,
+                  child: Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: AppLayout.iconMd,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      radius: 20,
-                      backgroundColor: AppColors.primarySoft,
-                      foregroundColor: AppColors.primary,
-                      child: Icon(
-                        Icons.chat_bubble_outline_rounded,
-                        size: AppLayout.iconMd,
+                const SizedBox(width: AppLayout.spaceMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        conversation.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall,
                       ),
-                    ),
-                    const SizedBox(width: AppLayout.spaceMd),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(height: AppLayout.spaceXs),
+                      Wrap(
+                        spacing: AppLayout.spaceSm,
+                        runSpacing: AppLayout.spaceXs,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
-                            conversation.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleSmall,
+                            '${_contextLabel(conversation)} · ${_format(conversation.updatedAt, today)}',
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
-                          const SizedBox(height: AppLayout.spaceXs),
-                          Wrap(
-                            spacing: AppLayout.spaceSm,
-                            runSpacing: AppLayout.spaceXs,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              Text(
-                                '${_contextLabel(conversation)} · ${_format(conversation.updatedAt, today)}',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              if (selected)
-                                Text(
-                                  '当前',
-                                  style: Theme.of(context).textTheme.labelSmall
-                                      ?.copyWith(color: AppColors.primary),
-                                ),
-                            ],
-                          ),
+                          if (selected)
+                            Text(
+                              '当前',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: AppColors.primary),
+                            ),
                         ],
                       ),
-                    ),
-                    PopupMenuButton<String>(
-                      popUpAnimationStyle: AppMotion.overlayStyle(context),
-                      tooltip: '会话操作 ${conversation.title}',
-                      enabled: !controller.isBusy,
-                      icon: const Icon(Icons.more_horiz),
-                      onSelected: (value) {
-                        if (value == 'rename') {
-                          _rename(context, conversation);
-                        } else if (value == 'delete') {
-                          _delete(context, conversation);
-                        }
-                      },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'rename', child: Text('重命名')),
-                        PopupMenuItem(value: 'delete', child: Text('删除会话')),
-                      ],
-                    ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  popUpAnimationStyle: AppMotion.overlayStyle(context),
+                  tooltip: '会话操作 ${conversation.title}',
+                  enabled: !controller.isBusy,
+                  icon: const Icon(Icons.more_horiz),
+                  onSelected: (value) {
+                    if (value == 'rename') {
+                      _rename(context, conversation);
+                    } else if (value == 'delete') {
+                      _delete(context, conversation);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'rename', child: Text('重命名')),
+                    PopupMenuItem(value: 'delete', child: Text('删除会话')),
                   ],
                 ),
-              ),
+              ],
             ),
           ),
         ),

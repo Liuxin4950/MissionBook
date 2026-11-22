@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../application/assistant/assistant_provider_catalog.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
+import '../../widgets/app_interactive_surface.dart';
 
 /// 按服务分组选择模型，返回 profileId，取消返回 null。
 class AssistantModelChoicePicker extends StatefulWidget {
@@ -226,25 +227,35 @@ class _ModelChoiceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: AppLayout.spaceSm),
-    child: ListTile(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
-      ),
-      minTileHeight: AppLayout.touchTargetMin,
+    child: AppInteractiveSurface(
       selected: selected,
-      selectedTileColor: AppColors.primarySoft,
-      title: Tooltip(
-        message: title,
-        excludeFromSemantics: true,
-        child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      ),
-      subtitle: subtitle == null
-          ? null
-          : Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: selected
-          ? const Icon(Icons.check_rounded, size: AppLayout.iconSm)
-          : null,
       onTap: onTap,
+      semanticsLabel: title,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+              ],
+            ),
+          ),
+          if (selected)
+            const Icon(
+              Icons.check_rounded,
+              size: AppLayout.iconSm,
+              color: AppColors.primary,
+            ),
+        ],
+      ),
     ),
   );
 }

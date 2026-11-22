@@ -23,6 +23,7 @@ import 'application/backup/backup_service.dart';
 import 'application/settings/app_device.dart';
 import 'presentation/me/me_page.dart';
 import 'presentation/widgets/detail_pane.dart';
+import 'presentation/widgets/app_interactive_surface.dart';
 import 'presentation/widgets/app_content_transition.dart';
 
 /// 管理顶层导航入口，并保留各页状态、转交共享业务对象。
@@ -421,7 +422,7 @@ class _AppShellState extends State<AppShell> {
                   ? (contentWidth - AppLayout.paneGap - AppLayout.paneLeftMin)
                         .clamp(
                           AppLayout.paneRightMin,
-                          AppLayout.detailPaneMaxWidth,
+                          _detailPane.activeMaxWidth,
                         )
                   : constraints.maxWidth;
               final takeover = _detailPane.hasContent && !split;
@@ -556,6 +557,7 @@ class _AppShellState extends State<AppShell> {
                                   widthFactor: 1,
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
+                                      horizontal: AppLayout.spaceMd,
                                       vertical: AppLayout.spaceXs,
                                     ),
                                     child: _navigationSelection(),
@@ -677,7 +679,12 @@ class _AppShellState extends State<AppShell> {
                           top: 0,
                           bottom: 0,
                           width: itemWidth,
-                          child: _navigationSelection(),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppLayout.spaceMd,
+                            ),
+                            child: _navigationSelection(),
+                          ),
                         ),
                         Row(
                           children: [
@@ -732,9 +739,11 @@ class _AppShellState extends State<AppShell> {
 
   Widget _navigationSelection() => DecoratedBox(
     key: const Key('navigation-selection-surface'),
-    decoration: const ShapeDecoration(
+    decoration: ShapeDecoration(
       color: AppColors.primarySoft,
-      shape: StadiumBorder(),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+      ),
     ),
     child: const SizedBox.expand(),
   );
@@ -795,45 +804,33 @@ class _AppShellState extends State<AppShell> {
       child: Text(label),
     );
     final content = extended
-        ? Padding(
-            padding: const EdgeInsets.symmetric(
-              vertical: AppLayout.spaceLg,
-              horizontal: AppLayout.space3Xl,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                iconWidget,
-                const SizedBox(width: AppLayout.spaceSm),
-                labelWidget,
-              ],
-            ),
+        ? Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              iconWidget,
+              const SizedBox(width: AppLayout.spaceSm),
+              labelWidget,
+            ],
           )
-        : Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [iconWidget, const SizedBox(height: 2), labelWidget],
-            ),
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [iconWidget, const SizedBox(height: 2), labelWidget],
           );
-    final button = Semantics(
-      label: label,
-      button: true,
-      selected: selected,
-      enabled: true,
-      // 替换子节点语义后，需要在这里同时提供标签和实际点击动作。
-      excludeSemantics: true,
-      onTap: selectPage,
-      child: Tooltip(
-        message: label,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: selectPage,
-            customBorder: const StadiumBorder(),
-            child: content,
-          ),
+    final button = Tooltip(
+      message: label,
+      child: AppInteractiveSurface(
+        semanticsLabel: label,
+        selected: selected,
+        // 选中底色由下方移动指示层绘制；交互表面只负责悬停和聚焦反馈。
+        selectedColor: Colors.transparent,
+        baseColor: Colors.transparent,
+        onTap: selectPage,
+        borderRadius: AppLayout.radiusMd,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppLayout.spaceMd,
+          vertical: AppLayout.spaceSm,
         ),
+        child: content,
       ),
     );
     return inCapsule ? Expanded(child: button) : button;

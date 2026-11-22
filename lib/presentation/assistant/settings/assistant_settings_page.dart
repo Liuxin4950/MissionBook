@@ -27,6 +27,7 @@ import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/adaptive_columns.dart';
 import '../../widgets/app_expansion.dart';
+import '../../widgets/app_interactive_surface.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/app_settings_row.dart';
 import '../../widgets/app_selection_option.dart';
@@ -736,26 +737,17 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       ),
       children: [
         for (final mode in AssistantPermissionMode.values)
-          Padding(
-            padding: EdgeInsets.zero,
-            child: Material(
-              color: _permission == mode
-                  ? AppColors.primarySoft
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(AppLayout.radiusMd),
-              child: ListTile(
-                key: Key('assistant-permission-${mode.name}'),
-                dense: true,
-                visualDensity: VisualDensity.compact,
-                selected: _permission == mode,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: AppLayout.spaceMd,
-                  vertical: 0,
-                ),
-                minLeadingWidth: AppLayout.iconMd,
-                horizontalTitleGap: AppLayout.spaceSm,
-                minVerticalPadding: AppLayout.spaceSm,
-                leading: Icon(
+          AppInteractiveSurface(
+            key: Key('assistant-permission-${mode.name}'),
+            semanticsLabel: mode.label,
+            selected: _permission == mode,
+            enabled: !_saving && !widget.controller.isBusy,
+            onTap: _saving || widget.controller.isBusy
+                ? null
+                : () => setState(() => _permission = mode),
+            child: Row(
+              children: [
+                Icon(
                   _permission == mode
                       ? Icons.radio_button_checked
                       : Icons.radio_button_off,
@@ -764,23 +756,26 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                       ? AppColors.primary
                       : AppColors.textSecondary,
                 ),
-                title: Text(
-                  mode.label,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: AppLayout.spaceXs),
-                  child: DefaultTextStyle(
-                    style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                    child: Text(mode.description),
+                const SizedBox(width: AppLayout.spaceSm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        mode.label,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: AppLayout.spaceXs),
+                      Text(
+                        mode.description,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                onTap: _saving || widget.controller.isBusy
-                    ? null
-                    : () => setState(() => _permission = mode),
-              ),
+              ],
             ),
           ),
       ],

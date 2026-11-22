@@ -33,6 +33,38 @@ constexpr auto kPreferenceKey = L"Software\\MissionBook";
 constexpr UINT_PTR kUsageTimer = 1;
 constexpr UINT kRefreshLayout = WM_APP + 71;
 
+// 原生悬浮层的逻辑像素尺寸统一经 Dp() 按所在显示器缩放。
+constexpr int kAssistantBallDiameterDp = 56;
+constexpr int kAssistantBallEdgeOffsetDp = 44;
+constexpr int kAssistantBallDragThresholdDp = 6;
+constexpr int kAssistantDockThresholdDp = 18;
+constexpr int kOverlaySafeInsetDp = 10;
+constexpr int kToolDiameterDp = 50;
+constexpr int kToolGapDp = 7;
+constexpr int kToolOuterOffsetDp = 12;
+constexpr int kToolInnerOffsetDp = 38;
+constexpr int kChatPanelGapDp = 10;
+constexpr int kChatPanelMaxWidthDp = 368;
+constexpr int kChatPanelMaxHeightDp = 478;
+constexpr int kChatPanelMinWidthDp = 280;
+constexpr int kChatPanelMinHeightDp = 230;
+constexpr int kNoticeMaxWidthDp = 276;
+constexpr int kNoticeMaxHeightDp = 112;
+constexpr int kDockHandleWidthDp = 4;
+constexpr int kDockHandleHeightDp = 42;
+constexpr int kImageBadgeWidthDp = 36;
+constexpr int kImageBadgeHeightDp = 23;
+constexpr int kImageBadgeGapDp = 5;
+constexpr int kImageBadgeFallbackXInsetDp = 14;
+constexpr int kImageBadgeFallbackTopDp = 22;
+constexpr int kImageBadgeFallbackWidthDp = 28;
+constexpr int kImageBadgeFallbackHeightDp = 17;
+constexpr int kOverlayReferenceDpi = 96;
+constexpr int kChatPanelCornerRadiusDp = 22;
+constexpr int kImageBadgeCornerRadiusDp = 20;
+constexpr int kDockHandleCornerRadiusDp = 4;
+constexpr int kOverlayToolCornerRadiusDp = 10;
+
 void Trace(const std::string& message) {
   wchar_t directory[MAX_PATH]{};
   const DWORD length = GetModuleFileNameW(nullptr, directory, MAX_PATH);
@@ -221,7 +253,10 @@ class WindowsAssistantOverlay::Host {
     auto monitor = MonitorFromWindow(main_window_, MONITOR_DEFAULTTONEAREST);
     if (!GetMonitorInfoW(monitor, &monitor_info)) return false;
     const auto work = monitor_info.rcWork;
-    const int size = MulDiv(56, static_cast<int>(FlutterDesktopGetDpiForMonitor(monitor)), 96);
+    const int size = MulDiv(
+        kAssistantBallDiameterDp,
+        static_cast<int>(FlutterDesktopGetDpiForMonitor(monitor)),
+        kOverlayReferenceDpi);
     center_ = {work.right - size, work.top + Height(work) * 2 / 3};
     window_ = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_TOPMOST, kClass, L"书祺悬浮球",
         WS_POPUP | WS_CLIPCHILDREN, center_.x - size / 2, center_.y - size / 2,
@@ -625,7 +660,9 @@ class WindowsAssistantOverlay::Host {
 
   void Reveal() {
     if (dock_ == 0) return;
-    center_.x = dock_ < 0 ? work_.left + Dp(44) : work_.right - Dp(44);
+    center_.x = dock_ < 0
+                    ? work_.left + Dp(kAssistantBallEdgeOffsetDp)
+                    : work_.right - Dp(kAssistantBallEdgeOffsetDp);
     dock_ = 0;
     Mode("tools");
   }
@@ -642,7 +679,10 @@ class WindowsAssistantOverlay::Host {
     if (method == "dragMove") {
       const int dx = pointer.x - drag_origin_.x;
       const int dy = pointer.y - drag_origin_.y;
-      if (!dragging_ && std::abs(dx) + std::abs(dy) < Dp(6)) return;
+      if (!dragging_ &&
+          std::abs(dx) + std::abs(dy) < Dp(kAssistantBallDragThresholdDp)) {
+        return;
+      }
       if (!dragging_) {
         if (dock_ != 0) {
           const bool inward = (dock_ < 0 && dx > 0) || (dock_ > 0 && dx < 0);
@@ -658,8 +698,12 @@ class WindowsAssistantOverlay::Host {
       Layout();
     } else if (dragging_ && !cancelled) {
       dragging_ = false;
-      if (pointer.x < work_.left + Dp(18)) dock_ = -1;
-      if (pointer.x >= work_.right - Dp(18)) dock_ = 1;
+      if (pointer.x < work_.left + Dp(kAssistantDockThresholdDp)) {
+        dock_ = -1;
+      }
+      if (pointer.x >= work_.right - Dp(kAssistantDockThresholdDp)) {
+        dock_ = 1;
+      }
       Layout();
     } else if (!dragging_ && !cancelled && dock_ != 0) {
       Reveal();
@@ -671,15 +715,16 @@ class WindowsAssistantOverlay::Host {
     static constexpr const char* primary[] = {"text", "voice", "capture", "more"};
     static constexpr const char* more[] = {"main", "capture", "usage", "back"};
     const auto& names = mode_ == "more" ? more : primary;
-    const LONG size = Dp(50);
-    const LONG gap = Dp(7);
+    const LONG size = Dp(kToolDiameterDp);
+    const LONG gap = Dp(kToolGapDp);
     const bool left = CenterX(ball) >= CenterX(safe);
     if ((left ? ball.left - safe.left : safe.right - ball.right) >= 2 * size + gap &&
         Height(safe) >= size * 4 + gap * 3) {
       const LONG top = Clamp(CenterY(ball) - (size * 4 + gap * 3) / 2,
                              safe.top, safe.bottom - size * 4 - gap * 3);
       for (int i = 0; i < 4; ++i) {
-        const LONG out = Dp(i == 0 || i == 3 ? 12 : 38);
+        const LONG out =
+            Dp(i == 0 || i == 3 ? kToolOuterOffsetDp : kToolInnerOffsetDp);
         const LONG x = left ? ball.left - gap - out - size : ball.right + gap + out;
         parts.push_back({names[i], Box(x, top + i * (size + gap), size, size)});
       }
@@ -718,12 +763,14 @@ class WindowsAssistantOverlay::Host {
   }
 
   RECT ChatRect(RECT ball, RECT safe) const {
-    const LONG gap = Dp(10);
+    const LONG gap = Dp(kChatPanelGapDp);
     const LONG left = ball.left - gap - safe.left;
     const LONG right = safe.right - ball.right - gap;
-    const LONG width = std::min(static_cast<LONG>(Dp(368)), static_cast<LONG>(Width(safe)));
-    const LONG height = std::min(static_cast<LONG>(Dp(478)), static_cast<LONG>(Height(safe)));
-    const LONG min_side = Dp(280);
+    const LONG width = std::min(static_cast<LONG>(Dp(kChatPanelMaxWidthDp)),
+                                static_cast<LONG>(Width(safe)));
+    const LONG height = std::min(static_cast<LONG>(Dp(kChatPanelMaxHeightDp)),
+                                 static_cast<LONG>(Height(safe)));
+    const LONG min_side = Dp(kChatPanelMinWidthDp);
     if (std::max(left, right) >= min_side) {
       const LONG w = std::min(width, std::max(left, right));
       const LONG x = left >= right ? ball.left - gap - w : ball.right + gap;
@@ -731,7 +778,7 @@ class WindowsAssistantOverlay::Host {
     }
     const LONG above = ball.top - gap - safe.top;
     const LONG below = safe.bottom - ball.bottom - gap;
-    if (std::max(above, below) >= Dp(230)) {
+    if (std::max(above, below) >= Dp(kChatPanelMinHeightDp)) {
       const LONG h = std::min(height, std::max(above, below));
       return Box(Clamp(CenterX(ball) - width / 2, safe.left, safe.right - width),
                  above >= below ? ball.top - gap - h : ball.bottom + gap, width, h);
@@ -753,18 +800,19 @@ class WindowsAssistantOverlay::Host {
     MONITORINFO info{sizeof(info)};
     if (!GetMonitorInfoW(monitor, &info)) return;
     work_ = info.rcWork;
-    scale_ = FlutterDesktopGetDpiForMonitor(monitor) / 96.0;
+    scale_ = FlutterDesktopGetDpiForMonitor(monitor) /
+             static_cast<double>(kOverlayReferenceDpi);
     RECT safe = work_;
-    InflateRect(&safe, -Dp(10), -Dp(10));
-    const LONG size = Dp(56);
+    InflateRect(&safe, -Dp(kOverlaySafeInsetDp), -Dp(kOverlaySafeInsetDp));
+    const LONG size = Dp(kAssistantBallDiameterDp);
     const LONG x = Clamp(center_.x - size / 2, safe.left, safe.right - size);
     const LONG y = Clamp(center_.y - size / 2, safe.top, safe.bottom - size);
     if (!dragging_) center_ = {x + size / 2, y + size / 2};
     RECT ball = Box(x, y, size, size);
     std::vector<Part> parts;
     if (dock_ != 0) {
-      const LONG width = Dp(4);
-      const LONG height = Dp(42);
+      const LONG width = Dp(kDockHandleWidthDp);
+      const LONG height = Dp(kDockHandleHeightDp);
       parts.push_back({"handle", Box(dock_ < 0 ? safe.left : safe.right - width,
                                     y + (size - height) / 2, width, height), false});
     } else {
@@ -772,13 +820,16 @@ class WindowsAssistantOverlay::Host {
       else if (mode_ == "tools" || mode_ == "more") AddTools(ball, safe, parts);
       else if (notice_active_) {
         const auto slot = ChatRect(ball, safe);
-        parts.push_back({"notice", Box(slot.left, slot.top,
-            std::min(Width(slot), Dp(276)), std::min(Height(slot), Dp(112))), false});
+        parts.push_back({
+          "notice",
+          Box(slot.left, slot.top, std::min(Width(slot), Dp(kNoticeMaxWidthDp)),
+              std::min(Height(slot), Dp(kNoticeMaxHeightDp))),
+          false});
       }
       parts.push_back({"ball", ball});
       if (image_count_ > 0) {
-        const LONG badge_width = Dp(36);
-        const LONG badge_height = Dp(23);
+        const LONG badge_width = Dp(kImageBadgeWidthDp);
+        const LONG badge_height = Dp(kImageBadgeHeightDp);
         const auto fits = [&](const RECT& rect) {
           if (rect.top < safe.top || rect.bottom > safe.bottom) return false;
           for (const auto& part : parts) {
@@ -788,9 +839,18 @@ class WindowsAssistantOverlay::Host {
           return true;
         };
         const LONG badge_x = CenterX(ball) - badge_width / 2;
-        auto badge = Box(badge_x, ball.top - badge_height - Dp(5), badge_width, badge_height);
-        if (!fits(badge)) badge = Box(badge_x, ball.bottom + Dp(5), badge_width, badge_height);
-        if (!fits(badge)) badge = Box(CenterX(ball) - Dp(14), ball.bottom - Dp(22), Dp(28), Dp(17));
+        auto badge = Box(badge_x, ball.top - badge_height - Dp(kImageBadgeGapDp),
+                         badge_width, badge_height);
+        if (!fits(badge)) {
+          badge = Box(badge_x, ball.bottom + Dp(kImageBadgeGapDp),
+                      badge_width, badge_height);
+        }
+        if (!fits(badge)) {
+          badge = Box(CenterX(ball) - Dp(kImageBadgeFallbackXInsetDp),
+                      ball.bottom - Dp(kImageBadgeFallbackTopDp),
+                      Dp(kImageBadgeFallbackWidthDp),
+                      Dp(kImageBadgeFallbackHeightDp));
+        }
         parts.push_back({"badge", badge, false});
       }
     }
@@ -802,7 +862,14 @@ class WindowsAssistantOverlay::Host {
     for (auto& part : parts) {
       OffsetRect(&part.rect, -bounds.left, -bounds.top);
       const auto& r = part.rect;
-      const int radius = Dp(part.id == "chat" ? 22 : part.id == "badge" ? 20 : part.id == "handle" ? 4 : 10);
+      const int radius = Dp(
+          part.id == "chat"
+              ? kChatPanelCornerRadiusDp
+              : part.id == "badge"
+              ? kImageBadgeCornerRadiusDp
+              : part.id == "handle"
+              ? kDockHandleCornerRadiusDp
+              : kOverlayToolCornerRadiusDp);
       HRGN piece = part.circle ? CreateEllipticRgn(r.left, r.top, r.right + 1, r.bottom + 1)
           : CreateRoundRectRgn(r.left, r.top, r.right + 1, r.bottom + 1, radius, radius);
       if (piece) {

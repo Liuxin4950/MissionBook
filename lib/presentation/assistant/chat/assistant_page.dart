@@ -22,6 +22,7 @@ import '../../widgets/adaptive_columns.dart';
 import '../../widgets/app_expansion.dart';
 import '../../widgets/app_selection_option.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_interactive_surface.dart';
 import '../../missions/shared/mission_phase_display.dart';
 import '../history/assistant_history_page.dart';
 import '../shared/assistant_markdown.dart';
@@ -32,6 +33,7 @@ import '../shared/assistant_turn_content.dart';
 import '../shared/assistant_thinking.dart';
 import '../settings/assistant_settings_page.dart';
 import '../shared/assistant_voice_status.dart';
+import '../shared/assistant_output_scroll.dart';
 import '../../../core/theme/app_motion.dart';
 part 'assistant_conversation_banners.dart';
 part 'assistant_welcome.dart';
@@ -68,14 +70,28 @@ class _AssistantPageState extends State<AssistantPage> {
   final _scroll = ScrollController(keepScrollOffset: false);
   String? _draftSession;
   bool _followOutput = true;
+  bool _hasNewOutput = false;
+  bool _showJumpToLatest = false;
   bool _scrollScheduled = false;
-  final _readingPositions = <String?, ({double offset, bool follow})>{};
+  final _readingPositions =
+      <String?, ({double offset, bool follow, bool hasNewOutput})>{};
+  SessionActivity? _lastActivity;
+  String _lastOutputStructure = '';
+  bool _hasOutputStructure = false;
 
   void _pauseFollowing() {
-    if (_followOutput && mounted) setState(() => _followOutput = false);
+    if (_followOutput && mounted) {
+      setState(() {
+        _followOutput = false;
+        _showJumpToLatest = AssistantOutputScroll.shouldShowJumpToLatest(
+          following: _followOutput,
+          hasNewOutput: _hasNewOutput,
+        );
+      });
+    }
   }
 
-  static const _contentWidth = AppLayout.dashboardMaxWidth;
+  static const _contentWidth = AppLayout.assistantPaneMaxWidth;
   static const _sidebarWidth = 272.0; // 会话导航的内容宽度，不是页面间距。
   final _attachments = <AssistantAttachment>[];
   bool _picking = false;
@@ -87,11 +103,13 @@ class _AssistantPageState extends State<AssistantPage> {
   String? _voiceInputError;
   void _controllerChanged() {
     final id = widget.controller.draftKey;
-    if (id != _draftSession) {
+    final sessionChanged = id != _draftSession;
+    if (sessionChanged) {
       if (_scroll.hasClients) {
         _readingPositions[_draftSession] = (
           offset: _scroll.offset,
           follow: _followOutput,
+          hasNewOutput: _hasNewOutput,
         );
       }
       if (_recordingVoice) unawaited(_cancelVoiceInput());
@@ -103,6 +121,11 @@ class _AssistantPageState extends State<AssistantPage> {
         ..addAll(widget.controller.attachmentsFor(id));
       final reading = _readingPositions[id];
       _followOutput = reading?.follow ?? true;
+      _hasNewOutput = reading?.hasNewOutput ?? false;
+      _showJumpToLatest = AssistantOutputScroll.shouldShowJumpToLatest(
+        following: _followOutput,
+        hasNewOutput: _hasNewOutput,
+      );
       if (!_followOutput && reading != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted ||
@@ -111,16 +134,45 @@ class _AssistantPageState extends State<AssistantPage> {
             return;
           }
           _scroll.jumpTo(
-            reading.offset.clamp(
-              _scroll.position.minScrollExtent,
-              _scroll.position.maxScrollExtent,
-            ),
+            reading.offset
+                .clamp(
+                  _scroll.position.minScrollExtent,
+                  _scroll.position.maxScrollExtent,
+                )
+                .toDouble(),
           );
         });
       }
     }
+    final outputStructure = _currentOutputStructure();
+    final outputChanged =
+        _hasOutputStructure &&
+        !sessionChanged &&
+        outputStructure != _lastOutputStructure;
+    _lastOutputStructure = outputStructure;
+    _hasOutputStructure = true;
+    _lastActivity = widget.controller.activity;
+    if (outputChanged && !_followOutput && !_hasNewOutput) {
+      setState(() {
+        _hasNewOutput = true;
+        _showJumpToLatest = true;
+      });
+    }
     _syncDraft();
     if (_followOutput) _scrollToBottom(animate: false);
+  }
+
+  String _currentOutputStructure() {
+    final messages = widget.controller.transcript
+        .map((message) => '${message.runtimeType}:${message.id}')
+        .join('|');
+    final operations = widget.controller.operations
+        .map(
+          (operation) =>
+              '${operation.callId}:${operation.status.name}:${operation.output?.hashCode}:${operation.error?.hashCode}:${operation.planChecking}:${operation.planPreviewReady}:${operation.planPreviewError?.hashCode}:${operation.planConflicts.length}:${operation.historyMissions.length}',
+        )
+        .join('|');
+    return '$messages/$operations';
   }
 
   void _syncDraft() {
@@ -146,13 +198,34 @@ class _AssistantPageState extends State<AssistantPage> {
   /// 流式增量不再触发整页重建，跟随输出需要在这里单独滚动。
   void _liveActivityChanged() {
     if (!mounted) return;
-    if (_followOutput) _scrollToBottom(animate: false);
+    final activity = widget.controller.activity;
+    final previous = _lastActivity;
+    _lastActivity = activity;
+    if (_followOutput) {
+      _scrollToBottom(animate: false);
+    } else if (!_hasNewOutput &&
+        widget.controller.draftKey == _draftSession &&
+        previous != null &&
+        ((activity.text != previous.text && activity.text.isNotEmpty) ||
+            (activity.thinking != previous.thinking &&
+                activity.thinking.isNotEmpty) ||
+            (activity.toolName != previous.toolName &&
+                activity.toolName != null) ||
+            activity.attempt > previous.attempt)) {
+      setState(() {
+        _hasNewOutput = true;
+        _showJumpToLatest = true;
+      });
+    }
   }
 
   @override
   void initState() {
     super.initState();
     _draftSession = widget.controller.draftKey;
+    _lastActivity = widget.controller.activity;
+    _lastOutputStructure = _currentOutputStructure();
+    _hasOutputStructure = true;
     widget.controller.addListener(_controllerChanged);
     widget.controller.liveActivity.addListener(_liveActivityChanged);
     _input.text = widget.initialText ?? widget.controller.draft;
@@ -435,26 +508,19 @@ class _AssistantPageState extends State<AssistantPage> {
                           padding: const EdgeInsets.only(
                             bottom: AppLayout.spaceSm,
                           ),
-                          child: ListTile(
+                          child: AppInteractiveSurface(
                             key: ValueKey('assistant-sidebar-${item.id}'),
                             selected: item.id == controller.currentSessionId,
-                            selectedTileColor: AppColors.primarySoft,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppLayout.radiusMd,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: AppLayout.spaceMd,
-                            ),
-                            title: Text(
+                            enabled: !controller.isBusy,
+                            onTap: controller.isBusy
+                                ? null
+                                : () => _selectConversation(item.id),
+                            semanticsLabel: item.title,
+                            child: Text(
                               item.title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            onTap: controller.isBusy
-                                ? null
-                                : () => _selectConversation(item.id),
                           ),
                         );
                       },
@@ -486,7 +552,7 @@ class _AssistantPageState extends State<AssistantPage> {
     if (defaultTargetPlatform == TargetPlatform.windows && size.height < 440) {
       return false;
     }
-    return availableWidth >= 1180 * textScale;
+    return availableWidth >= AppLayout.assistantSidebarBreakpoint * textScale;
   }
 
   /// 会话级模型切换：只影响当前会话，不修改新会话默认值。
@@ -657,20 +723,18 @@ class _AssistantPageState extends State<AssistantPage> {
   List<Widget> _headerActions() {
     final compact = AppLayout.windowClassOf(context) == WindowClass.compact;
     return [
-      if (!_useSidebar(MediaQuery.sizeOf(context).width))
-        IconButton(
-          key: const Key('assistant-new-session'),
-          tooltip: '新会话',
-          onPressed: widget.controller.isBusy ? null : _newSession,
-          icon: const Icon(Icons.add_comment_outlined),
-        ),
-      if (!_useSidebar(MediaQuery.sizeOf(context).width))
-        IconButton(
-          key: const Key('assistant-history'),
-          tooltip: '会话历史',
-          onPressed: widget.controller.isBusy ? null : _openHistory,
-          icon: const Icon(Icons.history_outlined),
-        ),
+      IconButton(
+        key: const Key('assistant-new-session'),
+        tooltip: '新会话',
+        onPressed: widget.controller.isBusy ? null : _newSession,
+        icon: const Icon(Icons.add_comment_outlined),
+      ),
+      IconButton(
+        key: const Key('assistant-history'),
+        tooltip: '会话历史',
+        onPressed: widget.controller.isBusy ? null : _openHistory,
+        icon: const Icon(Icons.history_outlined),
+      ),
       if (!compact || !widget.showBack)
         IconButton(
           key: const Key('assistant-switch-model'),
@@ -799,47 +863,90 @@ class _AssistantPageState extends State<AssistantPage> {
       },
       child: NotificationListener<UserScrollNotification>(
         onNotification: (notification) {
-          if (notification.depth == 0 && _scroll.hasClients) {
-            _followOutput =
-                _scroll.position.pixels - _scroll.position.minScrollExtent < 24;
+          if (AssistantOutputScroll.isUserScroll(notification) &&
+              _scroll.hasClients) {
+            final atLatest = AssistantOutputScroll.isAtLatest(
+              notification.metrics,
+            );
+            final hasNewOutput = atLatest ? false : _hasNewOutput;
+            final showJump = AssistantOutputScroll.shouldShowJumpToLatest(
+              following: atLatest,
+              hasNewOutput: hasNewOutput,
+            );
+            if (_followOutput != atLatest ||
+                _hasNewOutput != hasNewOutput ||
+                _showJumpToLatest != showJump) {
+              setState(() {
+                _followOutput = atLatest;
+                _hasNewOutput = hasNewOutput;
+                _showJumpToLatest = showJump;
+              });
+            }
+            _readingPositions[_draftSession] = (
+              offset: notification.metrics.pixels,
+              follow: atLatest,
+              hasNewOutput: hasNewOutput,
+            );
           }
           return false;
         },
-        child: SelectionArea(
-          contextMenuBuilder: (context, state) =>
-              AdaptiveTextSelectionToolbar.buttonItems(
-                anchors: state.contextMenuAnchors,
-                buttonItems: state.contextMenuButtonItems
-                    .where((item) => item.type == ContextMenuButtonType.copy)
-                    .toList(),
+        child: Stack(
+          children: [
+            SelectionArea(
+              contextMenuBuilder: (context, state) =>
+                  AdaptiveTextSelectionToolbar.buttonItems(
+                    anchors: state.contextMenuAnchors,
+                    buttonItems: state.contextMenuButtonItems
+                        .where(
+                          (item) => item.type == ContextMenuButtonType.copy,
+                        )
+                        .toList(),
+                  ),
+              child: ListView.separated(
+                key: const Key('assistant-conversation-list'),
+                reverse: transcript.isNotEmpty,
+                controller: _scroll,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(
+                  AppLayout.horizontalPadding(context),
+                  16,
+                  AppLayout.horizontalPadding(context),
+                  20,
+                ),
+                itemCount: children.length,
+                separatorBuilder: (_, index) {
+                  final current =
+                      children[transcript.isNotEmpty
+                          ? children.length - 1 - index
+                          : index + 1];
+                  if (current is _MessageBubble && !current.firstSlice) {
+                    return const SizedBox.shrink();
+                  }
+                  return const SizedBox(height: AppLayout.spaceMd);
+                },
+                itemBuilder: (_, index) =>
+                    children[transcript.isNotEmpty
+                        ? children.length - 1 - index
+                        : index],
               ),
-          child: ListView.separated(
-            key: const Key('assistant-conversation-list'),
-            reverse: transcript.isNotEmpty,
-            controller: _scroll,
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: EdgeInsets.fromLTRB(
-              AppLayout.horizontalPadding(context),
-              16,
-              AppLayout.horizontalPadding(context),
-              20,
             ),
-            itemCount: children.length,
-            separatorBuilder: (_, index) {
-              final current =
-                  children[transcript.isNotEmpty
-                      ? children.length - 1 - index
-                      : index + 1];
-              if (current is _MessageBubble && !current.firstSlice) {
-                return const SizedBox.shrink();
-              }
-              return const SizedBox(height: AppLayout.spaceMd);
-            },
-            itemBuilder: (_, index) =>
-                children[transcript.isNotEmpty
-                    ? children.length - 1 - index
-                    : index],
-          ),
+            if (_showJumpToLatest)
+              Positioned(
+                right: AppLayout.horizontalPadding(context),
+                bottom: AppLayout.spaceMd,
+                child: Semantics(
+                  button: true,
+                  label: '回到最新消息',
+                  child: IconButton.filledTonal(
+                    key: const Key('assistant-jump-to-latest'),
+                    tooltip: '回到最新消息',
+                    onPressed: _jumpToLatest,
+                    icon: const Icon(Icons.south_rounded),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -847,6 +954,17 @@ class _AssistantPageState extends State<AssistantPage> {
 
   Widget _buildComposer(AssistantController controller) =>
       _composer._buildComposer(controller);
+
+  void _jumpToLatest() {
+    if (!mounted) return;
+    setState(() {
+      _followOutput = true;
+      _hasNewOutput = false;
+      _showJumpToLatest = false;
+    });
+    _scrollToBottom();
+  }
+
   void _scrollToBottom({bool animate = true}) {
     if (_scrollScheduled) return;
     _scrollScheduled = true;
@@ -855,7 +973,10 @@ class _AssistantPageState extends State<AssistantPage> {
       if (!mounted || !_scroll.hasClients || !_followOutput) return;
       final position = _scroll.position;
       final target = position.minScrollExtent;
-      if ((position.pixels - target).abs() < 0.5) return;
+      if ((position.pixels - target).abs() < 0.5) {
+        if (_showJumpToLatest) setState(() => _showJumpToLatest = false);
+        return;
+      }
       if (!animate || MediaQuery.disableAnimationsOf(context)) {
         position.jumpTo(target);
       } else {
@@ -865,6 +986,7 @@ class _AssistantPageState extends State<AssistantPage> {
           curve: AppMotion.curve,
         );
       }
+      if (_showJumpToLatest) setState(() => _showJumpToLatest = false);
     });
   }
 

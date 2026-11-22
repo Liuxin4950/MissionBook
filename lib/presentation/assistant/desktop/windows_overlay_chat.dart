@@ -176,22 +176,63 @@ class _WindowsOverlayChat extends StatelessWidget {
     ];
     return NotificationListener<UserScrollNotification>(
       onNotification: (event) {
-        if (event.depth == 0) host._followOutput = event.metrics.pixels < 24;
+        if (AssistantOutputScroll.isUserScroll(event)) {
+          final atLatest = AssistantOutputScroll.isAtLatest(event.metrics);
+          final hasNewOutput = atLatest ? false : host._hasNewOutput;
+          final showJump = AssistantOutputScroll.shouldShowJumpToLatest(
+            following: atLatest,
+            hasNewOutput: hasNewOutput,
+          );
+          if (host._followOutput != atLatest ||
+              host._hasNewOutput != hasNewOutput ||
+              host._showJumpToLatest != showJump) {
+            host.setState(() {
+              host._followOutput = atLatest;
+              host._hasNewOutput = hasNewOutput;
+              host._showJumpToLatest = showJump;
+            });
+          }
+          if (host._key.isNotEmpty) {
+            host._readingPositions[host._key] = (
+              offset: event.metrics.pixels,
+              follow: atLatest,
+              hasNewOutput: hasNewOutput,
+              outputVersion: host._outputVersion,
+            );
+          }
+        }
         return false;
       },
-      child: SelectionArea(
-        child: ListView.separated(
-          reverse: true,
-          controller: host._scroll,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppLayout.spaceMd,
-            vertical: AppLayout.spaceSm,
+      child: Stack(
+        children: [
+          SelectionArea(
+            child: ListView.separated(
+              reverse: true,
+              controller: host._scroll,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppLayout.spaceMd,
+                vertical: AppLayout.spaceSm,
+              ),
+              itemBuilder: (_, index) => content[content.length - index - 1],
+              separatorBuilder: (_, index) =>
+                  const SizedBox(height: AppLayout.spaceSm),
+              itemCount: content.length,
+            ),
           ),
-          itemBuilder: (_, index) => content[content.length - index - 1],
-          separatorBuilder: (_, index) =>
-              const SizedBox(height: AppLayout.spaceSm),
-          itemCount: content.length,
-        ),
+          if (host._showJumpToLatest)
+            Positioned(
+              right: AppLayout.spaceSm,
+              bottom: AppLayout.spaceSm,
+              child: KeyedSubtree(
+                key: const Key('windows-overlay-jump-to-latest'),
+                child: _quietAction(
+                  '回到最新消息',
+                  Icons.south_rounded,
+                  host._jumpToLatest,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -478,104 +519,204 @@ class _WindowsOverlayChat extends StatelessWidget {
     BuildContext context, {
     required bool ready,
     required bool short,
-  }) {
-    final hasContent =
-        host._input.text.trim().isNotEmpty || host._images.isNotEmpty;
-    final blockedImages =
-        host._images.isNotEmpty && host._snapshot['canUseImages'] == false;
-    final canSend =
-        ready &&
-        hasContent &&
-        !host._working &&
-        !host._busy &&
-        !blockedImages &&
-        !host._draftConflict;
-    Future<void> send() => host._perform(() async {
-      host._draftTimer?.cancel();
-      if (host._draftSaving case final pending?) await pending;
-      if (!host.mounted || host._draftConflict) return;
-      host._followOutput = true;
-      final state = await host._workspace('send', {
-        'previous': host._syncedDraft,
-        'text': host._input.text,
+  }) => ValueListenableBuilder<TextEditingValue>(
+    valueListenable: host._input,
+    builder: (context, value, _) {
+      final hasContent =
+          value.text.trim().isNotEmpty || host._images.isNotEmpty;
+      final blockedImages =
+          host._images.isNotEmpty && host._snapshot['canUseImages'] == false;
+      final canSend =
+          ready &&
+          hasContent &&
+          !host._working &&
+          !host._busy &&
+          !blockedImages &&
+          !host._draftConflict;
+      final canSubmit = canSend && value.composing.isCollapsed;
+      Future<void> send() => host._perform(() async {
+        if (!canSubmit) return;
+        host._draftTimer?.cancel();
+        if (host._draftSaving case final pending?) await pending;
+        if (!host.mounted || host._draftConflict) return;
+        host._followOutput = true;
+        host._hasNewOutput = false;
+        host._showJumpToLatest = false;
+        final state = await host._workspace('send', {
+          'previous': host._syncedDraft,
+          'text': host._input.text,
+        });
+        host._acceptState(_fields(state), replaceDraft: true);
       });
-      host._acceptState(_fields(state), replaceDraft: true);
-    });
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppLayout.spaceSm,
-        AppLayout.spaceXs,
-        AppLayout.spaceSm,
-        AppLayout.spaceSm,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          _icon(
-            '语音输入',
-            Icons.mic_none_rounded,
-            ready && !host._busy && !host._working ? host._startVoice : null,
-          ),
-          Expanded(
-            child: CallbackShortcuts(
-              bindings: {
-                const SingleActivator(
-                  LogicalKeyboardKey.enter,
-                  control: true,
-                ): () {
-                  if (canSend && host._input.value.composing.isCollapsed) {
-                    unawaited(send());
-                  }
-                },
-              },
-              child: TextField(
-                controller: host._input,
-                focusNode: host._inputFocus,
-                maxLines: short ? 1 : 3,
-                minLines: 1,
-                readOnly: !ready || host._working,
-                inputFormatters: [LengthLimitingTextInputFormatter(16000)],
-                style: AppTypography.itemTitle,
-                decoration: InputDecoration(
-                  isDense: true,
-                  hintText: '问书祺…',
-                  hintStyle: AppTypography.metadata,
-                  fillColor: AppColors.surfaceMuted,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppLayout.spaceMd,
-                    vertical: AppLayout.spaceMd,
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppLayout.spaceSm,
+          AppLayout.spaceXs,
+          AppLayout.spaceSm,
+          AppLayout.spaceSm,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            _icon(
+              '语音输入',
+              Icons.mic_none_rounded,
+              ready && !host._busy && !host._working ? host._startVoice : null,
+            ),
+            Expanded(
+              child: CallbackShortcuts(
+                bindings: canSubmit
+                    ? {
+                        const SingleActivator(LogicalKeyboardKey.enter): () {
+                          if (host._input.value.composing.isCollapsed) {
+                            unawaited(send());
+                          }
+                        },
+                        const SingleActivator(
+                          LogicalKeyboardKey.enter,
+                          control: true,
+                        ): () {
+                          if (host._input.value.composing.isCollapsed) {
+                            unawaited(send());
+                          }
+                        },
+                      }
+                    : const {},
+                child: TextField(
+                  controller: host._input,
+                  focusNode: host._inputFocus,
+                  maxLines: short ? 1 : 3,
+                  minLines: 1,
+                  textInputAction: TextInputAction.newline,
+                  readOnly: !ready || host._working,
+                  inputFormatters: [LengthLimitingTextInputFormatter(16000)],
+                  style: AppTypography.itemTitle,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: '问书祺…',
+                    hintStyle: AppTypography.metadata,
+                    fillColor: AppColors.surfaceMuted,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: AppLayout.spaceMd,
+                      vertical: AppLayout.spaceSm,
+                    ),
+                    constraints: const BoxConstraints(
+                      minHeight: AppLayout.desktopToolbarVisualSize,
+                    ),
                   ),
-                  constraints: const BoxConstraints(minHeight: 40),
+                  onChanged: host._edited,
                 ),
-                onChanged: host._edited,
+              ),
+            ),
+            const SizedBox(width: AppLayout.spaceXs),
+            _sendAction(
+              label: host._running ? '停止生成' : '发送（Enter）',
+              icon: host._running
+                  ? Icons.stop_rounded
+                  : Icons.arrow_upward_rounded,
+              action: host._working
+                  ? null
+                  : host._running
+                  ? () => host._action('stop')
+                  : canSubmit
+                  ? send
+                  : null,
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
+  Widget _quietAction(String label, IconData icon, VoidCallback action) =>
+      SizedBox.square(
+        dimension: AppLayout.touchTargetMin,
+        child: Tooltip(
+          message: label,
+          child: Semantics(
+            label: label,
+            button: true,
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: action,
+                child: Center(
+                  child: Container(
+                    width: AppLayout.desktopToolbarVisualSize,
+                    height: AppLayout.desktopToolbarVisualSize,
+                    decoration: const BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      icon,
+                      size: AppLayout.iconSm,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-          const SizedBox(width: AppLayout.spaceXs),
-          IconButton.filled(
-            tooltip: host._running ? '停止生成' : '发送（Ctrl+Enter）',
-            onPressed: host._working
-                ? null
-                : host._running
-                ? () => host._action('stop')
-                : canSend
-                ? send
-                : null,
-            iconSize: AppLayout.iconSm,
-            icon: Icon(
-              host._running ? Icons.stop_rounded : Icons.arrow_upward_rounded,
+        ),
+      );
+
+  Widget _sendAction({
+    required String label,
+    required IconData icon,
+    required VoidCallback? action,
+  }) => SizedBox.square(
+    dimension: AppLayout.touchTargetMin,
+    child: Tooltip(
+      message: label,
+      child: Semantics(
+        label: label,
+        button: true,
+        enabled: action != null,
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: action,
+            child: Center(
+              child: Container(
+                width: AppLayout.desktopToolbarVisualSize,
+                height: AppLayout.desktopToolbarVisualSize,
+                decoration: BoxDecoration(
+                  color: action == null
+                      ? AppColors.disabled
+                      : AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  icon,
+                  size: AppLayout.iconSm,
+                  color: action == null
+                      ? AppColors.onDisabled
+                      : AppColors.onPrimary,
+                ),
+              ),
             ),
           ),
-        ],
+        ),
       ),
-    );
-  }
+    ),
+  );
 
   Widget _icon(String label, IconData icon, VoidCallback? action) => IconButton(
     tooltip: label,
     onPressed: action,
     iconSize: AppLayout.iconSm,
-    constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+    constraints: const BoxConstraints.tightFor(
+      width: AppLayout.touchTargetMin,
+      height: AppLayout.touchTargetMin,
+    ),
+    padding: EdgeInsets.zero,
     icon: Icon(icon),
   );
 }

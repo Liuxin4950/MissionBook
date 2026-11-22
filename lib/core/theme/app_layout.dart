@@ -16,7 +16,8 @@ enum WindowClass {
 /// 全站页面共用阅读宽度和留白，窄屏按实际可用宽度计算。
 abstract final class AppLayout {
   static const maxPageWidth = 792.0; // 详情与阅读表面的限宽。
-  static const dashboardMaxWidth = 1440.0;
+  static const dashboardMaxWidth = 1920.0;
+  static const assistantPaneMaxWidth = 1180.0;
   static const formMaxWidth = 1080.0;
   static const dashboardSplitWidth = 840.0; // 已扣除侧栏和页面边距。
 
@@ -85,6 +86,13 @@ abstract final class AppLayout {
 
   // 右栏/对话框弹层的阅读限宽。
   static const detailPaneMaxWidth = 640.0;
+
+  // 助手在宽屏右栏中容纳会话侧栏和正文；宽度不足时页面自行收起侧栏。
+  static const assistantSidebarBreakpoint = 1000.0;
+
+  // Windows 悬浮聊天的紧凑视觉尺寸；外层点击区域仍保持 48。
+  static const desktopToolbarVisualSize = 40.0;
+  static const desktopOverlayHandleHeight = 42.0;
 
   static WindowClass windowClassOf(BuildContext context) =>
       windowClassForWidth(MediaQuery.sizeOf(context).width);

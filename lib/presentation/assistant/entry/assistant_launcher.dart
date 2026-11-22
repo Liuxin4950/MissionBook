@@ -672,7 +672,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
         curve: AppMotion.curve,
         child: Material(
           key: Key('assistant-mode-bubble-$index'),
-          color: _hover == index ? AppColors.primarySoft : AppColors.card,
+          color: _hover == index ? AppColors.surfaceMuted : AppColors.card,
           animationDuration: AppMotion.resolve(context, AppMotion.quick),
           elevation: 4,
           shape: const CircleBorder(),

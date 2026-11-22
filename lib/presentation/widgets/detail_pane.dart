@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_layout.dart';
+
 /// 右栏入口的替换语义：打开新页面时如何处理已有返回链。
 enum DetailPaneReplace {
   /// 普通入栈（列表 → 详情 → 记录……逐级可返回）。
@@ -17,13 +19,25 @@ enum DetailPaneReplace {
 /// 右栏不是简单替换组件，而是自己的导航栈；每个入口都登记构建器，
 /// 窗口缩放迁移与“切换前先问草稿”都靠这份登记。
 class DetailPaneEntry {
-  DetailPaneEntry(this.label, this.builder, {this.onRequestLeave});
+  DetailPaneEntry(
+    this.label,
+    this.builder, {
+    this.identity,
+    this.maxWidth,
+    this.onRequestLeave,
+  });
 
   /// 语义标签（如“任务详情”），读屏/测试用它识别入口身份。
   final String label;
 
   /// 与 MaterialPageRoute 的构建器同型：右栏完全复用 push 形态的页面组件。
   final WidgetBuilder builder;
+
+  /// 可选的稳定页面身份，用于从外部入口恢复已经打开的页面。
+  final String? identity;
+
+  /// 该入口及其子页面使用的右栏最大宽度；为空时继承已有入口。
+  final double? maxWidth;
 
   /// 离开守卫：返回 false 表示用户放弃离开（如表单有未保存修改）。
   /// 替换/清空右栏必须先问过它；页面可经 [DetailPaneController.registerTopGuard] 注册。
@@ -48,6 +62,50 @@ class DetailPaneController extends ChangeNotifier {
 
   /// 面板是否有内容：决定外壳并排、让位还是继续显示。
   bool get hasContent => entries.isNotEmpty;
+
+  /// 当前右栏所需的最大宽度；子页面没有单独声明时继承根入口。
+  double get activeMaxWidth {
+    for (final entry in entries.reversed) {
+      if (entry.maxWidth case final width?) return width;
+    }
+    return AppLayout.detailPaneMaxWidth;
+  }
+
+  /// 查找当前导航栈中具有稳定身份的入口。
+  DetailPaneEntry? findByIdentity(String identity) {
+    for (final entry in entries.reversed) {
+      if (entry.identity == identity) return entry;
+    }
+    return null;
+  }
+
+  /// 将已有入口恢复到栈顶，并在离开其子页面前执行返回守卫。
+  Future<bool> reveal(String identity) async {
+    if (_disposed || _changing) return false;
+    final targetIndex = entries.indexWhere(
+      (entry) => entry.identity == identity,
+    );
+    if (targetIndex < 0) return false;
+    _changing = true;
+    try {
+      for (final entry in entries.reversed.take(
+        entries.length - targetIndex - 1,
+      )) {
+        final guard = entry.onRequestLeave;
+        if (guard != null && !await guard()) return false;
+      }
+      final route = entries[targetIndex].route;
+      if (route == null) return false;
+      navigatorKey.currentState?.popUntil(
+        (candidate) => identical(candidate, route),
+      );
+      entries.removeRange(targetIndex + 1, entries.length);
+      notifyListeners();
+      return true;
+    } finally {
+      _changing = false;
+    }
+  }
 
   /// 页面在 initState 注册自己的离开守卫到当前栈顶入口
   /// （表单的未保存确认、材料区的草稿确认都走这里），调用方不必传参。
@@ -198,7 +256,10 @@ Future<T?> openDetailPane<T extends Object?>(
   BuildContext context, {
   required String label,
   required WidgetBuilder builder,
+  String? identity,
+  double? maxWidth,
   DetailPaneReplace replace = DetailPaneReplace.none,
+  bool preserveExistingEntries = false,
 }) {
   final controller = DetailPaneScope.maybeOf(context);
   if (controller != null) {
@@ -206,8 +267,11 @@ Future<T?> openDetailPane<T extends Object?>(
     final fromWorkspace =
         Navigator.of(context) != controller.navigatorKey.currentState;
     return controller.open<T>(
-      DetailPaneEntry(label, builder),
-      replace: fromWorkspace && replace == DetailPaneReplace.none
+      DetailPaneEntry(label, builder, identity: identity, maxWidth: maxWidth),
+      replace:
+          fromWorkspace &&
+              replace == DetailPaneReplace.none &&
+              !preserveExistingEntries
           ? DetailPaneReplace.all
           : replace,
     );

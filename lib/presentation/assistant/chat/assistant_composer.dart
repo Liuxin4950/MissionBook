@@ -12,6 +12,10 @@ class _AssistantComposer {
   ) => ValueListenableBuilder<TextEditingValue>(
     valueListenable: _page._input,
     builder: (context, value, _) {
+      final desktopKeyboard =
+          defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.linux;
       final colors = Theme.of(context).colorScheme;
       final toolStyle = IconButton.styleFrom(
         minimumSize: const Size.square(AppLayout.touchTargetMin),
@@ -29,9 +33,10 @@ class _AssistantComposer {
           !(_page._voice?.busy ?? false) &&
           !(_page._voice?.listening ?? false);
       final canStop = controller.isRunning;
+      final canSubmit = canSend && value.composing.isCollapsed;
       final action = canStop
           ? controller.stop
-          : canSend
+          : canSubmit
           ? () => unawaited(_send())
           : null;
       return Padding(
@@ -159,41 +164,64 @@ class _AssistantComposer {
                   const SizedBox(height: AppLayout.spaceSm),
                   AssistantVoiceStatus(voice: _page._voice!),
                 ],
-                TextField(
-                  key: const Key('assistant-input'),
-                  controller: _page._input,
-                  autofocus:
-                      widget.showBack &&
-                      AppLayout.windowClassOf(context) == WindowClass.compact,
-                  focusNode: _page._inputFocus,
-                  readOnly:
-                      (_page._voice?.listening ?? false) ||
-                      (_page._voice?.busy ?? false),
-                  onChanged: (text) {
-                    _page._voiceInputError = null;
-                    controller.saveDraft(_page._draftSession, text);
-                  },
-                  minLines: 1,
-                  maxLines:
-                      MediaQuery.sizeOf(context).height -
-                              MediaQuery.viewInsetsOf(context).bottom <
-                          480
-                      ? 1
-                      : MediaQuery.textScalerOf(context).scale(1) >= 1.5
-                      ? 2
-                      : 5,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: canSend ? (_) => _send() : null,
-                  decoration: InputDecoration(
-                    hintText: '描述你想讨论或调整的内容…',
-                    filled: false,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: AppLayout.spaceXs,
-                      vertical: AppLayout.spaceMd,
+                CallbackShortcuts(
+                  bindings: canSubmit
+                      ? {
+                          const SingleActivator(LogicalKeyboardKey.enter): () {
+                            if (_page._input.value.composing.isCollapsed) {
+                              unawaited(_send());
+                            }
+                          },
+                          const SingleActivator(
+                            LogicalKeyboardKey.enter,
+                            control: true,
+                          ): () {
+                            if (_page._input.value.composing.isCollapsed) {
+                              unawaited(_send());
+                            }
+                          },
+                        }
+                      : const {},
+                  child: TextField(
+                    key: const Key('assistant-input'),
+                    controller: _page._input,
+                    autofocus:
+                        widget.showBack &&
+                        AppLayout.windowClassOf(context) == WindowClass.compact,
+                    focusNode: _page._inputFocus,
+                    readOnly:
+                        (_page._voice?.listening ?? false) ||
+                        (_page._voice?.busy ?? false),
+                    onChanged: (text) {
+                      _page._voiceInputError = null;
+                      controller.saveDraft(_page._draftSession, text);
+                    },
+                    minLines: 1,
+                    maxLines:
+                        MediaQuery.sizeOf(context).height -
+                                MediaQuery.viewInsetsOf(context).bottom <
+                            480
+                        ? 1
+                        : MediaQuery.textScalerOf(context).scale(1) >= 1.5
+                        ? 2
+                        : 5,
+                    textInputAction: desktopKeyboard
+                        ? TextInputAction.newline
+                        : TextInputAction.send,
+                    onSubmitted: !desktopKeyboard && canSubmit
+                        ? (_) => _send()
+                        : null,
+                    decoration: InputDecoration(
+                      hintText: '描述你想讨论或调整的内容…',
+                      filled: false,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppLayout.spaceXs,
+                        vertical: AppLayout.spaceMd,
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
                     ),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
                   ),
                 ),
                 if (_page._voiceInputError != null)
@@ -572,6 +600,8 @@ class _AssistantComposer {
     widget.controller.draft = '';
     widget.controller.saveAttachments(_page._draftSession, []);
     _page._followOutput = true;
+    _page._hasNewOutput = false;
+    _page._showJumpToLatest = false;
     await widget.controller.sendMessage(message);
     if (!widget.controller.transcript.any((item) => item.id == message.id)) {
       if (mounted &&

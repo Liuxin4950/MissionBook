@@ -11,6 +11,7 @@ import '../../goals/detail/goal_detail_page.dart';
 import '../../missions/detail/mission_detail_page.dart';
 import '../../widgets/detail_pane.dart';
 import '../chat/assistant_page.dart';
+import '../../../core/theme/app_layout.dart';
 
 class AssistantScope extends InheritedWidget {
   const AssistantScope({
@@ -95,17 +96,51 @@ class _ConversationRoute {
 }
 
 final _conversationRoutes = Expando<_ConversationRoute>();
+const _assistantConversationIdentity = 'assistant-conversation';
 
-bool assistantConversationIsOpen(BuildContext context) =>
-    _conversationRoutes[Navigator.of(context, rootNavigator: true)] != null;
+bool assistantConversationIsOpen(BuildContext context) {
+  final detailPane = DetailPaneScope.maybeOf(context);
+  if (detailPane != null) {
+    return detailPane
+            .findByIdentity(_assistantConversationIdentity)
+            ?.route
+            ?.isActive ??
+        false;
+  }
+  return _conversationRoutes[Navigator.of(context, rootNavigator: true)] !=
+      null;
+}
 
-/// 独立二级路由覆盖原工作区；不切主导航或清空详情/草稿栈。
+/// 在统一右栏中打开助手；没有工作区外壳时回退到独立路由，便于页面预览。
 Future<void> showAssistantConversation(
   BuildContext context, {
   String? initialText,
   String? initialOperationCallId,
 }) {
   final scope = AssistantScope.of(context);
+  final detailPane = DetailPaneScope.maybeOf(context);
+  if (detailPane != null) {
+    final existing = detailPane.findByIdentity(_assistantConversationIdentity);
+    if (existing?.route?.isActive ?? false) {
+      return detailPane.reveal(_assistantConversationIdentity).then((_) {});
+    }
+    // 保留任务/目标详情作为返回目标，同时仍经统一的右栏入口打开。
+    return openDetailPane<void>(
+      context,
+      label: '助手会话',
+      identity: _assistantConversationIdentity,
+      maxWidth: AppLayout.assistantPaneMaxWidth,
+      preserveExistingEntries: true,
+      builder: (_) => AssistantPage(
+        controller: scope.controller,
+        showBack: true,
+        initialText: initialText,
+        initialOperationCallId: initialOperationCallId,
+      ),
+    ).then((_) {});
+  }
+
+  // 没有 AppShell 的独立预览仍使用根 Navigator，保持原有测试和预览入口。
   final navigator = Navigator.of(context, rootNavigator: true);
   final existing = _conversationRoutes[navigator];
   if (existing != null && existing.route.isActive) {
@@ -161,6 +196,7 @@ Future<void> openAssistantMission(
   await openDetailPane(
     context,
     label: '任务详情',
+    maxWidth: AppLayout.detailPaneMaxWidth,
     builder: (_) =>
         MissionDetailPage(missionId: missionId, missionService: scope.missions),
   );
@@ -171,6 +207,7 @@ Future<void> openAssistantGoal(BuildContext context, String goalId) async {
   await openDetailPane(
     context,
     label: '目标详情',
+    maxWidth: AppLayout.detailPaneMaxWidth,
     builder: (_) => GoalDetailPage(
       service: scope.goals,
       goalId: goalId,

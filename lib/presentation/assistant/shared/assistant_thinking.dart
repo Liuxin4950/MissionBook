@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/colors.dart';
+import '../../widgets/app_interactive_surface.dart';
 import 'assistant_markdown.dart';
 
 /// 用户正在主动阅读，外层聊天应暂停跟随新增内容。
@@ -66,19 +67,19 @@ class _AssistantThinkingState extends State<AssistantThinking> {
       children: [
         Semantics(
           expanded: _expanded,
-          child: TextButton(
-            onPressed: _toggle,
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: const Size(0, AppLayout.touchTargetMin),
-              foregroundColor: AppColors.textSecondary,
-              textStyle: text.bodySmall,
-            ),
+          child: AppInteractiveSurface(
+            onTap: _toggle,
+            selected: _expanded,
             child: Row(
               children: [
                 const Icon(Icons.psychology_outlined, size: AppLayout.iconSm),
                 const SizedBox(width: AppLayout.spaceSm),
-                Text(widget.streaming ? '正在思考' : '思考'),
+                Text(
+                  widget.streaming ? '正在思考' : '思考',
+                  style: text.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
                 const SizedBox(width: AppLayout.spaceSm),
                 Expanded(
                   child: Text(
@@ -192,8 +193,8 @@ class _AssistantProcessState extends State<AssistantProcess> {
       children: [
         Semantics(
           expanded: _expanded,
-          child: TextButton(
-            onPressed: () {
+          child: AppInteractiveSurface(
+            onTap: () {
               setState(() {
                 _expanded = !_expanded;
                 _manuallyToggled = true;
@@ -205,12 +206,7 @@ class _AssistantProcessState extends State<AssistantProcess> {
               }
               AssistantExpansionNotification(_expanded).dispatch(context);
             },
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: const Size(0, AppLayout.touchTargetMin),
-              foregroundColor: AppColors.textSecondary,
-              textStyle: styles.bodySmall,
-            ),
+            selected: _expanded,
             child: Row(
               children: [
                 if (widget.running)
@@ -225,6 +221,8 @@ class _AssistantProcessState extends State<AssistantProcess> {
                   child: Text(
                     '${widget.label}${widget.operationCount == 0 ? '' : ' · ${widget.operationCount} 项操作'}',
                     style: styles.bodySmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.start,
                   ),
                 ),

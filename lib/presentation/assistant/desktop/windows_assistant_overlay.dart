@@ -13,6 +13,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/colors.dart';
 import '../shared/assistant_avatar.dart';
 import '../shared/assistant_markdown.dart';
+import '../shared/assistant_output_scroll.dart';
 
 part 'windows_overlay_chat.dart';
 
@@ -66,6 +67,14 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
   bool _working = false;
   bool _dragged = false;
   bool _followOutput = true;
+  bool _hasNewOutput = false;
+  bool _showJumpToLatest = false;
+  String _outputVersion = '';
+  final _readingPositions =
+      <
+        String,
+        ({double offset, bool follow, bool hasNewOutput, String outputVersion})
+      >{};
   bool _focusAfterLayout = false;
   bool _draftConflict = false;
   Timer? _draftTimer;
@@ -123,6 +132,7 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           unawaited(_call('painted'));
+          if (_hasChat) _restoreOutputPosition();
           if (_hasChat && _focusAfterLayout) {
             _focusAfterLayout = false;
             _inputFocus.requestFocus();
@@ -140,6 +150,11 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
         setState(() => _error = call.arguments as String?);
       case 'reset':
         _draftTimer?.cancel();
+        _readingPositions.clear();
+        _outputVersion = '';
+        _followOutput = true;
+        _hasNewOutput = false;
+        _showJumpToLatest = false;
         setState(() {
           _snapshot = {};
           _preview = null;
@@ -160,15 +175,38 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
     }
     final changed =
         _key != data['key'] || _snapshot['generation'] != data['generation'];
-    final structural = data['compact'] != true;
+    final outputVersion = _outputVersionFor(data);
+    final reading = changed ? _readingPositions[_text(data, 'key')] : null;
+    if (changed && _key.isNotEmpty && _scroll.hasClients) {
+      _readingPositions[_key] = (
+        offset: _scroll.offset,
+        follow: _followOutput,
+        hasNewOutput: _hasNewOutput,
+        outputVersion: _outputVersion,
+      );
+    }
+    var followOutput = changed ? reading?.follow ?? true : _followOutput;
+    var hasNewOutput = changed ? reading?.hasNewOutput ?? false : _hasNewOutput;
+    if (!followOutput &&
+        ((changed &&
+                reading != null &&
+                reading.outputVersion != outputVersion) ||
+            (!changed && _outputVersion != outputVersion))) {
+      hasNewOutput = true;
+    }
     final draft = _text(data, 'draft');
     setState(() {
       _snapshot = data;
+      _followOutput = followOutput;
+      _hasNewOutput = hasNewOutput;
+      _showJumpToLatest = AssistantOutputScroll.shouldShowJumpToLatest(
+        following: followOutput,
+        hasNewOutput: hasNewOutput,
+      );
       if (changed) {
         _draftTimer?.cancel();
         _preview = null;
         _error = null;
-        _followOutput = true;
         _draftConflict = false;
       }
       if (changed || replaceDraft || _input.text == _syncedDraft) {
@@ -186,15 +224,83 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
       }
       _syncedDraft = draft;
     });
-    if (structural && _followOutput && _hasChat) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted &&
-            _followOutput &&
-            _scroll.hasClients &&
-            _scroll.offset > 0) {
-          _scroll.jumpTo(0);
-        }
-      });
+    _outputVersion = outputVersion;
+    if (_key.isNotEmpty) {
+      final savedOffset = _readingPositions[_key]?.offset ?? 0;
+      _readingPositions[_key] = (
+        offset: changed
+            ? reading?.offset ?? 0
+            : _scroll.hasClients
+            ? _scroll.offset
+            : savedOffset,
+        follow: _followOutput,
+        hasNewOutput: _hasNewOutput,
+        outputVersion: _outputVersion,
+      );
+    }
+    if (changed || _followOutput) _restoreOutputPosition();
+  }
+
+  String _outputVersionFor(_Fields data) {
+    final messages = _items(data['messages'])
+        .map((message) {
+          final text = _text(message, 'text');
+          return '${_text(message, 'id')}:${message['user']}:${text.length}:${text.hashCode}:${_number(message, 'images')}';
+        })
+        .join('|');
+    final operations = _items(data['operations'])
+        .map((operation) {
+          final preview = _text(operation, 'preview');
+          final detail = _text(operation, 'detail');
+          return '${_text(operation, 'id')}:${_text(operation, 'status')}:${preview.length}:${preview.hashCode}:${detail.length}:${detail.hashCode}';
+        })
+        .join('|');
+    final partial = _text(data, 'partial');
+    final error = _text(data, 'error');
+    return '$messages/$operations/${partial.length}:${partial.hashCode}/${error.length}:${error.hashCode}';
+  }
+
+  void _restoreOutputPosition() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_hasChat || !_scroll.hasClients) return;
+      final reading = _readingPositions[_key];
+      final double? target = _followOutput
+          ? _scroll.position.minScrollExtent
+          : reading == null
+          ? null
+          : reading.offset
+                .clamp(
+                  _scroll.position.minScrollExtent,
+                  _scroll.position.maxScrollExtent,
+                )
+                .toDouble();
+      if (target != null && (_scroll.offset - target).abs() > 0.5) {
+        _scroll.jumpTo(target);
+      }
+    });
+  }
+
+  void _jumpToLatest() {
+    if (!mounted) return;
+    setState(() {
+      _followOutput = true;
+      _hasNewOutput = false;
+      _showJumpToLatest = false;
+    });
+    if (_key.isNotEmpty) {
+      _readingPositions[_key] = (
+        offset: _scroll.hasClients ? _scroll.position.minScrollExtent : 0,
+        follow: true,
+        hasNewOutput: false,
+        outputVersion: _outputVersion,
+      );
+    }
+    if (_scroll.hasClients) {
+      _scroll.animateTo(
+        _scroll.position.minScrollExtent,
+        duration: AppMotion.quick,
+        curve: AppMotion.curve,
+      );
     }
   }
 
@@ -399,20 +505,21 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         color: AppColors.primary,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: () => _mode(
-            _items(_layout['parts']).any(
-                  (part) =>
-                      part['id'] == 'text' ||
-                      part['id'] == 'main' ||
-                      part['id'] == 'chat',
-                )
-                ? 'closed'
-                : 'tools',
-          ),
-          child: Tooltip(
-            message: '书祺助手 · 拖动到侧边收起',
+        child: Semantics(
+          label: '书祺助手，拖动到侧边收起',
+          button: true,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () => _mode(
+              _items(_layout['parts']).any(
+                    (part) =>
+                        part['id'] == 'text' ||
+                        part['id'] == 'main' ||
+                        part['id'] == 'chat',
+                  )
+                  ? 'closed'
+                  : 'tools',
+            ),
             child: LayoutBuilder(
               builder: (_, box) => _avatar(box.biggest.shortestSide),
             ),
@@ -427,8 +534,9 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
     borderRadius: BorderRadius.circular(AppLayout.radiusPill),
     child: InkWell(
       onTap: () => _mode('chat', focus: true),
-      child: Tooltip(
-        message: '${_images.length} 张待发送图片',
+      child: Semantics(
+        label: '${_images.length} 张待发送图片',
+        button: true,
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Padding(
@@ -473,7 +581,7 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
               : Alignment.centerRight,
           child: Container(
             width: AppLayout.spaceXs,
-            height: 42,
+            height: AppLayout.desktopOverlayHandleHeight,
             decoration: BoxDecoration(
               color: AppColors.primary,
               borderRadius: BorderRadius.circular(AppLayout.radiusXs),
@@ -498,11 +606,13 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
         color: selected ? AppColors.primarySoft : AppColors.card,
         shape: const CircleBorder(side: BorderSide(color: AppColors.hairline)),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: open,
-          child: Tooltip(
-            message: tooltip ?? label,
+        child: Semantics(
+          label: tooltip ?? label,
+          button: true,
+          selected: selected,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: open,
             child: TweenAnimationBuilder<double>(
               tween: Tween(
                 begin: duration == Duration.zero ? 1.0 : 0.0,

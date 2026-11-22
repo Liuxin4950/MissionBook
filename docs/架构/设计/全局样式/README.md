@@ -15,7 +15,9 @@
 | [colors.dart](../../../../lib/core/theme/colors.dart) | 颜色语义来源 |
 | [app_theme.dart](../../../../lib/core/theme/app_theme.dart) | 按钮、输入、卡片等全局组件主题 |
 | [app_typography.dart](../../../../lib/core/theme/app_typography.dart) | 文字角色 |
-| [app_layout.dart](../../../../lib/core/theme/app_layout.dart) | 间距、圆角、触控和响应式断点 |
+| [app_layout.dart](../../../../lib/core/theme/app_layout.dart) | 间距、圆角、触控、工作区宽度和响应式断点 |
+| [detail_pane.dart](../../../../lib/presentation/widgets/detail_pane.dart) | 宽屏并排、窄屏接管的持久详情导航栈 |
+| [app_interactive_surface.dart](../../../../lib/presentation/widgets/app_interactive_surface.dart) | 可选中交互行的内边距、悬停、聚焦与选中表面 |
 | [app_motion.dart](../../../../lib/core/theme/app_motion.dart) | 动效节奏与减少动效 |
 | [app_page_transitions.dart](../../../../lib/core/theme/app_page_transitions.dart) | 页面风格、平台交互返回与路由进出时长 |
 | [app_page_motion.dart](../../../../lib/core/theme/app_page_motion.dart) | 路由、主导航与预览共用的淡入、位移及缩放绘制 |
@@ -65,7 +67,7 @@
 组件当前状态 → 加载 / 内容 / 空态 / 失败及重试
 ```
 
-扩展导航阈值为 1200。双栏按内容宽度 480 + 16 + 360 判断，不能仅凭整个窗口进入 expanded 就强制分栏。表单两列按自身面板 560 判断；详情阅读区与仪表盘分别限宽。助手模型和服务配置使用等宽 AdaptiveColumns，两列各至少 480，并随系统字号增加所需空间，详见[助手界面布局](../../前端/助手与总结/总览.md#设置页面与自适应布局)。
+扩展导航阈值为 1200。双栏按内容宽度 480 + 16 + 360 判断，不能仅凭整个窗口进入 expanded 就强制分栏。表单两列按自身面板 560 判断；普通详情右栏上限 640、仪表盘工作区上限 1920。助手会话申请独立 1180 右栏上限；侧栏显示与否按右栏正文实际宽度和文字缩放判断，空间不足就隐藏侧栏而不挤压对话区。助手模型和服务配置使用等宽 AdaptiveColumns，两列各至少 480，并随系统字号增加所需空间，详见[助手界面布局](../../前端/助手与总结/总览.md#设置页面与自适应布局)。
 
 quick/standard/navigation/exit/entrance/launch 为 180/240/280/200/420/450ms；storyTransition 为 520ms，封面停留 launchHold 为 2600ms。组件通过 AppMotion.resolve 响应减少动效，弹层、对话框与 PopupMenuButton 使用 AppMotion.overlayStyle 显式配置进入和退出。
 
@@ -99,6 +101,8 @@ MotionSettingsHost 将偏好应用于 MediaQuery、路由主题、按钮反馈�
 | AI 流式更新、键盘与页面并发时的帧率 | 尚未完成 profile 性能验收 |
 
 ## 交互与约束
+
+选择项与交互行共用 `AppInteractiveSurface`：选中/激活为 `primarySoft`；悬停、键盘聚焦为 `surfaceMuted`；键盘聚焦边框为 `primary`。默认左右内边距 12、最小高度 48、圆角 12。助手历史、会话侧栏、思考/处理过程、模型与权限选择及主导航使用此约定；主导航继续保留移动式选中指示动画，交互表面只承接焦点和悬停。`AppSelectionOption` 复用同一表面。普通图标按钮保持轻量反馈；用户消息、错误和状态卡等非选择性内容不套用整行选中背景。
 
 目标列表空态复用历史页的 AppSectionCard 纸纹表面和 AppEmptyState，使用透明小旗插画和居中的空状态标题，删除重复引导句。进行中空态只显示创建目标，导入目标大纲收进右上角更多菜单；其他分类保留返回进行中。插画与提示词见[制作记录](../../../教学/制作记录/2026-11-13-目标空态插画.md)。
 
