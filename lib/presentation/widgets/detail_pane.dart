@@ -790,19 +790,13 @@ class _AssistantSplitDoorState extends State<AssistantSplitDoor> {
                             ),
                             curve: AppMotion.curve,
                             decoration: BoxDecoration(
-                              // 浅绿门轨在白底上几乎不可见，空闲态用半透明森林绿填充 +
-                              // 同色细边形成一条清晰的门轨；悬停/聚焦/拖动再加深到品牌绿。
+                              // 闲置时退成低对比发丝线，不再像一根绿色墙；
+                              // 只有悬停、聚焦或拖动时才强调为森林绿门轨。
                               color: active
-                                  ? AppColors.primary
-                                  : AppColors.primary.withValues(alpha: .22),
+                                  ? AppColors.primary.withValues(alpha: .62)
+                                  : AppColors.hairline.withValues(alpha: .72),
                               borderRadius: BorderRadius.circular(
                                 AppLayout.radiusXs,
-                              ),
-                              border: Border.all(
-                                color: active
-                                    ? AppColors.primary
-                                    : AppColors.primary.withValues(alpha: .55),
-                                width: AppLayout.strokeThin,
                               ),
                             ),
                           ),
@@ -813,12 +807,12 @@ class _AssistantSplitDoorState extends State<AssistantSplitDoor> {
                           child: IgnorePointer(
                             child: SizedBox(
                               key: const Key('assistant-split-door-grip'),
-                              width: AppLayout.spaceXxl,
-                              height: AppLayout.spaceXxl,
+                              width: 22,
+                              height: 40,
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
-                                  color: AppColors.card,
-                                  shape: BoxShape.circle,
+                                  color: AppColors.background,
+                                  borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
                                     color: active
                                         ? AppColors.primary

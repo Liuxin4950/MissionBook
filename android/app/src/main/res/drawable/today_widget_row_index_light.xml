@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 索引卡行底：左侧 3dp 森林绿书脊 + 浅绿圆角条；用图片承载，宿主不需要反射式背景方法。 -->
+<!-- 索引卡使用极淡纸色，不再铺满整行绿底；保留左侧书脊作轻量层级提示。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#EEF2EC" />
+            <solid android:color="#F9FAF8" />
             <corners android:radius="8dp" />
         </shape>
     </item>
