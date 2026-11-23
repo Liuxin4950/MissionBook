@@ -491,6 +491,12 @@ class ScheduleMissionRow extends StatelessWidget {
     final direction = Directionality.of(context);
     final current = display.isInPlannedTimeSlot(item, now);
     final progress = display.plannedTimeSlotProgress(item, now);
+    // 计划进度只属于有固定计划时段的任务：自选/取消任务没有可度量的时段。
+    final showPlanProgress =
+        item.isFixed &&
+        !item.isCancelled &&
+        item.fixedStartAt != null &&
+        item.plannedDurationMinutes > 0;
     final remainingMinutes = display.plannedTimeSlotRemainingMinutes(item, now);
     // 计划时段只是排期；有执行事实后优先呈现真实执行阶段。
     final status = display.scheduleRowStatus(item, now);
@@ -524,6 +530,7 @@ class ScheduleMissionRow extends StatelessWidget {
                 current: current,
                 progress: progress,
                 remainingMinutes: remainingMinutes,
+                showPlanProgress: showPlanProgress,
                 metrics: metrics,
               )
             : _narrowContent(
@@ -535,6 +542,7 @@ class ScheduleMissionRow extends StatelessWidget {
                 current: current,
                 progress: progress,
                 remainingMinutes: remainingMinutes,
+                showPlanProgress: showPlanProgress,
                 metrics: metrics,
               );
         return Semantics(
@@ -636,6 +644,7 @@ class ScheduleMissionRow extends StatelessWidget {
     required bool current,
     required double progress,
     required int remainingMinutes,
+    required bool showPlanProgress,
     required _RowMetrics metrics,
   }) {
     return Row(
@@ -687,12 +696,13 @@ class ScheduleMissionRow extends StatelessWidget {
                   style: metaStyle,
                 ),
               ],
-              if (current) ...[
+              if (showPlanProgress) ...[
                 const SizedBox(height: AppLayout.spaceXs),
                 _PlanProgress(
                   id: item.id,
                   progress: progress,
                   remainingMinutes: remainingMinutes,
+                  current: current,
                   style: metaStyle,
                 ),
               ],
@@ -742,6 +752,7 @@ class ScheduleMissionRow extends StatelessWidget {
     required bool current,
     required double progress,
     required int remainingMinutes,
+    required bool showPlanProgress,
     required _RowMetrics metrics,
   }) {
     final metadata = item.startTime.isEmpty
@@ -808,12 +819,13 @@ class ScheduleMissionRow extends StatelessWidget {
                   style: metaStyle,
                 ),
               ],
-              if (current) ...[
+              if (showPlanProgress) ...[
                 const SizedBox(height: AppLayout.spaceSm),
                 _PlanProgress(
                   id: item.id,
                   progress: progress,
                   remainingMinutes: remainingMinutes,
+                  current: current,
                   style: metaStyle,
                 ),
               ],
@@ -852,12 +864,16 @@ class _PlanProgress extends StatelessWidget {
     required this.id,
     required this.progress,
     required this.remainingMinutes,
+    required this.current,
     required this.style,
   });
 
   final String id;
   final double progress;
   final int remainingMinutes;
+
+  /// 当前计划时段才写“剩余 N 分钟”；其它行只保留进度轨，避免每行堆文字。
+  final bool current;
   final TextStyle style;
 
   @override
@@ -875,15 +891,20 @@ class _PlanProgress extends StatelessWidget {
             value: value,
             minHeight: AppLayout.spaceXs,
             borderRadius: BorderRadius.circular(AppLayout.radiusXs),
+            color: current
+                ? AppColors.primary
+                : AppColors.primary.withValues(alpha: .45),
             backgroundColor: colors.primary.withValues(alpha: .08),
           ),
         ),
-        const SizedBox(height: AppLayout.spaceXs),
-        Text(
-          '计划时段剩余 $remainingMinutes 分钟',
-          key: ValueKey('schedule-plan-remaining-$id'),
-          style: style.copyWith(fontFeatures: _tabularFigures),
-        ),
+        if (current) ...[
+          const SizedBox(height: AppLayout.spaceXs),
+          Text(
+            '计划时段剩余 $remainingMinutes 分钟',
+            key: ValueKey('schedule-plan-remaining-$id'),
+            style: style.copyWith(fontFeatures: _tabularFigures),
+          ),
+        ],
       ],
     );
   }

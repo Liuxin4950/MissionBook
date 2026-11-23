@@ -790,16 +790,18 @@ class _AssistantSplitDoorState extends State<AssistantSplitDoor> {
                             ),
                             curve: AppMotion.curve,
                             decoration: BoxDecoration(
+                              // 浅绿门轨在白底上几乎不可见，空闲态用半透明森林绿填充 +
+                              // 同色细边形成一条清晰的门轨；悬停/聚焦/拖动再加深到品牌绿。
                               color: active
                                   ? AppColors.primary
-                                  : AppColors.primarySoft,
+                                  : AppColors.primary.withValues(alpha: .22),
                               borderRadius: BorderRadius.circular(
                                 AppLayout.radiusXs,
                               ),
                               border: Border.all(
                                 color: active
                                     ? AppColors.primary
-                                    : AppColors.hairline,
+                                    : AppColors.primary.withValues(alpha: .55),
                                 width: AppLayout.strokeThin,
                               ),
                             ),

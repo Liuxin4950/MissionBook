@@ -275,21 +275,14 @@ abstract class TodayWidgetProvider(
         ) {
             val options = manager.getAppWidgetOptions(id)
             val density = context.resources.displayMetrics.density
-            val sizes = TodayWidgetSizes.resolve(options, spec.defaultWidthDp, spec.defaultHeightDp)
-            if (sizes.size <= 1) {
-                val size = sizes.firstOrNull() ?: SizeF(
-                    spec.defaultWidthDp.toFloat(), spec.defaultHeightDp.toFloat(),
-                )
-                manager.updateAppWidget(
-                    id, buildViews(context, id, spec, appearance, day, date, toPx(size, density)),
-                )
-                return
-            }
-            val variants = LinkedHashMap<SizeF, RemoteViews>()
-            for (size in sizes) {
-                variants[size] = buildViews(context, id, spec, appearance, day, date, toPx(size, density))
-            }
-            manager.updateAppWidget(id, RemoteViews(variants))
+            // 当前实例尺寸优先取 MIN_WIDTH/MIN_HEIGHT：多数 Launcher（含 MIUI「桌面」）
+            // 不会使用 RemoteViews 的尺寸映射，混合尺寸反而会被裁到某一档；
+            // 只有 Launcher 完全不报当前尺寸时才退回 OPTION_APPWIDGET_SIZES 的保守值。
+            val size = TodayWidgetSizes.current(options, spec.defaultWidthDp, spec.defaultHeightDp)
+            val pixels = toPx(size, density)
+            manager.updateAppWidget(
+                id, buildViews(context, id, spec, appearance, day, date, pixels),
+            )
         }
 
         private fun toPx(size: SizeF, density: Float): WidgetPixels = WidgetPixels(
@@ -318,22 +311,51 @@ abstract class TodayWidgetProvider(
                 else -> WidgetSnapshotState.DATA
             }
             val labels = labels(context, spec.sizeClass, date)
-            val plan = TodayWidgetLayoutPlanner.plan(
+            val items = itemsFor(context, spec.sizeClass, day)
+            fun planFor(appearance: TodayWidgetAppearance) = TodayWidgetLayoutPlanner.plan(
                 WidgetPlanRequest(
                     sizeClass = spec.sizeClass,
                     widthPx = size.width,
                     heightPx = size.height,
                     density = context.resources.displayMetrics.density,
                     textMetrics = metrics,
-                    appearance = draft,
+                    appearance = appearance,
                     state = state,
-                    items = itemsFor(context, spec.sizeClass, day),
+                    items = items,
                     total = day?.total ?: 0,
                     labels = labels,
                     theme = theme,
                 ),
             )
-            return applyPlan(context, widgetId, plan, draft, labels)
+            var effective = draft
+            var plan = planFor(effective)
+            if (plan.rows.isEmpty() && state == WidgetSnapshotState.DATA &&
+                spec.sizeClass != WidgetSizeClass.SMALL
+            ) {
+                // 已有任务却一行都排不下时，先让位给任务：去掉日期与尾部计数再规划一次，
+                // 避免宿主上报的可用高度偏小时只剩题头，看起来像“没有数据”。
+                val compact = draft.copy(showDate = false, showMore = false)
+                val retry = planFor(compact)
+                if (retry.rows.isNotEmpty()) {
+                    effective = compact
+                    plan = retry
+                }
+            }
+            // 真机排查：把本次实际使用的尺寸与排出的行写进私有文件，便于在无日志环境核对。
+            runCatching {
+                File(context.noBackupFilesDir, "today-widget-render.txt").writeText(
+                    buildString {
+                        appendLine("widgetId=$widgetId class=${spec.sizeClass.wire}")
+                        appendLine("sizePx=${size.width}x${size.height} density=${context.resources.displayMetrics.density}")
+                        appendLine("state=$state rows=${plan.rows.size} layout=${plan.rowLayout} overflow=${plan.overflow}")
+                        appendLine("style=${effective.style} taskSp=${effective.taskSp} headerSp=${effective.headerSp}")
+                        appendLine("header=${plan.header.left} | ${plan.header.right} | ${plan.header.count}")
+                        plan.rows.forEach { appendLine("row=${it.time} | ${it.title} | ${it.status}") }
+                        append("footer=${plan.footer.visible} ${plan.footer.kind} ${plan.footer.text}")
+                    },
+                )
+            }
+            return applyPlan(context, widgetId, plan, effective, labels)
         }
 
         private fun itemsFor(context: Context, sizeClass: WidgetSizeClass, day: Day?): List<WidgetItem> {
@@ -712,6 +734,20 @@ abstract class TodayWidgetProvider(
  */
 internal object TodayWidgetSizes {
     private const val MAX_ENTRIES = 16
+
+    /**
+     * 当前实例的尺寸（dp）：先读 MIN_WIDTH/MIN_HEIGHT，缺失或非法时才用尺寸列表里
+     * 面积最小的保守值，最后回落 provider 声明尺寸。只返回一个尺寸，不做尺寸映射。
+     */
+    fun current(options: Bundle, defaultWidthDp: Int, defaultHeightDp: Int): SizeF {
+        val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
+        val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0)
+        if (width > 0 && height > 0) return SizeF(width.toFloat(), height.toFloat())
+        val reported = resolve(options, defaultWidthDp, defaultHeightDp)
+        return reported.firstOrNull() ?: SizeF(
+            defaultWidthDp.toFloat(), defaultHeightDp.toFloat(),
+        )
+    }
 
     fun resolve(options: Bundle, defaultWidthDp: Int, defaultHeightDp: Int): List<SizeF> {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

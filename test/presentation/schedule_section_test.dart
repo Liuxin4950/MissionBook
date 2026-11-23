@@ -152,7 +152,16 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
     expect(find.text('待到时'), findsNWidgets(2));
-    expect(find.byType(LinearProgressIndicator), findsNothing);
+    // 计划进度按“已过时段比例”画：还没到时只保留空轨道，不写剩余分钟，
+    // 到点后同一行变成当前时段并补上剩余文案（不额外查询）。
+    final emptyTracks = tester
+        .widgetList<LinearProgressIndicator>(
+          find.byType(LinearProgressIndicator),
+        )
+        .toList();
+    expect(emptyTracks, hasLength(2));
+    expect(emptyTracks.every((bar) => bar.value == 0), isTrue);
+    expect(find.textContaining('计划时段剩余'), findsNothing);
     expect(repository.requests, hasLength(1));
     await tester.pumpWidget(const SizedBox.shrink());
   });
