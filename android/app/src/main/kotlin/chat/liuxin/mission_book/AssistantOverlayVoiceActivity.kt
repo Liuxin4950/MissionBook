@@ -134,7 +134,7 @@ class AssistantOverlayVoiceActivity : Activity() {
             if (!cancelled && !isDestroyed) {
                 if (result == true) {
                     finishedVoice = true
-                    AssistantOverlayService.voiceDone(key)
+                    AssistantOverlayService.voiceDone(ticket, key)
                     finish()
                 } else title.text = "转写已取消"
             }
@@ -165,6 +165,8 @@ class AssistantOverlayVoiceActivity : Activity() {
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
     companion object {
+        /** 悬浮快捷菜单生成的语音票据；录音与转写都按它校验，避免迟到结果写错草稿。 */
+        const val EXTRA_TICKET = "assistant_voice_ticket"
         const val EXTRA_DRAFT = "assistant_voice_draft"
         private const val PERMISSION = 7412
         private const val LIMIT = 960000

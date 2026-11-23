@@ -595,6 +595,16 @@ class AssistantOverlayService : Service() {
         }
     }
 
+    /**
+     * 语音票据成功后回到原草稿的对话输入区。
+     * 具体实现由工作包 A 补全：校验 ticket 来源与草稿仍是当前会话，再建立/复用面板。
+     * 当前保持原有行为，避免面板能力在改造前中断。
+     */
+    private fun onVoiceDone(ticket: String, draftKey: String) {
+        val panel = menu as? AssistantOverlayPanel ?: return
+        panel.showVoiceDraft(draftKey)
+    }
+
     private fun reportOverlayFailure(message: String, error: Exception) {
         Log.e(TAG, message, error)
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
@@ -712,9 +722,9 @@ class AssistantOverlayService : Service() {
             else service.finishCapture(ticket, file)
         }
 
-        internal fun voiceDone(draft: String) {
-            val panel = active?.menu as? AssistantOverlayPanel ?: return
-            panel.showVoiceDraft(draft)
+        internal fun voiceDone(ticket: String, draftKey: String) {
+            val service = active ?: return
+            service.onVoiceDone(ticket, draftKey)
         }
         const val ACTION_REFRESH = "chat.liuxin.mission_book.overlay.REFRESH"
         const val ACTION_SHOW = "chat.liuxin.mission_book.overlay.SHOW"

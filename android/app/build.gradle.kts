@@ -50,6 +50,8 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // 纯 Kotlin 规划器与几何逻辑用 JVM 单测回归；不冒充 Android View / 设备验收。
+    testImplementation("junit:junit:4.12")
 }
 
 flutter {
