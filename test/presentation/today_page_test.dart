@@ -6,6 +6,7 @@ import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/evidence.dart';
 import 'dart:async';
 import 'dart:ui' show SemanticsAction, Tristate;
+import 'package:flutter/semantics.dart';
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -27,7 +28,10 @@ import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
 import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/domain/repositories/mission_repository.dart';
+import 'package:mission_book/presentation/today/schedule_section.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
+import 'package:mission_book/presentation/missions/all/all_missions_page.dart';
+import 'package:mission_book/presentation/missions/all/mission_timetable.dart';
 import 'package:mission_book/presentation/widgets/app_illustration.dart';
 import 'package:mission_book/presentation/missions/form/mission_form_page.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -187,6 +191,22 @@ Widget testApp(
   );
 }
 
+/// 读屏动作可能挂在分组节点，也可能由内部可点节点提供；
+/// 这里找到真正带点击动作的语义节点，再断言并派发同一次动作。
+SemanticsNode tappableSemanticsNode(SemanticsNode node) {
+  if (node.getSemanticsData().hasAction(SemanticsAction.tap)) return node;
+  SemanticsNode? found;
+  node.visitChildren((child) {
+    found ??= tappableSemanticsNode(child);
+    return found == null;
+  });
+  final target = found;
+  if (target == null) {
+    throw StateError('语义节点 ${node.getSemanticsData().label} 没有读屏点击动作');
+  }
+  return target;
+}
+
 ScheduledMission example(
   String id, {
   bool fixed = false,
@@ -248,9 +268,13 @@ void main() {
               widget.properties.button == true;
         });
         final node = tester.getSemantics(navigationItem);
-        final data = node.getSemanticsData();
-        expect(data.hasAction(SemanticsAction.tap), isTrue);
-        expect(data.flagsCollection.isButton, isTrue);
+        expect(node.getSemanticsData().flagsCollection.isButton, isTrue);
+        expect(
+          tappableSemanticsNode(
+            node,
+          ).getSemanticsData().hasAction(SemanticsAction.tap),
+          isTrue,
+        );
       }
 
       // 目标页已接通，页头也有“目标”；按导航按钮角色定位，避免匹配正文标题。
@@ -260,12 +284,13 @@ void main() {
             widget.properties.button == true;
       });
       final target = tester.getSemantics(goalNavigation);
-      final owner = target.owner;
+      final actionable = tappableSemanticsNode(target);
+      final owner = actionable.owner;
       if (owner == null) {
         throw StateError('导航语义节点尚未挂载');
       }
       // 从语义树派发动作，验证读屏实际走到切页逻辑，而非只检查有一个回调。
-      owner.performAction(target.id, SemanticsAction.tap);
+      owner.performAction(actionable.id, SemanticsAction.tap);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('goal-empty-state')), findsOneWidget);
       expect(
@@ -726,7 +751,8 @@ void main() {
   });
 
   testWidgets('固定任务时间与时长成组，状态和专注按空间换行', (tester) async {
-    tester.view.physicalSize = const Size(600, 900);
+    // 窄列表样式：标题优先，时间/计划分钟与阶段/专注在辅助行依次换行。
+    tester.view.physicalSize = const Size(390, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -771,14 +797,26 @@ void main() {
     expect(find.text('计划 100 分钟'), findsNothing);
     expect(find.textContaining('已结束 ·'), findsNothing);
     expect(find.bySemanticsLabel('09:00，已结束任务，计划 100 分钟，已结束'), findsOneWidget);
+    final row = tester.getRect(find.byKey(const ValueKey('mission-已结束任务')));
     final title = tester.getRect(find.text('已结束任务'));
     final status = tester.getRect(find.text('已结束'));
     final duration = tester.getRect(find.text('09:00 · 100 分钟'));
     final focus = tester.getRect(find.text('00:00'));
-    expect(duration.left, closeTo(title.left, 0.5));
+    // 轨道 16dp 后是标题，辅助行再向内收 8dp。
+    expect(title.left - row.left, closeTo(16, 0.5));
+    expect(duration.left - title.left, closeTo(8, 0.5));
     expect(duration.top, greaterThan(title.bottom));
-    expect(status.top, lessThan(duration.top));
-    expect(focus.top, greaterThanOrEqualTo(duration.top));
+    // 阶段与专注在辅助行内向右依次排布，空间不足时换到下一行。
+    if ((status.top - duration.top).abs() < 1) {
+      expect(status.left, greaterThanOrEqualTo(duration.right - 1));
+    } else {
+      expect(status.top, greaterThan(duration.bottom - 1));
+    }
+    if ((focus.top - status.top).abs() < 1) {
+      expect(focus.left, greaterThanOrEqualTo(status.right - 1));
+    } else {
+      expect(focus.top, greaterThan(status.bottom - 1));
+    }
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     semantics.dispose();
@@ -812,12 +850,21 @@ void main() {
       find.bySemanticsLabel('19:00，品牌与营销管理实务，计划 210 分钟，待到时'),
       findsOneWidget,
     );
-    final title = tester.getRect(find.text('品牌与营销管理实务'));
+    // 安排概览也会显示同一任务名，这里只量计划日程行内的标题。
+    final titleFinder = find.descendant(
+      of: find.byType(ScheduleMissionRow),
+      matching: find.text('品牌与营销管理实务'),
+    );
+    final title = tester.getRect(titleFinder);
     final status = tester.getRect(find.text('待到时'));
     final duration = tester.getRect(find.text('19:00 · 210 分钟'));
-    expect(duration.left, closeTo(title.left, 0.5));
+    expect(duration.left - title.left, closeTo(8, 0.5));
     expect(duration.top, greaterThan(title.bottom));
-    expect(status.top, lessThan(duration.top));
+    if ((status.top - duration.top).abs() < 1) {
+      expect(status.left, greaterThanOrEqualTo(duration.right - 1));
+    } else {
+      expect(status.top, greaterThan(duration.bottom - 1));
+    }
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     semantics.dispose();
@@ -847,7 +894,12 @@ void main() {
       example('可见任务', fixed: true, start: start),
     ]);
     await tester.pumpAndSettle();
-    expect(find.text('现在'), findsOneWidget);
+    // 卡头时间与安排概览的“现在”同时存在，这里只数卡头里的那一个。
+    final headerNow = find.descendant(
+      of: find.byKey(const Key('timeline-current-time')),
+      matching: find.text('现在'),
+    );
+    expect(headerNow, findsOneWidget);
     visible.value = false;
     await tester.pump();
     final hiddenReads = reads;
@@ -856,7 +908,7 @@ void main() {
     expect(reads, hiddenReads);
     visible.value = true;
     await tester.pump();
-    expect(find.text('现在'), findsOneWidget);
+    expect(headerNow, findsOneWidget);
     expect(find.text('10:00'), findsOneWidget);
     expect(reads, greaterThan(hiddenReads));
     expect(repository.requests, hasLength(1));
@@ -1125,6 +1177,236 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('统一内容边线：页头、日期带与各分区共用页面左右边距', (tester) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = ControlledQueryRepository();
+    await tester.pumpWidget(testApp(repository));
+    repository.requests.single.complete([
+      example('固定任务', fixed: true),
+      example('自选任务'),
+    ]);
+    await tester.pumpAndSettle();
+    final dateChip = tester.getRect(find.byKey(const Key('today-date-picker')));
+    final create = tester.getRect(find.byTooltip('创建任务'));
+    final schedule = tester.getRect(
+      find.byKey(const Key('today-schedule-section')),
+    );
+    final flexible = tester.getRect(
+      find.byKey(const Key('today-flexible-section')),
+    );
+    final overview = tester.getRect(
+      find.byKey(const Key('today-overview-section')),
+    );
+    // 页头日期、分区外框与顶栏动作共用同一条左右边线。
+    expect(schedule.left, closeTo(dateChip.left, .5));
+    expect(flexible.left, closeTo(dateChip.left, .5));
+    expect(overview.left, closeTo(dateChip.left, .5));
+    expect(schedule.right, closeTo(create.right, .5));
+    expect(flexible.right, closeTo(create.right, .5));
+    expect(overview.right, closeTo(create.right, .5));
+    // 同性内边距：窄栏同一列都用 12dp，卡头动作贴另一侧内容边线。
+    for (final (card, header) in [
+      (schedule, '计划日程'),
+      (flexible, '自选时间'),
+      (overview, '安排概览'),
+    ]) {
+      final title = tester.getRect(find.text(header));
+      expect(title.left - card.left, closeTo(12, .5));
+    }
+    final seeAll = tester.getRect(find.byKey(const Key('today-all-missions')));
+    expect(seeAll.right, closeTo(schedule.right - 12, .5));
+    // 区块间距统一 16dp。
+    expect(flexible.top - schedule.bottom, closeTo(16, .5));
+    expect(overview.top - flexible.bottom, closeTo(16, .5));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('卡头查看全部在宽窄都进所选日期的当日日程，顶栏全部任务仍进整周页', (tester) async {
+    for (final width in [390.0, 1200.0]) {
+      tester.view.physicalSize = Size(width, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = ControlledQueryRepository();
+      await tester.pumpWidget(testApp(repository));
+      repository.requests.single.complete([example('固定任务', fixed: true)]);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('today-all-missions')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('today-all-missions')));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(repository.requests, hasLength(2));
+      repository.requests.last.complete([example('固定任务', fixed: true)]);
+      await tester.pumpAndSettle();
+      expect(find.text('当日日程'), findsOneWidget);
+      expect(repository.dates.last, '2026-10-21');
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      repository.requests.last.complete([example('固定任务', fixed: true)]);
+      await tester.pumpAndSettle();
+      // 顶栏入口仍进入整周页，不与当日日程混用。
+      await tester.tap(find.byKey(const Key('today-all-missions-entry')));
+      await tester.pumpAndSettle();
+      expect(find.byType(AllMissionsPage), findsOneWidget);
+      expect(find.text('日程列表'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+  });
+
+  testWidgets('宽仪表盘保留 840dp 阈值与 3:2 双区，间隙 16dp，字号放大回单区', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = ControlledQueryRepository();
+    await tester.pumpWidget(testApp(repository));
+    repository.requests.single.complete([
+      example('固定任务', fixed: true),
+      example('自选任务'),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('today-dashboard-columns')), findsOneWidget);
+    final left = tester.getRect(find.byKey(const Key('today-timetable-panel')));
+    final right = tester.getRect(
+      find.byKey(const Key('today-flexible-section')),
+    );
+    final overview = tester.getRect(
+      find.byKey(const Key('today-overview-section')),
+    );
+    final create = tester.getRect(find.byTooltip('创建任务'));
+    final dateChip = tester.getRect(find.byKey(const Key('today-date-picker')));
+    // 左右区外沿与页头共用页面边距。
+    expect(left.left, closeTo(dateChip.left, .5));
+    expect(right.right, closeTo(create.right, .5));
+    expect(left.right + 16, closeTo(right.left, .5));
+    expect(left.width / right.width, closeTo(1.5, .03));
+    expect(right.left, closeTo(overview.left, .5));
+    expect(right.right, closeTo(overview.right, .5));
+    expect(right.right, closeTo(create.right, .5));
+    expect(overview.top - right.bottom, closeTo(16, .5));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    // 文字变大后按所需宽度回单区，不再硬塞两栏。
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final scaled = ControlledQueryRepository();
+    await tester.pumpWidget(testApp(scaled));
+    scaled.requests.single.complete([
+      example('固定任务', fixed: true),
+      example('自选任务'),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('today-dashboard-columns')), findsNothing);
+    expect(find.byKey(const Key('today-flexible-section')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('宽仪表盘仍在正文宽度 840dp 处开始分栏', (tester) async {
+    // 888 减去两侧页面边距正好 840，838 少 2dp 就回到单列。
+    for (final (width, expectWide) in [(888.0, true), (887.0, false)]) {
+      tester.view.physicalSize = Size(width, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = ControlledQueryRepository();
+      await tester.pumpWidget(testApp(repository));
+      repository.requests.single.complete([example('固定任务', fixed: true)]);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('today-dashboard-columns')).evaluate().isNotEmpty,
+        expectWide,
+        reason: '正文宽度 $width 的分栏结果',
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+  });
+
+  testWidgets('调整窗口与系统字号不额外读库，保留所选日期与展开状态', (tester) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = ControlledQueryRepository();
+    await tester.pumpWidget(testApp(repository));
+    repository.requests.single.complete([
+      for (var index = 1; index <= 5; index++) example('自选任务 $index'),
+    ]);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('flexible-missions-toggle')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('flexible-missions-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('收起'), findsOneWidget);
+    // 相当于拖门后的最窄/最宽与系统字号变化：只重排，不重查。
+    for (final size in [
+      const Size(320, 1000),
+      const Size(520, 1000),
+      const Size(1024, 1000),
+    ]) {
+      tester.view.physicalSize = size;
+      await tester.pumpAndSettle();
+    }
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpAndSettle();
+    expect(repository.requests, hasLength(1));
+    expect(repository.dates, hasLength(1));
+    expect(find.text('收起'), findsOneWidget);
+    expect(find.text('自选任务 5'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  for (final width in [320.0, 390.0, 768.0, 1024.0, 1280.0]) {
+    for (final scale in [1.0, 1.3, 2.0]) {
+      testWidgets('今天页 $width 宽、$scale 字号不溢出并保留入口', (tester) async {
+        tester.view.physicalSize = Size(width, 1000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final repository = ControlledQueryRepository();
+        await tester.pumpWidget(testApp(repository));
+        repository.requests.single.complete([
+          example('固定任务', fixed: true),
+          example('无日期记录任务'),
+        ]);
+        await tester.pumpAndSettle();
+        expect(find.text('计划日程'), findsOneWidget);
+        final dashboard = find
+            .byKey(const Key('today-dashboard-columns'))
+            .evaluate()
+            .isNotEmpty;
+        if (dashboard) {
+          // 宽仪表盘保留时间轴，计数仍在列表模式与日程卡里。
+          expect(
+            find.byKey(const Key('today-timetable-panel')),
+            findsOneWidget,
+          );
+          expect(find.byType(MissionTimetable), findsOneWidget);
+        } else {
+          expect(find.text('共 1 项'), findsOneWidget);
+        }
+        expect(find.byKey(const Key('today-all-missions')), findsOneWidget);
+        expect(
+          find.byKey(const Key('today-all-missions-entry')),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      });
+    }
+  }
 
   testWidgets('切日期清除旧结果，迟到请求不能覆盖新日期，新建沿用所选日期', (tester) async {
     final repository = ControlledQueryRepository();

@@ -2,13 +2,77 @@ import 'package:flutter/material.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
+import 'package:mission_book/core/theme/colors.dart';
 import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
+import 'package:mission_book/domain/entities/scheduled_mission.dart';
 import 'package:mission_book/presentation/today/schedule_section.dart';
 import 'package:mission_book/presentation/missions/all/mission_timetable.dart';
 import 'package:mission_book/presentation/today/today_display.dart' as display;
 
 import 'today_page_test.dart' show ControlledQueryRepository, example, testApp;
+
+/// 单独渲染计划行，按精确的可用宽度和系统字号验证宽/窄两种排版。
+Future<List<display.TodayMissionItem>> pumpScheduleRows(
+  WidgetTester tester, {
+  required double width,
+  required double scale,
+  required DateTime now,
+  required List<ScheduledMission> missions,
+  void Function(String id)? onOpen,
+  TextDirection direction = TextDirection.ltr,
+}) async {
+  tester.view.physicalSize = Size(width + 32, 900);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  final items = display.groupMissionsForDisplay(missions, now: now).fixed;
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.light,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(scale)),
+        child: child!,
+      ),
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: Center(
+            child: Directionality(
+              textDirection: direction,
+              child: SizedBox(
+                width: width,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var index = 0; index < items.length; index++)
+                      ScheduleMissionRow(
+                        key: ValueKey('schedule-test-row-${items[index].id}'),
+                        item: items[index],
+                        now: now,
+                        clock: () => now,
+                        isFirst: index == 0,
+                        isLast: index == items.length - 1,
+                        onTap: () => onOpen?.call(items[index].id),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return items;
+}
+
+bool _hasKey(WidgetTester tester, Key key) =>
+    find.byKey(key).evaluate().isNotEmpty;
+
+Rect _rect(WidgetTester tester, Key key) => tester.getRect(find.byKey(key));
 
 void main() {
   setUpAll(tzdata.initializeTimeZones);
@@ -156,38 +220,490 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  for (final (width, scale) in [(320.0, 2.0), (386.0, 1.0), (768.0, 1.0)]) {
-    testWidgets('执行中日程在 $width 宽、$scale 字号信息可换行且整项可打开', (tester) async {
-      tester.view.physicalSize = Size(width, 836);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  // 窄列表：同一任务项纵向布局，标题优先，时间/计划分钟与阶段/专注顺序换行。
+  for (final (width, scale) in [(320.0, 2.0), (386.0, 1.0), (390.0, 1.3)]) {
+    testWidgets('窄列表在 $width 宽、$scale 字号向下换行且整项可打开', (tester) async {
       final now = DateTime.utc(2026, 11, 2, 6, 29);
       final start = now.subtract(const Duration(minutes: 29));
       const title = 'Python程序设计基础与课堂实践';
-      final item = display
-          .groupMissionsForDisplay([
+      var opened = '';
+      final items = await pumpScheduleRows(
+        tester,
+        width: width,
+        scale: scale,
+        now: now,
+        onOpen: (id) => opened = id,
+        missions: [
+          example(
+            title,
+            fixed: true,
+            start: start,
+            plannedDurationMinutes: 100,
+            phase: MissionPhase.running,
+            events: [
+              ExecutionEvent(
+                id: 'start',
+                missionId: title,
+                sequence: 1,
+                type: ExecutionEventType.start,
+                occurredAt: now.subtract(const Duration(seconds: 81)),
+                scheduleRevisionId: '$title-schedule',
+              ),
+            ],
+          ),
+        ],
+      );
+      final id = items.single.id;
+      expect(
+        _hasKey(tester, ValueKey('schedule-meta-$id')),
+        isTrue,
+        reason: '窄列表把开始与计划分钟放在辅助行',
+      );
+      expect(_hasKey(tester, ValueKey('schedule-time-$id')), isFalse);
+      expect(find.text('执行中'), findsOneWidget);
+      expect(find.text('29:00'), findsOneWidget);
+      expect(find.textContaining('计划时段剩余 71 分钟'), findsOneWidget);
+      expect(find.text('查看'), findsNothing);
+      final row = _rect(tester, ValueKey('schedule-test-row-$id'));
+      final titleRect = _rect(tester, ValueKey('schedule-title-$id'));
+      final meta = _rect(tester, ValueKey('schedule-meta-$id'));
+      final arrow = _rect(tester, ValueKey('schedule-open-$id'));
+      // 标题在轨道右侧；辅助行再向内收 8dp，仍在同一内容槽内。
+      expect(titleRect.left - row.left, closeTo(16, .5));
+      expect(meta.left - row.left, closeTo(24, .5));
+      expect(meta.top, greaterThan(titleRect.bottom));
+      // 右箭头共线并固定占 20dp 槽。
+      expect(arrow.width, closeTo(20, .5));
+      expect(arrow.right, closeTo(row.right, .5));
+      expect(row.height, greaterThanOrEqualTo(48));
+      expect(titleRect.width, greaterThan(width * .3));
+      // 阶段与专注在辅助行内依次换行，不被省略号吞掉。
+      final status = _rect(tester, ValueKey('schedule-status-$id'));
+      if ((status.top - meta.top).abs() < 1) {
+        expect(status.left, greaterThanOrEqualTo(meta.right - 1));
+      } else {
+        expect(status.top, greaterThan(meta.bottom - 1));
+      }
+      await tester.tap(find.text(title));
+      expect(opened, id);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
+  // 宽列表：时间/轨道/正文/状态/箭头各占一列，四列基准在同列内误差 ≤1dp。
+  for (final width in [480.0, 600.0, 768.0, 1024.0, 1280.0]) {
+    for (final scale in [1.0, 1.3, 2.0]) {
+      if (width == 480 && scale == 2.0) continue; // 量槽后回窄列表，见下一条。
+      testWidgets('宽列表在 $width 宽、$scale 字号四列共线', (tester) async {
+        final now = DateTime.utc(2026, 11, 2, 6, 29);
+        final items = await pumpScheduleRows(
+          tester,
+          width: width,
+          scale: scale,
+          now: now,
+          onOpen: (_) {},
+          missions: [
             example(
-              title,
+              '品牌与营销管理实务',
               fixed: true,
-              start: start,
+              start: now.subtract(const Duration(minutes: 29)),
               plannedDurationMinutes: 100,
               phase: MissionPhase.running,
               events: [
                 ExecutionEvent(
                   id: 'start',
-                  missionId: title,
+                  missionId: '品牌与营销管理实务',
                   sequence: 1,
                   type: ExecutionEventType.start,
-                  occurredAt: now.subtract(const Duration(seconds: 81)),
-                  scheduleRevisionId: '$title-schedule',
+                  occurredAt: now.subtract(const Duration(minutes: 29)),
+                  scheduleRevisionId: '品牌与营销管理实务-schedule',
                 ),
               ],
             ),
-          ])
-          .fixed
-          .single;
-      var opened = false;
+            example(
+              'Python程序设计基础',
+              fixed: true,
+              start: now.add(const Duration(hours: 1)),
+              plannedDurationMinutes: 1440,
+            ),
+          ],
+        );
+        final first = items.first.id;
+        final second = items.last.id;
+        for (final id in [first, second]) {
+          expect(
+            _hasKey(tester, ValueKey('schedule-time-$id')),
+            isTrue,
+            reason: '宽列表左侧是时间与计划分钟两行',
+          );
+          expect(_hasKey(tester, ValueKey('schedule-meta-$id')), isFalse);
+        }
+        final rowA = _rect(tester, ValueKey('schedule-test-row-$first'));
+        final timeA = _rect(tester, ValueKey('schedule-time-$first'));
+        final durationA = _rect(tester, ValueKey('schedule-duration-$first'));
+        final titleA = _rect(tester, ValueKey('schedule-title-$first'));
+        final statusA = _rect(tester, ValueKey('schedule-status-$first'));
+        final arrowA = _rect(tester, ValueKey('schedule-open-$first'));
+        final titleB = _rect(tester, ValueKey('schedule-title-$second'));
+        final statusB = _rect(tester, ValueKey('schedule-status-$second'));
+        final arrowB = _rect(tester, ValueKey('schedule-open-$second'));
+        // 时间栏两行左对齐，计划分钟在开始时间下方。
+        expect(durationA.left, closeTo(timeA.left, 1));
+        expect(durationA.top, greaterThan(timeA.bottom));
+        // 同一列的所有行共用基准：标题、状态、箭头误差 ≤1dp。
+        expect(titleB.left, closeTo(titleA.left, 1));
+        expect(statusB.right, closeTo(statusA.right, 1));
+        expect(arrowB.left, closeTo(arrowA.left, 1));
+        // 轨道 16dp 加两侧留白把时间栏和正文槽分开。
+        expect(titleA.left - timeA.right, greaterThanOrEqualTo(24));
+        // 状态与箭头贴末端：状态右沿在箭头槽左侧，箭头永远占末尾 20dp。
+        expect(arrowA.width, closeTo(20, .5));
+        expect(arrowA.right, closeTo(rowA.right, .5));
+        expect(rowA.height, greaterThanOrEqualTo(48));
+        expect(statusA.right, lessThanOrEqualTo(arrowA.left));
+        expect(statusA.top, closeTo(timeA.top, 1));
+        // 正文槽仍吸收剩余空间：标题起点在时间栏之后，且不超过状态列。
+        expect(titleA.left, lessThan(statusA.left));
+        expect(titleB.left, lessThan(statusB.left));
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      });
+    }
+  }
+
+  testWidgets('RTL 下宽窄任务行按方向镜像且不溢出', (tester) async {
+    final now = DateTime.utc(2026, 11, 2, 6, 29);
+    for (final width in [390.0, 768.0]) {
+      final items = await pumpScheduleRows(
+        tester,
+        width: width,
+        scale: 1,
+        now: now,
+        onOpen: (_) {},
+        direction: TextDirection.rtl,
+        missions: [
+          example(
+            '右到左任务',
+            fixed: true,
+            start: now.subtract(const Duration(minutes: 10)),
+            plannedDurationMinutes: 100,
+          ),
+        ],
+      );
+      final id = items.single.id;
+      final row = _rect(tester, ValueKey('schedule-test-row-$id'));
+      final arrow = _rect(tester, ValueKey('schedule-open-$id'));
+      // 方向相关的行内布局：RTL 时箭头落在起始边，时间栏移到末端。
+      expect(arrow.left, closeTo(row.left, .5));
+      if (_hasKey(tester, ValueKey('schedule-time-$id'))) {
+        final time = _rect(tester, ValueKey('schedule-time-$id'));
+        expect(time.right, closeTo(row.right, .5));
+      } else {
+        final meta = _rect(tester, ValueKey('schedule-meta-$id'));
+        // 辅助行沿起始方向内收轨道宽度再加 8dp，RTL 时镜像。
+        final inset = row.right - meta.right;
+        expect(inset, closeTo(24, .5));
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+  });
+
+  testWidgets('480 宽双倍字号量槽后标题不足 160dp，回到窄列表', (tester) async {
+    final now = DateTime.utc(2026, 11, 2, 6, 29);
+    final items = await pumpScheduleRows(
+      tester,
+      width: 480,
+      scale: 2,
+      now: now,
+      onOpen: (_) {},
+      missions: [
+        example(
+          '品牌与营销管理实务',
+          fixed: true,
+          start: now,
+          plannedDurationMinutes: 90,
+        ),
+      ],
+    );
+    final id = items.single.id;
+    expect(_hasKey(tester, ValueKey('schedule-time-$id')), isFalse);
+    expect(_hasKey(tester, ValueKey('schedule-meta-$id')), isTrue);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('当前计划时段用浅强调面、轨道标记与正文槽内计划进度', (tester) async {
+    final now = DateTime.utc(2026, 11, 2, 6, 29);
+    final items = await pumpScheduleRows(
+      tester,
+      width: 768,
+      scale: 1,
+      now: now,
+      onOpen: (_) {},
+      missions: [
+        example(
+          '当前任务',
+          fixed: true,
+          start: now.subtract(const Duration(minutes: 29)),
+          plannedDurationMinutes: 100,
+        ),
+        example(
+          '稍后任务',
+          fixed: true,
+          start: now.add(const Duration(hours: 1)),
+          plannedDurationMinutes: 60,
+        ),
+      ],
+    );
+    final current = items.first.id;
+    final later = items.last.id;
+    final currentSurface = tester.widget<AnimatedContainer>(
+      find.byKey(ValueKey('schedule-surface-$current')),
+    );
+    final laterSurface = tester.widget<AnimatedContainer>(
+      find.byKey(ValueKey('schedule-surface-$later')),
+    );
+    expect(
+      (currentSurface.decoration! as BoxDecoration).color,
+      AppColors.accentSoft,
+    );
+    expect(
+      (laterSurface.decoration! as BoxDecoration).color,
+      Colors.transparent,
+    );
+    final node = tester.widget<Container>(
+      find.byKey(ValueKey('schedule-node-$current')),
+    );
+    expect(
+      (node.decoration! as BoxDecoration).color,
+      Theme.of(
+        tester.element(find.byType(ScheduleMissionRow).first),
+      ).colorScheme.primary,
+    );
+    expect(find.text('计划时段剩余 71 分钟'), findsOneWidget);
+    final bar = _rect(tester, ValueKey('schedule-plan-progress-$current'));
+    final remaining = _rect(
+      tester,
+      ValueKey('schedule-plan-remaining-$current'),
+    );
+    final status = _rect(tester, ValueKey('schedule-status-$current'));
+    // 剩余分钟在进度条下方，进度条只占正文槽，不和时间抢宽。
+    expect(remaining.top, greaterThan(bar.bottom - .5));
+    expect(bar.right, lessThanOrEqualTo(status.left));
+    expect(
+      tester
+          .widget<LinearProgressIndicator>(
+            find.byKey(ValueKey('schedule-plan-progress-$current')),
+          )
+          .value,
+      closeTo(29 / 100, .01),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('暂停、STOP 待确认与已结束显示真实阶段，不冒充仍在执行', (tester) async {
+    final now = DateTime.utc(2026, 11, 2, 6, 29);
+    final start = now.subtract(const Duration(minutes: 10));
+    ExecutionEvent event(
+      String id,
+      int sequence,
+      ExecutionEventType type,
+      DateTime at,
+    ) => ExecutionEvent(
+      id: '$id-$sequence',
+      missionId: id,
+      sequence: sequence,
+      type: type,
+      occurredAt: at,
+      scheduleRevisionId: '$id-schedule',
+    );
+    await pumpScheduleRows(
+      tester,
+      width: 768,
+      scale: 1,
+      now: now,
+      onOpen: (_) {},
+      missions: [
+        example(
+          '暂停任务',
+          fixed: true,
+          start: start,
+          plannedDurationMinutes: 60,
+          phase: MissionPhase.paused,
+          events: [
+            event('暂停任务', 1, ExecutionEventType.start, start),
+            event('暂停任务', 2, ExecutionEventType.pause, now),
+          ],
+        ),
+        example(
+          '到点停止任务',
+          fixed: true,
+          start: start,
+          plannedDurationMinutes: 20,
+          phase: MissionPhase.reportPending,
+          events: [
+            event('到点停止任务', 1, ExecutionEventType.start, start),
+            event('到点停止任务', 2, ExecutionEventType.stop, now),
+          ],
+        ),
+        example(
+          '已结束任务',
+          fixed: true,
+          start: start,
+          plannedDurationMinutes: 20,
+          phase: MissionPhase.closed,
+          events: [
+            event('已结束任务', 1, ExecutionEventType.start, start),
+            event('已结束任务', 2, ExecutionEventType.end, now),
+          ],
+        ),
+      ],
+    );
+    expect(find.text('已暂停'), findsOneWidget);
+    expect(find.text('待确认'), findsOneWidget);
+    expect(find.text('已结束'), findsOneWidget);
+    expect(find.text('执行中'), findsNothing);
+    expect(find.text('当前时段'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('加时的计划终点继续用于当前时段剩余分钟与进度', (tester) async {
+    final now = DateTime.utc(2026, 11, 2, 6, 29);
+    final start = now.subtract(const Duration(minutes: 10));
+    final items = await pumpScheduleRows(
+      tester,
+      width: 768,
+      scale: 1,
+      now: now,
+      onOpen: (_) {},
+      missions: [
+        example(
+          '加时任务',
+          fixed: true,
+          start: start,
+          plannedDurationMinutes: 20,
+          events: [
+            ExecutionEvent(
+              id: 'extend',
+              missionId: '加时任务',
+              sequence: 1,
+              type: ExecutionEventType.extend,
+              occurredAt: start,
+              scheduleRevisionId: '加时任务-schedule',
+              grantedDurationMinutes: 10,
+            ),
+          ],
+        ),
+      ],
+    );
+    expect(find.text('当前时段'), findsOneWidget);
+    // 原计划 20 分钟 + 加时 10 分钟 = 30 分钟窗口，已过 10 分钟。
+    expect(find.text('计划时段剩余 20 分钟'), findsOneWidget);
+    expect(
+      tester
+          .widget<LinearProgressIndicator>(
+            find.byKey(ValueKey('schedule-plan-progress-${items.single.id}')),
+          )
+          .value,
+      closeTo(10 / 30, .01),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('超长中英文标题在宽窄排版下都保留完整读屏名称', (tester) async {
+    final semantics = tester.ensureSemantics();
+    final now = DateTime.utc(2026, 11, 2, 6, 29);
+    const longChinese = '这是一个需要完整读屏并允许两行显示的很长很长的任务名称';
+    const longEnglish =
+        'SupercalifragilisticexpialidociousWithoutAnySpaceToBreak';
+    for (final (width, scale) in [(320.0, 2.0), (768.0, 2.0)]) {
+      for (final title in [longChinese, longEnglish]) {
+        await pumpScheduleRows(
+          tester,
+          width: width,
+          scale: scale,
+          now: now,
+          onOpen: (_) {},
+          missions: [
+            example(title, fixed: true, start: now, plannedDurationMinutes: 90),
+          ],
+        );
+        expect(
+          find.bySemanticsLabel(RegExp(RegExp.escape(title))),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
+    }
+    semantics.dispose();
+  });
+
+  testWidgets('当日完整日程保留分页，宽窄列表都能继续翻页', (tester) async {
+    final now = DateTime.utc(2026, 11, 2, 6, 29);
+    final items = display.groupMissionsForDisplay([
+      for (var index = 0; index < 51; index++)
+        example(
+          '完整日程 $index',
+          fixed: true,
+          start: now.add(Duration(minutes: index * 30)),
+        ),
+    ], now: now).fixed;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: ScheduleSection(
+              items: items,
+              selectedDate: DateUtils.dateOnly(now),
+              clock: () => now,
+              onOpenMission: (_) {},
+              fullList: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(ScheduleMissionRow), findsNWidgets(50));
+    expect(find.text('每页 50 项，共 51 项'), findsOneWidget);
+    expect(find.text('上一页日程'), findsOneWidget);
+    expect(find.text('下一页日程'), findsOneWidget);
+    await tester.ensureVisible(find.text('下一页日程'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('下一页日程'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ScheduleMissionRow), findsOneWidget);
+    expect(find.text('完整日程 50'), findsOneWidget);
+    await tester.ensureVisible(find.text('上一页日程'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('上一页日程'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ScheduleMissionRow), findsNWidgets(50));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('首页 2–4 项由可见高度和实际字高决定，另有项合成底部短计数', (tester) async {
+    final now = DateTime.utc(2026, 11, 2, 6, 29);
+    final items = display.groupMissionsForDisplay([
+      for (var index = 0; index < 8; index++)
+        example(
+          '日程任务 $index',
+          fixed: true,
+          start: now.add(Duration(minutes: index * 60)),
+        ),
+    ], now: now).fixed;
+    Future<void> pump({
+      required double visibleHeight,
+      required double scale,
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.light,
@@ -199,33 +715,39 @@ void main() {
           ),
           home: Scaffold(
             body: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ScheduleMissionRow(
-                item: item,
-                now: now,
+              child: ScheduleSection(
+                items: items,
+                selectedDate: DateUtils.dateOnly(now),
                 clock: () => now,
-                onTap: () => opened = true,
+                onOpenMission: (_) {},
+                onOpenAll: () {},
+                visibleHeight: visibleHeight,
               ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('执行中'), findsOneWidget);
-      expect(find.text('29:00'), findsOneWidget);
-      expect(find.textContaining('时段剩余 71 分钟'), findsOneWidget);
-      expect(find.text('查看'), findsNothing);
-      final titleRect = tester.getRect(find.text(title));
-      final metaRect = tester.getRect(find.textContaining('100 分钟'));
-      expect(metaRect.top, greaterThan(titleRect.bottom));
-      expect(titleRect.left, closeTo(metaRect.left, 1));
-      expect(titleRect.width, greaterThan(width * .3));
-      await tester.tap(find.text(title));
-      expect(opened, isTrue);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-    });
-  }
+    }
+
+    await pump(visibleHeight: 900, scale: 1);
+    expect(find.byType(ScheduleMissionRow), findsNWidgets(4));
+    expect(find.text('另有 4 项'), findsOneWidget);
+    // 卡头只保留一个“查看全部”，底部短计数不重复同一文案。
+    expect(find.text('查看全部 ›'), findsOneWidget);
+    expect(find.textContaining('查看全部'), findsOneWidget);
+    expect(find.byKey(const Key('schedule-more')), findsOneWidget);
+
+    await pump(visibleHeight: 480, scale: 1);
+    expect(find.byType(ScheduleMissionRow), findsNWidgets(2));
+    expect(find.text('另有 6 项'), findsOneWidget);
+
+    await pump(visibleHeight: 900, scale: 2);
+    expect(find.byType(ScheduleMissionRow), findsNWidgets(3));
+    expect(find.text('另有 5 项'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   test('窗口覆盖开始前、空档、全部结束和空列表', () {
     // MissionService in helper prepares timezone data.

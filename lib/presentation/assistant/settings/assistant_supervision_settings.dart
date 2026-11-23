@@ -110,7 +110,7 @@ class _AssistantSupervisionSettingsState
                 !granted
                     ? Icons.lock_open
                     : paused
-                    ? Icons.play_arrow
+                    ? Icons.play_arrow_rounded
                     : Icons.pause,
               ),
               label: Text(

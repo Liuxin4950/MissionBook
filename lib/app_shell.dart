@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import 'presentation/today/today_page.dart';
 import 'package:flutter/services.dart';
 import 'application/assistant/assistant_controller.dart';
 import 'data/assistant/assistant_workspace_bridge.dart';
 import 'presentation/assistant/entry/assistant_launcher.dart';
 import 'presentation/assistant/entry/assistant_scope.dart';
+import 'presentation/assistant/settings/assistant_settings_page.dart';
 import 'application/missions/mission_service.dart';
 import 'application/notifications/app_notification_service.dart';
 import 'core/theme/app_layout.dart';
@@ -76,6 +78,14 @@ class _AppShellState extends State<AppShell> {
   bool _selectingPage = false;
   int _todayWidgetEntry = 0;
 
+  // 原生悬浮语音面板「打开语音设置」交给外壳的一次性路由值：
+  // 与 Kotlin 侧 AssistantOverlayVoiceActivity.ROUTE_VOICE_SETTINGS 同一语义。
+  static const _voiceSettingsRoute = 'voiceSettings';
+  // 现有助手设置页里的「语音输入」行。设置页没有分段/锚点入参，
+  // 因此只按它自己的分组滚动定位，不新建页面、不复制设置 UI。
+  static const _voiceSettingsRowKey = Key('assistant-speech-settings-entry');
+  bool _openingVoiceSettings = false;
+
   @override
   void initState() {
     super.initState();
@@ -87,6 +97,7 @@ class _AppShellState extends State<AppShell> {
         unawaited(_consumeAssistantMission());
         unawaited(_consumeAssistantRecord());
         unawaited(_consumeWidgetOpen());
+        unawaited(_consumeAssistantRoute());
       }
     });
   }
@@ -96,6 +107,7 @@ class _AppShellState extends State<AppShell> {
     if (call.method == 'pendingMission') await _consumeAssistantMission();
     if (call.method == 'pendingRecord') await _consumeAssistantRecord();
     if (call.method == 'pendingWidgetOpen') await _consumeWidgetOpen();
+    if (call.method == 'pendingAssistantRoute') await _consumeAssistantRoute();
   }
 
   Future<void> _consumePendingAssistantOpen() async {
@@ -212,6 +224,104 @@ class _AppShellState extends State<AppShell> {
     } on MissingPluginException {
       // 当前设备没有悬浮记录入口。
     }
+  }
+
+  /// 一次性消费原生「打开语音设置」路由（冷启动拉取与热启动推送共用）。
+  ///
+  /// 没有待消费路由时直接结束，这是常态而不是失败；只有真正拿到路由却
+  /// 打不开（未知路由、未装配助手、导航异常）才提示，并保留当前页面。
+  Future<void> _consumeAssistantRoute() async {
+    try {
+      final entry = await _overlayChannel.invokeMapMethod<String, String?>(
+        'consumeAssistantRoute',
+      );
+      final route = entry?['route'];
+      if (!mounted || route == null) return;
+      if (route != _voiceSettingsRoute) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('无法识别该助手入口，请从助手设置进入')));
+        return;
+      }
+      await _openAssistantVoiceSettings();
+    } on MissingPluginException {
+      // 桌面和 Web 没有 Android 悬浮语音入口。
+    } on PlatformException {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('无法打开语音设置，请从助手设置进入')));
+      }
+    }
+  }
+
+  /// 在完整路由上打开现有助手设置页，并定位到它的「语音输入」分组。
+  ///
+  /// 用根 Navigator 而不是右栏，任意页面（含助手会话不可见时）都能打开，
+  /// 返回后仍停在原页面与原右栏栈；不新建设置页、不新建路由体系。
+  Future<void> _openAssistantVoiceSettings() async {
+    final controller = widget.assistant;
+    if (controller == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('当前未装配助手，无法打开语音设置')));
+      return;
+    }
+    if (_openingVoiceSettings) return;
+    _openingVoiceSettings = true;
+    final pageKey = GlobalKey();
+    try {
+      final opened = Navigator.of(context, rootNavigator: true).push<void>(
+        MaterialPageRoute(
+          builder: (_) =>
+              AssistantSettingsPage(key: pageKey, controller: controller),
+        ),
+      );
+      // 设置页先读本机配置再建表单，等它挂载后按首帧位置滚动一次。
+      unawaited(_revealVoiceSettingsRow(pageKey));
+      await opened;
+    } catch (error, stack) {
+      debugPrint('打开语音设置失败：$error\n$stack');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('无法打开语音设置，请从助手设置进入')));
+      }
+    } finally {
+      _openingVoiceSettings = false;
+    }
+  }
+
+  /// 把现有设置页里的「语音输入」行滚入视野。
+  ///
+  /// 行要等设置加载完成才建出来，所以这里有限次等待；超时就停在设置页顶部，
+  /// 用户仍可自行滚动。用户已返回时立即结束，不在后台继续操作。
+  Future<void> _revealVoiceSettingsRow(GlobalKey pageKey) async {
+    for (var attempt = 0; attempt < 40; attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      if (!mounted) return;
+      final page = pageKey.currentContext;
+      if (page == null) return;
+      final row = _findElementByKey(page as Element, _voiceSettingsRowKey);
+      if (row == null) continue;
+      await Scrollable.ensureVisible(
+        row,
+        alignment: 0.12,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+      return;
+    }
+  }
+
+  /// 在已挂载的子树上按键找元素：只用于设置页内部的滚动定位。
+  static Element? _findElementByKey(Element root, Key key) {
+    if (root.widget.key == key) return root;
+    Element? found;
+    root.visitChildren((child) {
+      found ??= _findElementByKey(child, key);
+    });
+    return found;
   }
 
   @override
@@ -397,13 +507,45 @@ class _AppShellState extends State<AppShell> {
       child: ListenableBuilder(
         listenable: _detailPane,
         builder: (context, _) {
+          final mode = _detailPane.assistantPaneMode;
+          final chatAttached = _detailPane.isAssistantConversationActive;
+          // 显式「仅工作区」：宽屏折成贴边细门轨，窄窗也保持工作区，
+          // 聊天留在右栏栈里等入口恢复（不 pop、不重建）。
+          final workspaceOnly =
+              _detailPane.hasContent &&
+              chatAttached &&
+              mode == AssistantPaneMode.workspaceExpanded;
+          // 让位判断在构建外壳前就要有结论：页面正文的 TickerMode 依赖它。
+          // 侧栏只在隐藏页面上暂停动画，外壳操作（助手入口菜单收尾）继续走完。
+          final windowWidth = MediaQuery.sizeOf(context).width;
+          final shellRailWidth = compact
+              ? 0.0
+              : AppLayout.railWidthForWindow(windowWidth);
+          final shellContentWidth = math.max(0.0, windowWidth - shellRailWidth);
+          final shellAssistantRoom = AppLayout.canSplitAssistantPane(
+            shellContentWidth,
+          );
+          final shellSplitAssistant =
+              _detailPane.hasContent && chatAttached && shellAssistantRoom;
+          final shellNormalSplit =
+              _detailPane.hasContent &&
+              !chatAttached &&
+              AppLayout.canSplitPane(shellContentWidth);
+          final shellPaused =
+              _detailPane.hasContent &&
+              !workspaceOnly &&
+              !shellNormalSplit &&
+              (!shellSplitAssistant ||
+                  mode == AssistantPaneMode.assistantExpanded);
+          final pageBodyPaused = TickerMode(enabled: !shellPaused, child: body);
           // 手机形态：底部胶囊导航（现行稿）；宽屏形态在下方改为左侧导航栏。
           final shell = compact
               ? Scaffold(
                   key: const Key('nav-capsule'),
-                  body: body,
+                  body: pageBodyPaused,
                   // 右栏全屏接管时底部导航跟着下场：子页不复制底部导航。
-                  bottomNavigationBar: _detailPane.hasContent
+                  // 聊天被折叠隐藏时导航与当前任务栏仍属于可见工作区。
+                  bottomNavigationBar: _detailPane.hasContent && !workspaceOnly
                       ? null
                       : Column(
                           mainAxisSize: MainAxisSize.min,
@@ -429,7 +571,7 @@ class _AppShellState extends State<AppShell> {
                       Expanded(
                         child: Column(
                           children: [
-                            Expanded(child: body),
+                            Expanded(child: pageBodyPaused),
                             ActiveMissionsBar(
                               service: widget.missionService,
                               clock: widget.clock,
@@ -443,123 +585,145 @@ class _AppShellState extends State<AppShell> {
           return LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth;
-              final extended = AppLayout.useExtendedRail(context);
-              final railWidth = compact ? 0.0 : (extended ? 193.0 : 89.0);
-              final contentWidth = width - railWidth;
-              final canSplit = AppLayout.canSplitPane(contentWidth);
-              final assistantSplit =
-                  canSplit && _detailPane.isAssistantConversationActive;
-              final mode = _detailPane.assistantPaneMode;
-              final workspaceOnly =
-                  assistantSplit && mode == AssistantPaneMode.workspaceExpanded;
-              final assistantOnly =
-                  assistantSplit && mode == AssistantPaneMode.assistantExpanded;
-              final sideBySide =
-                  canSplit &&
+              // 侧栏占位与助手顶栏共用同一换算：常规 89、扩展 193（含 1dp 边线）。
+              final railWidth = compact
+                  ? 0.0
+                  : AppLayout.railWidthForWindow(width);
+              final contentWidth = math.max(0.0, width - railWidth);
+              // 助手专用门槛按「工作区 480 + 门 24 + 助手 360」判定；
+              // 普通详情继续用 16dp 栏间距的 856 门槛。
+              final assistantRoom = AppLayout.canSplitAssistantPane(
+                contentWidth,
+              );
+              final splitAssistant =
+                  _detailPane.hasContent && chatAttached && assistantRoom;
+              final normalSplit =
                   _detailPane.hasContent &&
-                  !workspaceOnly &&
-                  !assistantOnly;
-              final workspaceHidden =
-                  _detailPane.hasContent && !sideBySide && !workspaceOnly;
-              final availableWidth = contentWidth - AppLayout.paneGap;
+                  !chatAttached &&
+                  AppLayout.canSplitPane(contentWidth);
+              final assistantOnly =
+                  splitAssistant && mode == AssistantPaneMode.assistantExpanded;
 
-              var paneWidth = width;
-              var workspaceWidth = width;
-              if (assistantSplit) {
-                final savedWidth = _detailPane.assistantSplitWidthFor(
-                  availableWidth,
+              AssistantSplitGeometry? split;
+              double paneWidth;
+              double workspaceWidth;
+              if (splitAssistant) {
+                split = _detailPane.resolveAssistantGeometry(
+                  windowWidth: width,
+                  railWidth: railWidth,
                 );
-                if (workspaceOnly) {
-                  // Keep the hidden route laid out at a valid width, without changing its state.
-                  paneWidth = savedWidth;
-                } else if (assistantOnly) {
-                  workspaceWidth = width - savedWidth - AppLayout.paneGap;
-                } else {
-                  paneWidth = _detailPane.assistantWidthFor(availableWidth);
-                  workspaceWidth = width - paneWidth - AppLayout.paneGap;
-                }
-              } else if (sideBySide) {
+                workspaceWidth = split.workspaceWidth;
+                paneWidth = split.assistantWidth;
+              } else if (normalSplit) {
+                final availableWidth = contentWidth - AppLayout.paneGap;
                 paneWidth = (availableWidth - AppLayout.paneLeftMin).clamp(
                   AppLayout.paneRightMin,
                   _detailPane.activeMaxWidth,
                 );
                 workspaceWidth = width - paneWidth - AppLayout.paneGap;
+              } else if (workspaceOnly) {
+                // 窄窗显式「仅工作区」：聊天子树按有效栏宽隐藏布局，
+                // 恢复时仍是同一个会话、同一份草稿。
+                paneWidth = _detailPane.assistantSplitWidthFor(contentWidth);
+                workspaceWidth = width;
+              } else if (_detailPane.hasContent) {
+                // 窄窗接管：同一聊天/详情路由铺满窗口，草稿与返回链不迁移。
+                paneWidth = width;
+                workspaceWidth = width;
+              } else {
+                paneWidth = 0;
+                workspaceWidth = width;
               }
-
-              const handleOverhang =
-                  (AppLayout.touchTargetMin - AppLayout.paneGap) / 2;
-              return ColoredBox(
-                key: const Key('workspace-background'),
-                color: Theme.of(context).scaffoldBackgroundColor,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    PositionedDirectional(
-                      start: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: workspaceWidth,
-                      child: Offstage(
-                        offstage: workspaceHidden,
-                        child: ExcludeFocus(
-                          excluding: workspaceHidden,
-                          child: TickerMode(
-                            enabled: !workspaceHidden,
-                            child: shell,
-                          ),
-                        ),
-                      ),
-                    ),
-                    PositionedDirectional(
-                      end: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: paneWidth,
-                      child: Offstage(
-                        offstage: workspaceOnly,
-                        child: ExcludeFocus(
-                          excluding: workspaceOnly,
-                          child: TickerMode(
-                            enabled: !workspaceOnly,
-                            child: DetailPaneHost(
-                              controller: _detailPane,
-                              restoreSplitOnBack:
-                                  assistantSplit &&
-                                  mode != AssistantPaneMode.split,
+              // 工作区只在右栏真正铺满窗口时让位；并排/显式保留时始终可见。
+              final workspaceHidden =
+                  _detailPane.hasContent &&
+                  !workspaceOnly &&
+                  !normalSplit &&
+                  (!splitAssistant || assistantOnly);
+              final paneHidden = workspaceOnly;
+              // 门只在助手会话是实际可见栈顶时出现；被历史/设置盖住时只留 24dp 缝隙。
+              final showDoor =
+                  split != null &&
+                  _detailPane.isAssistantConversationVisibleTop;
+              // 键盘只在这里缩一次：两栏、橱窗门和右栏一同止于可用内容底部，
+              // 子树自己的 Scaffold 不再重复扣减，避免门铺到键盘下面。
+              final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+              return _AssistantSplitLayoutGuard(
+                controller: _detailPane,
+                availableWidth: split?.availableWidth ?? 0,
+                assistantRoom: assistantRoom,
+                visibleTop: _detailPane.isAssistantConversationVisibleTop,
+                child: MediaQuery.removeViewInsets(
+                  context: context,
+                  removeBottom: true,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: bottomInset),
+                    child: ColoredBox(
+                      key: const Key('workspace-background'),
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          PositionedDirectional(
+                            start: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: workspaceWidth,
+                            child: Offstage(
+                              offstage: workspaceHidden,
+                              child: ExcludeFocus(
+                                excluding: workspaceHidden,
+                                // 页面正文的 TickerMode 在 shell 内单独关闭；
+                                // 外壳（侧栏助手入口）保留一次动画收尾的机会。
+                                child: shell,
+                              ),
                             ),
                           ),
-                        ),
+                          PositionedDirectional(
+                            end: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: paneWidth,
+                            child: Offstage(
+                              offstage: paneHidden,
+                              child: ExcludeFocus(
+                                excluding: paneHidden,
+                                child: TickerMode(
+                                  enabled: !paneHidden,
+                                  child: DetailPaneHost(
+                                    controller: _detailPane,
+                                    active: !paneHidden,
+                                    restoreSplitOnBack:
+                                        splitAssistant &&
+                                        mode != AssistantPaneMode.split,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (showDoor)
+                            PositionedDirectional(
+                              start: split.doorAtEnd ? null : split.doorOffset,
+                              end: split.doorAtEnd ? split.doorOffset : null,
+                              top: 0,
+                              bottom: 0,
+                              width: AppLayout.splitDoorWidth,
+                              // 从内容安全区顶接到底，键盘出现时止于可用内容底部。
+                              child: SafeArea(
+                                left: false,
+                                right: false,
+                                child: AssistantSplitDoor(
+                                  controller: _detailPane,
+                                  availableWidth: split.availableWidth,
+                                  assistantWidth: split.dragStartWidth,
+                                  textDirection: Directionality.of(context),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    if (assistantSplit)
-                      PositionedDirectional(
-                        start: assistantOnly ? AppLayout.spaceXs : null,
-                        end: assistantOnly
-                            ? null
-                            : workspaceOnly
-                            ? AppLayout.spaceXs
-                            : (_detailPane.assistantDividerOffsetFor(
-                                        availableWidth,
-                                      ) -
-                                      handleOverhang)
-                                  .clamp(0.0, width - AppLayout.touchTargetMin),
-                        top: 0,
-                        bottom: 0,
-                        width: AppLayout.touchTargetMin,
-                        child: Center(
-                          child: AssistantSplitHandle(
-                            controller: _detailPane,
-                            availableWidth: availableWidth,
-                            assistantWidth: assistantOnly
-                                ? availableWidth
-                                : workspaceOnly
-                                ? 0
-                                : paneWidth,
-                            textDirection: Directionality.of(context),
-                          ),
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
               );
             },
@@ -571,26 +735,57 @@ class _AppShellState extends State<AppShell> {
 
   // 平板保留紧凑侧栏，足够宽时才把图标与文字并排。
   // 语义与底部胶囊完全一致（标签/按钮/选中态/Tooltip），读屏行为不分平台。
+  static const _railDestinations =
+      <({String label, IconData icon, IconData selected})>[
+        (label: '今天', icon: Icons.home_outlined, selected: Icons.home_rounded),
+        (
+          label: '目标',
+          icon: Icons.track_changes_outlined,
+          selected: Icons.track_changes,
+        ),
+        (label: '历史', icon: Icons.schedule_outlined, selected: Icons.schedule),
+        (label: '我的', icon: Icons.person_outline, selected: Icons.person),
+      ];
+
+  /// 四个目的地的稳定 Key：选中底色按真实项边界移动，不再按 1/4 估算。
+  final _railItemKeys = List.generate(4, (_) => GlobalKey());
+
+  /// 宽 rail 的标签槽：四项共用同一槽宽，按最宽标签（选中字重）实测。
+  /// 容器放不下时返回 vertical，让图文改为上下、文字可两行。
+  ({double labelSlot, bool vertical}) _railLabelGeometry(
+    BuildContext context,
+    double itemWidth,
+  ) {
+    final available =
+        itemWidth -
+        AppLayout.spaceMd * 2 -
+        AppLayout.iconLg -
+        AppLayout.spaceSm;
+    final base = Theme.of(context).textTheme.labelMedium ?? const TextStyle();
+    final style = base.copyWith(fontWeight: FontWeight.w600);
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    var widest = 0.0;
+    for (final destination in _railDestinations) {
+      final painter = TextPainter(
+        text: TextSpan(text: destination.label, style: style),
+        textDirection: direction,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      widest = math.max(widest, painter.width);
+      painter.dispose();
+    }
+    if (widest > available) return (labelSlot: 0, vertical: true);
+    return (labelSlot: widest.ceilToDouble(), vertical: false);
+  }
+
   Widget _buildSideRail() {
     final expanded = AppLayout.useExtendedRail(context);
-    Widget item(
-      int index,
-      String label,
-      IconData icon,
-      IconData selectedIcon,
-    ) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceXs),
-      child: SizedBox(
-        width: expanded ? 176 : 72,
-        child: _navigationItem(
-          index,
-          label,
-          icon,
-          selectedIcon,
-          extended: expanded,
-        ),
-      ),
-    );
+    final itemWidth = expanded ? 176.0 : 72.0;
+    final label = expanded
+        ? _railLabelGeometry(context, itemWidth)
+        : (labelSlot: 0.0, vertical: true);
     return SizedBox(
       key: const Key('navigation-rail-width'),
       width: expanded ? 192 : 88,
@@ -614,24 +809,22 @@ class _AppShellState extends State<AppShell> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            expanded ? AppLayout.space3Xl : 0,
-                            AppLayout.spaceSm,
-                            0,
-                            AppLayout.spaceXxl,
+                          padding: const EdgeInsets.only(
+                            top: AppLayout.spaceSm,
+                            bottom: AppLayout.spaceXxl,
                           ),
                           child: SizedBox(
                             width: double.infinity,
                             child: Align(
-                              alignment: expanded
-                                  ? Alignment.centerLeft
-                                  : Alignment.center,
+                              // 品牌字标随侧栏中线对齐，不随宽度变化偏左。
+                              alignment: Alignment.center,
                               child: expanded
                                   ? Text(
                                       'MissionBook',
                                       key: const Key('navigation-brand'),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
                                       style: Theme.of(
                                         context,
                                       ).textTheme.titleLarge,
@@ -640,65 +833,36 @@ class _AppShellState extends State<AppShell> {
                             ),
                           ),
                         ),
-                        Stack(
-                          children: [
-                            Positioned.fill(
-                              // 策略变化时重置纯视觉指示器，进行中的动画直接到位。
-                              child: AnimatedAlign(
-                                key: ValueKey(
-                                  MediaQuery.disableAnimationsOf(context),
-                                ),
-                                alignment: Alignment(
-                                  0,
-                                  -1 + 2 * _selectedIndex / 3,
-                                ),
-                                duration: AppMotion.resolve(
-                                  context,
-                                  AppMotion.standard,
-                                ),
-                                curve: AppMotion.curve,
-                                child: FractionallySizedBox(
-                                  heightFactor: .25,
-                                  widthFactor: 1,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: AppLayout.spaceMd,
-                                      vertical: AppLayout.spaceXs,
+                        _RailSelectionIndicator(
+                          selectedIndex: _selectedIndex,
+                          itemKeys: _railItemKeys,
+                          child: Column(
+                            children: [
+                              for (
+                                var index = 0;
+                                index < _railDestinations.length;
+                                index++
+                              )
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: AppLayout.spaceXs,
+                                  ),
+                                  child: SizedBox(
+                                    key: _railItemKeys[index],
+                                    width: itemWidth,
+                                    child: _navigationItem(
+                                      index,
+                                      _railDestinations[index].label,
+                                      _railDestinations[index].icon,
+                                      _railDestinations[index].selected,
+                                      extended: expanded,
+                                      vertical: label.vertical,
+                                      labelSlotWidth: label.labelSlot,
                                     ),
-                                    child: _navigationSelection(),
                                   ),
                                 ),
-                              ),
-                            ),
-                            Column(
-                              children: [
-                                item(
-                                  0,
-                                  '今天',
-                                  Icons.home_outlined,
-                                  Icons.home_rounded,
-                                ),
-                                item(
-                                  1,
-                                  '目标',
-                                  Icons.track_changes_outlined,
-                                  Icons.track_changes,
-                                ),
-                                item(
-                                  2,
-                                  '历史',
-                                  Icons.schedule_outlined,
-                                  Icons.schedule,
-                                ),
-                                item(
-                                  3,
-                                  '我的',
-                                  Icons.person_outline,
-                                  Icons.person,
-                                ),
-                              ],
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                         const Spacer(),
                         if (widget.assistant != null)
@@ -842,16 +1006,7 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _navigationSelection() => DecoratedBox(
-    key: const Key('navigation-selection-surface'),
-    decoration: ShapeDecoration(
-      color: AppColors.primarySoft,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
-      ),
-    ),
-    child: const SizedBox.expand(),
-  );
+  Widget _navigationSelection() => _railSelectionSurface();
 
   // 四个目的地共用同一排版与语义外壳；点击仍交给 _selectPage 切换 IndexedStack。
   // inCapsule：胶囊导航里横向铺满一格；extended：侧栏加宽条（图标+文字并排）。
@@ -862,6 +1017,8 @@ class _AppShellState extends State<AppShell> {
     IconData selectedIcon, {
     bool inCapsule = false,
     bool extended = false,
+    bool vertical = false,
+    double labelSlotWidth = 0,
   }) {
     final selected = index == _selectedIndex;
     final foreground = selected ? AppColors.primary : AppColors.textSecondary;
@@ -906,20 +1063,56 @@ class _AppShellState extends State<AppShell> {
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                 color: foreground,
               ),
-      child: Text(label),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        softWrap: true,
+      ),
     );
-    final content = extended
-        ? Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              iconWidget,
-              const SizedBox(width: AppLayout.spaceSm),
-              labelWidget,
-            ],
-          )
-        : Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [iconWidget, const SizedBox(height: 2), labelWidget],
+    // 侧栏项：图文组在整项中线居中；宽 rail 的标签在自身等宽槽里居中。
+    final content = inCapsule
+        ? (extended
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    iconWidget,
+                    const SizedBox(width: AppLayout.spaceSm),
+                    labelWidget,
+                  ],
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    iconWidget,
+                    const SizedBox(height: 2),
+                    labelWidget,
+                  ],
+                ))
+        : Center(
+            child: extended && !vertical
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      iconWidget,
+                      const SizedBox(width: AppLayout.spaceSm),
+                      SizedBox(
+                        width: labelSlotWidth,
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: labelWidget,
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      iconWidget,
+                      const SizedBox(height: 2),
+                      labelWidget,
+                    ],
+                  ),
           );
     final button = Tooltip(
       message: label,
@@ -940,4 +1133,142 @@ class _AppShellState extends State<AppShell> {
     );
     return inCapsule ? Expanded(child: button) : button;
   }
+}
+
+/// 侧栏选中底色：测量真实目的项的矩形，按该项边界移动。
+///
+/// 四项高度会随系统字号变化，因此不再用 1/4 估算；短窗口滚动时，
+/// 指示层与列表在同一滚动容器内一起移动。
+class _RailSelectionIndicator extends StatefulWidget {
+  const _RailSelectionIndicator({
+    required this.selectedIndex,
+    required this.itemKeys,
+    required this.child,
+  });
+
+  final int selectedIndex;
+  final List<GlobalKey> itemKeys;
+  final Widget child;
+
+  @override
+  State<_RailSelectionIndicator> createState() =>
+      _RailSelectionIndicatorState();
+}
+
+class _RailSelectionIndicatorState extends State<_RailSelectionIndicator> {
+  Rect? _selectionRect;
+  bool _measureScheduled = false;
+
+  @override
+  void didUpdateWidget(covariant _RailSelectionIndicator oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 目的项换了：用上一帧布局立即瞄准新项，动画从本次构建就开始，
+    // 不会先停在旧位置一帧；布局本身变化时再由帧末测量校正。
+    final rect = _measureNow();
+    if (rect != null) _selectionRect = rect;
+    if (oldWidget.selectedIndex != widget.selectedIndex) _scheduleMeasure();
+  }
+
+  /// 读取选中项当前渲染盒相对指示层的矩形；尚未布局时返回 null。
+  Rect? _measureNow() {
+    final box =
+        widget.itemKeys[widget.selectedIndex].currentContext?.findRenderObject()
+            as RenderBox?;
+    final self = context.findRenderObject() as RenderBox?;
+    if (box == null || self == null || !box.attached || !self.attached) {
+      return null;
+    }
+    if (!box.hasSize || !self.hasSize) return null;
+    return box.localToGlobal(Offset.zero, ancestor: self) & box.size;
+  }
+
+  /// 布局完成后测量选中项；只有矩形真的变化才重建，避免逐帧 setState。
+  void _scheduleMeasure() {
+    if (_measureScheduled) return;
+    _measureScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measureScheduled = false;
+      if (!mounted) return;
+      final rect = _measureNow();
+      if (rect == null || rect == _selectionRect) return;
+      setState(() => _selectionRect = rect);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _scheduleMeasure();
+    final duration = AppMotion.resolve(context, AppMotion.standard);
+    final rect = _selectionRect;
+    return Stack(
+      children: [
+        if (rect != null)
+          AnimatedPositioned(
+            // 策略变化时重置纯视觉指示器，进行中的动画直接到位。
+            key: ValueKey(duration),
+            duration: duration,
+            curve: AppMotion.curve,
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+            child: IgnorePointer(child: _railSelectionSurface()),
+          ),
+        widget.child,
+      ],
+    );
+  }
+}
+
+/// 侧栏/胶囊共用的选中表面（纯视觉；交互由 AppInteractiveSurface 承担）。
+Widget _railSelectionSurface() => DecoratedBox(
+  key: const Key('navigation-selection-surface'),
+  decoration: ShapeDecoration(
+    color: AppColors.primarySoft,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+    ),
+  ),
+  child: const SizedBox.expand(),
+);
+
+/// 分屏布局守卫：窗口宽度或实际可见栈顶变化时丢弃拖动预览，保留提交比例。
+class _AssistantSplitLayoutGuard extends StatefulWidget {
+  const _AssistantSplitLayoutGuard({
+    required this.controller,
+    required this.availableWidth,
+    required this.assistantRoom,
+    required this.visibleTop,
+    required this.child,
+  });
+
+  final DetailPaneController controller;
+  final double availableWidth;
+  final bool assistantRoom;
+  final bool visibleTop;
+  final Widget child;
+
+  @override
+  State<_AssistantSplitLayoutGuard> createState() =>
+      _AssistantSplitLayoutGuardState();
+}
+
+class _AssistantSplitLayoutGuardState
+    extends State<_AssistantSplitLayoutGuard> {
+  @override
+  void didUpdateWidget(covariant _AssistantSplitLayoutGuard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.availableWidth == widget.availableWidth &&
+        oldWidget.assistantRoom == widget.assistantRoom &&
+        oldWidget.visibleTop == widget.visibleTop) {
+      return;
+    }
+    // 只在帧末丢弃预览：不在 build 里写控制器，也不把旧几何带进下一帧。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.controller.cancelAssistantResize();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

@@ -33,9 +33,10 @@ void main() {
   Future<void> open(
     WidgetTester tester, {
     required double width,
+    double height = 844,
     MotionSettings? motion,
   }) async {
-    tester.view.physicalSize = Size(width, 844);
+    tester.view.physicalSize = Size(width, height);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -139,6 +140,151 @@ void main() {
     expect(find.byKey(const Key('nav-side-rail')), findsOneWidget);
     expect(find.byKey(const Key('nav-capsule')), findsNothing);
     expect(find.byTooltip('目标'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  Rect railItemRect(WidgetTester tester, String label) =>
+      tester.getRect(find.byTooltip(label));
+
+  Finder railLabel(String label) =>
+      find.descendant(of: find.byTooltip(label), matching: find.text(label));
+
+  testWidgets('768 紧凑侧栏的图标与文字对准侧栏中线，选中面贴合真实项', (tester) async {
+    await open(tester, width: 768);
+    final rail = tester.getRect(find.byKey(const Key('navigation-rail-width')));
+    final railCenter = rail.center.dx;
+    for (var index = 0; index < 4; index++) {
+      final label = ['今天', '目标', '历史', '我的'][index];
+      final item = railItemRect(tester, label);
+      final icon = tester.getRect(
+        find.byKey(ValueKey('navigation-icon-$index')),
+      );
+      expect(item.center.dx, closeTo(railCenter, 1));
+      expect(icon.center.dx, closeTo(railCenter, 1));
+      expect(
+        tester.getRect(railLabel(label)).center.dx,
+        closeTo(railCenter, 1),
+      );
+      // 图标在上、文字在下。
+      expect(
+        icon.bottom,
+        lessThanOrEqualTo(tester.getRect(railLabel(label)).top),
+      );
+    }
+    // 选中底色跟真实目的项边界移动，不按 1/4 估算。
+    expect(
+      tester.getRect(find.byKey(const Key('navigation-selection-surface'))),
+      railItemRect(tester, '今天'),
+    );
+    await tester.tap(find.byTooltip('历史'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(find.byKey(const Key('navigation-selection-surface'))),
+      railItemRect(tester, '历史'),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('1280 宽侧栏图文组居中、四项同槽宽、选中不横向跳动', (tester) async {
+    await open(tester, width: 1280);
+    final rail = tester.getRect(find.byKey(const Key('navigation-rail-width')));
+    final railCenter = rail.center.dx;
+    expect(rail.width, 192);
+    // 品牌字标随侧栏中线。
+    expect(
+      tester.getCenter(find.byKey(const Key('navigation-brand'))).dx,
+      closeTo(railCenter, 1),
+    );
+    final labelOffsets = <double>[];
+    for (var index = 0; index < 4; index++) {
+      final label = ['今天', '目标', '历史', '我的'][index];
+      final item = railItemRect(tester, label);
+      final icon = tester.getRect(
+        find.byKey(ValueKey('navigation-icon-$index')),
+      );
+      final text = tester.getRect(railLabel(label));
+      // 图标＋标签组合居中在整项中线。
+      final group = icon.expandToInclude(text);
+      expect(group.center.dx, closeTo(railCenter, 1));
+      // 四项图标与标签各用相同槽宽：标签中心相对侧栏中线一致。
+      labelOffsets.add(text.center.dx - railCenter);
+      // 图文同行。
+      expect(icon.center.dy, closeTo(text.center.dy, 6));
+      expect(item.width, 176);
+    }
+    for (final offset in labelOffsets) {
+      expect(offset, closeTo(labelOffsets.first, 0.6));
+    }
+    // 选中加粗不把整组推偏。
+    final before = tester.getRect(railLabel('我的')).center.dx;
+    await tester.tap(find.byTooltip('我的'));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(railLabel('我的')).center.dx, closeTo(before, 0.6));
+    expect(
+      tester.getRect(find.byKey(const Key('navigation-selection-surface'))),
+      railItemRect(tester, '我的'),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('短窗口侧栏可滚动，选中面跟着真实项一起移动', (tester) async {
+    await open(tester, width: 768, height: 280);
+    final selection = find.byKey(const Key('navigation-selection-surface'));
+    final before = tester.getRect(selection);
+    expect(before, railItemRect(tester, '今天'));
+    final railScroll = find
+        .descendant(
+          of: find.byKey(const Key('navigation-rail-width')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.drag(railScroll, const Offset(0, -120));
+    await tester.pumpAndSettle();
+    final after = tester.getRect(selection);
+    expect(after.top, lessThan(before.top));
+    expect(after, railItemRect(tester, '今天'));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('高字号下侧栏仍中线居中并按实际文字增高，保留 48dp 触控', (tester) async {
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await open(tester, width: 1280);
+    final rail = tester.getRect(find.byKey(const Key('navigation-rail-width')));
+    final railCenter = rail.center.dx;
+    final normalTextHeight = tester.getRect(railLabel('今天')).height;
+    final normalItemHeight = railItemRect(tester, '今天').height;
+    expect(normalItemHeight, greaterThanOrEqualTo(48));
+
+    // 字号跟系统：放大后文字与行高按实际文字增长。
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(railLabel('今天')).height,
+      greaterThan(normalTextHeight),
+    );
+    for (var index = 0; index < 4; index++) {
+      final label = ['今天', '目标', '历史', '我的'][index];
+      final item = railItemRect(tester, label);
+      expect(item.height, greaterThanOrEqualTo(48));
+      final icon = tester.getRect(
+        find.byKey(ValueKey('navigation-icon-$index')),
+      );
+      final text = tester.getRect(railLabel(label));
+      final group = icon.expandToInclude(text);
+      expect(group.center.dx, closeTo(railCenter, 1));
+    }
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('没有助手会话时宽屏不出现橱窗门', (tester) async {
+    await open(tester, width: 1280);
+    expect(find.byKey(const Key('assistant-split-door')), findsNothing);
+    expect(find.byKey(const Key('assistant-split-door-track')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

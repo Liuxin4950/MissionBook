@@ -186,6 +186,29 @@ DateTime? plannedTimeSlotEnd(TodayMissionItem item) {
       : fixedTimeSlotEnd(start, item.plannedDurationMinutes, item.events);
 }
 
+/// 一行日程显示的状态值：未开始固定任务显示计划时段状态，有执行事实后优先真实阶段。
+///
+/// 计划时段与执行阶段是两件事：STOP 后的待确认、已结束都不会显示成“执行中”。
+String scheduleRowStatus(TodayMissionItem item, DateTime now) {
+  if (item.phase != MissionPhase.notStarted) {
+    return phaseLabel(item.phase);
+  }
+  if (item.isCancelled) return '已取消';
+  if (isInPlannedTimeSlot(item, now)) return '当前时段';
+  final end = plannedTimeSlotEnd(item);
+  if (item.fixedStartAt != null && end != null && !now.isBefore(end)) {
+    return '时段已过';
+  }
+  return '待到时';
+}
+
+/// 当前计划时段剩余分钟，向上取整；不在当前时段时为 0。
+int plannedTimeSlotRemainingMinutes(TodayMissionItem item, DateTime now) {
+  final end = plannedTimeSlotEnd(item);
+  if (end == null || !isInPlannedTimeSlot(item, now)) return 0;
+  return (end.difference(now).inMilliseconds / 60000).ceil();
+}
+
 /// 当前是否处于固定时间段（含明确加时）。仅用于视觉强调。
 /// 不表示用户已开始执行，也不生成执行、完成或取消事实。
 bool isInPlannedTimeSlot(TodayMissionItem item, DateTime now) {

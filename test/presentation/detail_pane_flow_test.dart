@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/native.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/app_shell.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
+import 'package:mission_book/core/theme/app_layout.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
@@ -26,6 +28,7 @@ import 'package:mission_book/presentation/missions/record/mission_record_workspa
 import 'package:mission_book/presentation/goals/detail/goal_detail_page.dart';
 import 'package:mission_book/presentation/me/settings_page.dart';
 import 'package:mission_book/presentation/me/me_page.dart';
+import 'package:mission_book/presentation/today/today_page.dart';
 import 'package:mission_book/presentation/goals/form/goal_form_page.dart';
 import 'package:mission_book/presentation/goals/form/goal_import_page.dart';
 import 'package:mission_book/domain/notifications/reminder_request.dart';
@@ -629,6 +632,339 @@ void main() {
       (await missions.findDetail(missionId: missionId))!.phase,
       MissionPhase.paused,
     );
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  /// 在真实 AppShell 里放一条助手会话入口，专测橱窗门与返回矩阵。
+  Future<DetailPaneController> openFakeChat(WidgetTester tester) async {
+    final controller = tester
+        .widget<DetailPaneHost>(find.byType(DetailPaneHost))
+        .controller;
+    unawaited(
+      controller.open<void>(
+        DetailPaneEntry(
+          '助手会话',
+          (_) => const Scaffold(body: SizedBox.expand(key: Key('fake-chat'))),
+          identity: assistantConversationPaneIdentity,
+          maxWidth: AppLayout.assistantPaneMaxWidth,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return controller;
+  }
+
+  testWidgets('宽屏橱窗门整高 24dp、贴着右栏，外侧没有隐形命中区', (tester) async {
+    await open(tester, width: 1280);
+    final controller = await openFakeChat(tester);
+    expect(controller.assistantPaneMode, AssistantPaneMode.split);
+    final door = find.byKey(const Key('assistant-split-door'));
+    expect(door, findsOneWidget);
+    final doorRect = tester.getRect(door);
+    final chatRect = tester.getRect(find.byKey(const Key('fake-chat')));
+    final listRect = tester.getRect(find.byKey(const Key('today-list')));
+    expect(doorRect.width, AppLayout.splitDoorWidth);
+    expect(doorRect.height, 844);
+    expect(doorRect.right, closeTo(chatRect.left, 0.01));
+    expect(listRect.right, lessThanOrEqualTo(doorRect.left));
+    expect(
+      tester.getSize(find.byKey(const Key('assistant-split-door-track'))).width,
+      AppLayout.splitDoorTrackWidth,
+    );
+
+    // 门槽左侧 12dp 属于工作区：起拖不进入调宽。
+    final outside = await tester.startGesture(
+      Offset(doorRect.left - 12, doorRect.center.dy),
+    );
+    await outside.moveBy(const Offset(-60, 0));
+    await tester.pump();
+    expect(controller.assistantIsResizing, isFalse);
+    await outside.up();
+    await tester.pumpAndSettle();
+    expect(controller.assistantSplitRatio, 0.5);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('从 10%/50%/90% 高度都能起拖并实时改两栏', (tester) async {
+    await open(tester, width: 1578);
+    final controller = await openFakeChat(tester);
+    final door = find.byKey(const Key('assistant-split-door'));
+    var previous = controller.assistantSplitRatio;
+    for (final fraction in [0.1, 0.5, 0.9]) {
+      final rect = tester.getRect(door);
+      final gesture = await tester.startGesture(
+        Offset(rect.center.dx, rect.top + rect.height * fraction),
+      );
+      await gesture.moveBy(const Offset(-60, 0));
+      await tester.pump();
+      // 拖动预览实时改两栏，提交要等松手。
+      expect(controller.assistantIsResizing, isTrue);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(controller.assistantSplitRatio, greaterThan(previous));
+      previous = controller.assistantSplitRatio;
+    }
+    expect(controller.assistantPaneMode, AssistantPaneMode.split);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('拖到边缘吸附单栏，边缘动作恢复上次比例且不重建页面', (tester) async {
+    await open(tester, width: 1578);
+    final controller = await openFakeChat(tester);
+    final today = tester.state(find.byType(TodayPage));
+    final navigator = controller.navigatorKey.currentState;
+    final door = find.byKey(const Key('assistant-split-door'));
+
+    // 向右收助手：工作区接管，聊天留在栈里。
+    var rect = tester.getRect(door);
+    var gesture = await tester.startGesture(rect.center);
+    await gesture.moveBy(const Offset(900, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(controller.assistantPaneMode, AssistantPaneMode.workspaceExpanded);
+    expect(find.byKey(const Key('fake-chat')), findsNothing);
+    expect(
+      find.byKey(const Key('fake-chat'), skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('assistant-split-door-grip')), findsOneWidget);
+    // 折叠只换布局：工作区页面与右栏 Navigator 都是原实例。
+    expect(tester.state(find.byType(TodayPage)), same(today));
+    expect(controller.navigatorKey.currentState, same(navigator));
+
+    await tester.tap(find.byKey(const Key('assistant-split-door')));
+    await tester.pumpAndSettle();
+    expect(controller.assistantPaneMode, AssistantPaneMode.split);
+    expect(controller.assistantSplitRatio, 0.5);
+    expect(find.byKey(const Key('fake-chat')), findsOneWidget);
+
+    // 向左收工作区：助手接管，门贴左侧。
+    rect = tester.getRect(door);
+    gesture = await tester.startGesture(rect.center);
+    await gesture.moveBy(const Offset(-1400, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(controller.assistantPaneMode, AssistantPaneMode.assistantExpanded);
+    expect(tester.getRect(door).left, 0);
+    // 工作区隐藏时页面仍在树里（Offstage），状态与滚动都未重建。
+    expect(
+      tester.state(find.byType(TodayPage, skipOffstage: false)),
+      same(today),
+    );
+    await tester.tap(find.byKey(const Key('assistant-split-door')));
+    await tester.pumpAndSettle();
+    expect(controller.assistantPaneMode, AssistantPaneMode.split);
+    expect(controller.assistantSplitRatio, 0.5);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('门从安全区顶接到底、不随工作区滚动，键盘出现时止于内容底部', (tester) async {
+    await open(tester, width: 1280);
+    await openFakeChat(tester);
+    final door = find.byKey(const Key('assistant-split-door'));
+    final before = tester.getRect(door);
+    expect(before.top, 0);
+    expect(before.bottom, 844);
+
+    // 工作区滚动只改自身内容，门不跟着滚动。
+    final todayScroll = find
+        .descendant(
+          of: find.byType(TodayPage),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.drag(todayScroll, const Offset(0, -160));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(door), before);
+
+    // 键盘出现：止于可用内容底部，不铺到键盘下面。
+    tester.view.viewInsets = const FakeViewPadding(bottom: 160);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    final withKeyboard = tester.getRect(door);
+    expect(withKeyboard.top, 0);
+    expect(withKeyboard.bottom, lessThanOrEqualTo(844 - 160 + .01));
+    expect(withKeyboard.width, AppLayout.splitDoorWidth);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('折叠细门轨避开系统手势边界，可点按与向内拖恢复', (tester) async {
+    await open(tester, width: 1280);
+    final controller = await openFakeChat(tester);
+    controller.setAssistantPaneMode(AssistantPaneMode.workspaceExpanded);
+    await tester.pumpAndSettle();
+    final door = find.byKey(const Key('assistant-split-door'));
+    expect(tester.getRect(door).height, 844);
+
+    // 系统手势/导航条出现在底部时，细轨缩到安全区以内。
+    tester.view.padding = const FakeViewPadding(bottom: 24);
+    addTearDown(tester.view.resetPadding);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(door).bottom, 844 - 24);
+    expect(tester.getRect(door).width, AppLayout.splitDoorWidth);
+
+    // 小幅内拖仍落在 96dp 吸附区：保持折叠，不误开分屏。
+    var rect = tester.getRect(door);
+    var drag = await tester.startGesture(rect.center);
+    await drag.moveBy(const Offset(-40, 0));
+    await tester.pump();
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(controller.assistantPaneMode, AssistantPaneMode.workspaceExpanded);
+
+    // 明显内拖恢复分屏，并按可读下限夹取助手栏宽。
+    rect = tester.getRect(door);
+    drag = await tester.startGesture(rect.center);
+    await drag.moveBy(const Offset(-260, 0));
+    await tester.pump();
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(controller.assistantPaneMode, AssistantPaneMode.split);
+    final available =
+        1280 - AppLayout.railWidthExtended - AppLayout.splitDoorWidth;
+    expect(controller.assistantSlotWidthFor(available), AppLayout.paneRightMin);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('手动折叠后系统返回先恢复两栏，再次返回才离开聊天', (tester) async {
+    await open(tester, width: 1280);
+    final controller = await openFakeChat(tester);
+    controller.setAssistantPaneMode(AssistantPaneMode.assistantExpanded);
+    await tester.pumpAndSettle();
+    expect(controller.assistantPaneMode, AssistantPaneMode.assistantExpanded);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(controller.assistantPaneMode, AssistantPaneMode.split);
+    expect(controller.entries, hasLength(1));
+    expect(find.byKey(const Key('assistant-split-door')), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(controller.entries, isEmpty);
+    expect(
+      find.byKey(const Key('fake-chat'), skipOffstage: false),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('聊天之上的未登记历史页优先返回，门不越过它显示', (tester) async {
+    await open(tester, width: 1280);
+    final controller = await openFakeChat(tester);
+    expect(find.byKey(const Key('assistant-split-door')), findsOneWidget);
+    final navigator = controller.navigatorKey.currentState!;
+    unawaited(
+      navigator.push<void>(
+        MaterialPageRoute(
+          builder: (_) =>
+              const Scaffold(body: SizedBox.expand(key: Key('fake-history'))),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('fake-history')), findsOneWidget);
+    // 聊天不是实际可见栈顶时不显示门，也不改写入口身份。
+    expect(find.byKey(const Key('assistant-split-door')), findsNothing);
+    expect(controller.entries, hasLength(1));
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('fake-history')), findsNothing);
+    expect(find.byKey(const Key('assistant-split-door')), findsOneWidget);
+    expect(controller.entries, hasLength(1));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('窄窗接管：同一聊天铺满窗口，返回按当前可见内容处理', (tester) async {
+    await open(tester, width: 390);
+    final controller = await openFakeChat(tester);
+    expect(find.byKey(const Key('fake-chat')), findsOneWidget);
+    expect(find.byKey(const Key('assistant-split-door')), findsNothing);
+    expect(find.byTooltip('今天'), findsNothing);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(controller.entries, isEmpty);
+    expect(find.byTooltip('今天'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('窄窗显式仅工作区：聊天隐藏时返回不弹聊天，底部导航与任务栏保留', (tester) async {
+    await open(tester, width: 1280);
+    final controller = await openFakeChat(tester);
+    controller.setAssistantPaneMode(AssistantPaneMode.workspaceExpanded);
+    await tester.pumpAndSettle();
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+    // 缩窄不覆盖显式模式：工作区照常可见，聊天留在栈里。
+    expect(controller.assistantPaneMode, AssistantPaneMode.workspaceExpanded);
+    expect(find.byKey(const Key('nav-capsule')), findsOneWidget);
+    expect(find.byTooltip('今天'), findsOneWidget);
+    expect(find.byKey(const Key('active-mission')), findsNothing);
+    expect(
+      find.byKey(const Key('fake-chat'), skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('fake-chat')), findsNothing);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(controller.entries, hasLength(1));
+    expect(
+      find.byKey(const Key('fake-chat'), skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('今天'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('宽窄往返保留显式模式与提交比例，不被缩窄重置', (tester) async {
+    await open(tester, width: 1280);
+    final controller = await openFakeChat(tester);
+    controller.setAssistantPaneMode(AssistantPaneMode.assistantExpanded);
+    await tester.pumpAndSettle();
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+    expect(controller.assistantPaneMode, AssistantPaneMode.assistantExpanded);
+    expect(find.byKey(const Key('fake-chat')), findsOneWidget);
+    tester.view.physicalSize = const Size(1280, 844);
+    await tester.pumpAndSettle();
+    expect(controller.assistantPaneMode, AssistantPaneMode.assistantExpanded);
+    expect(find.byKey(const Key('assistant-split-door')), findsOneWidget);
+    expect(controller.assistantSplitRatio, 0.5);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('窗口宽度变化丢弃拖动预览并保留上次提交比例', (tester) async {
+    await open(tester, width: 1280);
+    final controller = await openFakeChat(tester);
+    final rect = tester.getRect(find.byKey(const Key('assistant-split-door')));
+    final gesture = await tester.startGesture(rect.center);
+    await gesture.moveBy(const Offset(-120, 0));
+    await tester.pump();
+    expect(controller.assistantIsResizing, isTrue);
+    expect(controller.assistantSplitRatio, 0.5);
+
+    tester.view.physicalSize = const Size(1400, 844);
+    await tester.pumpAndSettle();
+    expect(controller.assistantIsResizing, isFalse);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(controller.assistantSplitRatio, 0.5);
+    expect(controller.assistantPaneMode, AssistantPaneMode.split);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

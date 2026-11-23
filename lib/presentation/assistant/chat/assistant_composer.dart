@@ -1,5 +1,13 @@
 part of 'assistant_page.dart';
 
+/// 发送动作槽里的可见圆面直径；圆面只负责绘制，48dp 触控由外层按钮承担。
+const double _composerSendSurfaceSize = 36;
+
+/// 工具行单行所需宽度：附件、麦克风、思考、上下文环、发送五个 48dp 触控槽，
+/// 再加附件计数的最小文字槽。实际宽度不足时思考与上下文环另起一行。
+const double _composerToolsMinWidth =
+    AppLayout.touchTargetMin * 5 + AppLayout.spaceXxl;
+
 /// 助手输入区；页面状态仍由拥有它的 State 统一释放。
 class _AssistantComposer {
   _AssistantComposer(this._page);
@@ -17,12 +25,6 @@ class _AssistantComposer {
           defaultTargetPlatform == TargetPlatform.macOS ||
           defaultTargetPlatform == TargetPlatform.linux;
       final colors = Theme.of(context).colorScheme;
-      final toolStyle = IconButton.styleFrom(
-        minimumSize: const Size.square(AppLayout.touchTargetMin),
-        iconSize: AppLayout.iconMd,
-        foregroundColor: colors.onSurfaceVariant,
-        disabledForegroundColor: AppColors.onDisabled,
-      );
       final canSend =
           (value.text.trim().isNotEmpty || _page._attachments.isNotEmpty) &&
           !controller.isBusy &&
@@ -235,130 +237,11 @@ class _AssistantComposer {
                 if (_page._recordingVoice)
                   _voiceActions()
                 else
-                  Row(
-                    children: [
-                      PopupMenuButton<String>(
-                        popUpAnimationStyle: AppMotion.overlayStyle(context),
-                        key: const Key('assistant-add-attachment'),
-                        tooltip: '附件与快捷指令',
-                        style: toolStyle,
-                        constraints: const BoxConstraints(
-                          minWidth: 188,
-                          maxWidth: 240,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            AppLayout.radiusLg,
-                          ),
-                        ),
-                        enabled:
-                            !controller.isBusy &&
-                            !controller.compacting &&
-                            !_page._picking &&
-                            !(_page._voice?.busy ?? false) &&
-                            !(_page._voice?.listening ?? false),
-                        onSelected: _composerAction,
-                        icon: _page._picking
-                            ? const SizedBox.square(
-                                dimension: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.add_rounded,
-                                size: AppLayout.iconMd,
-                              ),
-                        itemBuilder: (_) => [
-                          if (kIsWeb ||
-                              defaultTargetPlatform == TargetPlatform.android)
-                            _composerMenuItem(
-                              'camera',
-                              Icons.photo_camera_outlined,
-                              '拍照',
-                              enabled:
-                                  _page._attachments.length <
-                                  AssistantAttachment.maxCount,
-                            ),
-                          _composerMenuItem(
-                            'image',
-                            Icons.image_outlined,
-                            '添加图片',
-                            enabled:
-                                _page._attachments.length <
-                                AssistantAttachment.maxCount,
-                          ),
-                          _composerMenuItem(
-                            'file',
-                            Icons.attach_file,
-                            '添加文件',
-                            enabled:
-                                _page._attachments.length <
-                                AssistantAttachment.maxCount,
-                          ),
-                        ],
-                      ),
-                      if (_page._voice != null)
-                        IconButton(
-                          key: const Key('assistant-composer-voice'),
-                          tooltip: '语音输入',
-                          style: toolStyle,
-                          onPressed:
-                              controller.isBusy ||
-                                  controller.compacting ||
-                                  controller.initializing ||
-                                  controller.needsOutcomeResolution ||
-                                  _page._picking ||
-                                  _page._voice!.busy ||
-                                  _page._voice!.listening
-                              ? null
-                              : _toggleVoice,
-                          icon: const Icon(
-                            Icons.mic_none_rounded,
-                            size: AppLayout.iconMd,
-                          ),
-                        ),
-                      Expanded(
-                        child: Text(
-                          _page._attachments.isEmpty
-                              ? ''
-                              : '${_page._attachments.length}/${AssistantAttachment.maxCount} 个附件',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                      _reasoningSelector(controller),
-                      _contextIndicator(controller),
-                      IconButton.filled(
-                        key: const Key('assistant-send'),
-                        tooltip: canStop ? '停止本轮' : '发送',
-                        onPressed: action,
-                        style: IconButton.styleFrom(
-                          minimumSize: const Size.square(
-                            AppLayout.touchTargetMin,
-                          ),
-                          foregroundColor: colors.onPrimary,
-                          backgroundColor: colors.primary,
-                          disabledForegroundColor: AppColors.onDisabled,
-                          disabledBackgroundColor: AppColors.disabled,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppLayout.radiusLg,
-                            ),
-                          ),
-                        ),
-                        icon: Icon(
-                          canStop
-                              ? Icons.stop_rounded
-                              : Icons.arrow_upward_rounded,
-                          size: AppLayout.iconMd,
-                          color: action == null
-                              ? AppColors.onDisabled
-                              : colors.onPrimary,
-                        ),
-                      ),
-                    ],
+                  _composerTools(
+                    controller,
+                    canStop: canStop,
+                    canSend: canSubmit,
+                    action: action,
                   ),
               ],
             ),
@@ -391,6 +274,192 @@ class _AssistantComposer {
           ),
         ),
       ],
+    );
+  }
+
+  /// 工具行图标按钮的局部样式：48dp 触控、20dp 图标，不改全局 IconButton 主题。
+  ButtonStyle get _toolStyle => IconButton.styleFrom(
+    minimumSize: const Size.square(AppLayout.touchTargetMin),
+    iconSize: AppLayout.iconMd,
+    foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+    disabledForegroundColor: AppColors.onDisabled,
+  );
+
+  /// 输入区底部工具行：附件、麦克风、思考、上下文环与发送共用 48dp 触控槽并
+  /// 保持中心同线。实际宽度不足时，思考与上下文环整体换到主行上方，发送仍留
+  /// 在主行末端；两行都按真实布局撑开，不缩放按钮，也不裁掉键盘避让。
+  Widget _composerTools(
+    AssistantController controller, {
+    required bool canStop,
+    required bool canSend,
+    required VoidCallback? action,
+  }) {
+    final secondaryTools = <Widget>[
+      _reasoningSelector(controller),
+      _contextIndicator(controller),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final singleRow = constraints.maxWidth >= _composerToolsMinWidth;
+        final primaryRow = Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _attachmentMenu(controller),
+            if (_page._voice != null) _voiceButton(controller),
+            Expanded(child: _attachmentCount()),
+            if (singleRow) ...secondaryTools,
+            _sendActionSlot(canStop: canStop, canSend: canSend, action: action),
+          ],
+        );
+        if (singleRow) return primaryRow;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(children: secondaryTools),
+            primaryRow,
+          ],
+        );
+      },
+    );
+  }
+
+  /// 附件菜单保持原动作与可用条件，只把入口放进统一 48dp 工具槽。
+  Widget _attachmentMenu(AssistantController controller) =>
+      PopupMenuButton<String>(
+        popUpAnimationStyle: AppMotion.overlayStyle(context),
+        key: const Key('assistant-add-attachment'),
+        tooltip: '附件与快捷指令',
+        style: _toolStyle,
+        constraints: const BoxConstraints(minWidth: 188, maxWidth: 240),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        ),
+        enabled:
+            !controller.isBusy &&
+            !controller.compacting &&
+            !_page._picking &&
+            !(_page._voice?.busy ?? false) &&
+            !(_page._voice?.listening ?? false),
+        onSelected: _composerAction,
+        icon: _page._picking
+            ? const SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.add_rounded, size: AppLayout.iconMd),
+        itemBuilder: (_) => [
+          if (kIsWeb || defaultTargetPlatform == TargetPlatform.android)
+            _composerMenuItem(
+              'camera',
+              Icons.photo_camera_outlined,
+              '拍照',
+              enabled: _page._attachments.length < AssistantAttachment.maxCount,
+            ),
+          _composerMenuItem(
+            'image',
+            Icons.image_outlined,
+            '添加图片',
+            enabled: _page._attachments.length < AssistantAttachment.maxCount,
+          ),
+          _composerMenuItem(
+            'file',
+            Icons.attach_file,
+            '添加文件',
+            enabled: _page._attachments.length < AssistantAttachment.maxCount,
+          ),
+        ],
+      );
+
+  /// 语音入口只在装配了语音服务时出现，可用条件保持原样。
+  Widget _voiceButton(AssistantController controller) => IconButton(
+    key: const Key('assistant-composer-voice'),
+    tooltip: '语音输入',
+    style: _toolStyle,
+    onPressed:
+        controller.isBusy ||
+            controller.compacting ||
+            controller.initializing ||
+            controller.needsOutcomeResolution ||
+            _page._picking ||
+            _page._voice!.busy ||
+            _page._voice!.listening
+        ? null
+        : _toggleVoice,
+    icon: const Icon(Icons.mic_none_rounded, size: AppLayout.iconMd),
+  );
+
+  /// 附件数量说明占据发送前的弹性文字槽，窄宽度时省略而不挤掉触控。
+  Widget _attachmentCount() => Text(
+    _page._attachments.isEmpty
+        ? ''
+        : '${_page._attachments.length}/${AssistantAttachment.maxCount} 个附件',
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: Theme.of(context).textTheme.bodySmall,
+  );
+
+  /// 发送与停止共用的 48dp 动作槽：可见 36dp 圆面只负责绘制，按钮本身铺满
+  /// 48dp 触控、可键盘获得焦点，并且只产生一个按钮语义节点。
+  Widget _sendActionSlot({
+    required bool canStop,
+    required bool canSend,
+    required VoidCallback? action,
+  }) {
+    final Color surfaceColor;
+    final Color iconColor;
+    if (canStop) {
+      // 生成中：原位浅绿圆面配深绿停止图标，读屏仍只报“停止本轮”。
+      surfaceColor = AppColors.primarySoft;
+      iconColor = AppColors.primary;
+    } else if (canSend) {
+      surfaceColor = AppColors.primary;
+      iconColor = AppColors.onPrimary;
+    } else {
+      // 空输入或不可发：浅中性底配次级文字色，不冒充可发送。
+      surfaceColor = AppColors.surfaceMuted;
+      iconColor = AppColors.textSecondary;
+    }
+    return SizedBox.square(
+      dimension: AppLayout.touchTargetMin,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // 圆面不参与命中和读屏，触控全部交给 48dp 的按钮。
+          IgnorePointer(
+            child: SizedBox.square(
+              dimension: _composerSendSurfaceSize,
+              child: DecoratedBox(
+                key: const Key('assistant-send-surface'),
+                decoration: BoxDecoration(
+                  color: surfaceColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            key: const Key('assistant-send'),
+            tooltip: canStop ? '停止本轮' : '发送',
+            onPressed: action,
+            style: IconButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size.square(AppLayout.touchTargetMin),
+              maximumSize: const Size.square(AppLayout.touchTargetMin),
+              backgroundColor: Colors.transparent,
+              // 森林绿圆面上用主色内容色提供按压/焦点反馈；浅色状态沿用
+              // 全局主题的浅绿反馈，不新增或覆盖全局 IconButton 主题。
+              overlayColor: canSend && !canStop ? AppColors.onPrimary : null,
+              shape: const CircleBorder(),
+            ),
+            icon: Icon(
+              canStop ? Icons.stop_rounded : Icons.arrow_upward_rounded,
+              size: AppLayout.iconMd,
+              color: iconColor,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

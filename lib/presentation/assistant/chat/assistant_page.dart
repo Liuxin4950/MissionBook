@@ -22,6 +22,7 @@ import '../../widgets/adaptive_columns.dart';
 import '../../widgets/app_expansion.dart';
 import '../../widgets/app_selection_option.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/detail_pane.dart';
 import '../../widgets/app_interactive_surface.dart';
 import '../../missions/shared/mission_phase_display.dart';
 import '../history/assistant_history_page.dart';
@@ -315,6 +316,8 @@ class _AssistantPageState extends State<AssistantPage> {
                 title: widget.controller.currentSessionId == null
                     ? widget.controller.persona.name
                     : widget.controller.sessionTitle,
+                // 顶栏返回与系统返回同义：手动折叠时先恢复两栏，再考虑离开。
+                onBack: _handleBack,
                 maxContentWidth: _contentWidth,
                 actions: _headerActions(),
               ),
@@ -720,9 +723,30 @@ class _AssistantPageState extends State<AssistantPage> {
     }
   }
 
+  /// 顶栏「恢复分屏」：工作区被折叠时提供 48dp 替代动作，不新增栏宽。
+  Widget? _restoreSplitAction() {
+    final pane = DetailPaneScope.maybeOf(context);
+    if (pane == null ||
+        pane.assistantPaneMode != AssistantPaneMode.assistantExpanded ||
+        !pane.isAssistantConversationVisibleTop ||
+        !AppLayout.canShowAssistantDoorForWindow(
+          MediaQuery.sizeOf(context).width,
+        )) {
+      return null;
+    }
+    return IconButton(
+      key: const Key('assistant-restore-split'),
+      tooltip: '恢复分屏',
+      onPressed: pane.restoreAssistantSplit,
+      icon: const Icon(Icons.splitscreen_rounded),
+    );
+  }
+
   List<Widget> _headerActions() {
     final compact = AppLayout.windowClassOf(context) == WindowClass.compact;
+    final restoreSplit = _restoreSplitAction();
     return [
+      ?restoreSplit,
       IconButton(
         key: const Key('assistant-new-session'),
         tooltip: '新会话',
@@ -1010,6 +1034,21 @@ class _AssistantPageState extends State<AssistantPage> {
         );
       }
     }
+  }
+
+  /// 顶栏返回：当前宽度能分屏、聊天可见且手动折叠时优先恢复两栏。
+  void _handleBack() {
+    final pane = DetailPaneScope.maybeOf(context);
+    if (pane != null &&
+        pane.assistantPaneMode != AssistantPaneMode.split &&
+        pane.isAssistantConversationVisibleTop &&
+        AppLayout.canShowAssistantDoorForWindow(
+          MediaQuery.sizeOf(context).width,
+        )) {
+      pane.restoreAssistantSplit();
+      return;
+    }
+    Navigator.of(context).maybePop();
   }
 
   Future<void> _openHistory() async {
