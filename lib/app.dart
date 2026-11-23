@@ -24,6 +24,7 @@ import 'dart:async';
 import 'dart:io';
 import 'application/missions/planned_mission_scheduler.dart';
 import 'data/notifications/planned_alarm_bridge.dart';
+import 'data/notifications/today_widget_bridge.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -434,7 +435,10 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       _assistant.setForeground(false);
       if (widget.services._overlay == null) _assistant.stop();
     }
-    if (state == AppLifecycleState.resumed) _assistant.setForeground(true);
+    if (state == AppLifecycleState.resumed) {
+      _assistant.setForeground(true);
+      widget.services._todayWidget?.refresh();
+    }
     final foreground =
         state == AppLifecycleState.resumed ||
         state == AppLifecycleState.inactive;
@@ -639,6 +643,10 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
     await widget.services._overlay?.resetObservation();
     widget.services.stopExternalEntry();
     final stopped = await closeResources([
+      (
+        name: 'today widget',
+        close: () async => widget.services._todayWidget?.close(),
+      ),
       (name: 'voice', close: _assistantVoice.cancel),
       (name: 'assistant', close: _assistant.close),
       (name: 'analysis', close: _analysis.dispose),

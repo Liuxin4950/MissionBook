@@ -84,6 +84,7 @@ class _AppServices {
       operationTimeout: const Duration(seconds: 60),
     );
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      _todayWidget = TodayWidgetBridge(_missionService);
       _overlay = AssistantWorkspaceBridge(
         _assistant,
         speech: speech,
@@ -110,6 +111,7 @@ class _AppServices {
   late final AttachmentCoordinator _attachments;
   late final AttachmentStore _attachmentStore;
   AssistantWorkspaceBridge? _overlay;
+  TodayWidgetBridge? _todayWidget;
   Future<void> Function()? closeFrontend;
   Future<void>? _closing;
 
@@ -122,6 +124,7 @@ class _AppServices {
     await closeResources(
       [
         (name: 'frontend', close: () async => closeFrontend?.call()),
+        (name: 'today widget', close: () async => _todayWidget?.close()),
         (name: 'voice', close: _assistantVoice.close),
         (name: 'assistant', close: _assistant.close),
         (name: 'analysis', close: _analysis.dispose),

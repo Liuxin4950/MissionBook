@@ -3,6 +3,7 @@ import '../../application/settings/motion_settings.dart';
 import '../widgets/motion_settings_scope.dart';
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../application/notifications/app_notification_service.dart';
@@ -13,6 +14,7 @@ import '../widgets/app_settings_row.dart';
 import 'data_backup_page.dart';
 import 'motion_style_sheet.dart';
 import 'motion_preferences_sheet.dart';
+import 'today_widget_appearance_sheet.dart';
 import '../onboarding/onboarding_page.dart';
 import '../assistant/entry/assistant_scope.dart';
 import '../assistant/settings/assistant_settings_page.dart';
@@ -190,6 +192,9 @@ class _SettingsPageState extends State<SettingsPage>
 
   @override
   Widget build(BuildContext context) {
+    final motion = MotionSettingsScope.maybeOf(context);
+    final showTodayWidget =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     return Scaffold(
       appBar: const AppTopBar(
         title: '设置',
@@ -223,8 +228,8 @@ class _SettingsPageState extends State<SettingsPage>
                           ),
                     ),
                   ),
-                if (MotionSettingsScope.maybeOf(context) case final scope?)
-                  _motionSection(scope),
+                if (motion != null || showTodayWidget)
+                  _interfaceSection(motion, showTodayWidget: showTodayWidget),
                 _buildPermissionSection(context),
                 _buildScheduleSection(context),
                 _buildBackupSection(context),
@@ -277,57 +282,77 @@ class _SettingsPageState extends State<SettingsPage>
     endIndent: AppLayout.spaceLg,
   );
 
-  Widget _motionSection(MotionSettingsScope scope) {
+  Widget _interfaceSection(
+    MotionSettingsScope? motion, {
+    required bool showTodayWidget,
+  }) => _section(
+    '界面',
+    child: Column(
+      children: [
+        if (motion != null) ..._motionRows(motion),
+        if (showTodayWidget) ...[
+          if (motion != null) _rowDivider,
+          AppSettingsRow(
+            key: const Key('settings-today-widget-entry'),
+            icon: Icons.widgets_outlined,
+            title: '桌面小组件',
+            subtitle: '颜色与文字大小',
+            onTap: () => showAdaptiveSheet<void>(
+              context: context,
+              builder: (_) => const TodayWidgetAppearanceSheet(),
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+
+  List<Widget> _motionRows(MotionSettingsScope scope) {
     final settings = scope.settings;
     final note = switch (settings.preference) {
       MotionPreference.system when scope.systemReducedMotion => '系统要求减少动效',
       _ => null,
     };
-    return _section(
-      '界面',
-      child: Column(
-        children: [
-          AppSettingsRow(
-            key: ValueKey('page-motion-${settings.preference.name}'),
-            icon: Icons.animation_outlined,
-            title: '动效',
-            subtitle: note,
-            enabled: !settings.saving,
-            trailing: _motionValue(_motionLabel(settings.preference)),
-            onTap: settings.saving ? null : () => _chooseMotion(scope),
-          ),
-          _rowDivider,
-          AppSettingsRow(
-            key: const Key('page-motion-style'),
-            icon: Icons.open_in_new,
-            title: '页面切换',
-            trailing: _motionValue(MotionStyleSheet.label(settings.pageStyle)),
-            enabled: !settings.saving,
-            onTap: () => showAdaptiveSheet<void>(
-              context: context,
-              builder: (_) => MotionStyleSheet(settings: settings),
-            ),
-          ),
-          if (settings.error case final error?) ...[
-            _rowDivider,
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppLayout.spaceLg,
-                AppLayout.spaceSm,
-                AppLayout.spaceLg,
-                AppLayout.spaceMd,
-              ),
-              child: Text(
-                error,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.error),
-              ),
-            ),
-          ],
-        ],
+    return [
+      AppSettingsRow(
+        key: ValueKey('page-motion-${settings.preference.name}'),
+        icon: Icons.animation_outlined,
+        title: '动效',
+        subtitle: note,
+        enabled: !settings.saving,
+        trailing: _motionValue(_motionLabel(settings.preference)),
+        onTap: settings.saving ? null : () => _chooseMotion(scope),
       ),
-    );
+      _rowDivider,
+      AppSettingsRow(
+        key: const Key('page-motion-style'),
+        icon: Icons.open_in_new,
+        title: '页面切换',
+        trailing: _motionValue(MotionStyleSheet.label(settings.pageStyle)),
+        enabled: !settings.saving,
+        onTap: () => showAdaptiveSheet<void>(
+          context: context,
+          builder: (_) => MotionStyleSheet(settings: settings),
+        ),
+      ),
+      if (settings.error case final error?) ...[
+        _rowDivider,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppLayout.spaceLg,
+            AppLayout.spaceSm,
+            AppLayout.spaceLg,
+            AppLayout.spaceMd,
+          ),
+          child: Text(
+            error,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.error),
+          ),
+        ),
+      ],
+    ];
   }
 
   Widget _motionValue(String value) => Row(

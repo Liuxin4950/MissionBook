@@ -73,6 +73,35 @@
         </service>
         <service android:name=".PlannedExecutionJob" android:exported="true"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+        <service android:name=".TodayWidgetRefreshJobService" android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+        <receiver android:name=".TodayWidgetSmall" android:label="@string/today_widget_picker_small" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/today_widget_small_info" />
+        </receiver>
+        <receiver android:name=".TodayWidgetMedium" android:label="@string/today_widget_picker_medium" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/today_widget_medium_info" />
+        </receiver>
+        <receiver android:name=".TodayWidgetLarge" android:label="@string/today_widget_picker_large" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/today_widget_large_info" />
+        </receiver>
+        <receiver android:name=".TodayWidgetDateReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+            </intent-filter>
+        </receiver>
         <receiver android:name=".PlannedAlarmReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

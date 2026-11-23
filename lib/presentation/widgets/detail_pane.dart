@@ -1,6 +1,16 @@
+import 'dart:math' as math;
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/theme/app_layout.dart';
+
+/// 稳定标记：只有助手会话路由允许使用可调分屏，普通详情保持既有布局。
+const assistantConversationPaneIdentity = 'assistant-conversation';
+
+/// 助手分屏的显示形态；折叠只改变布局，不从导航栈移除页面。
+enum AssistantPaneMode { split, workspaceExpanded, assistantExpanded }
 
 /// 右栏入口的替换语义：打开新页面时如何处理已有返回链。
 enum DetailPaneReplace {
@@ -59,6 +69,121 @@ class DetailPaneController extends ChangeNotifier {
   final List<DetailPaneEntry> entries = [];
   bool _disposed = false;
   bool _changing = false;
+  static const _assistantEdgeSnap = 96.0;
+  AssistantPaneMode _assistantPaneMode = AssistantPaneMode.split;
+  double _assistantSplitRatio = 0.5;
+  double? _assistantPreviewWidth;
+
+  /// 只在助手会话是栈顶时可调；普通详情不继承分屏展示模式。
+  bool get isAssistantConversationActive =>
+      entries.isNotEmpty &&
+      entries.last.identity == assistantConversationPaneIdentity;
+
+  AssistantPaneMode get assistantPaneMode => _assistantPaneMode;
+
+  /// 最后一次提交的助手栏比例，不包含栏间距；布局夹取不覆盖它。
+  double get assistantSplitRatio => _assistantSplitRatio;
+
+  void restoreAssistantSplit() {
+    if (_assistantPaneMode == AssistantPaneMode.split) return;
+    _assistantPreviewWidth = null;
+    _assistantPaneMode = AssistantPaneMode.split;
+    notifyListeners();
+  }
+
+  void cancelAssistantResize() {
+    if (_assistantPreviewWidth == null) return;
+    _assistantPreviewWidth = null;
+    notifyListeners();
+  }
+
+  void beginAssistantResize(double assistantWidth) {
+    _assistantPreviewWidth = assistantWidth;
+  }
+
+  void updateAssistantResize({
+    required double physicalDelta,
+    required double availableWidth,
+    required TextDirection textDirection,
+  }) {
+    final current = _assistantPreviewWidth;
+    if (current == null || availableWidth <= 0) return;
+    final delta = textDirection == TextDirection.ltr
+        ? physicalDelta
+        : -physicalDelta;
+    // 保留未经栏宽约束的拖动位置，以便在释放时判断是否真的到达边缘。
+    _assistantPreviewWidth = current - delta;
+    notifyListeners();
+  }
+
+  void endAssistantResize({required double availableWidth}) {
+    final preview = _assistantPreviewWidth;
+    _assistantPreviewWidth = null;
+    if (preview == null || availableWidth <= 0) return;
+    if (_assistantPaneMode != AssistantPaneMode.split) {
+      final draggedInward =
+          _assistantPaneMode == AssistantPaneMode.workspaceExpanded
+          ? preview > 0
+          : preview < availableWidth;
+      if (draggedInward) restoreAssistantSplit();
+      return;
+    }
+    if (preview <= _assistantEdgeSnap) {
+      _assistantPaneMode = AssistantPaneMode.workspaceExpanded;
+    } else if (availableWidth - preview <= _assistantEdgeSnap) {
+      _assistantPaneMode = AssistantPaneMode.assistantExpanded;
+    } else {
+      final width = _clampAssistantWidth(preview, availableWidth);
+      if (width != assistantSplitWidthFor(availableWidth)) {
+        _assistantSplitRatio = width / availableWidth;
+      }
+    }
+    notifyListeners();
+  }
+
+  void adjustAssistantSplit({
+    required double widthDelta,
+    required double availableWidth,
+  }) {
+    if (availableWidth <= 0) return;
+    final current = assistantSplitWidthFor(availableWidth);
+    final width = _clampAssistantWidth(current + widthDelta, availableWidth);
+    if (width == current) return;
+    _assistantSplitRatio = width / availableWidth;
+    notifyListeners();
+  }
+
+  double _clampAssistantWidth(double width, double availableWidth) {
+    final minWidth = math.min(AppLayout.paneRightMin, availableWidth / 2);
+    final maxWidth = math.max(
+      minWidth,
+      math.min(activeMaxWidth, availableWidth - AppLayout.paneLeftMin),
+    );
+    return width.clamp(minWidth, maxWidth).toDouble();
+  }
+
+  /// 即使当前在单栏，也能计算恢复时的助手栏尺寸。
+  double assistantSplitWidthFor(double availableWidth) => _clampAssistantWidth(
+    _assistantSplitRatio * availableWidth,
+    availableWidth,
+  );
+
+  double assistantWidthFor(double availableWidth) =>
+      switch (_assistantPaneMode) {
+        AssistantPaneMode.workspaceExpanded => 0,
+        AssistantPaneMode.assistantExpanded => availableWidth,
+        AssistantPaneMode.split => _clampAssistantWidth(
+          _assistantPreviewWidth ?? _assistantSplitRatio * availableWidth,
+          availableWidth,
+        ),
+      };
+
+  /// 到达可读栏宽下限后，拖动提示仍跟随指针；放手前不压扁面板。
+  double assistantDividerOffsetFor(double availableWidth) =>
+      (_assistantPreviewWidth ?? assistantSplitWidthFor(availableWidth)).clamp(
+        0.0,
+        availableWidth,
+      );
 
   /// 面板是否有内容：决定外壳并排、让位还是继续显示。
   bool get hasContent => entries.isNotEmpty;
@@ -68,7 +193,9 @@ class DetailPaneController extends ChangeNotifier {
     for (final entry in entries.reversed) {
       if (entry.maxWidth case final width?) return width;
     }
-    return AppLayout.detailPaneMaxWidth;
+    return isAssistantConversationActive
+        ? AppLayout.assistantPaneMaxWidth
+        : AppLayout.detailPaneMaxWidth;
   }
 
   /// 查找当前导航栈中具有稳定身份的入口。
@@ -145,6 +272,10 @@ class DetailPaneController extends ChangeNotifier {
       } else if (replace == DetailPaneReplace.top && entries.isNotEmpty) {
         entries.removeLast();
       }
+      _assistantPreviewWidth = null;
+      if (entry.identity == assistantConversationPaneIdentity) {
+        _assistantPaneMode = AssistantPaneMode.split;
+      }
       entries.add(entry);
       final route = MaterialPageRoute<T>(builder: entry.builder);
       entry.route = route;
@@ -206,8 +337,13 @@ class DetailPaneController extends ChangeNotifier {
 /// 常驻是缩放迁移的关键：窗口变窄变宽只换这个宿主的位置，
 /// 整条导航栈（含表单里未保存的输入）原样保留，不重建页面。
 class DetailPaneHost extends StatelessWidget {
-  const DetailPaneHost({super.key, required this.controller});
+  const DetailPaneHost({
+    super.key,
+    required this.controller,
+    this.restoreSplitOnBack = false,
+  });
   final DetailPaneController controller;
+  final bool restoreSplitOnBack;
 
   @override
   Widget build(BuildContext context) {
@@ -229,11 +365,159 @@ class DetailPaneHost extends StatelessWidget {
           canPop: !controller.hasContent,
           onPopInvokedWithResult: (didPop, _) async {
             if (didPop) return;
+            if (restoreSplitOnBack &&
+                controller.isAssistantConversationActive &&
+                controller.assistantPaneMode != AssistantPaneMode.split) {
+              controller.restoreAssistantSplit();
+              return;
+            }
             await controller.maybePop();
           },
           child: pane,
         );
       },
+    );
+  }
+}
+
+/// 同一个键盘焦点在普通分隔线与边缘恢复控件之间保留。
+class AssistantSplitHandle extends StatelessWidget {
+  const AssistantSplitHandle({
+    super.key,
+    required this.controller,
+    required this.availableWidth,
+    required this.assistantWidth,
+    required this.textDirection,
+  });
+
+  static const _keyboardStep = 40.0;
+  final DetailPaneController controller;
+  final double availableWidth;
+  final double assistantWidth;
+  final TextDirection textDirection;
+
+  void _adjust(double delta) => controller.adjustAssistantSplit(
+    widthDelta: delta,
+    availableWidth: availableWidth,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final mode = controller.assistantPaneMode;
+    final collapsed = mode != AssistantPaneMode.split;
+    final label = switch (mode) {
+      AssistantPaneMode.split => '调整助手分屏',
+      AssistantPaneMode.workspaceExpanded => '恢复助手分屏',
+      AssistantPaneMode.assistantExpanded => '恢复工作区分屏',
+    };
+    final scheme = Theme.of(context).colorScheme;
+    return Focus(
+      includeSemantics: false,
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+          return KeyEventResult.ignored;
+        }
+        final key = event.logicalKey;
+        if (key == LogicalKeyboardKey.arrowLeft ||
+            key == LogicalKeyboardKey.arrowRight) {
+          if (collapsed) {
+            controller.restoreAssistantSplit();
+          } else {
+            final towardStart = textDirection == TextDirection.ltr
+                ? key == LogicalKeyboardKey.arrowLeft
+                : key == LogicalKeyboardKey.arrowRight;
+            _adjust(towardStart ? _keyboardStep : -_keyboardStep);
+          }
+          return KeyEventResult.handled;
+        }
+        if (collapsed &&
+            (key == LogicalKeyboardKey.enter ||
+                key == LogicalKeyboardKey.space)) {
+          controller.restoreAssistantSplit();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Builder(
+        builder: (context) {
+          final focused = Focus.of(context).hasPrimaryFocus;
+          return Semantics(
+            container: true,
+            label: label,
+            button: collapsed,
+            slider: !collapsed,
+            focusable: true,
+            focused: focused,
+            value: collapsed
+                ? null
+                : '助手栏 ${(assistantWidth / availableWidth * 100).round()}%',
+            increasedValue: collapsed ? null : '助手栏加宽',
+            decreasedValue: collapsed ? null : '助手栏缩窄',
+            hint: collapsed ? '点击或向内拖动，恢复上次分屏比例' : '可左右拖动，方向键调整',
+            onTap: collapsed ? controller.restoreAssistantSplit : null,
+            onIncrease: collapsed ? null : () => _adjust(_keyboardStep),
+            onDecrease: collapsed ? null : () => _adjust(-_keyboardStep),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.resizeLeftRight,
+              child: GestureDetector(
+                excludeFromSemantics: true,
+                behavior: HitTestBehavior.opaque,
+                dragStartBehavior: DragStartBehavior.down,
+                onTap: () {
+                  Focus.of(context).requestFocus();
+                  if (collapsed) controller.restoreAssistantSplit();
+                },
+                onHorizontalDragStart: (_) =>
+                    controller.beginAssistantResize(assistantWidth),
+                onHorizontalDragUpdate: (details) =>
+                    controller.updateAssistantResize(
+                      physicalDelta: details.primaryDelta ?? 0,
+                      availableWidth: availableWidth,
+                      textDirection: textDirection,
+                    ),
+                onHorizontalDragCancel: controller.cancelAssistantResize,
+                onHorizontalDragEnd: (_) => controller.endAssistantResize(
+                  availableWidth: availableWidth,
+                ),
+                child: SizedBox(
+                  key: collapsed
+                      ? const Key('assistant-split-restore')
+                      : const Key('assistant-split-handle'),
+                  width: AppLayout.touchTargetMin,
+                  height: AppLayout.touchTargetMin,
+                  child: Center(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: collapsed || focused
+                            ? scheme.primary
+                            : scheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(
+                          AppLayout.radiusPill,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppLayout.spaceSm,
+                          horizontal: AppLayout.spaceXs,
+                        ),
+                        child: Icon(
+                          collapsed
+                              ? Icons.splitscreen_rounded
+                              : Icons.drag_indicator,
+                          size: AppLayout.iconMd,
+                          color: collapsed || focused
+                              ? scheme.onPrimary
+                              : scheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

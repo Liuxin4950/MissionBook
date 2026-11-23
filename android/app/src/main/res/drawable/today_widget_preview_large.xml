@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="220dp" android:height="220dp"
+    android:viewportWidth="220" android:viewportHeight="220">
+    <path android:fillColor="@color/today_widget_surface" android:strokeWidth="1"
+        android:strokeColor="@color/today_widget_outline"
+        android:pathData="M20,1H200Q219,1 219,20V200Q219,219 200,219H20Q1,219 1,200V20Q1,1 20,1Z" />
+    <path android:fillColor="@color/today_widget_row_fill" android:pathData="M9,32H211V60H9ZM9,63H211V91H9ZM9,94H211V122H9ZM9,125H211V153H9ZM9,156H211V184H9Z" />
+    <path android:fillColor="@color/today_widget_accent"
+        android:pathData="M11,12H27V25H11ZM14,10V15M24,10V15 M186,17H208V21H186Z" />
+    <path android:fillColor="@color/today_widget_surface" android:pathData="M14,17H24V22H14Z" />
+    <path android:fillColor="@color/today_widget_primary" android:pathData="M15,38H120V42H15ZM15,69H93V73H15ZM15,100H120V104H15ZM15,131H93V135H15ZM15,162H120V166H15Z" />
+    <path android:fillColor="@color/today_widget_secondary" android:pathData="M15,47H75V50H15ZM15,78H61V81H15ZM15,109H75V112H15ZM15,140H61V143H15ZM15,171H75V174H15Z" />
+</vector>

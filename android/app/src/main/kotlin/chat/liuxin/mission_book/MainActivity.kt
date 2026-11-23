@@ -43,6 +43,8 @@ class MainActivity : FlutterActivity() {
     private var pendingAssistantSession: String? = null
     private var pendingAssistantRecord: String? = null
     private var assistantOverlayChannel: MethodChannel? = null
+    private var pendingWidgetOpen = false
+    private var pendingWidgetMission: String? = null
     private var deviceChannel: MethodChannel? = null
     private var fileSelectorChannel: MethodChannel? = null
     // ContentProvider 读取、能力查询和文件写入交给后台线程，避免阻塞 Flutter 界面。
@@ -54,6 +56,7 @@ class MainActivity : FlutterActivity() {
         pendingMission = intent?.getStringExtra(EXTRA_ASSISTANT_MISSION)
         pendingAssistantSession = intent?.getStringExtra(EXTRA_ASSISTANT_SESSION)
         pendingAssistantRecord = intent?.getStringExtra(EXTRA_ASSISTANT_RECORD)
+        captureWidgetEntry(intent)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -82,6 +85,13 @@ class MainActivity : FlutterActivity() {
                         pendingMission = null
                         intent?.removeExtra(EXTRA_ASSISTANT_MISSION)
                         result.success(id)
+                    }
+                    "consumeWidgetOpen" -> {
+                        val entry = if (pendingWidgetOpen) mapOf("missionId" to pendingWidgetMission) else null
+                        pendingWidgetOpen = false
+                        pendingWidgetMission = null
+                        if (entry != null) intent?.removeExtra(TodayWidgetProvider.MISSION_ID)
+                        result.success(entry)
                     }
                     "consumeAssistantRecord" -> {
                         val id = pendingAssistantRecord
@@ -212,10 +222,12 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         pendingAssistantSession = intent.getStringExtra(EXTRA_ASSISTANT_SESSION)
+        captureWidgetEntry(intent)
         intent.getStringExtra(EXTRA_ASSISTANT_RECORD)?.let { id ->
             pendingAssistantRecord = id
             assistantOverlayChannel?.invokeMethod("pendingRecord", null)
         }
+        if (pendingWidgetOpen) assistantOverlayChannel?.invokeMethod("pendingWidgetOpen", null)
         if (intent.getBooleanExtra(EXTRA_OPEN_ASSISTANT, false)) {
             pendingAssistantOpen = true
             assistantOverlayChannel?.invokeMethod("pendingOpen", null)
@@ -228,13 +240,22 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        runCatching { TodayWidgetProvider.updateAll(applicationContext) }
         runCatching { AssistantUsageMonitorService.resumeIfAuthorized(this) }
         if (pendingAssistantOpen) assistantOverlayChannel?.invokeMethod("pendingOpen", null)
         if (pendingMission != null) assistantOverlayChannel?.invokeMethod("pendingMission", null)
         if (pendingAssistantRecord != null) assistantOverlayChannel?.invokeMethod("pendingRecord", null)
+        if (pendingWidgetOpen) assistantOverlayChannel?.invokeMethod("pendingWidgetOpen", null)
         if (overlayEnabled() && Settings.canDrawOverlays(this)) {
             runCatching { sendOverlayAction(AssistantOverlayService.ACTION_SHOW) }
         }
+    }
+
+    private fun captureWidgetEntry(intent: Intent?) {
+        if (intent?.action != TodayWidgetProvider.OPEN_ACTION) return
+        pendingWidgetOpen = true
+        pendingWidgetMission = intent.getStringExtra(TodayWidgetProvider.MISSION_ID)
+        intent.action = null
     }
 
     private fun toggleAssistantOverlay(result: MethodChannel.Result) {

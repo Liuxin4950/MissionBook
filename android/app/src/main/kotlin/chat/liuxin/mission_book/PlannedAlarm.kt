@@ -25,6 +25,7 @@ object PlannedAlarm {
 
     fun attach(engine: FlutterEngine, context: Context, onFinished: (() -> Unit)? = null) {
         NotificationAppearance.attach(engine, context)
+        if (onFinished != null) TodayWidgetChannel.attach(engine, context)
         val channel = MethodChannel(engine.dartExecutor.binaryMessenger, "mission_book/plans")
         if (onFinished == null) primary = channel
         channel.setMethodCallHandler { call, result ->

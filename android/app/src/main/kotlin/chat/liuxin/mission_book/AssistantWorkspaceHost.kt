@@ -29,6 +29,7 @@ internal object AssistantWorkspaceHost {
         engine?.let { return it }
         val created = FlutterEngine(context.applicationContext)
         engine = created
+        TodayWidgetChannel.attach(created, app)
         lifecycle = MethodChannel(created.dartExecutor.binaryMessenger, "mission_book/workspace_lifecycle")
         bridge = MethodChannel(created.dartExecutor.binaryMessenger, "mission_book/assistant_workspace").also { channel ->
             channel.setMethodCallHandler { call, result ->

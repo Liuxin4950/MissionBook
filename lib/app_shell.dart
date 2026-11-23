@@ -74,6 +74,7 @@ class _AppShellState extends State<AppShell> {
   final _assistantEntry = GlobalKey<AssistantLauncherState>();
   StreamSubscription<NotificationUiAction>? _uiActions;
   bool _selectingPage = false;
+  int _todayWidgetEntry = 0;
 
   @override
   void initState() {
@@ -85,6 +86,7 @@ class _AppShellState extends State<AppShell> {
         unawaited(_consumePendingAssistantOpen());
         unawaited(_consumeAssistantMission());
         unawaited(_consumeAssistantRecord());
+        unawaited(_consumeWidgetOpen());
       }
     });
   }
@@ -93,6 +95,7 @@ class _AppShellState extends State<AppShell> {
     if (call.method == 'pendingOpen') await _consumePendingAssistantOpen();
     if (call.method == 'pendingMission') await _consumeAssistantMission();
     if (call.method == 'pendingRecord') await _consumeAssistantRecord();
+    if (call.method == 'pendingWidgetOpen') await _consumeWidgetOpen();
   }
 
   Future<void> _consumePendingAssistantOpen() async {
@@ -146,6 +149,33 @@ class _AppShellState extends State<AppShell> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('无法打开任务，请从日程重新查看')));
+      }
+    }
+  }
+
+  Future<void> _consumeWidgetOpen() async {
+    try {
+      final entry = await _overlayChannel.invokeMapMethod<String, String?>(
+        'consumeWidgetOpen',
+      );
+      if (!mounted || entry == null) return;
+      final id = entry['missionId'];
+      if (id != null) {
+        await _openExternalMission(id);
+      } else if (await _detailPane.clear() && mounted) {
+        _assistantEntry.currentState?.resetContext();
+        setState(() {
+          _selectedIndex = 0;
+          _todayWidgetEntry++;
+        });
+      }
+    } on MissingPluginException {
+      // 非 Android 平台没有小组件入口。
+    } on PlatformException {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('无法打开桌面任务，请从日程重新查看')));
       }
     }
   }
@@ -305,6 +335,7 @@ class _AppShellState extends State<AppShell> {
     final pages = <Widget>[
       if (_visitedPages.contains(0))
         TodayPage(
+          key: ValueKey(_todayWidgetEntry),
           missionService: widget.missionService,
           goalService: widget.goalService,
           clock: widget.clock,
@@ -411,49 +442,123 @@ class _AppShellState extends State<AppShell> {
                 );
           return LayoutBuilder(
             builder: (context, constraints) {
-              // 双栏判定用内容区宽度（§2.0）：侧栏占宽后凑不齐左右最小宽就单列。
+              final width = constraints.maxWidth;
               final extended = AppLayout.useExtendedRail(context);
               final railWidth = compact ? 0.0 : (extended ? 193.0 : 89.0);
-              final contentWidth = constraints.maxWidth - railWidth;
-              final split =
-                  AppLayout.canSplitPane(contentWidth) &&
-                  _detailPane.hasContent;
-              final rightWidth = split
-                  ? (contentWidth - AppLayout.paneGap - AppLayout.paneLeftMin)
-                        .clamp(
-                          AppLayout.paneRightMin,
-                          _detailPane.activeMaxWidth,
-                        )
-                  : constraints.maxWidth;
-              final takeover = _detailPane.hasContent && !split;
-              // 两个载体始终保持同一树位置；缩放只改尺寸和可见性。
+              final contentWidth = width - railWidth;
+              final canSplit = AppLayout.canSplitPane(contentWidth);
+              final assistantSplit =
+                  canSplit && _detailPane.isAssistantConversationActive;
+              final mode = _detailPane.assistantPaneMode;
+              final workspaceOnly =
+                  assistantSplit && mode == AssistantPaneMode.workspaceExpanded;
+              final assistantOnly =
+                  assistantSplit && mode == AssistantPaneMode.assistantExpanded;
+              final sideBySide =
+                  canSplit &&
+                  _detailPane.hasContent &&
+                  !workspaceOnly &&
+                  !assistantOnly;
+              final workspaceHidden =
+                  _detailPane.hasContent && !sideBySide && !workspaceOnly;
+              final availableWidth = contentWidth - AppLayout.paneGap;
+
+              var paneWidth = width;
+              var workspaceWidth = width;
+              if (assistantSplit) {
+                final savedWidth = _detailPane.assistantSplitWidthFor(
+                  availableWidth,
+                );
+                if (workspaceOnly) {
+                  // Keep the hidden route laid out at a valid width, without changing its state.
+                  paneWidth = savedWidth;
+                } else if (assistantOnly) {
+                  workspaceWidth = width - savedWidth - AppLayout.paneGap;
+                } else {
+                  paneWidth = _detailPane.assistantWidthFor(availableWidth);
+                  workspaceWidth = width - paneWidth - AppLayout.paneGap;
+                }
+              } else if (sideBySide) {
+                paneWidth = (availableWidth - AppLayout.paneLeftMin).clamp(
+                  AppLayout.paneRightMin,
+                  _detailPane.activeMaxWidth,
+                );
+                workspaceWidth = width - paneWidth - AppLayout.paneGap;
+              }
+
+              const handleOverhang =
+                  (AppLayout.touchTargetMin - AppLayout.paneGap) / 2;
               return ColoredBox(
                 key: const Key('workspace-background'),
                 color: Theme.of(context).scaffoldBackgroundColor,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Positioned(
-                      left: 0,
+                    PositionedDirectional(
+                      start: 0,
                       top: 0,
                       bottom: 0,
-                      width: split
-                          ? constraints.maxWidth -
-                                rightWidth -
-                                AppLayout.paneGap
-                          : constraints.maxWidth,
+                      width: workspaceWidth,
                       child: Offstage(
-                        offstage: takeover,
-                        child: TickerMode(enabled: !takeover, child: shell),
+                        offstage: workspaceHidden,
+                        child: ExcludeFocus(
+                          excluding: workspaceHidden,
+                          child: TickerMode(
+                            enabled: !workspaceHidden,
+                            child: shell,
+                          ),
+                        ),
                       ),
                     ),
-                    Positioned(
-                      right: 0,
+                    PositionedDirectional(
+                      end: 0,
                       top: 0,
                       bottom: 0,
-                      width: rightWidth,
-                      child: DetailPaneHost(controller: _detailPane),
+                      width: paneWidth,
+                      child: Offstage(
+                        offstage: workspaceOnly,
+                        child: ExcludeFocus(
+                          excluding: workspaceOnly,
+                          child: TickerMode(
+                            enabled: !workspaceOnly,
+                            child: DetailPaneHost(
+                              controller: _detailPane,
+                              restoreSplitOnBack:
+                                  assistantSplit &&
+                                  mode != AssistantPaneMode.split,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
+                    if (assistantSplit)
+                      PositionedDirectional(
+                        start: assistantOnly ? AppLayout.spaceXs : null,
+                        end: assistantOnly
+                            ? null
+                            : workspaceOnly
+                            ? AppLayout.spaceXs
+                            : (_detailPane.assistantDividerOffsetFor(
+                                        availableWidth,
+                                      ) -
+                                      handleOverhang)
+                                  .clamp(0.0, width - AppLayout.touchTargetMin),
+                        top: 0,
+                        bottom: 0,
+                        width: AppLayout.touchTargetMin,
+                        child: Center(
+                          child: AssistantSplitHandle(
+                            controller: _detailPane,
+                            availableWidth: availableWidth,
+                            assistantWidth: assistantOnly
+                                ? availableWidth
+                                : workspaceOnly
+                                ? 0
+                                : paneWidth,
+                            textDirection: Directionality.of(context),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               );

@@ -96,13 +96,12 @@ class _ConversationRoute {
 }
 
 final _conversationRoutes = Expando<_ConversationRoute>();
-const _assistantConversationIdentity = 'assistant-conversation';
 
 bool assistantConversationIsOpen(BuildContext context) {
   final detailPane = DetailPaneScope.maybeOf(context);
   if (detailPane != null) {
     return detailPane
-            .findByIdentity(_assistantConversationIdentity)
+            .findByIdentity(assistantConversationPaneIdentity)
             ?.route
             ?.isActive ??
         false;
@@ -120,15 +119,23 @@ Future<void> showAssistantConversation(
   final scope = AssistantScope.of(context);
   final detailPane = DetailPaneScope.maybeOf(context);
   if (detailPane != null) {
-    final existing = detailPane.findByIdentity(_assistantConversationIdentity);
+    final existing = detailPane.findByIdentity(
+      assistantConversationPaneIdentity,
+    );
     if (existing?.route?.isActive ?? false) {
-      return detailPane.reveal(_assistantConversationIdentity).then((_) {});
+      return detailPane.reveal(assistantConversationPaneIdentity).then((shown) {
+        if (shown &&
+            detailPane.assistantPaneMode ==
+                AssistantPaneMode.workspaceExpanded) {
+          detailPane.restoreAssistantSplit();
+        }
+      });
     }
     // 保留任务/目标详情作为返回目标，同时仍经统一的右栏入口打开。
     return openDetailPane<void>(
       context,
       label: '助手会话',
-      identity: _assistantConversationIdentity,
+      identity: assistantConversationPaneIdentity,
       maxWidth: AppLayout.assistantPaneMaxWidth,
       preserveExistingEntries: true,
       builder: (_) => AssistantPage(

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="today_widget_picker_small">今日任务 · 小</string>
+    <string name="today_widget_picker_medium">今日任务 · 中</string>
+    <string name="today_widget_picker_large">今日任务 · 大</string>
+    <string name="today_widget_description">在桌面查看 Mission Book 的当天任务。</string>
+    <string name="today_widget_title">今日任务</string>
+    <string name="today_widget_title_small">今日</string>
+    <string name="today_widget_date_short">%1$d/%2$d</string>
+    <string name="today_widget_date_long">%1$d月%2$d日</string>
+    <string name="today_widget_empty">今日没有任务</string>
+    <string name="today_widget_load">等待同步，点按打开</string>
+    <string name="today_widget_open">点按查看今日任务</string>
+    <string name="today_widget_more">另有 %1$d 项 ›</string>
+    <string name="today_widget_untitled">未命名任务</string>
+    <string name="today_widget_flexible">自选</string>
+    <string name="today_widget_time_range">%1$s–%2$s</string>
+    <string name="today_widget_row_subtitle">%1$s · %2$s</string>
+    <string name="today_widget_phase_not_started">待开始</string>
+    <string name="today_widget_phase_running">进行中</string>
+    <string name="today_widget_phase_paused">已暂停</string>
+    <string name="today_widget_phase_report_pending">待确认</string>
+    <string name="today_widget_phase_evidence_pending">待补材料</string>
+    <string name="today_widget_phase_closed">已结束</string>
+    <string name="today_widget_phase_cancelled">已取消</string>
+</resources>

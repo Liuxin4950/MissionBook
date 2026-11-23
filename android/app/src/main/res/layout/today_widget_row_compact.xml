@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/today_widget_row"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:layout_marginBottom="4dp">
+    <ImageView
+        android:id="@+id/today_widget_row_surface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/today_widget_row_background" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+
+        <TextView
+            android:id="@+id/today_widget_row_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/today_widget_secondary"
+            android:textSize="11sp" />
+
+        <ImageView
+            android:id="@+id/today_widget_row_accent"
+            android:layout_width="3dp"
+            android:layout_height="16dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="8dp"
+            android:importantForAccessibility="no"
+            android:background="@color/today_widget_accent" />
+
+        <TextView
+            android:id="@+id/today_widget_row_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/today_widget_primary"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/today_widget_row_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxWidth="88dp"
+            android:maxLines="1"
+            android:textColor="@color/today_widget_secondary"
+            android:textSize="11sp" />
+    </LinearLayout>
+</FrameLayout>

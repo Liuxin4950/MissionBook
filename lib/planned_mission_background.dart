@@ -8,6 +8,7 @@ import 'data/local/app_database.dart';
 import 'data/notifications/android_notification_dispatcher.dart';
 import 'data/notifications/planned_alarm_bridge.dart';
 import 'data/notifications/reminder_store.dart';
+import 'data/notifications/today_widget_bridge.dart';
 import 'data/repositories/drift_mission_repository.dart';
 import 'domain/entities/mission_phase.dart';
 import 'domain/notifications/reminder_request.dart';
@@ -101,6 +102,12 @@ Future<void> runPlannedMissionBackground() async {
     await bridge.beginSync();
     await bridge.schedule(DateTime.now().add(const Duration(seconds: 30)));
   } finally {
+    try {
+      // STOP may already have committed even if subsequent work failed.
+      await TodayWidgetBridge.publish(missions);
+    } catch (error) {
+      debugPrint('后台桌面快照更新失败：${error.runtimeType}');
+    }
     await closeResources(
       [
         (name: 'scheduler', close: () async => scheduler?.dispose()),
