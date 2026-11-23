@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<inset xmlns:android="http://schemas.android.com/apk/res/android" android:insetTop="1dp" android:insetBottom="1dp">
-    <shape android:shape="rectangle"><solid android:color="#2B3050" /><corners android:radius="8dp" /></shape>
-</inset>
+<!-- 索引卡行底：浅色任务条 + 固定 8dp 行角；左侧 3dp 书脊由同一行的 ImageView 绘制。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#26382E" />
+    <corners android:radius="8dp" />
+</shape>

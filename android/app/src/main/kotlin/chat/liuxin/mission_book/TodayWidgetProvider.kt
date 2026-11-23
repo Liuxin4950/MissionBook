@@ -8,11 +8,16 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.AtomicFile
 import android.util.SizeF
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import io.flutter.plugin.common.MethodChannel
@@ -21,15 +26,21 @@ import java.io.File
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
-/** Three picker entries share one read-only snapshot and renderer. */
-class TodayWidgetSmall : TodayWidgetProvider(1, 109, 109)
-class TodayWidgetMedium : TodayWidgetProvider(5, 220, 109)
-class TodayWidgetLarge : TodayWidgetProvider(5, 220, 220)
+/** Three picker entries share one read-only snapshot, one appearance and one renderer. */
+class TodayWidgetSmall : TodayWidgetProvider(WidgetSizeClass.SMALL, 109, 109)
+class TodayWidgetMedium : TodayWidgetProvider(WidgetSizeClass.MEDIUM, 220, 109)
+class TodayWidgetLarge : TodayWidgetProvider(WidgetSizeClass.LARGE, 220, 220)
 
+/**
+ * 三个 provider 保持原有类名与缓存/深链入口：桌面既有实例原地升级。
+ *
+ * 渲染流程：读一次外观快照 → 读缓存快照 → 纯规划器出 [WidgetPlan] → RemoteViews 逐项显式设置。
+ * 外观保存/预览不触发任务查询，也不按墙钟重算阶段。
+ */
 abstract class TodayWidgetProvider(
-    private val maxRows: Int,
-    private val defaultWidth: Int,
-    private val defaultHeight: Int,
+    internal val sizeClass: WidgetSizeClass,
+    internal val defaultWidthDp: Int,
+    internal val defaultHeightDp: Int,
 ) : AppWidgetProvider() {
     override fun onEnabled(context: Context) {
         refreshDate(context)
@@ -37,11 +48,13 @@ abstract class TodayWidgetProvider(
     }
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        val date = ZonedDateTime.now(scheduleZone).toLocalDate()
+        val today = ZonedDateTime.now(scheduleZone).toLocalDate()
         val days = readDays(context)
-        val day = days[date.toString()]
-        for (id in ids) render(context, manager, id, day, date.toString(), maxRows, defaultWidth, defaultHeight)
-        scheduleMidnight(context, day != null && days.containsKey(date.plusDays(1).toString()))
+        val day = days[today.toString()]
+        val appearance = TodayWidgetAppearanceStore.read(context)
+        val spec = specFor(sizeClass)
+        for (id in ids) render(context, manager, id, spec, appearance, day, today.toString())
+        scheduleMidnight(context, day != null && days.containsKey(today.plusDays(1).toString()))
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -51,7 +64,10 @@ abstract class TodayWidgetProvider(
         options: Bundle,
     ) {
         val date = ZonedDateTime.now(scheduleZone).toLocalDate().toString()
-        render(context, manager, id, readDays(context)[date], date, maxRows, defaultWidth, defaultHeight)
+        render(
+            context, manager, id, specFor(sizeClass),
+            TodayWidgetAppearanceStore.read(context), readDays(context)[date], date,
+        )
     }
 
     override fun onDisabled(context: Context) {
@@ -66,23 +82,31 @@ abstract class TodayWidgetProvider(
         const val OPEN_ACTION = "chat.liuxin.mission_book.OPEN_TODAY_WIDGET"
         const val MISSION_ID = "missionId"
         internal const val MIDNIGHT_ACTION = "chat.liuxin.mission_book.TODAY_WIDGET_MIDNIGHT"
+        internal const val WIDGETS_NO_INSTANCES = "noInstances"
+        internal const val WIDGETS_REQUESTED = "requested"
+        internal const val WIDGETS_PARTIAL_FAILURE = "partialFailure"
+        internal const val WIDGETS_FAILED = "failed"
         private const val MAX_CACHE_BYTES = 128 * 1024
         private const val ALARM_REQUEST = 7031
         private val scheduleZone = ZoneId.of("Asia/Shanghai")
         private val snapshotLock = Any()
         private val datePattern = Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}")
 
-        private data class ProviderSize(
+        internal data class WidgetProviderSpec(
             val provider: Class<out TodayWidgetProvider>,
-            val rows: Int,
-            val width: Int,
-            val height: Int,
+            val sizeClass: WidgetSizeClass,
+            val defaultWidthDp: Int,
+            val defaultHeightDp: Int,
         )
-        private val sizes = listOf(
-            ProviderSize(TodayWidgetSmall::class.java, 1, 109, 109),
-            ProviderSize(TodayWidgetMedium::class.java, 5, 220, 109),
-            ProviderSize(TodayWidgetLarge::class.java, 5, 220, 220),
+
+        internal val specs = listOf(
+            WidgetProviderSpec(TodayWidgetSmall::class.java, WidgetSizeClass.SMALL, 109, 109),
+            WidgetProviderSpec(TodayWidgetMedium::class.java, WidgetSizeClass.MEDIUM, 220, 109),
+            WidgetProviderSpec(TodayWidgetLarge::class.java, WidgetSizeClass.LARGE, 220, 220),
         )
+
+        internal fun specFor(sizeClass: WidgetSizeClass): WidgetProviderSpec =
+            specs.first { it.sizeClass == sizeClass }
 
         private data class Day(val total: Int, val rows: List<Row>, val featured: Row?)
         private data class Row(
@@ -114,13 +138,31 @@ abstract class TodayWidgetProvider(
 
         /** Re-render from cache only. Never schedules a Dart read in response to a publish. */
         fun updateAll(context: Context) {
+            redrawAll(context)
+        }
+
+        /**
+         * 用已保存外观 + 已缓存快照重绘，返回契约 2.2 的四态之一。
+         *
+         * 每批共用同一份外观快照；单个实例异常不影响其它实例。`requested` 只表示
+         * `updateAppWidget` 已交给系统，不代表 Launcher 已绘制。
+         */
+        fun redrawAll(context: Context): String {
             val date = ZonedDateTime.now(scheduleZone).toLocalDate().toString()
-            renderAll(context, readDays(context)[date], date)
+            return renderAll(context, TodayWidgetAppearanceStore.read(context), readDays(context)[date], date)
+        }
+
+        /** 通道回执用：重绘整体异常（非单实例失败）也只报 `failed`，不回滚已保存外观。 */
+        internal fun redrawSafely(context: Context): String = runCatching {
+            redrawAll(context)
+        }.getOrElse {
+            android.util.Log.w("MissionBook", "桌面小组件批量重绘失败", it)
+            WIDGETS_FAILED
         }
 
         fun hasInstances(context: Context): Boolean {
             val manager = AppWidgetManager.getInstance(context)
-            return sizes.any { manager.getAppWidgetIds(ComponentName(context, it.provider)).isNotEmpty() }
+            return specs.any { manager.getAppWidgetIds(ComponentName(context, it.provider)).isNotEmpty() }
         }
 
         internal fun refreshDate(context: Context) {
@@ -128,7 +170,7 @@ abstract class TodayWidgetProvider(
             val date = ZonedDateTime.now(scheduleZone).toLocalDate()
             val days = readDays(context)
             val day = days[date.toString()]
-            renderAll(context, day, date.toString())
+            renderAll(context, TodayWidgetAppearanceStore.read(context), day, date.toString())
             scheduleMidnight(context, day != null && days.containsKey(date.plusDays(1).toString()))
         }
 
@@ -194,12 +236,31 @@ abstract class TodayWidgetProvider(
         private fun JSONObject.optionalString(key: String): String? =
             if (isNull(key)) null else getString(key)
 
-        private fun renderAll(context: Context, day: Day?, date: String) {
+        private fun renderAll(
+            context: Context,
+            appearance: AppearanceSnapshot,
+            day: Day?,
+            date: String,
+        ): String {
             val manager = AppWidgetManager.getInstance(context)
-            for ((provider, rows, width, height) in sizes) {
-                for (id in manager.getAppWidgetIds(ComponentName(context, provider))) {
-                    render(context, manager, id, day, date, rows, width, height)
+            var total = 0
+            var failed = 0
+            for (spec in specs) {
+                for (id in manager.getAppWidgetIds(ComponentName(context, spec.provider))) {
+                    total++
+                    try {
+                        render(context, manager, id, spec, appearance, day, date)
+                    } catch (error: Exception) {
+                        failed++
+                        android.util.Log.w("MissionBook", "桌面小组件重绘失败：$id", error)
+                    }
                 }
+            }
+            return when {
+                total == 0 -> WIDGETS_NO_INSTANCES
+                failed == 0 -> WIDGETS_REQUESTED
+                failed == total -> WIDGETS_FAILED
+                else -> WIDGETS_PARTIAL_FAILURE
             }
         }
 
@@ -207,183 +268,426 @@ abstract class TodayWidgetProvider(
             context: Context,
             manager: AppWidgetManager,
             id: Int,
+            spec: WidgetProviderSpec,
+            appearance: AppearanceSnapshot,
             day: Day?,
             date: String,
-            maxRows: Int,
-            defaultWidth: Int,
-            defaultHeight: Int,
         ) {
             val options = manager.getAppWidgetOptions(id)
-            val sizesForWidget = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                @Suppress("DEPRECATION")
-                options.getParcelableArrayList<SizeF>(AppWidgetManager.OPTION_APPWIDGET_SIZES)
-                    ?.filter { it.width > 0f && it.height > 0f }
-                    ?.distinctBy { it.width to it.height }
-            } else null
-
-            if (!sizesForWidget.isNullOrEmpty()) {
-                val variants = LinkedHashMap<SizeF, RemoteViews>()
-                for (size in sizesForWidget) {
-                    variants[size] = renderAtSize(
-                        context, id, day, date, maxRows, size.width, size.height,
-                    )
-                }
-                manager.updateAppWidget(id, RemoteViews(variants))
-            } else {
-                // Older Android and some OEM launchers omit OPTION_APPWIDGET_SIZES.
-                // Their current min bounds are used when valid; manifest dimensions are fallback.
-                val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, defaultWidth)
-                    .takeIf { it > 0 } ?: defaultWidth
-                val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, defaultHeight)
-                    .takeIf { it > 0 } ?: defaultHeight
+            val density = context.resources.displayMetrics.density
+            val sizes = TodayWidgetSizes.resolve(options, spec.defaultWidthDp, spec.defaultHeightDp)
+            if (sizes.size <= 1) {
+                val size = sizes.firstOrNull() ?: SizeF(
+                    spec.defaultWidthDp.toFloat(), spec.defaultHeightDp.toFloat(),
+                )
                 manager.updateAppWidget(
-                    id, renderAtSize(context, id, day, date, maxRows, width.toFloat(), height.toFloat()),
+                    id, buildViews(context, id, spec, appearance, day, date, toPx(size, density)),
+                )
+                return
+            }
+            val variants = LinkedHashMap<SizeF, RemoteViews>()
+            for (size in sizes) {
+                variants[size] = buildViews(context, id, spec, appearance, day, date, toPx(size, density))
+            }
+            manager.updateAppWidget(id, RemoteViews(variants))
+        }
+
+        private fun toPx(size: SizeF, density: Float): WidgetPixels = WidgetPixels(
+            width = Math.round(size.width * density).coerceAtLeast(1),
+            height = Math.round(size.height * density).coerceAtLeast(1),
+        )
+
+        /** dp 之外的另一个单位边界：规划器只认 px，这里一次换算。 */
+        internal data class WidgetPixels(val width: Int, val height: Int)
+
+        private fun buildViews(
+            context: Context,
+            widgetId: Int,
+            spec: WidgetProviderSpec,
+            appearance: AppearanceSnapshot,
+            day: Day?,
+            date: String,
+            size: WidgetPixels,
+        ): RemoteViews {
+            val draft = appearance.appearance
+            val theme = resolveTheme(context, draft.theme)
+            val metrics = AndroidWidgetTextMetrics(context)
+            val state = when {
+                day == null -> WidgetSnapshotState.WAITING
+                day.total <= 0 -> WidgetSnapshotState.EMPTY
+                else -> WidgetSnapshotState.DATA
+            }
+            val labels = labels(context, spec.sizeClass, date)
+            val plan = TodayWidgetLayoutPlanner.plan(
+                WidgetPlanRequest(
+                    sizeClass = spec.sizeClass,
+                    widthPx = size.width,
+                    heightPx = size.height,
+                    density = context.resources.displayMetrics.density,
+                    textMetrics = metrics,
+                    appearance = draft,
+                    state = state,
+                    items = itemsFor(context, spec.sizeClass, day),
+                    total = day?.total ?: 0,
+                    labels = labels,
+                    theme = theme,
+                ),
+            )
+            return applyPlan(context, widgetId, plan, draft, labels)
+        }
+
+        private fun itemsFor(context: Context, sizeClass: WidgetSizeClass, day: Day?): List<WidgetItem> {
+            if (day == null) return emptyList()
+            val rows = if (sizeClass == WidgetSizeClass.SMALL) {
+                // 小号沿用现有焦点排序：优先进行中/待确认/下一项。
+                listOfNotNull(day.featured ?: day.rows.firstOrNull())
+            } else {
+                day.rows
+            }
+            return rows.map { row ->
+                WidgetItem(
+                    id = row.id,
+                    title = row.title,
+                    startText = row.start,
+                    endText = row.end,
+                    statusText = phaseLabel(context, row.phase),
+                    // 自选任务没有固定开始时间：不填假时间，显示「自选时间」。
+                    flexibleTime = row.start == null,
+                    currentSlot = row.phase == "running",
+                    progressText = null,
                 )
             }
         }
 
-        private fun renderAtSize(
+        private fun phaseLabel(context: Context, phase: String): String? = when (phase) {
+            "notStarted" -> R.string.today_widget_phase_not_started
+            "running" -> R.string.today_widget_phase_running
+            "paused" -> R.string.today_widget_phase_paused
+            "reportPending" -> R.string.today_widget_phase_report_pending
+            "evidencePending" -> R.string.today_widget_phase_evidence_pending
+            "closed" -> R.string.today_widget_phase_closed
+            "cancelled" -> R.string.today_widget_phase_cancelled
+            else -> null
+        }?.let(context::getString)
+
+        internal fun labels(context: Context, sizeClass: WidgetSizeClass, date: String): WidgetLabels {
+            val month = date.substring(5, 7).toIntOrNull() ?: 0
+            val dayOfMonth = date.substring(8, 10).toIntOrNull() ?: 0
+            return WidgetLabels(
+                title = context.getString(
+                    if (sizeClass == WidgetSizeClass.SMALL) R.string.today_widget_title_small
+                    else R.string.today_widget_title,
+                ),
+                date = context.getString(
+                    if (sizeClass == WidgetSizeClass.SMALL) R.string.today_widget_date_short
+                    else R.string.today_widget_date_long,
+                    month, dayOfMonth,
+                ),
+                waiting = context.getString(R.string.today_widget_load),
+                empty = context.getString(R.string.today_widget_empty),
+                open = context.getString(R.string.today_widget_open),
+                untitled = context.getString(R.string.today_widget_untitled),
+                flexible = context.getString(R.string.today_widget_flexible),
+                more = { count -> context.getString(R.string.today_widget_more, count) },
+                count = { count -> context.getString(R.string.today_widget_header_count, count) },
+                timeRange = { start, end ->
+                    context.getString(R.string.today_widget_time_range, start, end)
+                },
+                metaJoin = { time, status ->
+                    context.getString(R.string.today_widget_row_subtitle, time, status)
+                },
+            )
+        }
+
+        internal fun resolveTheme(context: Context, theme: String): String = when (theme) {
+            TodayWidgetAppearance.THEME_LIGHT -> WidgetPlan.THEME_LIGHT
+            TodayWidgetAppearance.THEME_DARK -> WidgetPlan.THEME_DARK
+            else -> if (isNight(context)) WidgetPlan.THEME_DARK else WidgetPlan.THEME_LIGHT
+        }
+
+        private fun isNight(context: Context): Boolean =
+            (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
+
+        /**
+         * 显式设置可见性、文字、字号、颜色、间距、背景与点击，包括「显式深色切回系统」。
+         * 每个实例的点击意图仍按组件实例与任务区分。
+         */
+        private fun applyPlan(
             context: Context,
             widgetId: Int,
-            day: Day?,
-            date: String,
-            maxRows: Int,
-            widthDp: Float,
-            heightDp: Float,
+            plan: WidgetPlan,
+            appearance: TodayWidgetAppearance,
+            labels: WidgetLabels,
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.today_widget)
-            val small = maxRows == 1
-            val wide = widthDp >= 180f
-            val largeText = TodayWidgetAppearance.read(context).largeText
-            val height = heightDp.toInt().coerceAtLeast(1)
-            val ordered = if (small) listOfNotNull(day?.featured ?: day?.rows?.firstOrNull())
-                else day?.rows.orEmpty()
-            val rows = ordered.take(rowCapacity(height, day?.total ?: 0, maxRows, largeText))
-            val more = ((day?.total ?: 0) - rows.size).coerceAtLeast(0)
-            val month = date.substring(5, 7).toInt()
-            val dayOfMonth = date.substring(8, 10).toInt()
-            val headerSize = if (largeText) 15f else 13f
-            val supportingSize = if (largeText) 13f else 11f
-
-            views.setTextViewTextSize(R.id.today_widget_title, android.util.TypedValue.COMPLEX_UNIT_SP, headerSize)
-            views.setTextViewTextSize(R.id.today_widget_date, android.util.TypedValue.COMPLEX_UNIT_SP, supportingSize)
-            views.setTextViewTextSize(R.id.today_widget_empty, android.util.TypedValue.COMPLEX_UNIT_SP, supportingSize + 1f)
-            views.setTextViewTextSize(R.id.today_widget_more, android.util.TypedValue.COMPLEX_UNIT_SP, supportingSize)
-            views.setTextViewText(R.id.today_widget_title, context.getString(
-                if (small) R.string.today_widget_title_small else R.string.today_widget_title,
-            ))
-            views.setTextViewText(R.id.today_widget_date, context.getString(
-                if (small) R.string.today_widget_date_short else R.string.today_widget_date_long,
-                month, dayOfMonth,
-            ))
-            TodayWidgetAppearance.read(context).applyRoot(context, views)
-
+            val explicit = appearance.theme != TodayWidgetAppearance.THEME_SYSTEM
+            val colors = plan.colors
+            val metrics = plan.metrics
             val openToday = activityIntent(context, widgetId, null)
+
+            // 圆角用真实 shape 资源（不是只改 outline），并显式换回系统主题资源。
+            views.setInt(
+                R.id.today_widget_root,
+                "setBackgroundResource",
+                surfaceDrawable(appearance.theme, appearance.radiusDp),
+            )
+            views.setViewPadding(
+                R.id.today_widget_root,
+                metrics.horizontalPaddingPx,
+                metrics.verticalPaddingPx,
+                metrics.horizontalPaddingPx,
+                metrics.verticalPaddingPx,
+            )
             views.setOnClickPendingIntent(R.id.today_widget_root, openToday)
             views.setOnClickPendingIntent(R.id.today_widget_header, openToday)
-            views.setOnClickPendingIntent(R.id.today_widget_more, openToday)
             views.setOnClickPendingIntent(R.id.today_widget_empty, openToday)
+            views.setOnClickPendingIntent(R.id.today_widget_more, openToday)
+
+            views.setInt(R.id.today_widget_header, "setMinimumHeight", metrics.headerHeightPx)
+            views.setTextViewText(R.id.today_widget_title, plan.header.left)
+            views.setTextViewTextSize(
+                R.id.today_widget_title, TypedValue.COMPLEX_UNIT_SP, appearance.headerSp.toFloat(),
+            )
+            views.textColor(
+                context, R.id.today_widget_title, R.color.today_widget_primary,
+                if (explicit) colors.primaryText else null,
+            )
+            views.setTextViewText(R.id.today_widget_date, plan.header.right)
+            views.setTextViewTextSize(
+                R.id.today_widget_date, TypedValue.COMPLEX_UNIT_SP, appearance.metaSp.toFloat(),
+            )
+            views.setViewVisibility(
+                R.id.today_widget_date,
+                if (plan.header.right.isEmpty()) View.GONE else View.VISIBLE,
+            )
+            views.textColor(
+                context, R.id.today_widget_date, R.color.today_widget_secondary,
+                if (explicit) colors.secondaryText else null,
+            )
+            views.setTextViewText(R.id.today_widget_count, plan.header.count.orEmpty())
+            views.setTextViewTextSize(
+                R.id.today_widget_count, TypedValue.COMPLEX_UNIT_SP, appearance.metaSp.toFloat(),
+            )
+            views.setViewVisibility(
+                R.id.today_widget_count,
+                if (plan.header.count == null) View.GONE else View.VISIBLE,
+            )
+            views.textColor(
+                context, R.id.today_widget_count, R.color.today_widget_accent,
+                if (explicit) colors.accent else null,
+            )
+
             views.removeAllViews(R.id.today_widget_rows)
-            for (row in rows) {
+            for (row in plan.rows) {
                 views.addView(
                     R.id.today_widget_rows,
-                    renderRow(context, widgetId, row, small, wide, largeText),
+                    buildRow(context, widgetId, row, plan, appearance),
                 )
             }
-
-            val isEmpty = rows.isEmpty()
-            if (isEmpty) {
-                views.setTextViewText(R.id.today_widget_empty, context.getString(when {
-                    day == null -> R.string.today_widget_load
-                    day.total > 0 -> R.string.today_widget_open
-                    else -> R.string.today_widget_empty
-                }))
-            }
-            views.setViewVisibility(R.id.today_widget_empty, if (isEmpty) View.VISIBLE else View.GONE)
-            if (more > 0 && !isEmpty) {
-                views.setTextViewText(R.id.today_widget_more, context.getString(R.string.today_widget_more, more))
-            }
             views.setViewVisibility(
-                R.id.today_widget_more, if (more > 0 && !isEmpty) View.VISIBLE else View.GONE,
+                R.id.today_widget_rows,
+                if (plan.rows.isEmpty()) View.GONE else View.VISIBLE,
+            )
+
+            // 空间不足退化为题头入口时也保留可点「查看今日任务」，不把拥挤当成空日。
+            val emptyVisible = plan.empty != WidgetPlan.EMPTY_NONE ||
+                plan.overflow == WidgetPlan.OVERFLOW_HEADER_ONLY
+            val emptyText = when {
+                plan.overflow == WidgetPlan.OVERFLOW_HEADER_ONLY -> labels.open
+                plan.empty == WidgetPlan.EMPTY_WAITING -> labels.waiting
+                plan.empty == WidgetPlan.EMPTY_EMPTY -> labels.empty
+                else -> ""
+            }
+            views.setTextViewText(R.id.today_widget_empty, emptyText)
+            views.setTextViewTextSize(
+                R.id.today_widget_empty, TypedValue.COMPLEX_UNIT_SP, appearance.metaSp.toFloat(),
+            )
+            views.setViewVisibility(
+                R.id.today_widget_empty, if (emptyVisible) View.VISIBLE else View.GONE,
+            )
+            views.textColor(
+                context, R.id.today_widget_empty, R.color.today_widget_secondary,
+                if (explicit) colors.secondaryText else null,
+            )
+
+            views.setInt(R.id.today_widget_more, "setMinimumHeight", metrics.footerHeightPx)
+            views.setTextViewText(R.id.today_widget_more, plan.footer.text.orEmpty())
+            views.setTextViewTextSize(
+                R.id.today_widget_more, TypedValue.COMPLEX_UNIT_SP, appearance.metaSp.toFloat(),
+            )
+            views.setViewVisibility(
+                R.id.today_widget_more,
+                if (plan.footer.visible) View.VISIBLE else View.GONE,
+            )
+            views.textColor(
+                context, R.id.today_widget_more, R.color.today_widget_accent,
+                if (explicit) colors.accent else null,
             )
             return views
         }
 
-        private fun rowCapacity(heightDp: Int, total: Int, maxRows: Int, largeText: Boolean): Int {
-            // Reserve actual chrome and the overflow footer; rows share all remaining height evenly.
-            // Compact rows are deliberately short enough for a real 4×2 card; large text
-            // raises the threshold and may reduce rows instead of shrinking glyphs.
-            val minimumRowHeight = if (largeText) 30 else 25
-            val withoutFooter = (heightDp - 16 - 24).coerceAtLeast(1)
-            var count = (withoutFooter / minimumRowHeight).coerceAtLeast(1).coerceAtMost(maxRows)
-            if (total > count) {
-                val withFooter = (heightDp - 16 - 24 - 16).coerceAtLeast(1)
-                count = (withFooter / minimumRowHeight).coerceAtLeast(1).coerceAtMost(maxRows)
-            }
-            return count
-        }
-
-        private fun renderRow(
+        private fun buildRow(
             context: Context,
             widgetId: Int,
-            row: Row,
-            small: Boolean,
-            wide: Boolean,
-            largeText: Boolean,
+            row: WidgetRowPlan,
+            plan: WidgetPlan,
+            appearance: TodayWidgetAppearance,
         ): RemoteViews {
-            // Small cards use the single featured focus layout; wide rows retain time-left semantics.
             val layout = when {
-                small -> R.layout.today_widget_row_featured
-                wide -> R.layout.today_widget_row_compact
+                plan.rowLayout == WidgetPlan.ROW_LAYOUT_WIDE -> R.layout.today_widget_row_compact
+                plan.sizeClass == WidgetSizeClass.SMALL -> R.layout.today_widget_row_featured
                 else -> R.layout.today_widget_row
             }
             val views = RemoteViews(context.packageName, layout)
-            TodayWidgetAppearance.read(context).applyRow(context, views, hasTimeColumn = wide)
-            val titleSize = when {
-                small && largeText -> 20f
-                small -> 18f
-                largeText -> 15f
-                else -> 13f
-            }
-            val metadataSize = when {
-                small && largeText -> 14f
-                small -> 13f
-                largeText -> 13f
-                else -> 11f
-            }
-            views.setTextViewTextSize(R.id.today_widget_row_title, android.util.TypedValue.COMPLEX_UNIT_SP, titleSize)
-            views.setTextViewTextSize(R.id.today_widget_row_subtitle, android.util.TypedValue.COMPLEX_UNIT_SP, metadataSize)
-            if (!small && wide) {
-                views.setTextViewTextSize(R.id.today_widget_row_time, android.util.TypedValue.COMPLEX_UNIT_SP, if (small) titleSize else metadataSize)
-            }
-            val title = row.title.ifBlank { context.getString(R.string.today_widget_untitled) }
-            val time = when {
-                row.start == null -> context.getString(R.string.today_widget_flexible)
-                small || row.end == null -> row.start
-                else -> context.getString(R.string.today_widget_time_range, row.start, row.end)
-            }
-            val phase = when (row.phase) {
-                "notStarted" -> R.string.today_widget_phase_not_started
-                "running" -> R.string.today_widget_phase_running
-                "paused" -> R.string.today_widget_phase_paused
-                "reportPending" -> R.string.today_widget_phase_report_pending
-                "evidencePending" -> R.string.today_widget_phase_evidence_pending
-                "closed" -> R.string.today_widget_phase_closed
-                "cancelled" -> R.string.today_widget_phase_cancelled
-                else -> null
-            }?.let(context::getString)
-            val subtitle = if (phase == null) time
-                else context.getString(R.string.today_widget_row_subtitle, time, phase)
-            views.setTextViewText(R.id.today_widget_row_title, title)
-            // Narrow medium cards keep time and state together; wide cards split time to the left.
-            views.setTextViewText(
-                R.id.today_widget_row_subtitle,
-                if (small || !wide) subtitle else phase.orEmpty(),
+            val explicit = appearance.theme != TodayWidgetAppearance.THEME_SYSTEM
+            val colors = plan.colors
+            val metrics = plan.metrics
+            views.setInt(R.id.today_widget_row, "setMinimumHeight", metrics.rowHeightPx)
+            views.setViewPadding(
+                R.id.today_widget_row, 0, metrics.rowPaddingPx, 0, metrics.rowPaddingPx,
             )
-            if (wide) views.setTextViewText(R.id.today_widget_row_time, time)
-            views.setContentDescription(R.id.today_widget_row, "${title}, ${subtitle}")
-            views.setOnClickPendingIntent(R.id.today_widget_row, activityIntent(context, widgetId, row.id))
+            views.setViewPadding(
+                R.id.today_widget_row_content,
+                metrics.rowStartInsetPx, 0, metrics.rowEndInsetPx, 0,
+            )
+            // 行底/书脊/分隔线每次显式设置：样式与浅深切换后宿主可能复用旧视图。
+            if (appearance.style == TodayWidgetAppearance.STYLE_INDEX) {
+                views.setInt(
+                    R.id.today_widget_row,
+                    "setBackgroundResource",
+                    rowBackground(appearance.theme),
+                )
+            } else {
+                views.setInt(R.id.today_widget_row, "setBackgroundColor", Color.TRANSPARENT)
+            }
+            views.setViewVisibility(
+                R.id.today_widget_row_spine,
+                if (plan.spineVisible) View.VISIBLE else View.GONE,
+            )
+            if (plan.spineVisible) {
+                views.backgroundColor(
+                    context, R.id.today_widget_row_spine, R.color.today_widget_spine,
+                    if (explicit) colors.spine else null,
+                )
+            }
+            views.setViewVisibility(
+                R.id.today_widget_row_divider,
+                if (plan.dividerVisible) View.VISIBLE else View.GONE,
+            )
+            if (plan.dividerVisible) {
+                views.backgroundColor(
+                    context, R.id.today_widget_row_divider, R.color.today_widget_hairline,
+                    if (explicit) colors.hairline else null,
+                )
+            }
+
+            views.setTextViewText(R.id.today_widget_row_title, row.title)
+            views.setTextViewTextSize(
+                R.id.today_widget_row_title, TypedValue.COMPLEX_UNIT_SP, appearance.taskSp.toFloat(),
+            )
+            // 行数由布局资源固定：featured 两行，row/compact 一行；规划器只会给出这两种组合，
+            // 这里不再用 setName 反射调用，避免宿主远程方法白名单差异。
+            views.textColor(
+                context, R.id.today_widget_row_title, R.color.today_widget_primary,
+                if (explicit) colors.primaryText else null,
+            )
+            if (plan.rowLayout == WidgetPlan.ROW_LAYOUT_WIDE) {
+                views.setTextViewText(R.id.today_widget_row_time, row.time.orEmpty())
+                views.setTextViewTextSize(
+                    R.id.today_widget_row_time, TypedValue.COMPLEX_UNIT_SP,
+                    appearance.metaSp.toFloat(),
+                )
+                views.setViewVisibility(
+                    R.id.today_widget_row_time,
+                    if (row.showTime) View.VISIBLE else View.GONE,
+                )
+                views.textColor(
+                    context, R.id.today_widget_row_time, R.color.today_widget_secondary,
+                    if (explicit) colors.secondaryText else null,
+                )
+                views.setTextViewText(R.id.today_widget_row_status, row.status.orEmpty())
+                views.setTextViewTextSize(
+                    R.id.today_widget_row_status, TypedValue.COMPLEX_UNIT_SP,
+                    appearance.metaSp.toFloat(),
+                )
+                views.setViewVisibility(
+                    R.id.today_widget_row_status,
+                    if (row.showStatus) View.VISIBLE else View.GONE,
+                )
+                views.textColor(
+                    context, R.id.today_widget_row_status, R.color.today_widget_accent,
+                    if (explicit) colors.accent else null,
+                )
+            } else {
+                val subtitle = when {
+                    row.showTime && row.showStatus ->
+                        context.getString(R.string.today_widget_row_subtitle, row.time, row.status)
+                    row.showTime -> row.time.orEmpty()
+                    row.showStatus -> row.status.orEmpty()
+                    else -> ""
+                }
+                views.setTextViewText(R.id.today_widget_row_subtitle, subtitle)
+                views.setTextViewTextSize(
+                    R.id.today_widget_row_subtitle, TypedValue.COMPLEX_UNIT_SP,
+                    appearance.metaSp.toFloat(),
+                )
+                views.setViewVisibility(
+                    R.id.today_widget_row_subtitle,
+                    if (row.showTime || row.showStatus) View.VISIBLE else View.GONE,
+                )
+                views.textColor(
+                    context, R.id.today_widget_row_subtitle, R.color.today_widget_secondary,
+                    if (explicit) colors.secondaryText else null,
+                )
+            }
+            // 读屏摘要只用快照里的完整任务名称与已开启的真实详情。
+            views.setContentDescription(R.id.today_widget_row, row.contentDescription)
+            views.setOnClickPendingIntent(
+                R.id.today_widget_row, activityIntent(context, widgetId, row.id),
+            )
             return views
+        }
+
+        // 显式主题用具体 ARGB；跟随系统时在 API 31+ 交给宿主解析资源，低版本用 App 上下文解析。
+        private fun RemoteViews.textColor(context: Context, id: Int, resource: Int, explicit: Int?) {
+            if (explicit == null && Build.VERSION.SDK_INT >= 31) {
+                setColor(id, "setTextColor", resource)
+            } else {
+                setTextColor(id, explicit ?: context.getColor(resource))
+            }
+        }
+
+        private fun RemoteViews.backgroundColor(context: Context, id: Int, resource: Int, explicit: Int?) {
+            if (explicit == null && Build.VERSION.SDK_INT >= 31) {
+                setColor(id, "setBackgroundColor", resource)
+            } else {
+                setInt(id, "setBackgroundColor", explicit ?: context.getColor(resource))
+            }
+        }
+
+        private fun surfaceDrawable(theme: String, radiusDp: Int): Int = when (theme) {
+            TodayWidgetAppearance.THEME_LIGHT -> when (radiusDp) {
+                8 -> R.drawable.today_widget_background_light_r8
+                12 -> R.drawable.today_widget_background_light_r12
+                else -> R.drawable.today_widget_background_light
+            }
+            TodayWidgetAppearance.THEME_DARK -> when (radiusDp) {
+                8 -> R.drawable.today_widget_background_dark_r8
+                12 -> R.drawable.today_widget_background_dark_r12
+                else -> R.drawable.today_widget_background_dark
+            }
+            else -> when (radiusDp) {
+                8 -> R.drawable.today_widget_background_r8
+                12 -> R.drawable.today_widget_background_r12
+                else -> R.drawable.today_widget_background
+            }
+        }
+
+        private fun rowBackground(theme: String): Int = when (theme) {
+            TodayWidgetAppearance.THEME_LIGHT -> R.drawable.today_widget_row_background_light
+            TodayWidgetAppearance.THEME_DARK -> R.drawable.today_widget_row_background_dark
+            else -> R.drawable.today_widget_row_background
         }
 
         private fun activityIntent(context: Context, widgetId: Int, missionId: String?): PendingIntent {
@@ -401,6 +705,71 @@ abstract class TodayWidgetProvider(
     }
 }
 
+/**
+ * Launcher 尺寸归一：API 31+ 读 `OPTION_APPWIDGET_SIZES`（过滤非有限/非正、去重、最多 16 个，
+ * 超限取最小面积的保守有效尺寸），API 24–30 / OEM 不报时用 `MIN_WIDTH`/`MIN_HEIGHT`，
+ * 无效再回落到 provider 声明尺寸。返回单位是 dp。
+ */
+internal object TodayWidgetSizes {
+    private const val MAX_ENTRIES = 16
+
+    fun resolve(options: Bundle, defaultWidthDp: Int, defaultHeightDp: Int): List<SizeF> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            @Suppress("DEPRECATION")
+            val reported = options.getParcelableArrayList<SizeF>(AppWidgetManager.OPTION_APPWIDGET_SIZES)
+            val valid = reported.orEmpty()
+                .filter { it.width.isFinite() && it.height.isFinite() && it.width > 0f && it.height > 0f }
+                .distinctBy { it.width to it.height }
+            if (valid.isNotEmpty()) {
+                if (valid.size > MAX_ENTRIES) {
+                    val conservative = valid.minByOrNull { it.width.toDouble() * it.height } ?: valid.first()
+                    return listOf(conservative)
+                }
+                return valid
+            }
+        }
+        val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, defaultWidthDp)
+            .takeIf { it > 0 } ?: defaultWidthDp
+        val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, defaultHeightDp)
+            .takeIf { it > 0 } ?: defaultHeightDp
+        return listOf(SizeF(width.toFloat(), height.toFloat()))
+    }
+}
+
+/**
+ * 规划器的字体度量适配。
+ *
+ * 字号用 `TypedValue.deriveDimension`（API 34+ 支持非线性字体缩放），低版本退回
+ * `applyDimension`；行高取 `Paint.FontMetrics` 的真实 ascent/descent，不用 `sp × fontScale` 估算。
+ */
+internal class AndroidWidgetTextMetrics(context: Context) : WidgetTextMetrics {
+    private val displayMetrics = context.resources.displayMetrics
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    }
+
+    override fun textWidthPx(text: String, sizeSp: Int): Float {
+        paint.textSize = sizePx(sizeSp)
+        return paint.measureText(text)
+    }
+
+    override fun lineHeightPx(sizeSp: Int): Float {
+        paint.textSize = sizePx(sizeSp)
+        val fontMetrics = paint.fontMetrics
+        return fontMetrics.descent - fontMetrics.ascent
+    }
+
+    private fun sizePx(sizeSp: Int): Float = if (Build.VERSION.SDK_INT >= 34) {
+        TypedValue.deriveDimension(
+            TypedValue.COMPLEX_UNIT_SP, sizeSp.toFloat(), displayMetrics,
+        )
+    } else {
+        TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_SP, sizeSp.toFloat(), displayMetrics,
+        )
+    }
+}
+
 /** System time/package events and the app's best-effort Shanghai date rollover alarm. */
 class TodayWidgetDateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -410,6 +779,126 @@ class TodayWidgetDateReceiver : BroadcastReceiver() {
             TodayWidgetProvider.MIDNIGHT_ACTION -> TodayWidgetProvider.refreshDate(context)
         }
     }
+}
+
+/**
+ * 设置内预览回执：纯计算，不写偏好、不查 SQLite、不更新 Launcher。
+ *
+ * 与桌面同一份 [TodayWidgetLayoutPlanner]、同一份颜色角色与固定 6 条示例快照；
+ * 尺寸优先取该尺寸类别已有实例的真实有效尺寸（`sizeSource=widget`），否则用参考尺寸。
+ */
+internal object TodayWidgetPreview {
+    private const val REFERENCE_SMALL = 109
+    private const val REFERENCE_MEDIUM_WIDTH = 220
+    private const val REFERENCE_MEDIUM_HEIGHT = 109
+    private const val REFERENCE_LARGE = 220
+
+    fun build(context: Context, arguments: Any?): Map<String, Any?> {
+        val args = arguments as? Map<*, *> ?: throw IllegalArgumentException("参数必须是 Map")
+        val appearanceMap = args["appearance"] as? Map<*, *>
+            ?: throw IllegalArgumentException("appearance 必须是 Map")
+        val draft = TodayWidgetAppearance.fromMap(appearanceMap)
+        val sizeClass = WidgetSizeClass.fromWire(args["sizeClass"] as? String)
+            ?: throw IllegalArgumentException("sizeClass 取值非法")
+        val themeArgument = (args["theme"] as? String) ?: TodayWidgetAppearance.THEME_SYSTEM
+        require(themeArgument in TodayWidgetAppearance.THEMES) { "theme 取值非法：$themeArgument" }
+        val theme = TodayWidgetProvider.resolveTheme(context, themeArgument)
+        val size = previewSize(context, sizeClass)
+        val density = context.resources.displayMetrics.density
+        val plan = TodayWidgetLayoutPlanner.plan(
+            WidgetPlanRequest(
+                sizeClass = sizeClass,
+                widthPx = Math.round(size.widthDp * density).coerceAtLeast(1),
+                heightPx = Math.round(size.heightDp * density).coerceAtLeast(1),
+                density = density,
+                textMetrics = AndroidWidgetTextMetrics(context),
+                appearance = draft,
+                state = WidgetSnapshotState.DATA,
+                items = sampleItems(context),
+                total = SAMPLE_TOTAL,
+                labels = TodayWidgetProvider.labels(context, sizeClass, todayDate()),
+                theme = theme,
+            ),
+        )
+        return TodayWidgetPreviewPayload.build(
+            plan = plan,
+            sizeClass = sizeClass,
+            sizeSource = size.source,
+            widthDp = size.widthDp,
+            heightDp = size.heightDp,
+        )
+    }
+
+    private data class PreviewSize(val widthDp: Int, val heightDp: Int, val source: String)
+
+    private fun previewSize(context: Context, sizeClass: WidgetSizeClass): PreviewSize {
+        val spec = TodayWidgetProvider.specFor(sizeClass)
+        val manager = AppWidgetManager.getInstance(context)
+        val ids = manager.getAppWidgetIds(ComponentName(context, spec.provider))
+        for (id in ids) {
+            val sizes = TodayWidgetSizes.resolve(
+                manager.getAppWidgetOptions(id), spec.defaultWidthDp, spec.defaultHeightDp,
+            )
+            val size = sizes.firstOrNull() ?: continue
+            return PreviewSize(
+                widthDp = Math.round(size.width).coerceAtLeast(1),
+                heightDp = Math.round(size.height).coerceAtLeast(1),
+                source = "widget",
+            )
+        }
+        return when (sizeClass) {
+            WidgetSizeClass.SMALL -> PreviewSize(REFERENCE_SMALL, REFERENCE_SMALL, "reference")
+            WidgetSizeClass.MEDIUM -> PreviewSize(
+                REFERENCE_MEDIUM_WIDTH, REFERENCE_MEDIUM_HEIGHT, "reference",
+            )
+            WidgetSizeClass.LARGE -> PreviewSize(REFERENCE_LARGE, REFERENCE_LARGE, "reference")
+        }
+    }
+
+    private const val SAMPLE_TOTAL = 6
+
+    /** 固定 6 条示例：第 1 条当前时段（带计划进度文案），第 2–5 条待开始，第 6 条自选时间。 */
+    private fun sampleItems(context: Context): List<WidgetItem> {
+        val titles = context.resources.getStringArray(R.array.today_widget_sample_titles)
+        fun title(index: Int): String =
+            titles.getOrNull(index) ?: context.getString(R.string.today_widget_untitled)
+        val progress = context.getString(R.string.today_widget_sample_progress)
+        return listOf(
+            WidgetItem(
+                id = "sample-1", title = title(0), startText = "08:00", endText = "09:40",
+                statusText = context.getString(R.string.today_widget_phase_running),
+                flexibleTime = false, currentSlot = true, progressText = progress,
+            ),
+            WidgetItem(
+                id = "sample-2", title = title(1), startText = "10:00", endText = "11:40",
+                statusText = context.getString(R.string.today_widget_phase_not_started),
+                flexibleTime = false, currentSlot = false, progressText = null,
+            ),
+            WidgetItem(
+                id = "sample-3", title = title(2), startText = "14:00", endText = "15:40",
+                statusText = context.getString(R.string.today_widget_phase_not_started),
+                flexibleTime = false, currentSlot = false, progressText = null,
+            ),
+            WidgetItem(
+                id = "sample-4", title = title(3), startText = "16:00", endText = "16:50",
+                statusText = context.getString(R.string.today_widget_phase_not_started),
+                flexibleTime = false, currentSlot = false, progressText = null,
+            ),
+            WidgetItem(
+                id = "sample-5", title = title(4), startText = "18:30", endText = "19:20",
+                statusText = context.getString(R.string.today_widget_phase_not_started),
+                flexibleTime = false, currentSlot = false, progressText = null,
+            ),
+            WidgetItem(
+                id = "sample-6", title = title(5), startText = null, endText = null,
+                statusText = context.getString(R.string.today_widget_phase_not_started),
+                flexibleTime = true, currentSlot = false, progressText = null,
+            ),
+        )
+    }
+
+    private fun todayDate(): String =
+        ZonedDateTime.now(ZoneId.of("Asia/Shanghai")).toLocalDate().toString()
 }
 
 /** The same narrow channel is used by the visible and headless Flutter engines. */
@@ -422,15 +911,25 @@ internal object TodayWidgetChannel {
         channel.setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
-                    "getAppearance" -> result.success(TodayWidgetAppearance.read(context).toMap())
+                    "getAppearance" -> result.success(appearanceEnvelope(context))
                     "setAppearance" -> {
-                        val values = call.arguments as? Map<*, *>
+                        val arguments = call.arguments as? Map<*, *>
                             ?: throw IllegalArgumentException("appearance 必须是 Map")
-                        TodayWidgetAppearance.save(context, values)
-                        // Style updates reuse the current native cache; no Dart query or widget re-add.
-                        TodayWidgetProvider.updateAll(context)
-                        result.success(TodayWidgetAppearance.read(context).toMap())
+                        val values = arguments["appearance"] as? Map<*, *>
+                            ?: throw IllegalArgumentException("appearance 必须是 Map")
+                        val saved = TodayWidgetAppearanceStore.save(context, values)
+                        // 保存与重绘是两个结果：保存成功不因重绘失败报失败。
+                        result.success(
+                            mapOf(
+                                "appearance" to saved.toMap(),
+                                "widgets" to TodayWidgetProvider.redrawSafely(context),
+                            ),
+                        )
                     }
+                    "redrawWidgets" -> result.success(
+                        mapOf("widgets" to TodayWidgetProvider.redrawSafely(context)),
+                    )
+                    "previewAppearance" -> result.success(TodayWidgetPreview.build(context, call.arguments))
                     "beginSnapshot" -> {
                         result.success(if (TodayWidgetProvider.hasInstances(context)) ++generation else null)
                     }
@@ -451,11 +950,25 @@ internal object TodayWidgetChannel {
                     }
                     else -> result.notImplemented()
                 }
+            } catch (error: IllegalArgumentException) {
+                // 契约：非法外观一律 invalidAppearance + 中文 message，Dart 保留草稿并显示。
+                result.error("invalidAppearance", error.message ?: "外观取值非法", null)
             } catch (error: Exception) {
                 result.error("today_widget_failed", error.message, null)
             }
         }
         return channel
+    }
+
+    private fun appearanceEnvelope(context: Context): Map<String, Any?> {
+        val snapshot = TodayWidgetAppearanceStore.read(context)
+        return linkedMapOf(
+            "version" to TodayWidgetAppearance.VERSION,
+            "appearance" to snapshot.appearance.toMap(),
+            "defaults" to TodayWidgetAppearance.defaults.toMap(),
+            "recovered" to snapshot.recovered,
+            "source" to snapshot.source.wire,
+        )
     }
 }
 

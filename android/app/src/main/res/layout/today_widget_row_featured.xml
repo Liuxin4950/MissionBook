@@ -1,26 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  小号焦点行：任务名最多两行 + 一行辅助信息。与上下布局结构一致，
+  只是默认行数更宽松；实际字号、行数与可见性仍由规划器结果显式设置。
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/today_widget_row"
     android:layout_width="match_parent"
-    android:layout_height="0dp"
-    android:layout_weight="1">
+    android:layout_height="wrap_content">
+
     <ImageView
-        android:id="@+id/today_widget_row_surface"
-        android:layout_width="match_parent"
+        android:id="@+id/today_widget_row_spine"
+        android:layout_width="3dp"
         android:layout_height="match_parent"
         android:importantForAccessibility="no"
-        android:scaleType="fitXY"
-        android:src="@drawable/today_widget_row_background" />
+        android:layout_gravity="start" />
 
     <LinearLayout
+        android:id="@+id/today_widget_row_content"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
         android:gravity="center_vertical"
-        android:orientation="vertical"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp">
+        android:orientation="vertical">
 
         <TextView
             android:id="@+id/today_widget_row_title"
@@ -31,17 +32,25 @@
             android:includeFontPadding="false"
             android:maxLines="2"
             android:textColor="@color/today_widget_primary"
-            android:textSize="18sp" />
+            android:textSize="12sp" />
 
         <TextView
             android:id="@+id/today_widget_row_subtitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
+            android:layout_marginTop="2dp"
             android:ellipsize="end"
             android:includeFontPadding="false"
-            android:maxLines="2"
+            android:maxLines="1"
             android:textColor="@color/today_widget_secondary"
-            android:textSize="13sp" />
+            android:textSize="11sp" />
     </LinearLayout>
+
+    <View
+        android:id="@+id/today_widget_row_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_gravity="bottom"
+        android:background="@color/today_widget_hairline"
+        android:importantForAccessibility="no" />
 </FrameLayout>

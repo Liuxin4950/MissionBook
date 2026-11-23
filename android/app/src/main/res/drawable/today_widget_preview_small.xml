@@ -1,14 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  选择器小号预览（2×2）：暖白纸页、森林绿书脊、字号收紧。
+  用色块表示 12sp 标题 / 11sp 辅助信息，不是运行时截图。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="109dp" android:height="109dp"
-    android:viewportWidth="109" android:viewportHeight="109">
-    <path android:fillColor="@color/today_widget_surface" android:strokeWidth="1"
-        android:strokeColor="@color/today_widget_outline"
-        android:pathData="M20,1H89Q108,1 108,20V89Q108,108 89,108H20Q1,108 1,89V20Q1,1 20,1Z" />
-    <path android:fillColor="@color/today_widget_row_fill" android:pathData="M9,32H100V60H9Z" />
-    <path android:fillColor="@color/today_widget_accent"
-        android:pathData="M11,12H27V25H11ZM14,10V15M24,10V15 M75,17H97V21H75Z" />
-    <path android:fillColor="@color/today_widget_surface" android:pathData="M14,17H24V22H14Z" />
-    <path android:fillColor="@color/today_widget_primary" android:pathData="M15,38H48V42H15Z" />
-    <path android:fillColor="@color/today_widget_secondary" android:pathData="M15,47H39V50H15Z" />
+    android:width="109dp"
+    android:height="109dp"
+    android:viewportWidth="109"
+    android:viewportHeight="109">
+
+    <!-- 卡片：圆角 16dp + 细线 -->
+    <path
+        android:fillColor="@color/today_widget_content"
+        android:pathData="M17,1H92A16,16 0,0 1,108,17V92A16,16 0,0 1,92,108H17A16,16 0,0 1,1,92V17A16,16 0,0 1,17,1Z"
+        android:strokeColor="@color/today_widget_hairline"
+        android:strokeWidth="1" />
+
+    <!-- 题头：今日 + 日期 -->
+    <path android:fillColor="@color/today_widget_primary" android:pathData="M13,14H34V20H13Z" />
+    <path android:fillColor="@color/today_widget_secondary" android:pathData="M80,15H96V19H80Z" />
+
+    <!-- 焦点行：左侧 3dp 书脊，任务名两行，辅助信息一行 -->
+    <path android:fillColor="@color/today_widget_spine" android:pathData="M13,32H16V64H13Z" />
+    <path android:fillColor="@color/today_widget_primary" android:pathData="M22,34H84V40H22ZM22,45H62V51H22Z" />
+    <path android:fillColor="@color/today_widget_secondary" android:pathData="M22,56H55V60H22Z" />
+
+    <!-- 尾部（另有 N 项）用品牌绿提示可点 -->
+    <path android:fillColor="@color/today_widget_accent" android:pathData="M60,87H92V91H60Z" />
 </vector>

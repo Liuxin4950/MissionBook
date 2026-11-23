@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件明亮令牌（契约第 3 节）：暖白纸页 + 森林绿书脊；深色另见 values-night。 -->
 <resources>
-    <color name="today_widget_surface">#EEF0FF</color>
-    <color name="today_widget_row_fill">#F8F8FF</color>
-    <color name="today_widget_outline">#DDE2FC</color>
-    <color name="today_widget_primary">#242741</color>
-    <color name="today_widget_secondary">#4B5174</color>
-    <color name="today_widget_accent">#414990</color>
+    <color name="today_widget_surface">#F7F8F5</color>
+    <color name="today_widget_content">#FFFFFF</color>
+    <color name="today_widget_row_fill">#EEF2EC</color>
+    <color name="today_widget_spine">#244D3D</color>
+    <color name="today_widget_primary">#282E2A</color>
+    <color name="today_widget_secondary">#626A64</color>
+    <color name="today_widget_accent">#244D3D</color>
+    <color name="today_widget_warn">#805D28</color>
+    <color name="today_widget_hairline">#E0E5DD</color>
 </resources>

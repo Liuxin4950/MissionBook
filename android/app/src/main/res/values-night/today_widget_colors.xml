@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件深色令牌；只属于桌面组件，不给 App 新增全局深色主题。 -->
 <resources>
-    <color name="today_widget_surface">#222641</color>
-    <color name="today_widget_row_fill">#2B3050</color>
-    <color name="today_widget_outline">#41476C</color>
-    <color name="today_widget_primary">#F1F2FF</color>
-    <color name="today_widget_secondary">#CCD0EE</color>
-    <color name="today_widget_accent">#D2D6FF</color>
+    <color name="today_widget_surface">#1B251F</color>
+    <color name="today_widget_content">#202C24</color>
+    <color name="today_widget_row_fill">#26382E</color>
+    <color name="today_widget_spine">#A7C9B3</color>
+    <color name="today_widget_primary">#EEF2EC</color>
+    <color name="today_widget_secondary">#B8C9BE</color>
+    <color name="today_widget_accent">#A7C9B3</color>
+    <color name="today_widget_warn">#E7C48B</color>
+    <color name="today_widget_hairline">#33453A</color>
 </resources>

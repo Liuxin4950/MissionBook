@@ -1,25 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  宽槽三槽行：时间—任务—状态同一行。只有规划器判定可用宽足够时才使用；
+  时间/状态关闭时对应 TextView 由 RemoteViews 设为 GONE，任务名占满剩余宽度。
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/today_widget_row"
     android:layout_width="match_parent"
-    android:layout_height="0dp"
-    android:layout_weight="1"
-    android:layout_marginBottom="4dp">
+    android:layout_height="wrap_content">
+
     <ImageView
-        android:id="@+id/today_widget_row_surface"
-        android:layout_width="match_parent"
+        android:id="@+id/today_widget_row_spine"
+        android:layout_width="3dp"
         android:layout_height="match_parent"
         android:importantForAccessibility="no"
-        android:scaleType="fitXY"
-        android:src="@drawable/today_widget_row_background" />
+        android:layout_gravity="start" />
 
     <LinearLayout
+        android:id="@+id/today_widget_row_content"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
         android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp">
+        android:orientation="horizontal">
 
         <TextView
             android:id="@+id/today_widget_row_time"
@@ -31,37 +33,36 @@
             android:textColor="@color/today_widget_secondary"
             android:textSize="11sp" />
 
-        <ImageView
-            android:id="@+id/today_widget_row_accent"
-            android:layout_width="3dp"
-            android:layout_height="16dp"
-            android:layout_marginStart="6dp"
-            android:layout_marginEnd="8dp"
-            android:importantForAccessibility="no"
-            android:background="@color/today_widget_accent" />
-
         <TextView
             android:id="@+id/today_widget_row_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
             android:layout_weight="1"
             android:ellipsize="end"
             android:fontFamily="sans-serif-medium"
             android:includeFontPadding="false"
             android:maxLines="1"
             android:textColor="@color/today_widget_primary"
-            android:textSize="13sp" />
+            android:textSize="12sp" />
 
         <TextView
-            android:id="@+id/today_widget_row_subtitle"
+            android:id="@+id/today_widget_row_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="6dp"
             android:ellipsize="end"
             android:includeFontPadding="false"
-            android:maxWidth="88dp"
             android:maxLines="1"
-            android:textColor="@color/today_widget_secondary"
+            android:textColor="@color/today_widget_accent"
             android:textSize="11sp" />
     </LinearLayout>
+
+    <View
+        android:id="@+id/today_widget_row_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_gravity="bottom"
+        android:background="@color/today_widget_hairline"
+        android:importantForAccessibility="no" />
 </FrameLayout>
