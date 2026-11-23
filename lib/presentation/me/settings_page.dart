@@ -24,6 +24,7 @@ import '../../application/settings/app_device.dart';
 import '../../core/theme/app_layout.dart';
 import '../../core/theme/colors.dart';
 import '../widgets/app_top_bar.dart';
+import '../widgets/detail_pane.dart';
 
 /// 从个人页打开的设置工作区，集中管理提醒权限、计划提醒和本地备份。
 class SettingsPage extends StatefulWidget {
@@ -51,12 +52,30 @@ class _SettingsPageState extends State<SettingsPage>
   bool _about = false;
   bool _savingScheduleSettings = false;
   String? _scheduleSettingsError;
+  bool _showTodayWidgetEditor = false;
+  final _todayWidgetEditorKey = GlobalKey<TodayWidgetAppearanceEditorState>();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_refresh());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 宽屏从侧栏换页时，详情右栏守卫与顶栏/系统返回都询问编辑器的未保存草稿。
+    DetailPaneScope.maybeOf(
+      context,
+    )?.registerTopGuard(_mayLeaveSettings, route: ModalRoute.of(context));
+  }
+
+  Future<bool> _mayLeaveSettings() async {
+    if (!_showTodayWidgetEditor) return true;
+    final editor = _todayWidgetEditorKey.currentState;
+    if (editor == null) return true;
+    return editor.confirmLeave();
   }
 
   @override
@@ -296,16 +315,41 @@ class _SettingsPageState extends State<SettingsPage>
             key: const Key('settings-today-widget-entry'),
             icon: Icons.widgets_outlined,
             title: '桌面小组件',
-            subtitle: '颜色与文字大小',
-            onTap: () => showAdaptiveSheet<void>(
-              context: context,
-              builder: (_) => const TodayWidgetAppearanceSheet(),
+            subtitle: '样式、字号、间距与显示内容',
+            trailing: Icon(
+              _showTodayWidgetEditor ? Icons.expand_less : Icons.expand_more,
+              size: AppLayout.iconMd,
+              color: AppColors.textSecondary,
             ),
+            onTap: _toggleTodayWidgetEditor,
           ),
+          if (_showTodayWidgetEditor) ...[
+            _rowDivider,
+            TodayWidgetAppearanceEditor(
+              key: _todayWidgetEditorKey,
+              onClose: () {
+                if (mounted) setState(() => _showTodayWidgetEditor = false);
+              },
+            ),
+          ],
         ],
       ],
     ),
   );
+
+  /// 收起编辑器与系统/顶栏返回都先经过编辑器的未保存草稿确认。
+  Future<void> _toggleTodayWidgetEditor() async {
+    if (!_showTodayWidgetEditor) {
+      setState(() => _showTodayWidgetEditor = true);
+      return;
+    }
+    final editor = _todayWidgetEditorKey.currentState;
+    if (editor != null) {
+      await editor.requestClose();
+    } else if (mounted) {
+      setState(() => _showTodayWidgetEditor = false);
+    }
+  }
 
   List<Widget> _motionRows(MotionSettingsScope scope) {
     final settings = scope.settings;

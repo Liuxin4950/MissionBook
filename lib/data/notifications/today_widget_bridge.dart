@@ -104,6 +104,47 @@ class TodayWidgetBridge {
   static const channel = MethodChannel('mission_book/today_widget');
   static const _retryDelay = Duration(seconds: 30);
   final MissionService _missions;
+
+  /// 外观读取：返回原生归一化外观、默认值、恢复标记和来源。
+  /// 只读偏好，不触发任务查询，也不重绘桌面。
+  static Future<Map<String, Object?>> getAppearance() =>
+      _invokeAppearance('getAppearance');
+
+  /// 外观保存：原生校验后原子保存，再用同一份快照重绘已有实例。
+  static Future<Map<String, Object?>> setAppearance(
+    Map<String, Object?> appearance,
+  ) => _invokeAppearance('setAppearance', {'appearance': appearance});
+
+  /// 只用已保存外观与缓存快照重绘；不读取任务库，也不写偏好。
+  static Future<Map<String, Object?>> redrawWidgets() =>
+      _invokeAppearance('redrawWidgets');
+
+  /// 预览：给原生同一份草稿、尺寸类别和临时示例主题，取回排版计划。
+  static Future<Map<String, Object?>> previewAppearance({
+    required Map<String, Object?> appearance,
+    required String sizeClass,
+    required String theme,
+  }) => _invokeAppearance('previewAppearance', {
+    'appearance': appearance,
+    'sizeClass': sizeClass,
+    'theme': theme,
+  });
+
+  static Future<Map<String, Object?>> _invokeAppearance(
+    String method, [
+    Object? arguments,
+  ]) async {
+    final result = await channel.invokeMapMethod<String, Object?>(
+      method,
+      arguments,
+    );
+    if (result == null) {
+      // 空回执不能当作已保存或默认值；调用方据此显示失败与重试。
+      throw const FormatException('桌面小组件服务没有返回外观结果');
+    }
+    return result;
+  }
+
   late final StreamSubscription<void> _changes;
   Timer? _retry;
   Future<void>? _inFlight;
