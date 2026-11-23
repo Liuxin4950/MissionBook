@@ -9,6 +9,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -108,6 +110,45 @@ abstract class TodayWidgetProvider(
 
         internal fun specFor(sizeClass: WidgetSizeClass): WidgetProviderSpec =
             specs.first { it.sizeClass == sizeClass }
+
+        /** 用桌面同一个 RemoteViews renderer 生成设置预览位图，避免 Flutter 另画一套。 */
+        internal fun renderPreviewPng(
+            context: Context,
+            sizeClass: WidgetSizeClass,
+            appearance: TodayWidgetAppearance,
+            plan: WidgetPlan,
+            widthPx: Int,
+            heightPx: Int,
+        ): ByteArray {
+            val views = applyPlan(
+                context = context,
+                widgetId = 0,
+                plan = plan,
+                appearance = appearance,
+                labels = labels(
+                    context, sizeClass, ZonedDateTime.now(scheduleZone).toLocalDate().toString(),
+                ),
+                theme = plan.theme,
+            )
+            val rendered = views.apply(context, null)
+            rendered.measure(
+                View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(heightPx, View.MeasureSpec.EXACTLY),
+            )
+            rendered.layout(0, 0, widthPx, heightPx)
+            val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+            try {
+                rendered.draw(Canvas(bitmap))
+                return java.io.ByteArrayOutputStream().use { output ->
+                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                        "小组件预览位图编码失败"
+                    }
+                    output.toByteArray()
+                }
+            } finally {
+                bitmap.recycle()
+            }
+        }
 
         private data class Day(val total: Int, val rows: List<Row>, val featured: Row?)
         private data class Row(
@@ -573,18 +614,35 @@ abstract class TodayWidgetProvider(
             views.setViewPadding(
                 R.id.today_widget_row, 0, metrics.rowPaddingPx, 0, metrics.rowPaddingPx,
             )
-            // 索引卡的行底与 3dp 书脊由同一张图片承载；纸页/极简不要行底。
-            views.setImageViewResource(
-                R.id.today_widget_row_surface,
-                if (theme == WidgetPlan.THEME_DARK) {
+            // 规划器已为书脊/时间轴预留行首空间；RemoteViews 不会自动应用该度量，
+            // 因此显式给内容层加左右内边距，保证预览与桌面文字起点一致。
+            views.setViewPadding(
+                R.id.today_widget_row_content,
+                metrics.rowStartInsetPx, 0, metrics.rowEndInsetPx, 0,
+            )
+            // 卡片与时间轴都用同一层 ImageView 承载，避免 RemoteViews 在不同 Launcher 上
+            // 对动态 background 的支持差异；纸页/极简显式隐藏，防止宿主复用旧行底。
+            val rowSurface = when (appearance.style) {
+                TodayWidgetAppearance.STYLE_TIMELINE -> when {
+                    theme == WidgetPlan.THEME_DARK && row.currentSlot ->
+                        R.drawable.today_widget_row_timeline_current_dark
+                    theme == WidgetPlan.THEME_DARK -> R.drawable.today_widget_row_timeline_dark
+                    row.currentSlot -> R.drawable.today_widget_row_timeline_current_light
+                    else -> R.drawable.today_widget_row_timeline_light
+                }
+                else -> if (theme == WidgetPlan.THEME_DARK) {
                     R.drawable.today_widget_row_index_dark
                 } else {
                     R.drawable.today_widget_row_index_light
-                },
-            )
+                }
+            }
+            views.setImageViewResource(R.id.today_widget_row_surface, rowSurface)
             views.setViewVisibility(
                 R.id.today_widget_row_surface,
-                if (appearance.style == TodayWidgetAppearance.STYLE_INDEX && Build.VERSION.SDK_INT >= 31) {
+                if ((appearance.style == TodayWidgetAppearance.STYLE_INDEX ||
+                        appearance.style == TodayWidgetAppearance.STYLE_TIMELINE) &&
+                    Build.VERSION.SDK_INT >= 31
+                ) {
                     View.VISIBLE
                 } else {
                     View.GONE
@@ -815,13 +873,22 @@ internal object TodayWidgetPreview {
                 theme = theme,
             ),
         )
+        val widthPx = Math.round(size.widthDp * density).coerceAtLeast(1)
+        val heightPx = Math.round(size.heightDp * density).coerceAtLeast(1)
         return TodayWidgetPreviewPayload.build(
             plan = plan,
             sizeClass = sizeClass,
             sizeSource = size.source,
             widthDp = size.widthDp,
             heightDp = size.heightDp,
-        )
+        ).toMutableMap().apply {
+            put(
+                "renderedPng",
+                TodayWidgetProvider.renderPreviewPng(
+                    context, sizeClass, draft, plan, widthPx, heightPx,
+                ),
+            )
+        }
     }
 
     private data class PreviewSize(val widthDp: Int, val heightDp: Int, val source: String)

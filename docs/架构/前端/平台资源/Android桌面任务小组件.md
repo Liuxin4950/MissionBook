@@ -11,7 +11,7 @@
 | 大 | 220×220dp | 同上，行数更多；放不下时尾部「另有 N 项」或题头 `+N` |
 
 - 暖白纸页与森林绿：外底 `#F7F8F5`、正文面 `#FFFFFF`、浅绿 `#EEF2EC`、森林绿 `#244D3D`、主/次文字 `#282E2A/#626A64`、细线 `#E0E5DD`；组件深色独立为 `#1B251F/#202C24/#26382E/#EEF2EC/#B8C9BE/#A7C9B3/#E7C48B`，不引入 App 全局暗色主题。
-- 三种样式：**纸页清单**（默认，开放任务行 + 两侧缩进的细分隔线）、**索引卡**（接近纸白的浅底 + 左侧 3dp 书脊 + 行角 8dp）、**极简**（无行底色条，仅文字与缩进分隔）。分隔线不贯穿卡片边缘；行底色收至弱对比，避免多块实色造成视觉割裂。平板橱窗门闲置时为低对比发丝线，悬停/聚焦/拖动才加强品牌色，折叠把手改为窄圆角矩形以降低突兀感。样式不重置用户已调数值与信息开关。
+- 四种样式：**纸页清单**（默认，开放任务行 + 两侧缩进的细分隔线）、**课程卡片**（接近纸白的浅底 + 左侧 3dp 书脊 + 行角 8dp）、**极简**（无行底色条，仅文字与缩进分隔）和 **任务时间轴**（细轨、圆节点、当前时段强调面）。设置页预览图由同一份 `RemoteViews` 生成，避免 Flutter 与桌面各自绘制造成样式漂移。分隔线不贯穿卡片边缘；行底色收至弱对比，避免多块实色造成视觉割裂。平板橱窗门闲置时为低对比发丝线，悬停/聚焦/拖动才加强品牌色，折叠把手改为窄圆角矩形以降低突兀感。样式不重置用户已调数值与信息开关。
 - 详细规范、字段取值域与通道回执见[小组件外观契约 v2](../../../设计/小组件外观契约v2.md)。
 
 ## 外观配置
@@ -75,7 +75,7 @@ MissionService.changes / App 恢复 / 组件首次添加或上海日期轮换
 | [today_widget_bridge.dart](../../../../lib/data/notifications/today_widget_bridge.dart) | Dart 只读快照协议与外观通道转发 |
 | [today_widget_appearance.dart](../../../../lib/data/settings/today_widget_appearance.dart) | v2 外观模型、取值域、保存回执与预览 DTO |
 | [today_widget_appearance_sheet.dart](../../../../lib/presentation/me/today_widget_appearance_sheet.dart) | 设置内外观编辑器（草稿、保存、重绘、离开守卫） |
-| [today_widget_preview.dart](../../../../lib/presentation/me/today_widget_preview.dart) | 按原生预览回执绘制的小/中/大预览画布 |
+| [today_widget_preview.dart](../../../../lib/presentation/me/today_widget_preview.dart) | 展示原生同 renderer 生成的小/中/大预览图与来源信息 |
 | [TodayWidgetProvider.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/TodayWidgetProvider.kt) | 三种 `AppWidgetProvider`、RemoteViews 渲染、尺寸解析、原子缓存、日期轮换、通道处理 |
 | [TodayWidgetAppearance.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/TodayWidgetAppearance.kt) | v2 外观模型、校验、AtomicFile 持久化、v1 迁移与恢复 |
 | [TodayWidgetLayoutPlanner.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/TodayWidgetLayoutPlanner.kt) | 纯布局规划器与预览回执组装 |

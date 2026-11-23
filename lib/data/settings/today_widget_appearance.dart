@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../notifications/today_widget_bridge.dart';
 
 /// 桌面小组件外观的线格式版本。原生与 Dart 都只接受这个版本。
@@ -12,13 +14,17 @@ abstract interface class TodayWidgetWireValue {
 enum TodayWidgetStyle implements TodayWidgetWireValue {
   paper('paper'),
   indexCard('index'),
-  minimal('minimal');
+  minimal('minimal'),
+  timeline('timeline');
 
   const TodayWidgetStyle(this.wire);
 
   @override
   final String wire;
 }
+
+/// 一键套用的外观组合。预设只改当前编辑草稿，不增加持久化字段。
+enum TodayWidgetPreset { balanced, courseCards, timeline, compact, darkForest }
 
 /// 小组件色彩，独立于应用自身的浅色主题。
 enum TodayWidgetTheme implements TodayWidgetWireValue {
@@ -489,6 +495,110 @@ class TodayWidgetAppearance {
   );
 }
 
+extension TodayWidgetPresetDetails on TodayWidgetPreset {
+  String get label => switch (this) {
+    TodayWidgetPreset.balanced => '均衡纸页',
+    TodayWidgetPreset.courseCards => '课程卡片',
+    TodayWidgetPreset.timeline => '任务时间轴',
+    TodayWidgetPreset.compact => '紧凑清单',
+    TodayWidgetPreset.darkForest => '墨绿深色',
+  };
+
+  String get description => switch (this) {
+    TodayWidgetPreset.balanced => '留白均衡，适合日常查看',
+    TodayWidgetPreset.courseCards => '白色卡片，突出课程层次',
+    TodayWidgetPreset.timeline => '用节点与连线突出当前任务',
+    TodayWidgetPreset.compact => '减少装饰，尽可能显示更多任务',
+    TodayWidgetPreset.darkForest => '深色背景，夜间更安静',
+  };
+
+  TodayWidgetAppearance applyTo(TodayWidgetAppearance current) =>
+      switch (this) {
+        TodayWidgetPreset.balanced => TodayWidgetAppearance.defaults,
+        TodayWidgetPreset.courseCards => current.copyWith(
+          style: TodayWidgetStyle.indexCard,
+          theme: TodayWidgetTheme.light,
+          headerSp: 13,
+          taskSp: 13,
+          metaSp: 11,
+          horizontalPaddingDp: 10,
+          verticalPaddingDp: 7,
+          rowPaddingDp: 6,
+          rowGapDp: 6,
+          radiusDp: 16,
+          showDetails: true,
+          timeMode: TodayWidgetTimeMode.range,
+          showStatus: true,
+          showDate: true,
+          showMore: true,
+          rowLimit: 3,
+        ),
+        TodayWidgetPreset.timeline => current.copyWith(
+          style: TodayWidgetStyle.timeline,
+          theme: TodayWidgetTheme.light,
+          headerSp: 13,
+          taskSp: 13,
+          metaSp: 11,
+          horizontalPaddingDp: 10,
+          verticalPaddingDp: 7,
+          rowPaddingDp: 5,
+          rowGapDp: 2,
+          radiusDp: 16,
+          showDetails: true,
+          timeMode: TodayWidgetTimeMode.range,
+          showStatus: true,
+          showDate: true,
+          showMore: true,
+          rowLimit: 4,
+        ),
+        TodayWidgetPreset.compact => current.copyWith(
+          style: TodayWidgetStyle.minimal,
+          theme: TodayWidgetTheme.system,
+          headerSp: 12,
+          taskSp: 12,
+          metaSp: 10,
+          horizontalPaddingDp: 8,
+          verticalPaddingDp: 4,
+          rowPaddingDp: 3,
+          rowGapDp: 2,
+          radiusDp: 12,
+          showDetails: true,
+          timeMode: TodayWidgetTimeMode.start,
+          showStatus: true,
+          showDate: false,
+          showMore: true,
+          rowLimit: 5,
+        ),
+        TodayWidgetPreset.darkForest => current.copyWith(
+          style: TodayWidgetStyle.indexCard,
+          theme: TodayWidgetTheme.dark,
+          headerSp: 13,
+          taskSp: 13,
+          metaSp: 11,
+          horizontalPaddingDp: 10,
+          verticalPaddingDp: 7,
+          rowPaddingDp: 5,
+          rowGapDp: 6,
+          radiusDp: 12,
+          showDetails: true,
+          timeMode: TodayWidgetTimeMode.range,
+          showStatus: true,
+          showDate: true,
+          showMore: true,
+          rowLimit: 3,
+        ),
+      };
+}
+
+extension TodayWidgetAppearancePreset on TodayWidgetAppearance {
+  TodayWidgetPreset? get matchingPreset {
+    for (final preset in TodayWidgetPreset.values) {
+      if (preset.applyTo(this) == this) return preset;
+    }
+    return null;
+  }
+}
+
 /// `getAppearance` 的完整回执。
 class TodayWidgetAppearanceRead {
   const TodayWidgetAppearanceRead({
@@ -538,6 +648,7 @@ class TodayWidgetPreview {
     required this.spineVisible,
     required this.dividerVisible,
     required this.sample,
+    required this.renderedPng,
   });
 
   final int version;
@@ -567,6 +678,9 @@ class TodayWidgetPreview {
   /// 契约要求预览数据固定为示例；设置页必须标出「示例数据」。
   final bool sample;
 
+  /// 原生使用与桌面相同的 RemoteViews 渲染器生成，Flutter 不再仿画组件。
+  final Uint8List renderedPng;
+
   factory TodayWidgetPreview.fromMap(Map<Object?, Object?> map) {
     final version = _readInt(map, 'version');
     if (version != TodayWidgetAppearance.currentVersion) {
@@ -579,6 +693,10 @@ class TodayWidgetPreview {
     final rawRows = map['rows'];
     if (rawRows is! List<Object?>) {
       throw FormatException('小组件预览 rows 无效：$rawRows');
+    }
+    final rawImage = map['renderedPng'];
+    if (rawImage is! Uint8List || rawImage.isEmpty) {
+      throw FormatException('小组件预览 renderedPng 缺失或无效：$rawImage');
     }
     return TodayWidgetPreview(
       version: version,
@@ -618,6 +736,7 @@ class TodayWidgetPreview {
       spineVisible: _readRequiredBool(map, 'spineVisible'),
       dividerVisible: _readRequiredBool(map, 'dividerVisible'),
       sample: _readBool(map, 'sample', fallback: true),
+      renderedPng: rawImage,
     );
   }
 }
@@ -733,6 +852,7 @@ class TodayWidgetPreviewRow {
     this.time,
     this.status,
     this.progress,
+    this.currentSlot = false,
   });
 
   final String? time;
@@ -744,6 +864,7 @@ class TodayWidgetPreviewRow {
 
   /// 仅当前时段行有值；是计划进度文案，不是执行事实。
   final String? progress;
+  final bool currentSlot;
 
   factory TodayWidgetPreviewRow.fromMap(Map<Object?, Object?> map) =>
       TodayWidgetPreviewRow(
@@ -754,6 +875,7 @@ class TodayWidgetPreviewRow {
         showStatus: _readBool(map, 'showStatus', fallback: false),
         titleMaxLines: _readInt(map, 'titleMaxLines', min: 1, max: 2),
         progress: _readNullableString(map, 'progress'),
+        currentSlot: _readBool(map, 'currentSlot', fallback: false),
       );
 }
 

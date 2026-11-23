@@ -465,11 +465,22 @@ class TodayWidgetAppearanceEditorState
           children: [
             const AppSectionHeader('样式与颜色', subtle: true),
             const SizedBox(height: AppLayout.spaceSm),
-            _fieldLabel('样式'),
+            _fieldLabel('风格预设'),
+            Text(
+              '预设会一次调整版式、颜色、字号和间距；应用后仍可继续细调。',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: AppLayout.spaceSm),
+            _presetPicker(context, draft),
+            const SizedBox(height: AppLayout.spaceMd),
+            _fieldLabel('版式'),
             AppSegmentedControl<TodayWidgetStyle>(
               options: const {
                 TodayWidgetStyle.paper: '纸页清单',
-                TodayWidgetStyle.indexCard: '索引卡',
+                TodayWidgetStyle.indexCard: '课程卡片',
+                TodayWidgetStyle.timeline: '任务时间轴',
                 TodayWidgetStyle.minimal: '极简',
               },
               selected: draft.style,
@@ -634,6 +645,110 @@ class TodayWidgetAppearanceEditorState
       ),
     );
   }
+
+  Widget _presetPicker(BuildContext context, TodayWidgetAppearance draft) {
+    final selected = draft.matchingPreset;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tileWidth = constraints.maxWidth >= 620 ? 188.0 : 160.0;
+        return Wrap(
+          spacing: AppLayout.spaceSm,
+          runSpacing: AppLayout.spaceSm,
+          children: [
+            for (final preset in TodayWidgetPreset.values)
+              _presetTile(
+                context,
+                preset,
+                selected: selected == preset,
+                width: tileWidth,
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _presetTile(
+    BuildContext context,
+    TodayWidgetPreset preset, {
+    required bool selected,
+    required double width,
+  }) {
+    final theme = Theme.of(context);
+    final borderColor = selected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.outlineVariant;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${preset.label}预设，${preset.description}',
+      child: InkWell(
+        key: ValueKey('today-widget-preset-${preset.name}'),
+        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        onTap: _canEdit
+            ? () => _apply((current) => preset.applyTo(current))
+            : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          width: width,
+          constraints: const BoxConstraints(minHeight: 84),
+          padding: const EdgeInsets.all(AppLayout.spaceSm),
+          decoration: BoxDecoration(
+            color: selected
+                ? theme.colorScheme.primary.withValues(alpha: .08)
+                : theme.colorScheme.surface,
+            border: Border.all(color: borderColor, width: selected ? 1.5 : 1),
+            borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(_presetIcon(preset), color: theme.colorScheme.primary),
+              const SizedBox(width: AppLayout.spaceSm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      preset.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      preset.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (selected)
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static IconData _presetIcon(TodayWidgetPreset preset) => switch (preset) {
+    TodayWidgetPreset.balanced => Icons.auto_awesome_outlined,
+    TodayWidgetPreset.courseCards => Icons.view_agenda_outlined,
+    TodayWidgetPreset.timeline => Icons.timeline_outlined,
+    TodayWidgetPreset.compact => Icons.density_small,
+    TodayWidgetPreset.darkForest => Icons.dark_mode_outlined,
+  };
 
   Widget _fieldLabel(String text) => Padding(
     padding: const EdgeInsets.only(

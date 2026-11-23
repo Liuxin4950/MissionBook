@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_layout.dart';
@@ -42,9 +40,9 @@ class TodayWidgetPreviewPane extends StatelessWidget {
       children: [
         AppSegmentedControl<TodayWidgetSizeClass>(
           options: const {
-            TodayWidgetSizeClass.small: '小号',
-            TodayWidgetSizeClass.medium: '中号',
-            TodayWidgetSizeClass.large: '大号',
+            TodayWidgetSizeClass.small: '小方形',
+            TodayWidgetSizeClass.medium: '横向宽卡',
+            TodayWidgetSizeClass.large: '大方形',
           },
           selected: sizeClass,
           onSelected: onSizeClassChanged,
@@ -156,10 +154,8 @@ class TodayWidgetPreviewPane extends StatelessWidget {
   }
 }
 
-/// 按原生预览计划绘制的小组件画面。
-///
-/// 色调、字号、间距、圆角、头尾和空态都来自回执；画面按真实宽高比放置，
-/// 外层用 FittedBox 缩放，不参与设置页的字体缩放。
+/// 直接显示 Android 用桌面同一份 RemoteViews 渲染出的图像。
+/// 设置页只负责按比例缩放，不再用 Flutter 复制原生排版，避免两套 renderer 漂移。
 class TodayWidgetPreviewCanvas extends StatelessWidget {
   const TodayWidgetPreviewCanvas({super.key, required this.preview});
 
@@ -167,385 +163,38 @@ class TodayWidgetPreviewCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = preview.widthDp.toDouble();
-    final height = preview.heightDp.toDouble();
-    final ratio = width / height;
+    final ratio = preview.widthDp / preview.heightDp;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final available = constraints.maxWidth;
-        var canvasWidth = available;
-        var canvasHeight = ratio == 0 ? 0.0 : available / ratio;
+        var width = constraints.maxWidth;
+        var height = width / ratio;
         const maxHeight = 280.0;
-        if (canvasHeight > maxHeight) {
-          canvasHeight = maxHeight;
-          canvasWidth = canvasHeight * ratio;
+        if (height > maxHeight) {
+          height = maxHeight;
+          width = height * ratio;
         }
         return Center(
-          child: SizedBox(
-            width: canvasWidth,
-            height: canvasHeight,
-            child: Semantics(
-              container: true,
-              label: _semanticsLabel(),
-              child: ExcludeSemantics(
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: SizedBox(
-                    key: const Key('today-widget-preview-surface'),
-                    width: width,
-                    height: height,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(
-                        preview.metrics.radius.toDouble(),
-                      ),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: _color(preview.colors.content),
-                          border: Border.all(
-                            color: _color(preview.colors.hairline),
-                            width: 1,
-                          ),
-                          borderRadius: BorderRadius.circular(
-                            preview.metrics.radius.toDouble(),
-                          ),
-                        ),
-                        child: MediaQuery.withNoTextScaling(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: preview.metrics.horizontalPadding
-                                  .toDouble(),
-                              vertical: preview.metrics.verticalPadding
-                                  .toDouble(),
-                            ),
-                            child: _content(),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+          child: Semantics(
+            container: true,
+            image: true,
+            label: _semanticsLabel(),
+            child: ExcludeSemantics(
+              child: SizedBox(
+                key: const Key('today-widget-preview-surface'),
+                width: width,
+                height: height,
+                child: Image.memory(
+                  preview.renderedPng,
+                  fit: BoxFit.fill,
+                  gaplessPlayback: true,
+                  excludeFromSemantics: true,
+                  filterQuality: FilterQuality.medium,
                 ),
               ),
             ),
           ),
         );
       },
-    );
-  }
-
-  Widget _content() {
-    final metrics = preview.metrics;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (preview.header.visible)
-          SizedBox(height: metrics.headerHeight.toDouble(), child: _header()),
-        Expanded(
-          child: preview.empty == TodayWidgetPreviewEmpty.none
-              ? _rows()
-              : _emptyState(),
-        ),
-        if (preview.footer.visible)
-          SizedBox(height: metrics.footerHeight.toDouble(), child: _footer()),
-      ],
-    );
-  }
-
-  Widget _header() {
-    final header = preview.header;
-    final metrics = preview.metrics;
-    final primary = _textStyle(
-      metrics.headerSp,
-      _color(preview.colors.primaryText),
-      FontWeight.w700,
-    );
-    final secondary = _textStyle(
-      metrics.metaSp,
-      _color(preview.colors.secondaryText),
-      FontWeight.w400,
-    );
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            header.left,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: primary,
-          ),
-        ),
-        if (header.count case final count?) ...[
-          const SizedBox(width: 4),
-          Text(
-            count,
-            style: _textStyle(
-              metrics.metaSp,
-              _color(preview.colors.accent),
-              FontWeight.w600,
-            ),
-          ),
-        ],
-        const SizedBox(width: 4),
-        Text(header.right, maxLines: 1, style: secondary),
-      ],
-    );
-  }
-
-  Widget _rows() {
-    final metrics = preview.metrics;
-    // 计划已经决定可见行；用固定行高避免文字度量与原生计划出现第二套排版。
-    return ClipRect(
-      child: SingleChildScrollView(
-        physics: const NeverScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var index = 0; index < preview.rows.length; index++) ...[
-              if (index > 0) SizedBox(height: metrics.rowGap.toDouble()),
-              SizedBox(
-                key: ValueKey('today-widget-preview-row-$index'),
-                height: metrics.rowHeight.toDouble(),
-                child: _row(preview.rows[index], index: index),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _row(TodayWidgetPreviewRow row, {required int index}) {
-    final metrics = preview.metrics;
-    final colors = preview.colors;
-    final style = preview.style;
-    // 版式、书脊与分隔线都直接取原生计划，不在 Flutter 侧二次推断。
-    final wide = preview.rowLayout == TodayWidgetPreviewRowLayout.wide;
-    final showSpine = preview.spineVisible;
-    final hasMetaLine =
-        (row.showTime && row.time != null) ||
-        (row.showStatus && row.status != null);
-    final availableHeight = metrics.rowHeight - 2 * metrics.rowPadding;
-    final usedHeight =
-        row.titleMaxLines * (metrics.taskSp * 1.15) +
-        (hasMetaLine ? metrics.metaSp * 1.15 + 2 : 0);
-    final showProgress =
-        !wide &&
-        row.progress != null &&
-        availableHeight - usedHeight >= metrics.metaSp * 1.15;
-    final titleStyle = _textStyle(
-      metrics.taskSp,
-      _color(colors.primaryText),
-      FontWeight.w600,
-    );
-    final metaStyle = _textStyle(
-      metrics.metaSp,
-      _color(colors.secondaryText),
-      FontWeight.w400,
-    );
-    final statusColor = (row.status ?? '').contains('待确认')
-        ? _color(colors.warn)
-        : _color(colors.accent);
-    final statusStyle = _textStyle(
-      metrics.metaSp,
-      statusColor,
-      FontWeight.w600,
-    );
-    final Widget content;
-    if (!wide) {
-      content = SingleChildScrollView(
-        physics: const NeverScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              row.title,
-              maxLines: row.titleMaxLines,
-              overflow: TextOverflow.ellipsis,
-              style: titleStyle,
-            ),
-            if (row.showTime || row.showStatus) ...[
-              const SizedBox(height: 2),
-              Text.rich(
-                key: ValueKey('today-widget-preview-row-$index-meta'),
-                TextSpan(
-                  children: [
-                    if (row.showTime && row.time != null)
-                      TextSpan(text: row.time),
-                    if (row.showTime &&
-                        row.time != null &&
-                        row.showStatus &&
-                        row.status != null)
-                      const TextSpan(text: ' · '),
-                    if (row.showStatus && row.status != null)
-                      TextSpan(text: row.status, style: statusStyle),
-                  ],
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: metaStyle,
-              ),
-            ],
-            if (showProgress && row.progress != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                row.progress!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: metaStyle,
-              ),
-            ],
-          ],
-        ),
-      );
-    } else {
-      content = Row(
-        children: [
-          if (row.showTime && row.time != null) ...[
-            SizedBox(
-              width: math.max(38, metrics.metaSp * 4.0),
-              child: Text(
-                row.time!,
-                key: ValueKey('today-widget-preview-row-$index-time'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: metaStyle,
-              ),
-            ),
-            const SizedBox(width: 4),
-          ],
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const NeverScrollableScrollPhysics(),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    row.title,
-                    maxLines: row.titleMaxLines,
-                    overflow: TextOverflow.ellipsis,
-                    style: titleStyle,
-                  ),
-                  if (showProgress && row.progress != null)
-                    Text(
-                      row.progress!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: metaStyle,
-                    ),
-                ],
-              ),
-            ),
-          ),
-          if (row.showStatus && row.status != null) ...[
-            const SizedBox(width: 4),
-            Text(
-              row.status!,
-              key: ValueKey('today-widget-preview-row-$index-status'),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: statusStyle,
-            ),
-          ],
-        ],
-      );
-    }
-    final body = Padding(
-      padding: EdgeInsets.fromLTRB(
-        showSpine ? 0 : 2,
-        metrics.rowPadding.toDouble(),
-        2,
-        metrics.rowPadding.toDouble(),
-      ),
-      child: content,
-    );
-    final surface = DecoratedBox(
-      decoration: BoxDecoration(
-        color: style == TodayWidgetStyle.indexCard
-            ? _color(colors.rowSurface)
-            : Colors.transparent,
-        borderRadius: style == TodayWidgetStyle.indexCard
-            ? BorderRadius.circular(AppLayout.radiusSm)
-            : null,
-      ),
-      child: showSpine
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  key: ValueKey('today-widget-preview-row-$index-spine'),
-                  width: 3,
-                  decoration: BoxDecoration(
-                    color: _color(colors.spine),
-                    borderRadius: BorderRadius.circular(
-                      style == TodayWidgetStyle.indexCard ? 8 : 1.5,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(child: body),
-              ],
-            )
-          : body,
-    );
-    return Stack(
-      fit: StackFit.passthrough,
-      children: [
-        surface,
-        if (preview.dividerVisible)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              key: ValueKey('today-widget-preview-row-$index-divider'),
-              height: 1,
-              color: _color(colors.hairline),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _emptyState() {
-    final metrics = preview.metrics;
-    final text = switch (preview.empty) {
-      TodayWidgetPreviewEmpty.waiting => '等待同步',
-      TodayWidgetPreviewEmpty.empty => '今日暂无任务',
-      TodayWidgetPreviewEmpty.none => '',
-    };
-    return Center(
-      child: Text(
-        text,
-        maxLines: 2,
-        textAlign: TextAlign.center,
-        overflow: TextOverflow.ellipsis,
-        style: _textStyle(
-          metrics.metaSp,
-          _color(preview.colors.secondaryText),
-          FontWeight.w400,
-        ),
-      ),
-    );
-  }
-
-  Widget _footer() {
-    final footer = preview.footer;
-    final metrics = preview.metrics;
-    final text = footer.text;
-    if (text == null) return const SizedBox.shrink();
-    return Align(
-      alignment: AlignmentDirectional.centerEnd,
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: _textStyle(
-          metrics.metaSp,
-          _color(preview.colors.accent),
-          FontWeight.w600,
-        ),
-      ),
     );
   }
 
@@ -561,23 +210,14 @@ class TodayWidgetPreviewCanvas extends StatelessWidget {
     if (preview.empty == TodayWidgetPreviewEmpty.waiting) '等待同步',
     if (preview.empty == TodayWidgetPreviewEmpty.empty) '今日暂无任务',
   ].join('，');
-
-  static TextStyle _textStyle(int size, Color color, FontWeight weight) =>
-      TextStyle(
-        fontSize: size.toDouble(),
-        height: 1.15,
-        color: color,
-        fontWeight: weight,
-      );
-
-  static Color _color(int argb) => Color(argb);
 }
 
 extension TodayWidgetStyleLabel on TodayWidgetStyle {
   String get label => switch (this) {
     TodayWidgetStyle.paper => '纸页清单',
-    TodayWidgetStyle.indexCard => '索引卡',
+    TodayWidgetStyle.indexCard => '课程卡片',
     TodayWidgetStyle.minimal => '极简',
+    TodayWidgetStyle.timeline => '任务时间轴',
   };
 }
 
@@ -599,9 +239,9 @@ extension TodayWidgetTimeModeLabel on TodayWidgetTimeMode {
 
 extension TodayWidgetSizeClassLabel on TodayWidgetSizeClass {
   String get label => switch (this) {
-    TodayWidgetSizeClass.small => '小号',
-    TodayWidgetSizeClass.medium => '中号',
-    TodayWidgetSizeClass.large => '大号',
+    TodayWidgetSizeClass.small => '小方形',
+    TodayWidgetSizeClass.medium => '横向宽卡',
+    TodayWidgetSizeClass.large => '大方形',
   };
 }
 

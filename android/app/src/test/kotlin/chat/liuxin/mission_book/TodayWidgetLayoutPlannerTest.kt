@@ -441,7 +441,7 @@ class TodayWidgetLayoutPlannerTest {
         @Suppress("UNCHECKED_CAST")
         val rows = payload["rows"] as List<Map<String, Any?>>
         assertEquals(
-            setOf("time", "title", "status", "showTime", "showStatus", "titleMaxLines", "progress"),
+            setOf("time", "title", "status", "showTime", "showStatus", "titleMaxLines", "progress", "currentSlot"),
             rows.first().keys,
         )
         @Suppress("UNCHECKED_CAST")
@@ -469,6 +469,27 @@ class TodayWidgetLayoutPlannerTest {
         assertEquals(true, payload["spineVisible"])
         assertEquals(false, payload["dividerVisible"])
         assertEquals("widget", payload["sizeSource"])
+    }
+
+    @Test
+    fun `timeline style exposes current node and no divider`() {
+        val result = plan(
+            WidgetSizeClass.LARGE, 240, 260, listOf(
+                item(1, current = true), item(2), item(3),
+            ), total = 3,
+            appearance = TodayWidgetAppearance(style = TodayWidgetAppearance.STYLE_TIMELINE),
+        )
+        assertTrue(result.spineVisible)
+        assertFalse(result.dividerVisible)
+        assertTrue(result.rows.first().currentSlot)
+        assertFalse(result.rows[1].currentSlot)
+        val payload = TodayWidgetPreviewPayload.build(
+            plan = result, sizeClass = WidgetSizeClass.LARGE,
+            sizeSource = "reference", widthDp = 220, heightDp = 220,
+        )
+        @Suppress("UNCHECKED_CAST")
+        val rows = payload["rows"] as List<Map<String, Any?>>
+        assertEquals(true, rows.first()["currentSlot"])
     }
 
     @Test

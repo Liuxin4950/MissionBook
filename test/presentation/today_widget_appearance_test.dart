@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -124,6 +125,77 @@ Map<String, Object?> previewEnvelope({
   'spineVisible': spineVisible,
   'dividerVisible': dividerVisible,
   'sample': true,
+  // Mock the binary preview returned by Android's RemoteViews renderer.
+  'renderedPng': Uint8List.fromList(const [
+    0x89,
+    0x50,
+    0x4E,
+    0x47,
+    0x0D,
+    0x0A,
+    0x1A,
+    0x0A,
+    0x00,
+    0x00,
+    0x00,
+    0x0D,
+    0x49,
+    0x48,
+    0x44,
+    0x52,
+    0x00,
+    0x00,
+    0x00,
+    0x01,
+    0x00,
+    0x00,
+    0x00,
+    0x01,
+    0x08,
+    0x06,
+    0x00,
+    0x00,
+    0x00,
+    0x1F,
+    0x15,
+    0xC4,
+    0x89,
+    0x00,
+    0x00,
+    0x00,
+    0x0B,
+    0x49,
+    0x44,
+    0x41,
+    0x54,
+    0x78,
+    0x9C,
+    0x63,
+    0xF8,
+    0x0F,
+    0x04,
+    0x00,
+    0x09,
+    0xFB,
+    0x03,
+    0xFD,
+    0xFB,
+    0x5E,
+    0x6B,
+    0x2B,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x49,
+    0x45,
+    0x4E,
+    0x44,
+    0xAE,
+    0x42,
+    0x60,
+    0x82,
+  ]),
 };
 
 Map<Object?, Object?> _arguments(MethodCall call) {
@@ -248,6 +320,24 @@ void main() {
 
       final tolerant = appearanceMap({'futureField': 'ignored'});
       expect(TodayWidgetAppearance.fromMap(tolerant), defaults);
+    });
+
+    test('风格预设映射到完整草稿组合且不增加持久化字段', () {
+      final custom = TodayWidgetAppearance.defaults.copyWith(
+        taskSp: 18,
+        showDate: false,
+      );
+      final timeline = TodayWidgetPreset.timeline.applyTo(custom);
+      expect(timeline.style, TodayWidgetStyle.timeline);
+      expect(timeline.theme, TodayWidgetTheme.light);
+      expect(timeline.taskSp, 13);
+      expect(timeline.showDate, isTrue);
+      expect(timeline.toMap().length, 17);
+      expect(timeline.matchingPreset, TodayWidgetPreset.timeline);
+      expect(
+        TodayWidgetPreset.darkForest.applyTo(custom).theme,
+        TodayWidgetTheme.dark,
+      );
     });
 
     test('非整数、未知枚举、越界与非法版本都抛出 FormatException', () {
@@ -577,11 +667,16 @@ void main() {
       await pumpSettings(tester);
       await openEditor(tester);
       expect(previews, isNotEmpty);
-      expect(tester.widget<SizedBox>(find.byKey(_surface)).height, 109);
+      final initialPreview = tester.widget<SizedBox>(find.byKey(_surface));
+      expect(
+        initialPreview.width! / initialPreview.height!,
+        closeTo(220 / 109, .01),
+      );
 
       await tapVisible(tester, find.byKey(_previewLarge));
       expect(previews.last['sizeClass'], 'large');
-      expect(tester.widget<SizedBox>(find.byKey(_surface)).height, 220);
+      final largePreview = tester.widget<SizedBox>(find.byKey(_surface));
+      expect(largePreview.width, largePreview.height);
       expect(tester.widget<Text>(find.byKey(_status)).data, '已是最新');
 
       await tapVisible(tester, find.byKey(_previewDark));
@@ -638,16 +733,14 @@ void main() {
       );
       await tester.pump();
       await tester.pump();
-      expect(tester.widget<SizedBox>(find.byKey(_surface)).height, 220);
+      final latestPreview = tester.widget<SizedBox>(find.byKey(_surface));
+      expect(latestPreview.width, latestPreview.height);
 
       previews.first.complete(previewEnvelope());
       await tester.pump();
       await tester.pump();
-      expect(
-        tester.widget<SizedBox>(find.byKey(_surface)).height,
-        220,
-        reason: '旧回执不能覆盖新计划',
-      );
+      final afterOldReply = tester.widget<SizedBox>(find.byKey(_surface));
+      expect(afterOldReply.width, afterOldReply.height, reason: '旧回执不能覆盖新计划');
       expect(saves, 0);
     }, variant: const TargetPlatformVariant({TargetPlatform.android}));
 
@@ -893,7 +986,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('等待同步'), findsOneWidget);
+      expect(find.byType(Image), findsOneWidget);
       expect(find.text('空间不足，仅保留题头入口'), findsOneWidget);
       expect(find.text('示例数据'), findsOneWidget);
       expect(find.textContaining('参考尺寸 109 × 109 dp'), findsOneWidget);
@@ -957,94 +1050,28 @@ void main() {
     }, variant: const TargetPlatformVariant({TargetPlatform.android}));
   });
 
-  testWidgets('预览直接使用 rowLayout、书脊与分隔线字段', (tester) async {
-    Future<void> pumpPreview(Map<String, Object?> envelope) async {
-      final preview = TodayWidgetPreview.fromMap(envelope);
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          home: Scaffold(
-            body: Center(
-              child: SizedBox(
-                width: 400,
-                child: TodayWidgetPreviewCanvas(preview: preview),
-              ),
+  testWidgets('预览画布直接显示原生渲染回执', (tester) async {
+    final preview = TodayWidgetPreview.fromMap(
+      previewEnvelope(sizeClass: 'medium', widthDp: 220, heightDp: 109),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 400,
+              child: TodayWidgetPreviewCanvas(preview: preview),
             ),
           ),
         ),
-      );
-      await tester.pumpAndSettle();
-    }
-
-    await pumpPreview(previewEnvelope(rowLayout: 'wide', dividerVisible: true));
-    expect(
-      find.byKey(const Key('today-widget-preview-row-0-time')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('today-widget-preview-row-0-status')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('today-widget-preview-row-0-meta')),
-      findsNothing,
-    );
-    expect(
-      find.byKey(const Key('today-widget-preview-row-0-spine')),
-      findsNothing,
-    );
-    expect(
-      find.byKey(const Key('today-widget-preview-row-0-divider')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('today-widget-preview-row-1-divider')),
-      findsOneWidget,
-    );
-
-    await pumpPreview(previewEnvelope(rowLayout: 'stacked'));
-    expect(
-      find.byKey(const Key('today-widget-preview-row-0-meta')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('today-widget-preview-row-0-time')),
-      findsNothing,
-    );
-    expect(
-      find.byKey(const Key('today-widget-preview-row-0-divider')),
-      findsOneWidget,
-    );
-
-    await pumpPreview(
-      previewEnvelope(
-        style: 'index',
-        rowLayout: 'stacked',
-        spineVisible: true,
-        dividerVisible: false,
       ),
     );
-    expect(
-      find.byKey(const Key('today-widget-preview-row-0-spine')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('today-widget-preview-row-1-spine')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('today-widget-preview-row-0-divider')),
-      findsNothing,
-    );
-
-    for (final style in ['paper', 'minimal']) {
-      await pumpPreview(previewEnvelope(style: style, dividerVisible: true));
-      expect(
-        find.byKey(const Key('today-widget-preview-row-0-divider')),
-        findsOneWidget,
-        reason: '$style 有分隔线',
-      );
-    }
+    await tester.pumpAndSettle();
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.byKey(_surface), findsOneWidget);
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.image, isA<MemoryImage>());
   });
 
   testWidgets('预览画布按回执的真实宽高比、圆角与行绘制', (tester) async {
@@ -1072,22 +1099,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final surface = tester.widget<SizedBox>(find.byKey(_surface));
-    expect(surface.width, 220);
-    expect(surface.height, 220);
-    final clip = tester.widget<ClipRRect>(
-      find.descendant(
-        of: find.byKey(_surface),
-        matching: find.byType(ClipRRect),
-      ),
-    );
-    expect(clip.borderRadius, BorderRadius.circular(16));
-    expect(find.text('品牌与营销管理实务'), findsOneWidget);
-    expect(find.text('另有 4 项'), findsOneWidget);
-    expect(find.text('今日任务'), findsOneWidget);
-    expect(find.byKey(const Key('today-widget-preview-row-0')), findsOneWidget);
-    final row = tester.widget<SizedBox>(
-      find.byKey(const Key('today-widget-preview-row-0')),
-    );
-    expect(row.height, 32);
+    expect(surface.width, surface.height);
+    expect(surface.width, lessThanOrEqualTo(280));
+    expect(find.byType(Image), findsOneWidget);
   });
 }

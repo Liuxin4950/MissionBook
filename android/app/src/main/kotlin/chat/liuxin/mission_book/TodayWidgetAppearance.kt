@@ -89,6 +89,7 @@ internal data class TodayWidgetAppearance(
         const val STYLE_PAPER = "paper"
         const val STYLE_INDEX = "index"
         const val STYLE_MINIMAL = "minimal"
+        const val STYLE_TIMELINE = "timeline"
 
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT = "light"
@@ -98,7 +99,7 @@ internal data class TodayWidgetAppearance(
         const val TIME_START = "start"
         const val TIME_RANGE = "range"
 
-        val STYLES = linkedSetOf(STYLE_PAPER, STYLE_INDEX, STYLE_MINIMAL)
+        val STYLES = linkedSetOf(STYLE_PAPER, STYLE_INDEX, STYLE_MINIMAL, STYLE_TIMELINE)
         val THEMES = linkedSetOf(THEME_SYSTEM, THEME_LIGHT, THEME_DARK)
         val TIME_MODES = linkedSetOf(TIME_NONE, TIME_START, TIME_RANGE)
 

@@ -261,10 +261,12 @@ internal object TodayWidgetLayoutPlanner {
         )
         val footerHeightPx = maxOf(dp(FOOTER_MIN_DP, density), metrics.lineHeightPx(appearance.metaSp))
 
-        // 契约 2.4：只有 index 样式有书脊；paper/minimal 无行底，paper 与 minimal 都有分隔线，
-        // index 行间用背景条间隔、不用分隔线。
-        val spineVisible = appearance.style == TodayWidgetAppearance.STYLE_INDEX
-        val dividerVisible = appearance.style != TodayWidgetAppearance.STYLE_INDEX
+        // 契约 2.4：index 使用左书脊，timeline 使用时间轨；两者都不用行分隔线。
+        // paper/minimal 不铺行底并保留缩进分隔线。
+        val spineVisible = appearance.style == TodayWidgetAppearance.STYLE_INDEX ||
+            appearance.style == TodayWidgetAppearance.STYLE_TIMELINE
+        val dividerVisible = appearance.style != TodayWidgetAppearance.STYLE_INDEX &&
+            appearance.style != TodayWidgetAppearance.STYLE_TIMELINE
         val rowStartInsetPx = if (spineVisible) {
             px(SPINE_WIDTH_DP.roundToInt() + SPINE_GAP_DP.roundToInt(), density)
         } else {
@@ -699,6 +701,7 @@ internal object TodayWidgetPreviewPayload {
                 "showStatus" to row.showStatus,
                 "titleMaxLines" to row.titleMaxLines,
                 "progress" to row.progress,
+                "currentSlot" to row.currentSlot,
             )
         },
         "footer" to linkedMapOf(
