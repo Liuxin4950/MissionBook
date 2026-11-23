@@ -8,7 +8,8 @@
 | --- | --- |
 | [提醒恢复与资源释放](提醒恢复与资源释放.md) | 损坏提醒归档、系统撤销、编号重建、有界队列、后台只读与关闭顺序 |
 | [Windows 桌面助手](Windows桌面助手.md) | 可选安装目录、启动恢复、悬浮球与共享会话 |
-| [Android 悬浮助手与离线语音统一实施计划](../../../设计/Android悬浮助手与离线语音统一实施计划.md) | 截图后恢复、圆形快捷入口、语音后端预检与原生录音状态；规划稿，尚未实现 |
+| [Android 悬浮助手与离线语音统一实施计划](../../../设计/Android悬浮助手与离线语音统一实施计划.md) | 截图后恢复、圆形快捷入口、语音后端预检与原生录音状态；Android 已落地，设备验收待补 |
+| [悬浮语音通道契约](../../../设计/悬浮语音通道契约.md) | beginVoice/voice/cancelVoice 协议、错误码、主题令牌与语音设置一次性路由；本轮冻结 |
 | [Android 桌面任务小组件](Android桌面任务小组件.md) | 三种尺寸、只读日程快照、日期刷新和点击导航 |
 
 ## 恢复与释放
@@ -33,6 +34,9 @@
 | [NotificationAppearance.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/NotificationAppearance.kt) | 通知外观代次、原生秒表和超级岛图片/动作交接 |
 | [XiaomiFocusSupport.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/XiaomiFocusSupport.kt) | 系统支持、焦点权限与应用配置的独立查询 |
 | [AssistantOverlayService.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayService.kt) | 用户授权的 Android 跨应用助手气泡与前台通知 |
+| [AssistantOverlayQuickMenu.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayQuickMenu.kt) | 主球展开的圆形动作层：一级文字、语音、截图、更多（更多内含会话/截图/应用感知） |
+| [AssistantOverlayVoiceActivity.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayVoiceActivity.kt) | 票据化录音面板：准备、授权、计时、采集、转写状态与失败动作 |
+| [AssistantNativeTheme.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantNativeTheme.kt) | 原生自绘表面共用的颜色、字号、间距、圆角、触控与动效令牌 |
 | [AssistantCaptureConsentActivity.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantCaptureConsentActivity.kt) | 每次截屏前启动系统 MediaProjection 授权 |
 | [AssistantScreenCaptureService.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantScreenCaptureService.kt) | 普通单帧或自动轮询长截图捕获、重叠拼接、图片压缩、投影释放和助手交接 |
 | [MainActivity.kt](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/MainActivity.kt) | 系统桥、设备能力查询、备份/文件选择及助手截屏缓存交接与回收 |
@@ -69,6 +73,19 @@ transcribe → 请求身份 + 超时 → 识别结果
 
 启动、识别和关闭各有超时边界。并发 prepare 只初始化一次；测试注入 workerMain 验证协议，生产仍使用真实 FFI worker。
 
+跨应用悬浮录音比原位语音多一层票据，协议见[悬浮语音通道契约](../../../设计/悬浮语音通道契约.md)：
+
+```text
+悬浮动作球「语音」→ openVoice()：UUID 票据 → AssistantOverlayVoiceActivity
+   → beginVoice{ticket} → 预检离线模型或远程配置 → {ready, mode, draftKey, label}
+   → ready=true 才申请麦克风 → AudioRecord 16 kHz PCM16（≤30 s）
+   → voice{ticket, pcm} → 固定后端转写 → 追加到票据绑定的草稿
+   → voiceDone(ticket, draftKey) 回到原草稿输入区，不自动发送
+   → 关闭/返回/后台/超时/工作区切换 → cancelVoice（幂等）
+```
+
+`ready=false` 时原生绝不申请录音权限：`offline*`/`remote*` 错误额外给出「打开语音设置」，点击后以一次性路由 `assistant_route=voiceSettings` 启动 `MainActivity`，由 Flutter 外壳消费并打开现有助手设置的「语音输入」分组，返回回到原页面，重复启动不重复打开。
+
 ## 系统能力
 
 DeviceCapabilities 以唯一的 DevicePlatform 标识平台；通知、准时提醒和执行通知分别使用可空状态，未知不能显示为已授权。设置页按平台与对应权限状态展示入口。
@@ -78,12 +95,15 @@ DeviceCapabilities 以唯一的 DevicePlatform 标识平台；通知、准时提
 ## Android 跨应用助手
 
 - [AssistantWorkspaceHost](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantWorkspaceHost.kt) 让 MainActivity、悬浮和监督服务按需持有同一个主 FlutterEngine。[App 工作区](../../../../lib/app_services.dart)在页面构建前装配同一份业务资源，与计划任务唤醒引擎分开。最后一个持有者释放时先等工作区关闭。备份恢复先禁用监督、撤掉旧桥接，再重建工作区；有代次的回调不能落到新工作区。
-- [悬浮服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayService.kt)由本机开关和系统悬浮权限控制。进入或离开 MissionBook 不隐藏头像；打开完整会话、任务或记录只收面板，手动截图才临时隐藏头像。点头像先展开独立圆形动作球，聊天内容按高度滚动。窗口在同一屏幕坐标内避开头像、系统栏和键盘。
+- [悬浮服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayService.kt)由本机开关和系统悬浮权限控制。进入或离开 MissionBook 不隐藏头像；打开完整会话、任务或记录只收面板，手动截图才临时隐藏头像。[圆形动作层](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayQuickMenu.kt)是唯一入口：点头像先展开文字、语音、截图、更多四个动作球，更多再进会话、截图和应用感知，不再回到矩形工具首页。聊天内容按高度滚动，窗口在同一屏幕坐标内避开头像、系统栏和键盘。
+- 截图来源恢复：[AssistantOverlayService](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayService.kt) 的 `CaptureRestoreRules` 用发起来源（圆形动作层、会话、主动提醒）和结果（已投递或取消）算出恢复面：来源未知时只显示主球，绝不再自动创建矩形工具首页；会话来源回到原草稿，已投递时说明图片去向。主动提醒还要求当前不在截图中、没有待处理提醒且悬浮权限仍在，否则交回系统通知兜底。
+- 通知分流：`showNotice` 只接受带会话与文案的提示，展示失败立即清空待处理标记，不重试也不打开工具面板；任务提醒、执行通知仍由[应用通知服务](../../../../lib/application/notifications/app_notification_service.dart)负责。
 - [截图服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantScreenCaptureService.kt)仅开放手动单次授权，保留原编辑器的选区、全屏、长截图及一次性草稿交付。Android 14+ 选择单应用后按系统回调尺寸同步调整虚拟屏与图像缓冲，首帧迟到时有限重试。主动画面授权和取样已搁置。原生临时图交付后删除，未消费缓存到期清理。
 - [应用使用情况](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantUsageMonitorService.kt)需开启本机开关并授予 Android 使用情况访问。定时读取用于本地排期提醒，不调模型。发送悬浮消息时尝试现读，把当前 App 名称和估算连续时长交给本轮会话模型，不另选模型，不发送历史清单或截图。锁屏、暂停、无权限或查不到时不提供。授权偏好不进备份，前台信号不是任务执行事实。
-- [可见录音窗口](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayVoiceActivity.kt)仅由点按开始，提交短 PCM 到现有配置转写，结果回填同一草稿，取消不发送。未发草稿只保证同工作区进程内保留。原生 UI、投影、语音、系统手势和后台恢复仍以目标设备体验为准。
+- [可见录音窗口](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayVoiceActivity.kt)已改为票据化状态面板：只由点按开始，先 `beginVoice` 预检识别方式，`ready=true` 才申请麦克风并录短 PCM，`voice` 结果回填票据绑定的同一草稿，成功以 `ticket + draftKey` 调 `voiceDone` 回到原输入区，取消/返回/后台/超时都走幂等 `cancelVoice`，全程不自动发送。失败显示的 `message` 由 Dart 给出，原生只按错误码补「打开语音设置」「重试」「使用文字」等动作。原生 UI、投影、语音、系统手势和后台恢复仍以目标设备体验为准。
+- 原生主题：圆形动作层、聊天面板、截图工具栏/长截图控制条、录音面板和主动通知统一取 [AssistantNativeTheme](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantNativeTheme.kt) 的颜色、字号、间距、圆角、触控与动效令牌；色值来自全局语义色，不另建一套配色。截图预览的黑色媒体画布保留，其上的控制条用暖白加深森林绿。
 
-手动截图的授权/编辑 Activity 只负责申请投影、选择区域和结束自身；完成或取消时直接 `finish()` 返回截图前的应用，不调用 `MainActivity.assistantIntent()`。截图服务完成编码后仍通过 `AssistantOverlayService` 将图片交给当前悬浮草稿，并重新显示悬浮聊天，因此截图不会强制打开 MissionBook AI 页面。
+手动截图的授权/编辑 Activity 只负责申请投影、选择区域和结束自身；完成或取消时直接 `finish()` 返回截图前的应用，不调用 `MainActivity.assistantIntent()`。截图服务完成编码后仍通过 `AssistantOverlayService` 将图片交给当前悬浮草稿，并按来源恢复原会话或圆形动作层，因此截图不会强制打开 MissionBook AI 页面。
 
 
 ## 系统提醒调用链
@@ -143,6 +163,8 @@ flutter build apk --release --target-platform android-arm64
 [相机测试](../../../../test/presentation/evidence_camera_panel_test.dart)使用官方 CameraPlatform 替身，覆盖权限、控制器释放、后台迟到结果、保留照片重试、点按对焦及变焦滑杆。[语音测试](../../../../test/data/speech/sherpa_speech_engine_test.dart)使用真实 isolate 和协议替身，覆盖并发初始化、无握手、崩溃、超时及关闭重建。
 
 这些测试未加载真实模型和摄像头。真实麦克风、人声识别、FFI 兼容、系统权限弹窗、通知后台唤醒及设备照片质量仍需目标设备验证。
+
+本轮（2026-11-23）跨应用助手的自动化证据：`flutter analyze --no-pub` 无新增问题（仅既有 2 条 `windows_overlay` 基线）；`assistant_entry_test.dart` 88 项与外壳/分屏/语音设置/助手通道等定向 85 项通过；`cd android && ./gradlew :app:compileDebugKotlin --offline` 与 `:app:testDebugUnitTest --offline` 通过（JVM 77 项，含 `AssistantVoiceStateTest` 21 项与 `OverlaySourceRestoreTest` 10 项）。未构建 APK、未安装设备，因此圆形动作层触控、截图来源恢复、通知分流、悬浮语音面板视觉与语音设置深链的进入/返回路径仍以真机体验为准；用户掌握无新增证据。
 
 常驻通知在 Android 16 模拟器实际点击“全部清除”后验证四种状态保留，并验证未来提醒仍在队列、END/取消后撤销及迟到外观失效。超级岛协议投影已有运行、冻结和时钟回拨测试；模拟器不支持小米超级岛，厂商外观与鉴权仍待已开通的小米设备验收。具体数据与复验步骤见[本轮通知记录](../../../审查/2026-11-04-常驻提醒与超级岛.md)。
 

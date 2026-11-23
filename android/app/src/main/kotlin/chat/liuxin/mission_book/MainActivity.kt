@@ -42,6 +42,7 @@ class MainActivity : FlutterActivity() {
     private var pendingMission: String? = null
     private var pendingAssistantSession: String? = null
     private var pendingAssistantRecord: String? = null
+    private var pendingAssistantRoute: String? = null
     private var assistantOverlayChannel: MethodChannel? = null
     private var pendingWidgetOpen = false
     private var pendingWidgetMission: String? = null
@@ -56,6 +57,7 @@ class MainActivity : FlutterActivity() {
         pendingMission = intent?.getStringExtra(EXTRA_ASSISTANT_MISSION)
         pendingAssistantSession = intent?.getStringExtra(EXTRA_ASSISTANT_SESSION)
         pendingAssistantRecord = intent?.getStringExtra(EXTRA_ASSISTANT_RECORD)
+        captureAssistantRoute(intent)
         captureWidgetEntry(intent)
     }
 
@@ -98,6 +100,13 @@ class MainActivity : FlutterActivity() {
                         pendingAssistantRecord = null
                         intent?.removeExtra(EXTRA_ASSISTANT_RECORD)
                         result.success(id)
+                    }
+                    // 悬浮语音面板的「打开语音设置」：一次性取走，重复调用返回 null。
+                    "consumeAssistantRoute" -> {
+                        val route = pendingAssistantRoute
+                        pendingAssistantRoute = null
+                        intent?.removeExtra(AssistantOverlayVoiceActivity.EXTRA_ASSISTANT_ROUTE)
+                        result.success(route?.let { mapOf("route" to it) })
                     }
                     else -> result.notImplemented()
                 }
@@ -223,6 +232,10 @@ class MainActivity : FlutterActivity() {
         setIntent(intent)
         pendingAssistantSession = intent.getStringExtra(EXTRA_ASSISTANT_SESSION)
         captureWidgetEntry(intent)
+        // 热启动：应用已在运行时也要把同一份路由交给已在监听的外壳。
+        if (captureAssistantRoute(intent) != null) {
+            assistantOverlayChannel?.invokeMethod("pendingAssistantRoute", null)
+        }
         intent.getStringExtra(EXTRA_ASSISTANT_RECORD)?.let { id ->
             pendingAssistantRecord = id
             assistantOverlayChannel?.invokeMethod("pendingRecord", null)
@@ -246,9 +259,31 @@ class MainActivity : FlutterActivity() {
         if (pendingMission != null) assistantOverlayChannel?.invokeMethod("pendingMission", null)
         if (pendingAssistantRecord != null) assistantOverlayChannel?.invokeMethod("pendingRecord", null)
         if (pendingWidgetOpen) assistantOverlayChannel?.invokeMethod("pendingWidgetOpen", null)
+        if (pendingAssistantRoute != null) assistantOverlayChannel?.invokeMethod("pendingAssistantRoute", null)
         if (overlayEnabled() && Settings.canDrawOverlays(this)) {
             runCatching { sendOverlayAction(AssistantOverlayService.ACTION_SHOW) }
         }
+    }
+
+    /**
+     * 悬浮语音面板的「打开语音设置」路由：extra 由
+     * [AssistantOverlayVoiceActivity.EXTRA_ASSISTANT_ROUTE] 写入，取值
+     * [AssistantOverlayVoiceActivity.ROUTE_VOICE_SETTINGS]，两个常量只引用不复制。
+     *
+     * 路由自己决定落点，所以同一 intent 里的通用「打开助手」标志不再单独排队，
+     * 否则会先打开会话再叠一层设置页。extra 读到就立即移除，值只在内存暂存一次，
+     * 等 Flutter 调用 `consumeAssistantRoute` 取走；重复启动因此不会重复打开。
+     */
+    private fun captureAssistantRoute(intent: Intent?): String? {
+        val target = intent ?: return null
+        val route = target.getStringExtra(AssistantOverlayVoiceActivity.EXTRA_ASSISTANT_ROUTE)
+        target.removeExtra(AssistantOverlayVoiceActivity.EXTRA_ASSISTANT_ROUTE)
+        // 只接受契约登记的已知路由；未知值不打扰 Flutter 界面。
+        if (route != AssistantOverlayVoiceActivity.ROUTE_VOICE_SETTINGS) return null
+        pendingAssistantRoute = route
+        pendingAssistantOpen = false
+        target.removeExtra(EXTRA_OPEN_ASSISTANT)
+        return route
     }
 
     private fun captureWidgetEntry(intent: Intent?) {
