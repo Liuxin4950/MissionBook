@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 索引卡行底：左侧 3dp 森林绿书脊 + 浅绿圆角条；用图片承载，宿主不需要反射式背景方法。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#EEF2EC" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+    <item android:width="3dp" android:gravity="start">
+        <shape android:shape="rectangle">
+            <solid android:color="#244D3D" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+</layer-list>

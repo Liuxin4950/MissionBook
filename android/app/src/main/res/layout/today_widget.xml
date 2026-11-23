@@ -1,87 +1,102 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  小组件根容器：背景与四周留白都由 TodayWidgetProvider 按外观 v2 显式设置，
-  因此这里不写死 padding；内容从上往下排，不用 weight 撑高（内容决定高度）。
+  小组件根容器：外层 FrameLayout 只承载圆角卡片图片，内容在 root_content 内自上而下排列。
+  背景、外侧留白与点击都由 TodayWidgetProvider 按外观 v2 显式设置，这里只给默认值。
+  用图片表面而不是 setBackgroundResource：RemoteViews 的 setImageViewResource 是宿主稳定支持的接口。
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/today_widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/today_widget_card_surface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/today_widget_background" />
 
     <LinearLayout
-        android:id="@+id/today_widget_header"
+        android:id="@+id/today_widget_root_content"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:minHeight="24dp"
-        android:orientation="horizontal">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/today_widget_header"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:minHeight="24dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/today_widget_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="@string/today_widget_title"
+                android:textColor="@color/today_widget_primary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/today_widget_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:fontFamily="sans-serif-medium"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/today_widget_accent"
+                android:textSize="11sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/today_widget_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/today_widget_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/today_widget_rows"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
 
         <TextView
-            android:id="@+id/today_widget_title"
-            android:layout_width="0dp"
+            android:id="@+id/today_widget_empty"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:ellipsize="end"
-            android:fontFamily="sans-serif-medium"
             android:includeFontPadding="false"
-            android:maxLines="1"
-            android:text="@string/today_widget_title"
-            android:textColor="@color/today_widget_primary"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/today_widget_count"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:fontFamily="sans-serif-medium"
-            android:includeFontPadding="false"
-            android:maxLines="1"
-            android:textColor="@color/today_widget_accent"
+            android:maxLines="2"
+            android:paddingTop="4dp"
+            android:text="@string/today_widget_load"
+            android:textColor="@color/today_widget_secondary"
             android:textSize="11sp"
             android:visibility="gone" />
 
         <TextView
-            android:id="@+id/today_widget_date"
-            android:layout_width="wrap_content"
+            android:id="@+id/today_widget_more"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:gravity="center_vertical|end"
             android:includeFontPadding="false"
             android:maxLines="1"
-            android:textColor="@color/today_widget_secondary"
-            android:textSize="11sp" />
+            android:minHeight="20dp"
+            android:textColor="@color/today_widget_accent"
+            android:textSize="11sp"
+            android:visibility="gone" />
     </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/today_widget_rows"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical" />
-
-    <TextView
-        android:id="@+id/today_widget_empty"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:includeFontPadding="false"
-        android:maxLines="2"
-        android:paddingTop="4dp"
-        android:text="@string/today_widget_load"
-        android:textColor="@color/today_widget_secondary"
-        android:textSize="11sp"
-        android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/today_widget_more"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:gravity="center_vertical|end"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:minHeight="20dp"
-        android:textColor="@color/today_widget_accent"
-        android:textSize="11sp"
-        android:visibility="gone" />
-</LinearLayout>
+</FrameLayout>

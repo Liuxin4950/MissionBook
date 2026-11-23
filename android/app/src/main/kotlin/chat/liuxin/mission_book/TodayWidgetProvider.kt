@@ -19,6 +19,7 @@ import android.util.AtomicFile
 import android.util.SizeF
 import android.util.TypedValue
 import android.view.View
+import android.view.ViewGroup
 import android.widget.RemoteViews
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONObject
@@ -342,6 +343,16 @@ abstract class TodayWidgetProvider(
                 }
             }
             // 真机排查：把本次实际使用的尺寸与排出的行写进私有文件，便于在无日志环境核对。
+            // 同时在本进程试应用首行 RemoteViews，捕获宿主会静默吞掉的 ActionException。
+            val rowProbe = runCatching {
+                val probe = plan.rows.firstOrNull()?.let { buildRow(context, widgetId, it, plan, effective, theme) }
+                val applied = probe?.apply(context, null)
+                applied?.measure(
+                    View.MeasureSpec.makeMeasureSpec(size.width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                )
+                "ok h=${applied?.measuredHeight} kids=${(applied as? ViewGroup)?.childCount}"
+            }.getOrElse { "${it.javaClass.simpleName}: ${it.message}" }
             runCatching {
                 File(context.noBackupFilesDir, "today-widget-render.txt").writeText(
                     buildString {
@@ -350,12 +361,13 @@ abstract class TodayWidgetProvider(
                         appendLine("state=$state rows=${plan.rows.size} layout=${plan.rowLayout} overflow=${plan.overflow}")
                         appendLine("style=${effective.style} taskSp=${effective.taskSp} headerSp=${effective.headerSp}")
                         appendLine("header=${plan.header.left} | ${plan.header.right} | ${plan.header.count}")
+                        appendLine("rowApply=$rowProbe")
                         plan.rows.forEach { appendLine("row=${it.time} | ${it.title} | ${it.status}") }
                         append("footer=${plan.footer.visible} ${plan.footer.kind} ${plan.footer.text}")
                     },
                 )
             }
-            return applyPlan(context, widgetId, plan, effective, labels)
+            return applyPlan(context, widgetId, plan, effective, labels, theme)
         }
 
         private fun itemsFor(context: Context, sizeClass: WidgetSizeClass, day: Day?): List<WidgetItem> {
@@ -441,21 +453,21 @@ abstract class TodayWidgetProvider(
             plan: WidgetPlan,
             appearance: TodayWidgetAppearance,
             labels: WidgetLabels,
+            theme: String,
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.today_widget)
-            val explicit = appearance.theme != TodayWidgetAppearance.THEME_SYSTEM
             val colors = plan.colors
             val metrics = plan.metrics
             val openToday = activityIntent(context, widgetId, null)
 
-            // 圆角用真实 shape 资源（不是只改 outline），并显式换回系统主题资源。
-            views.setInt(
-                R.id.today_widget_root,
-                "setBackgroundResource",
-                surfaceDrawable(appearance.theme, appearance.radiusDp),
+            // 圆角与浅深都由卡片图片承载：setImageViewResource 是 RemoteViews 的一等接口，
+            // 不依赖宿主是否支持反射式 setBackgroundResource。
+            views.setImageViewResource(
+                R.id.today_widget_card_surface,
+                surfaceDrawable(theme, appearance.radiusDp),
             )
             views.setViewPadding(
-                R.id.today_widget_root,
+                R.id.today_widget_root_content,
                 metrics.horizontalPaddingPx,
                 metrics.verticalPaddingPx,
                 metrics.horizontalPaddingPx,
@@ -466,45 +478,35 @@ abstract class TodayWidgetProvider(
             views.setOnClickPendingIntent(R.id.today_widget_empty, openToday)
             views.setOnClickPendingIntent(R.id.today_widget_more, openToday)
 
-            views.setInt(R.id.today_widget_header, "setMinimumHeight", metrics.headerHeightPx)
             views.setTextViewText(R.id.today_widget_title, plan.header.left)
             views.setTextViewTextSize(
                 R.id.today_widget_title, TypedValue.COMPLEX_UNIT_SP, appearance.headerSp.toFloat(),
             )
-            views.textColor(
-                context, R.id.today_widget_title, R.color.today_widget_primary,
-                if (explicit) colors.primaryText else null,
-            )
+            views.setTextColor(R.id.today_widget_title, colors.primaryText)
             views.setTextViewText(R.id.today_widget_date, plan.header.right)
             views.setTextViewTextSize(
                 R.id.today_widget_date, TypedValue.COMPLEX_UNIT_SP, appearance.metaSp.toFloat(),
             )
+            views.setTextColor(R.id.today_widget_date, colors.secondaryText)
             views.setViewVisibility(
                 R.id.today_widget_date,
                 if (plan.header.right.isEmpty()) View.GONE else View.VISIBLE,
-            )
-            views.textColor(
-                context, R.id.today_widget_date, R.color.today_widget_secondary,
-                if (explicit) colors.secondaryText else null,
             )
             views.setTextViewText(R.id.today_widget_count, plan.header.count.orEmpty())
             views.setTextViewTextSize(
                 R.id.today_widget_count, TypedValue.COMPLEX_UNIT_SP, appearance.metaSp.toFloat(),
             )
+            views.setTextColor(R.id.today_widget_count, colors.accent)
             views.setViewVisibility(
                 R.id.today_widget_count,
                 if (plan.header.count == null) View.GONE else View.VISIBLE,
-            )
-            views.textColor(
-                context, R.id.today_widget_count, R.color.today_widget_accent,
-                if (explicit) colors.accent else null,
             )
 
             views.removeAllViews(R.id.today_widget_rows)
             for (row in plan.rows) {
                 views.addView(
                     R.id.today_widget_rows,
-                    buildRow(context, widgetId, row, plan, appearance),
+                    buildRow(context, widgetId, row, plan, appearance, theme),
                 )
             }
             views.setViewVisibility(
@@ -525,26 +527,19 @@ abstract class TodayWidgetProvider(
             views.setTextViewTextSize(
                 R.id.today_widget_empty, TypedValue.COMPLEX_UNIT_SP, appearance.metaSp.toFloat(),
             )
+            views.setTextColor(R.id.today_widget_empty, colors.secondaryText)
             views.setViewVisibility(
                 R.id.today_widget_empty, if (emptyVisible) View.VISIBLE else View.GONE,
             )
-            views.textColor(
-                context, R.id.today_widget_empty, R.color.today_widget_secondary,
-                if (explicit) colors.secondaryText else null,
-            )
 
-            views.setInt(R.id.today_widget_more, "setMinimumHeight", metrics.footerHeightPx)
             views.setTextViewText(R.id.today_widget_more, plan.footer.text.orEmpty())
             views.setTextViewTextSize(
                 R.id.today_widget_more, TypedValue.COMPLEX_UNIT_SP, appearance.metaSp.toFloat(),
             )
+            views.setTextColor(R.id.today_widget_more, colors.accent)
             views.setViewVisibility(
                 R.id.today_widget_more,
                 if (plan.footer.visible) View.VISIBLE else View.GONE,
-            )
-            views.textColor(
-                context, R.id.today_widget_more, R.color.today_widget_accent,
-                if (explicit) colors.accent else null,
             )
             return views
         }
@@ -555,6 +550,7 @@ abstract class TodayWidgetProvider(
             row: WidgetRowPlan,
             plan: WidgetPlan,
             appearance: TodayWidgetAppearance,
+            theme: String,
         ): RemoteViews {
             val layout = when {
                 plan.rowLayout == WidgetPlan.ROW_LAYOUT_WIDE -> R.layout.today_widget_row_compact
@@ -562,84 +558,78 @@ abstract class TodayWidgetProvider(
                 else -> R.layout.today_widget_row
             }
             val views = RemoteViews(context.packageName, layout)
-            val explicit = appearance.theme != TodayWidgetAppearance.THEME_SYSTEM
             val colors = plan.colors
             val metrics = plan.metrics
-            views.setInt(R.id.today_widget_row, "setMinimumHeight", metrics.rowHeightPx)
+            // 行高由规划器给出，API 31+ 用一等接口固定，行底图片才能可靠铺满；
+            // 旧版本退回内容高度（不启用会撑满的图片表面），保证文字可见。
+            if (Build.VERSION.SDK_INT >= 31) {
+                views.setViewLayoutHeight(
+                    R.id.today_widget_row,
+                    metrics.rowHeightPx.toFloat(),
+                    TypedValue.COMPLEX_UNIT_PX,
+                )
+            }
+            // 行内上下留白仍按外观 v2 可调；setViewPadding 是 RemoteViews 的一等接口。
             views.setViewPadding(
                 R.id.today_widget_row, 0, metrics.rowPaddingPx, 0, metrics.rowPaddingPx,
             )
-            views.setViewPadding(
-                R.id.today_widget_row_content,
-                metrics.rowStartInsetPx, 0, metrics.rowEndInsetPx, 0,
+            // 索引卡的行底与 3dp 书脊由同一张图片承载；纸页/极简不要行底。
+            views.setImageViewResource(
+                R.id.today_widget_row_surface,
+                if (theme == WidgetPlan.THEME_DARK) {
+                    R.drawable.today_widget_row_index_dark
+                } else {
+                    R.drawable.today_widget_row_index_light
+                },
             )
-            // 行底/书脊/分隔线每次显式设置：样式与浅深切换后宿主可能复用旧视图。
-            if (appearance.style == TodayWidgetAppearance.STYLE_INDEX) {
-                views.setInt(
-                    R.id.today_widget_row,
-                    "setBackgroundResource",
-                    rowBackground(appearance.theme),
-                )
-            } else {
-                views.setInt(R.id.today_widget_row, "setBackgroundColor", Color.TRANSPARENT)
-            }
             views.setViewVisibility(
-                R.id.today_widget_row_spine,
-                if (plan.spineVisible) View.VISIBLE else View.GONE,
+                R.id.today_widget_row_surface,
+                if (appearance.style == TodayWidgetAppearance.STYLE_INDEX && Build.VERSION.SDK_INT >= 31) {
+                    View.VISIBLE
+                } else {
+                    View.GONE
+                },
             )
-            if (plan.spineVisible) {
-                views.backgroundColor(
-                    context, R.id.today_widget_row_spine, R.color.today_widget_spine,
-                    if (explicit) colors.spine else null,
-                )
-            }
+            views.setImageViewResource(
+                R.id.today_widget_row_divider,
+                if (theme == WidgetPlan.THEME_DARK) {
+                    R.drawable.today_widget_row_divider_dark
+                } else {
+                    R.drawable.today_widget_row_divider_light
+                },
+            )
             views.setViewVisibility(
                 R.id.today_widget_row_divider,
                 if (plan.dividerVisible) View.VISIBLE else View.GONE,
             )
-            if (plan.dividerVisible) {
-                views.backgroundColor(
-                    context, R.id.today_widget_row_divider, R.color.today_widget_hairline,
-                    if (explicit) colors.hairline else null,
-                )
-            }
+            // 书脊已并入索引卡行底图片，独立 spine 视图不再使用，避免宿主复用旧视图。
+            views.setViewVisibility(R.id.today_widget_row_spine, View.GONE)
 
             views.setTextViewText(R.id.today_widget_row_title, row.title)
             views.setTextViewTextSize(
                 R.id.today_widget_row_title, TypedValue.COMPLEX_UNIT_SP, appearance.taskSp.toFloat(),
             )
-            // 行数由布局资源固定：featured 两行，row/compact 一行；规划器只会给出这两种组合，
-            // 这里不再用 setName 反射调用，避免宿主远程方法白名单差异。
-            views.textColor(
-                context, R.id.today_widget_row_title, R.color.today_widget_primary,
-                if (explicit) colors.primaryText else null,
-            )
+            views.setTextColor(R.id.today_widget_row_title, colors.primaryText)
             if (plan.rowLayout == WidgetPlan.ROW_LAYOUT_WIDE) {
                 views.setTextViewText(R.id.today_widget_row_time, row.time.orEmpty())
                 views.setTextViewTextSize(
                     R.id.today_widget_row_time, TypedValue.COMPLEX_UNIT_SP,
                     appearance.metaSp.toFloat(),
                 )
+                views.setTextColor(R.id.today_widget_row_time, colors.secondaryText)
                 views.setViewVisibility(
                     R.id.today_widget_row_time,
                     if (row.showTime) View.VISIBLE else View.GONE,
-                )
-                views.textColor(
-                    context, R.id.today_widget_row_time, R.color.today_widget_secondary,
-                    if (explicit) colors.secondaryText else null,
                 )
                 views.setTextViewText(R.id.today_widget_row_status, row.status.orEmpty())
                 views.setTextViewTextSize(
                     R.id.today_widget_row_status, TypedValue.COMPLEX_UNIT_SP,
                     appearance.metaSp.toFloat(),
                 )
+                views.setTextColor(R.id.today_widget_row_status, colors.accent)
                 views.setViewVisibility(
                     R.id.today_widget_row_status,
                     if (row.showStatus) View.VISIBLE else View.GONE,
-                )
-                views.textColor(
-                    context, R.id.today_widget_row_status, R.color.today_widget_accent,
-                    if (explicit) colors.accent else null,
                 )
             } else {
                 val subtitle = when {
@@ -654,13 +644,10 @@ abstract class TodayWidgetProvider(
                     R.id.today_widget_row_subtitle, TypedValue.COMPLEX_UNIT_SP,
                     appearance.metaSp.toFloat(),
                 )
+                views.setTextColor(R.id.today_widget_row_subtitle, colors.secondaryText)
                 views.setViewVisibility(
                     R.id.today_widget_row_subtitle,
                     if (row.showTime || row.showStatus) View.VISIBLE else View.GONE,
-                )
-                views.textColor(
-                    context, R.id.today_widget_row_subtitle, R.color.today_widget_secondary,
-                    if (explicit) colors.secondaryText else null,
                 )
             }
             // 读屏摘要只用快照里的完整任务名称与已开启的真实详情。
@@ -671,45 +658,17 @@ abstract class TodayWidgetProvider(
             return views
         }
 
-        // 显式主题用具体 ARGB；跟随系统时在 API 31+ 交给宿主解析资源，低版本用 App 上下文解析。
-        private fun RemoteViews.textColor(context: Context, id: Int, resource: Int, explicit: Int?) {
-            if (explicit == null && Build.VERSION.SDK_INT >= 31) {
-                setColor(id, "setTextColor", resource)
-            } else {
-                setTextColor(id, explicit ?: context.getColor(resource))
-            }
-        }
-
-        private fun RemoteViews.backgroundColor(context: Context, id: Int, resource: Int, explicit: Int?) {
-            if (explicit == null && Build.VERSION.SDK_INT >= 31) {
-                setColor(id, "setBackgroundColor", resource)
-            } else {
-                setInt(id, "setBackgroundColor", explicit ?: context.getColor(resource))
-            }
-        }
-
         private fun surfaceDrawable(theme: String, radiusDp: Int): Int = when (theme) {
-            TodayWidgetAppearance.THEME_LIGHT -> when (radiusDp) {
-                8 -> R.drawable.today_widget_background_light_r8
-                12 -> R.drawable.today_widget_background_light_r12
-                else -> R.drawable.today_widget_background_light
-            }
-            TodayWidgetAppearance.THEME_DARK -> when (radiusDp) {
+            WidgetPlan.THEME_DARK -> when (radiusDp) {
                 8 -> R.drawable.today_widget_background_dark_r8
                 12 -> R.drawable.today_widget_background_dark_r12
                 else -> R.drawable.today_widget_background_dark
             }
             else -> when (radiusDp) {
-                8 -> R.drawable.today_widget_background_r8
-                12 -> R.drawable.today_widget_background_r12
-                else -> R.drawable.today_widget_background
+                8 -> R.drawable.today_widget_background_light_r8
+                12 -> R.drawable.today_widget_background_light_r12
+                else -> R.drawable.today_widget_background_light
             }
-        }
-
-        private fun rowBackground(theme: String): Int = when (theme) {
-            TodayWidgetAppearance.THEME_LIGHT -> R.drawable.today_widget_row_background_light
-            TodayWidgetAppearance.THEME_DARK -> R.drawable.today_widget_row_background_dark
-            else -> R.drawable.today_widget_row_background
         }
 
         private fun activityIntent(context: Context, widgetId: Int, missionId: String?): PendingIntent {

@@ -6,7 +6,16 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/today_widget_row"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:minHeight="32dp">
+
+    <ImageView
+        android:id="@+id/today_widget_row_surface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/today_widget_row_index_light" />
 
     <ImageView
         android:id="@+id/today_widget_row_spine"
@@ -46,11 +55,12 @@
             android:textSize="11sp" />
     </LinearLayout>
 
-    <View
+    <ImageView
         android:id="@+id/today_widget_row_divider"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_gravity="bottom"
-        android:background="@color/today_widget_hairline"
-        android:importantForAccessibility="no" />
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/today_widget_row_divider_light" />
 </FrameLayout>
