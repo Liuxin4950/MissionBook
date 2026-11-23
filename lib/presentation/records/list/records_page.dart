@@ -22,6 +22,7 @@ import '../../widgets/app_settings_row.dart';
 import '../../widgets/app_segmented_control.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/detail_pane.dart';
 import '../shared/record_scope.dart';
 
 part 'record_editor.dart';
@@ -81,14 +82,14 @@ class _RecordsPageState extends State<RecordsPage> {
   }
 
   Future<void> _create({bool capture = false}) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => RecordEditor(
-          capture: capture,
-          goalId: widget.goalId,
-          nodeId: widget.nodeId,
-          missionId: widget.missionId,
-        ),
+    await openDetailPane<void>(
+      context,
+      label: capture ? '拍照记录' : '添加记录',
+      builder: (_) => RecordEditor(
+        capture: capture,
+        goalId: widget.goalId,
+        nodeId: widget.nodeId,
+        missionId: widget.missionId,
       ),
     );
     if (mounted) _load();
@@ -214,10 +215,10 @@ class _RecordsPageState extends State<RecordsPage> {
                       item: item,
                       service: service,
                       onDelete: () => _delete(item),
-                      onOpen: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => RecordDetail(id: item.id),
-                        ),
+                      onOpen: () => openDetailPane<void>(
+                        context,
+                        label: '记录详情',
+                        builder: (_) => RecordDetail(id: item.id),
                       ),
                     ),
                   );

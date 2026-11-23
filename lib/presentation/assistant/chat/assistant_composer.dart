@@ -724,42 +724,42 @@ class _AssistantComposer {
   }
 
   Future<AssistantAttachment?> _captureImage() =>
-      Navigator.of(context).push<AssistantAttachment>(
-        MaterialPageRoute(
-          builder: (cameraContext) => Scaffold(
-            body: SafeArea(
-              child: PhotoCapturePanel(
-                title: '拍照发给助手',
-                fullScreen: true,
-                onBack: () => Navigator.pop(cameraContext),
-                onCancel: () => Navigator.pop(cameraContext),
-                onChooseFile: () async {
-                  try {
-                    final file = await pickAssistantAttachment(
-                      image: true,
-                      onOversizedImage: _compressImage,
-                    );
-                    if (cameraContext.mounted && file != null) {
-                      Navigator.pop(cameraContext, file);
-                    }
-                  } catch (error) {
-                    if (mounted) {
-                      _showNotice(
-                        userErrorMessage(error, fallback: '图片未能加入，请重新选择'),
-                      );
-                    }
-                  }
-                },
-                onConfirmed: (bytes, capturedAt) async {
-                  final name = 'photo-${capturedAt.millisecondsSinceEpoch}.jpg';
-                  final file = bytes.length > AssistantAttachment.maxImageBytes
-                      ? await _compressImage(name, bytes)
-                      : AssistantAttachment.fromBytes(name, bytes);
+      openDetailPane<AssistantAttachment>(
+        context,
+        label: '拍摄助手图片',
+        builder: (cameraContext) => Scaffold(
+          body: SafeArea(
+            child: PhotoCapturePanel(
+              title: '拍照发给助手',
+              fullScreen: true,
+              onBack: () => Navigator.pop(cameraContext),
+              onCancel: () => Navigator.pop(cameraContext),
+              onChooseFile: () async {
+                try {
+                  final file = await pickAssistantAttachment(
+                    image: true,
+                    onOversizedImage: _compressImage,
+                  );
                   if (cameraContext.mounted && file != null) {
                     Navigator.pop(cameraContext, file);
                   }
-                },
-              ),
+                } catch (error) {
+                  if (mounted) {
+                    _showNotice(
+                      userErrorMessage(error, fallback: '图片未能加入，请重新选择'),
+                    );
+                  }
+                }
+              },
+              onConfirmed: (bytes, capturedAt) async {
+                final name = 'photo-${capturedAt.millisecondsSinceEpoch}.jpg';
+                final file = bytes.length > AssistantAttachment.maxImageBytes
+                    ? await _compressImage(name, bytes)
+                    : AssistantAttachment.fromBytes(name, bytes);
+                if (cameraContext.mounted && file != null) {
+                  Navigator.pop(cameraContext, file);
+                }
+              },
             ),
           ),
         ),

@@ -14,6 +14,7 @@ class MotionSettings extends ChangeNotifier {
   final Future<void> Function(String) write;
   MotionPreference preference = MotionPreference.system;
   PageMotionStyle pageStyle = PageMotionStyle.platform;
+  bool openSubpagesInPane = true;
   bool saving = false;
   String? error;
   bool _disposed = false;
@@ -42,6 +43,9 @@ class MotionSettings extends ChangeNotifier {
         (item) => item.name == decoded['pageStyle'],
         orElse: () => PageMotionStyle.platform,
       );
+      openSubpagesInPane = decoded['openSubpagesInPane'] is bool
+          ? decoded['openSubpagesInPane'] as bool
+          : true;
       error = null;
     } catch (exception, stack) {
       debugPrint('读取动效偏好失败：$exception\n$stack');
@@ -53,26 +57,40 @@ class MotionSettings extends ChangeNotifier {
 
   Future<void> select(MotionPreference value) async {
     if (saving || preference == value) return;
-    await _save(value, pageStyle);
+    await _save(value, pageStyle, openSubpagesInPane);
   }
 
   Future<void> selectPageStyle(PageMotionStyle value) async {
     if (saving || pageStyle == value) return;
-    await _save(preference, value);
+    await _save(preference, value, openSubpagesInPane);
   }
 
-  Future<void> _save(MotionPreference next, PageMotionStyle style) async {
+  Future<void> selectOpenSubpagesInPane(bool value) async {
+    if (saving || openSubpagesInPane == value) return;
+    await _save(preference, pageStyle, value);
+  }
+
+  Future<void> _save(
+    MotionPreference next,
+    PageMotionStyle style,
+    bool usePane,
+  ) async {
     _generation++;
     saving = true;
     error = null;
     notifyListeners();
     try {
       await write(
-        jsonEncode({'preference': next.name, 'pageStyle': style.name}),
+        jsonEncode({
+          'preference': next.name,
+          'pageStyle': style.name,
+          'openSubpagesInPane': usePane,
+        }),
       );
       if (_disposed) return;
       preference = next;
       pageStyle = style;
+      openSubpagesInPane = usePane;
     } catch (exception, stack) {
       debugPrint('保存动效偏好失败：$exception\n$stack');
       if (_disposed) return;

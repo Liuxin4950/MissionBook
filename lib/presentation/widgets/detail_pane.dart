@@ -8,27 +8,26 @@ import 'package:flutter/services.dart';
 import '../../core/theme/app_layout.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/colors.dart';
+import 'motion_settings_scope.dart';
 
 /// 稳定标记：只有助手会话路由允许使用可调分屏，普通详情保持既有布局。
 const assistantConversationPaneIdentity = 'assistant-conversation';
 
-/// 助手分屏的显示形态；折叠只改变布局，不从导航栈移除页面。
-enum AssistantPaneMode { split, workspaceExpanded, assistantExpanded }
+/// 统一右栏页面工作区的显示状态。
+enum PaneDisplayMode { split, fullScreen }
 
 /// 助手分屏的纯几何：由窗口宽度和控制器状态算出两栏宽度与门槽位置。
 ///
 /// 门槽在阅读末端（分屏、仅工作区）或阅读起点（仅助手）定位，
 /// RTL 镜像交给外壳的 `PositionedDirectional`，这里只保留逻辑侧。
-class AssistantSplitGeometry {
-  const AssistantSplitGeometry({
+class PaneSplitGeometry {
+  const PaneSplitGeometry({
     required this.contentWidth,
     required this.availableWidth,
     required this.workspaceWidth,
-    required this.assistantWidth,
-    required this.committedAssistantWidth,
+    required this.rightPaneWidth,
+    required this.committedPaneWidth,
     required this.dragStartWidth,
-    required this.mode,
-    required this.doorAtEnd,
     required this.doorOffset,
     required this.previewOverflow,
   });
@@ -43,36 +42,27 @@ class AssistantSplitGeometry {
   final double workspaceWidth;
 
   /// 助手右栏布局宽度；仅工作区时给出隐藏子树的合法宽度。
-  final double assistantWidth;
+  final double rightPaneWidth;
 
   /// 提交比例夹取后的助手栏宽：恢复分屏和读屏百分比都用它。
-  final double committedAssistantWidth;
+  final double committedPaneWidth;
 
   /// 拖动起点宽度：分屏按夹取栏宽，仅工作区从 0 起、仅助手从可分配宽起。
   final double dragStartWidth;
-
-  /// 拖动预览期间门槽按分屏画，但模式要到松手才提交。
-  final AssistantPaneMode mode;
-
-  /// 门槽贴在阅读末端（工作区/仅工作区）还是阅读起点（仅助手）。
-  final bool doorAtEnd;
 
   /// 门槽距所贴边的偏移。
   final double doorOffset;
 
   /// 预览被可读下限夹取的超出量：负=助手已到下限，正=工作区已到下限。
   final double previewOverflow;
-
-  bool get isSplit => mode == AssistantPaneMode.split;
 }
 
 /// 纯函数几何：不读 BuildContext，测试可直接按断点和矩形断言。
-AssistantSplitGeometry resolveAssistantSplitGeometry({
+PaneSplitGeometry resolvePaneSplitGeometry({
   required double windowWidth,
   required double railWidth,
-  required AssistantPaneMode mode,
   required double ratio,
-  required double maxAssistantWidth,
+  required double maxPaneWidth,
   double? previewWidth,
 }) {
   final contentWidth = math.max(0.0, windowWidth - railWidth);
@@ -80,14 +70,12 @@ AssistantSplitGeometry resolveAssistantSplitGeometry({
   final minAssistant = math.min(AppLayout.paneRightMin, available);
   final maxAssistant = math.max(
     minAssistant,
-    math.min(maxAssistantWidth, available - AppLayout.paneLeftMin),
+    math.min(maxPaneWidth, available - AppLayout.paneLeftMin),
   );
   final committed = (ratio * available)
       .clamp(minAssistant, maxAssistant)
       .toDouble();
-  // 拖动中（含从折叠态拉出）一律按分屏几何布局，松手才提交模式。
   final dragging = previewWidth != null;
-  final effectiveMode = dragging ? AssistantPaneMode.split : mode;
   final preview = dragging
       ? previewWidth.clamp(minAssistant, maxAssistant).toDouble()
       : null;
@@ -95,50 +83,16 @@ AssistantSplitGeometry resolveAssistantSplitGeometry({
   final slot = preview ?? committed;
   final door = AppLayout.splitDoorWidth;
 
-  switch (effectiveMode) {
-    case AssistantPaneMode.split:
-      return AssistantSplitGeometry(
-        contentWidth: contentWidth,
-        availableWidth: available,
-        workspaceWidth: math.max(0.0, windowWidth - door - slot),
-        assistantWidth: slot,
-        committedAssistantWidth: committed,
-        dragStartWidth: mode == AssistantPaneMode.workspaceExpanded
-            ? 0.0
-            : slot,
-        mode: mode,
-        doorAtEnd: true,
-        doorOffset: slot,
-        previewOverflow: overflow,
-      );
-    case AssistantPaneMode.workspaceExpanded:
-      return AssistantSplitGeometry(
-        contentWidth: contentWidth,
-        availableWidth: available,
-        // 隐藏的助手子树保留合法栏宽，恢复时不重建、不重排。
-        workspaceWidth: math.max(0.0, windowWidth - door),
-        assistantWidth: committed,
-        committedAssistantWidth: committed,
-        dragStartWidth: 0,
-        mode: mode,
-        doorAtEnd: true,
-        doorOffset: 0,
-        previewOverflow: 0,
-      );
-    case AssistantPaneMode.assistantExpanded:
-      return AssistantSplitGeometry(
-        contentWidth: contentWidth,
-        availableWidth: available,
-        workspaceWidth: math.max(0.0, windowWidth - door - committed),
-        assistantWidth: math.max(0.0, windowWidth - door),
-        committedAssistantWidth: committed,
-        dragStartWidth: available,
-        mode: mode,
-        doorAtEnd: false,
-        doorOffset: 0,
-        previewOverflow: 0,
-      );
-  }
+  return PaneSplitGeometry(
+    contentWidth: contentWidth,
+    availableWidth: available,
+    workspaceWidth: math.max(0.0, windowWidth - door - slot),
+    rightPaneWidth: slot,
+    committedPaneWidth: committed,
+    dragStartWidth: slot,
+    doorOffset: slot,
+    previewOverflow: overflow,
+  );
 }
 
 /// 右栏入口的替换语义：打开新页面时如何处理已有返回链。
@@ -202,9 +156,10 @@ class DetailPaneController extends ChangeNotifier {
 
   bool _disposed = false;
   bool _changing = false;
-  AssistantPaneMode _assistantPaneMode = AssistantPaneMode.split;
-  double _assistantSplitRatio = 0.5;
-  double? _assistantPreviewWidth;
+  PaneDisplayMode _paneDisplayMode = PaneDisplayMode.split;
+  int? _fullScreenEntryDepth;
+  double _paneSplitRatio = 0.5;
+  double? _panePreviewWidth;
 
   /// 只在助手会话是栈顶时可调；普通详情不继承分屏展示模式。
   bool get isAssistantConversationActive =>
@@ -220,92 +175,110 @@ class DetailPaneController extends ChangeNotifier {
     return route == null || route.isCurrent;
   }
 
-  AssistantPaneMode get assistantPaneMode => _assistantPaneMode;
+  PaneDisplayMode get paneDisplayMode => _paneDisplayMode;
+
+  bool get isPaneFullScreen => _paneDisplayMode == PaneDisplayMode.fullScreen;
+
+  /// 全屏返回时，只有退回到进入全屏时的页面深度才恢复并排。
+  bool get shouldRestorePaneOnBack =>
+      isPaneFullScreen &&
+      _fullScreenEntryDepth != null &&
+      entries.length <= _fullScreenEntryDepth!;
 
   /// 最后一次提交的助手栏比例，不包含门槽；布局夹取不覆盖它。
-  double get assistantSplitRatio => _assistantSplitRatio;
+  double get paneSplitRatio => _paneSplitRatio;
 
   /// 拖动预览中的栏宽；为空表示没有进行中的拖动。
-  double? get assistantPreviewWidth => _assistantPreviewWidth;
+  double? get panePreviewWidth => _panePreviewWidth;
 
-  bool get assistantIsResizing => _assistantPreviewWidth != null;
+  bool get isPaneResizing => _panePreviewWidth != null;
 
   /// 路由可见栈顶变化后由观察者调用：让外壳重算门与接管状态。
   void notifyVisibilityChanged() => notifyListeners();
 
-  /// 显式切换分屏模式（Home/End、恢复动作与折叠都走这里）。
-  void setAssistantPaneMode(AssistantPaneMode mode) {
-    final changed =
-        _assistantPaneMode != mode || _assistantPreviewWidth != null;
-    _assistantPaneMode = mode;
-    _assistantPreviewWidth = null;
-    if (changed) notifyListeners();
+  /// 切换当前页面工作区的全屏/并排显示，不改变导航栈。
+  void togglePaneFullScreen() {
+    setPaneDisplayMode(
+      isPaneFullScreen ? PaneDisplayMode.split : PaneDisplayMode.fullScreen,
+    );
   }
 
-  void restoreAssistantSplit() => setAssistantPaneMode(AssistantPaneMode.split);
-
-  void collapseAssistantToWorkspace() =>
-      setAssistantPaneMode(AssistantPaneMode.workspaceExpanded);
-
-  /// 丢弃拖动预览并保留上次提交比例：取消、窗口宽度或可见栈顶变化时使用。
-  void cancelAssistantResize() {
-    if (_assistantPreviewWidth == null) return;
-    _assistantPreviewWidth = null;
+  void setPaneDisplayMode(PaneDisplayMode mode, {bool restoreOnBack = true}) {
+    final changed = _paneDisplayMode != mode || _panePreviewWidth != null;
+    if (!changed) return;
+    _setPaneDisplayMode(mode, restoreOnBack: restoreOnBack);
     notifyListeners();
   }
 
-  void beginAssistantResize(double assistantWidth) {
-    _assistantPreviewWidth = assistantWidth;
+  void _setPaneDisplayMode(PaneDisplayMode mode, {bool restoreOnBack = true}) {
+    if (mode == PaneDisplayMode.fullScreen &&
+        _paneDisplayMode != PaneDisplayMode.fullScreen &&
+        restoreOnBack) {
+      _fullScreenEntryDepth = entries.length;
+    } else if (mode == PaneDisplayMode.split) {
+      _fullScreenEntryDepth = null;
+    } else if (mode == PaneDisplayMode.fullScreen && !restoreOnBack) {
+      _fullScreenEntryDepth = null;
+    }
+    _paneDisplayMode = mode;
+    _panePreviewWidth = null;
   }
 
-  void updateAssistantResize({
+  void restorePaneSplit() => setPaneDisplayMode(PaneDisplayMode.split);
+
+  /// 丢弃拖动预览并保留上次提交比例：取消、窗口宽度或可见栈顶变化时使用。
+  void cancelPaneResize() {
+    if (_panePreviewWidth == null) return;
+    _panePreviewWidth = null;
+    notifyListeners();
+  }
+
+  void beginPaneResize(double rightPaneWidth) {
+    _panePreviewWidth = rightPaneWidth;
+  }
+
+  void updatePaneResize({
     required double physicalDelta,
     required double availableWidth,
     required TextDirection textDirection,
   }) {
-    final current = _assistantPreviewWidth;
+    final current = _panePreviewWidth;
     if (current == null || availableWidth <= 0) return;
     final delta = textDirection == TextDirection.ltr
         ? physicalDelta
         : -physicalDelta;
     // 保留未经栏宽约束的拖动位置，以便在释放时判断是否真的到达边缘。
-    _assistantPreviewWidth = current - delta;
+    _panePreviewWidth = current - delta;
     notifyListeners();
   }
 
-  void endAssistantResize({required double availableWidth}) {
-    final preview = _assistantPreviewWidth;
-    _assistantPreviewWidth = null;
+  void endPaneResize({required double availableWidth}) {
+    final preview = _panePreviewWidth;
+    _panePreviewWidth = null;
     if (preview == null || availableWidth <= 0) return;
-    if (preview <= AppLayout.paneEdgeSnap) {
-      _assistantPaneMode = AssistantPaneMode.workspaceExpanded;
-    } else if (availableWidth - preview <= AppLayout.paneEdgeSnap) {
-      _assistantPaneMode = AssistantPaneMode.assistantExpanded;
-    } else {
-      final width = _clampAssistantWidth(preview, availableWidth);
-      _assistantPaneMode = AssistantPaneMode.split;
-      if (width != assistantSplitWidthFor(availableWidth)) {
-        _assistantSplitRatio = width / availableWidth;
-      }
+    final width = _clampPaneWidth(preview, availableWidth);
+    _paneDisplayMode = PaneDisplayMode.split;
+    if (width != paneSplitWidthFor(availableWidth)) {
+      _paneSplitRatio = width / availableWidth;
     }
     notifyListeners();
   }
 
-  void adjustAssistantSplit({
+  void adjustPaneWidth({
     required double widthDelta,
     required double availableWidth,
   }) {
-    if (availableWidth <= 0 || _assistantPaneMode != AssistantPaneMode.split) {
+    if (availableWidth <= 0 || isPaneFullScreen) {
       return;
     }
-    final current = assistantSplitWidthFor(availableWidth);
-    final width = _clampAssistantWidth(current + widthDelta, availableWidth);
+    final current = paneSplitWidthFor(availableWidth);
+    final width = _clampPaneWidth(current + widthDelta, availableWidth);
     if (width == current) return;
-    _assistantSplitRatio = width / availableWidth;
+    _paneSplitRatio = width / availableWidth;
     notifyListeners();
   }
 
-  double _clampAssistantWidth(double width, double availableWidth) {
+  double _clampPaneWidth(double width, double availableWidth) {
     final minWidth = math.min(AppLayout.paneRightMin, availableWidth / 2);
     final maxWidth = math.max(
       minWidth,
@@ -315,35 +288,32 @@ class DetailPaneController extends ChangeNotifier {
   }
 
   /// 即使当前在单栏，也能计算恢复时的助手栏尺寸。
-  double assistantSplitWidthFor(double availableWidth) => _clampAssistantWidth(
-    _assistantSplitRatio * availableWidth,
-    availableWidth,
-  );
+  double paneSplitWidthFor(double availableWidth) =>
+      _clampPaneWidth(_paneSplitRatio * availableWidth, availableWidth);
 
   /// 当前实际交互槽宽：拖动中被夹在可读下限内，不把面板压到 0。
-  double assistantSlotWidthFor(double availableWidth) => _clampAssistantWidth(
-    _assistantPreviewWidth ?? _assistantSplitRatio * availableWidth,
+  double paneWidthFor(double availableWidth) => _clampPaneWidth(
+    _panePreviewWidth ?? _paneSplitRatio * availableWidth,
     availableWidth,
   );
 
   /// 预览超出可读下限的量：负=助手太窄，正=工作区太窄；非拖动时为 0。
-  double assistantPreviewOverflowFor(double availableWidth) {
-    final preview = _assistantPreviewWidth;
+  double panePreviewOverflowFor(double availableWidth) {
+    final preview = _panePreviewWidth;
     if (preview == null) return 0;
-    return preview - assistantSlotWidthFor(availableWidth);
+    return preview - paneWidthFor(availableWidth);
   }
 
   /// 外壳布局入口：一次算出两栏宽度、门槽位置和预览夹取信息。
-  AssistantSplitGeometry resolveAssistantGeometry({
+  PaneSplitGeometry resolvePaneGeometry({
     required double windowWidth,
     required double railWidth,
-  }) => resolveAssistantSplitGeometry(
+  }) => resolvePaneSplitGeometry(
     windowWidth: windowWidth,
     railWidth: railWidth,
-    mode: _assistantPaneMode,
-    ratio: _assistantSplitRatio,
-    maxAssistantWidth: activeMaxWidth,
-    previewWidth: _assistantPreviewWidth,
+    ratio: _paneSplitRatio,
+    maxPaneWidth: activeMaxWidth,
+    previewWidth: _panePreviewWidth,
   );
 
   /// 面板是否有内容：决定外壳并排、让位还是继续显示。
@@ -410,9 +380,27 @@ class DetailPaneController extends ChangeNotifier {
   }
 
   /// 打开一个入口，与 Navigator.push 一样把结果（如保存是否成功）交回调用方。
+  /// 从主工作区开始新页面链时，使用唯一的右侧 Navigator；页面链的
+  /// 展示方式在入口处确定，后续子页面不会因设置变化而迁移到另一套栈。
+  Future<T?> openFromWorkspace<T extends Object?>(
+    DetailPaneEntry entry, {
+    DetailPaneReplace replace = DetailPaneReplace.all,
+    bool openInPane = true,
+  }) => open<T>(
+    entry,
+    replace: replace,
+    presentFromWorkspace: true,
+    initialDisplayMode: openInPane
+        ? PaneDisplayMode.split
+        : PaneDisplayMode.fullScreen,
+  );
+
+  /// 打开一个入口，与 Navigator.push 一样把结果（如保存是否成功）交回调用方。
   Future<T?> open<T extends Object?>(
     DetailPaneEntry entry, {
     DetailPaneReplace replace = DetailPaneReplace.none,
+    bool presentFromWorkspace = false,
+    PaneDisplayMode? initialDisplayMode,
   }) async {
     final navigator = navigatorKey.currentState;
     if (navigator == null || _disposed || _changing) return null;
@@ -433,9 +421,12 @@ class DetailPaneController extends ChangeNotifier {
       } else if (replace == DetailPaneReplace.top && entries.isNotEmpty) {
         entries.removeLast();
       }
-      _assistantPreviewWidth = null;
-      if (entry.identity == assistantConversationPaneIdentity) {
-        _assistantPaneMode = AssistantPaneMode.split;
+      _panePreviewWidth = null;
+      if (presentFromWorkspace) {
+        _setPaneDisplayMode(
+          initialDisplayMode ?? PaneDisplayMode.split,
+          restoreOnBack: false,
+        );
       }
       entries.add(entry);
       final route = MaterialPageRoute<T>(builder: entry.builder);
@@ -563,15 +554,13 @@ class DetailPaneHost extends StatelessWidget {
         // 栈空才交回外壳；隐藏的聊天不弹到可见工作区之上。
         // 手动折叠（含贴边细轨）时先恢复两栏，再考虑离开。
         final canRestoreSplit =
-            restoreSplitOnBack &&
-            controller.isAssistantConversationVisibleTop &&
-            controller.assistantPaneMode != AssistantPaneMode.split;
+            restoreSplitOnBack && controller.shouldRestorePaneOnBack;
         return PopScope(
           canPop: !controller.hasContent || (!active && !canRestoreSplit),
           onPopInvokedWithResult: (didPop, _) async {
             if (didPop) return;
             if (canRestoreSplit) {
-              controller.restoreAssistantSplit();
+              controller.restorePaneSplit();
               return;
             }
             if (!active) return;
@@ -584,16 +573,14 @@ class DetailPaneHost extends StatelessWidget {
   }
 }
 
-/// 「橱窗门」：贯穿上下的 24dp 分隔槽，中间 8dp 门轨。
-///
-/// 整条槽都能水平起拖，没有左右隐形扩区；折叠时只保留贴边细轨，
-/// 点按、向内拖动或 Enter/空格都恢复分屏，Home/End 切单栏。
-class AssistantSplitDoor extends StatefulWidget {
-  const AssistantSplitDoor({
+/// 统一分页分隔门：贯穿上下的 24dp 槽，中间 8dp 门轨。
+/// 点击门轨切换右栏全屏/并排；水平拖动只调整右栏宽度。
+class PaneSplitDoor extends StatefulWidget {
+  const PaneSplitDoor({
     super.key,
     required this.controller,
     required this.availableWidth,
-    required this.assistantWidth,
+    required this.rightPaneWidth,
     required this.textDirection,
   });
 
@@ -606,21 +593,21 @@ class AssistantSplitDoor extends StatefulWidget {
   final double availableWidth;
 
   /// 提交比例对应的助手栏宽；折叠态用 0/可分配宽作为拖动起点。
-  final double assistantWidth;
+  final double rightPaneWidth;
 
   final TextDirection textDirection;
 
   @override
-  State<AssistantSplitDoor> createState() => _AssistantSplitDoorState();
+  State<PaneSplitDoor> createState() => _PaneSplitDoorState();
 }
 
-class _AssistantSplitDoorState extends State<AssistantSplitDoor> {
+class _PaneSplitDoorState extends State<PaneSplitDoor> {
   bool _hovered = false;
   bool _dragging = false;
 
   DetailPaneController get _controller => widget.controller;
 
-  void _adjust(double delta) => _controller.adjustAssistantSplit(
+  void _adjust(double delta) => _controller.adjustPaneWidth(
     widthDelta: delta,
     availableWidth: widget.availableWidth,
   );
@@ -630,50 +617,21 @@ class _AssistantSplitDoorState extends State<AssistantSplitDoor> {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
-    final collapsed = _controller.assistantPaneMode != AssistantPaneMode.split;
     if (key == LogicalKeyboardKey.arrowLeft ||
         key == LogicalKeyboardKey.arrowRight) {
-      if (collapsed) {
-        _controller.restoreAssistantSplit();
-        return KeyEventResult.handled;
-      }
       final towardStart = widget.textDirection == TextDirection.ltr
           ? key == LogicalKeyboardKey.arrowLeft
           : key == LogicalKeyboardKey.arrowRight;
-      // 向起始方向移动分隔槽＝收窄助手；向末端方向＝加宽助手。
       _adjust(
-        towardStart
-            ? -AssistantSplitDoor.keyboardStep
-            : AssistantSplitDoor.keyboardStep,
+        towardStart ? -PaneSplitDoor.keyboardStep : PaneSplitDoor.keyboardStep,
       );
       return KeyEventResult.handled;
     }
-    // Home/End 切单栏；与门上的读屏自定义动作同名同义。
-    if (key == LogicalKeyboardKey.home) {
-      _controller.setAssistantPaneMode(AssistantPaneMode.workspaceExpanded);
-      return KeyEventResult.handled;
-    }
-    if (key == LogicalKeyboardKey.end) {
-      _controller.setAssistantPaneMode(AssistantPaneMode.assistantExpanded);
-      return KeyEventResult.handled;
-    }
-    if (collapsed &&
-        (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.space)) {
-      _controller.restoreAssistantSplit();
+    if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.space) {
+      _controller.togglePaneFullScreen();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
-  }
-
-  /// 折叠态细轨上的箭头：指向阅读内侧，RTL 自动镜像。
-  IconData _inwardChevron(BuildContext context) {
-    final rtl = Directionality.of(context) == TextDirection.rtl;
-    final workspaceHidden =
-        _controller.assistantPaneMode == AssistantPaneMode.workspaceExpanded;
-    if (workspaceHidden) {
-      return rtl ? Icons.chevron_right : Icons.chevron_left;
-    }
-    return rtl ? Icons.chevron_left : Icons.chevron_right;
   }
 
   void _setDragging(bool value) {
@@ -683,21 +641,13 @@ class _AssistantSplitDoorState extends State<AssistantSplitDoor> {
 
   @override
   Widget build(BuildContext context) {
-    final mode = _controller.assistantPaneMode;
-    final collapsed = mode != AssistantPaneMode.split;
-    final label = switch (mode) {
-      AssistantPaneMode.split => '调整助手分屏',
-      AssistantPaneMode.workspaceExpanded => '恢复助手分屏',
-      AssistantPaneMode.assistantExpanded => '恢复工作区分屏',
-    };
+    final fullScreen = _controller.isPaneFullScreen;
+    final label = fullScreen ? '恢复并排分页' : '调整分页宽度';
     final percent = widget.availableWidth <= 0
         ? 50
-        : (widget.assistantWidth / widget.availableWidth * 100)
+        : (widget.rightPaneWidth / widget.availableWidth * 100)
               .clamp(0, 100)
               .round();
-    final overflow = _controller.assistantPreviewOverflowFor(
-      widget.availableWidth,
-    );
     return Focus(
       includeSemantics: false,
       onKeyEvent: _onKey,
@@ -706,38 +656,30 @@ class _AssistantSplitDoorState extends State<AssistantSplitDoor> {
           final focused = Focus.of(context).hasPrimaryFocus;
           final active = focused || _hovered || _dragging;
           return Semantics(
-            key: const Key('assistant-split-door-semantics'),
+            key: const Key('pane-split-door-semantics'),
             container: true,
             label: label,
-            button: collapsed,
-            slider: !collapsed,
+            button: true,
+            slider: !fullScreen,
             focusable: true,
             focused: focused,
-            value: collapsed ? null : '助手栏 $percent%',
-            increasedValue: collapsed ? null : '助手栏加宽',
-            decreasedValue: collapsed ? null : '助手栏缩窄',
-            hint: collapsed
-                ? '点击、向内拖动或按 Enter 恢复上次分屏比例'
-                : '左右拖动或按方向键调整，Home 仅工作区，End 仅助手',
-            customSemanticsActions: collapsed
+            value: fullScreen ? '右侧页面全屏' : '右侧页面占宽 $percent%',
+            increasedValue: fullScreen ? null : '右侧页面加宽',
+            decreasedValue: fullScreen ? null : '右侧页面缩窄',
+            hint: fullScreen
+                ? '点击或按 Enter 还原并排分页'
+                : '点击或按 Enter 进入右侧全屏；拖动或按方向键调整宽度',
+            customSemanticsActions: {
+              CustomSemanticsAction(label: fullScreen ? '还原并排分页' : '右侧页面全屏'):
+                  _controller.togglePaneFullScreen,
+            },
+            onTap: _controller.togglePaneFullScreen,
+            onIncrease: fullScreen
                 ? null
-                : {
-                    const CustomSemanticsAction(label: '仅显示工作区'): () =>
-                        _controller.setAssistantPaneMode(
-                          AssistantPaneMode.workspaceExpanded,
-                        ),
-                    const CustomSemanticsAction(label: '仅显示助手'): () =>
-                        _controller.setAssistantPaneMode(
-                          AssistantPaneMode.assistantExpanded,
-                        ),
-                  },
-            onTap: collapsed ? _controller.restoreAssistantSplit : null,
-            onIncrease: collapsed
+                : () => _adjust(PaneSplitDoor.keyboardStep),
+            onDecrease: fullScreen
                 ? null
-                : () => _adjust(AssistantSplitDoor.keyboardStep),
-            onDecrease: collapsed
-                ? null
-                : () => _adjust(-AssistantSplitDoor.keyboardStep),
+                : () => _adjust(-PaneSplitDoor.keyboardStep),
             child: MouseRegion(
               cursor: SystemMouseCursors.resizeLeftRight,
               onEnter: (_) => setState(() => _hovered = true),
@@ -748,30 +690,30 @@ class _AssistantSplitDoorState extends State<AssistantSplitDoor> {
                 dragStartBehavior: DragStartBehavior.down,
                 onTap: () {
                   Focus.of(context).requestFocus();
-                  if (collapsed) _controller.restoreAssistantSplit();
+                  _controller.togglePaneFullScreen();
                 },
                 onHorizontalDragStart: (_) {
                   _setDragging(true);
-                  _controller.beginAssistantResize(widget.assistantWidth);
+                  _controller.beginPaneResize(widget.rightPaneWidth);
                 },
                 onHorizontalDragUpdate: (details) =>
-                    _controller.updateAssistantResize(
+                    _controller.updatePaneResize(
                       physicalDelta: details.primaryDelta ?? 0,
                       availableWidth: widget.availableWidth,
                       textDirection: widget.textDirection,
                     ),
                 onHorizontalDragCancel: () {
                   _setDragging(false);
-                  _controller.cancelAssistantResize();
+                  _controller.cancelPaneResize();
                 },
                 onHorizontalDragEnd: (_) {
                   _setDragging(false);
-                  _controller.endAssistantResize(
+                  _controller.endPaneResize(
                     availableWidth: widget.availableWidth,
                   );
                 },
                 child: SizedBox(
-                  key: const Key('assistant-split-door'),
+                  key: const Key('pane-split-door'),
                   width: AppLayout.splitDoorWidth,
                   height: double.infinity,
                   child: Stack(
@@ -783,7 +725,7 @@ class _AssistantSplitDoorState extends State<AssistantSplitDoor> {
                           width: AppLayout.splitDoorTrackWidth,
                           height: double.infinity,
                           child: AnimatedContainer(
-                            key: const Key('assistant-split-door-track'),
+                            key: const Key('pane-split-door-track'),
                             duration: AppMotion.resolve(
                               context,
                               AppMotion.quick,
@@ -802,70 +744,6 @@ class _AssistantSplitDoorState extends State<AssistantSplitDoor> {
                           ),
                         ),
                       ),
-                      if (collapsed)
-                        Center(
-                          child: IgnorePointer(
-                            child: SizedBox(
-                              key: const Key('assistant-split-door-grip'),
-                              width: 22,
-                              height: 40,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: AppColors.background,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: active
-                                        ? AppColors.primary
-                                        : AppColors.hairline,
-                                  ),
-                                ),
-                                child: Icon(
-                                  // 箭头指向隐藏侧的内容方向：拖进来才会展开，RTL 镜像。
-                                  _inwardChevron(context),
-                                  size: AppLayout.iconSm,
-                                  color: active
-                                      ? AppColors.primary
-                                      : AppColors.textSecondary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      // 到达可读下限后，交互槽停在夹取位置，只用不接收命中的提示表示超出。
-                      if (overflow != 0)
-                        Align(
-                          alignment: overflow < 0
-                              ? AlignmentDirectional.centerEnd
-                              : AlignmentDirectional.centerStart,
-                          child: IgnorePointer(
-                            child: ExcludeSemantics(
-                              child: Container(
-                                key: const Key(
-                                  'assistant-split-door-edge-hint',
-                                ),
-                                width: AppLayout.spaceSm,
-                                height: 120,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(
-                                    AppLayout.radiusXs,
-                                  ),
-                                  gradient: LinearGradient(
-                                    begin: overflow < 0
-                                        ? AlignmentDirectional.centerStart
-                                        : AlignmentDirectional.centerEnd,
-                                    end: overflow < 0
-                                        ? AlignmentDirectional.centerEnd
-                                        : AlignmentDirectional.centerStart,
-                                    colors: [
-                                      Colors.transparent,
-                                      AppColors.primary.withValues(alpha: .28),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -878,7 +756,6 @@ class _AssistantSplitDoorState extends State<AssistantSplitDoor> {
   }
 }
 
-/// 把控制器交给页面（外壳挂载 [DetailPaneScope] 后生效）。
 class DetailPaneScope extends InheritedNotifier<DetailPaneController> {
   const DetailPaneScope({
     super.key,
@@ -906,6 +783,9 @@ Future<T?> openDetailPane<T extends Object?>(
     // 主列表选择另一对象时替换整条右栏链；右栏内部的详情→编辑仍逐级入栈。
     final fromWorkspace =
         Navigator.of(context) != controller.navigatorKey.currentState;
+    final usePane =
+        MotionSettingsScope.maybeOf(context)?.settings.openSubpagesInPane ??
+        true;
     return controller.open<T>(
       DetailPaneEntry(label, builder, identity: identity, maxWidth: maxWidth),
       replace:
@@ -914,6 +794,12 @@ Future<T?> openDetailPane<T extends Object?>(
               !preserveExistingEntries
           ? DetailPaneReplace.all
           : replace,
+      presentFromWorkspace: fromWorkspace,
+      initialDisplayMode: fromWorkspace
+          ? usePane
+                ? PaneDisplayMode.split
+                : PaneDisplayMode.fullScreen
+          : null,
     );
   }
   // 无外壳（页面单独测试/预览）：保持 push/pushReplacement 的原有语义。

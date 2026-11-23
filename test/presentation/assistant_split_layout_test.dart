@@ -18,53 +18,50 @@ DetailPaneController assistantController() {
   return controller;
 }
 
-AssistantSplitGeometry geometryAt(
+PaneSplitGeometry geometryAt(
   double windowWidth, {
   double? railWidth,
-  AssistantPaneMode mode = AssistantPaneMode.split,
   double ratio = 0.5,
-  double maxAssistantWidth = AppLayout.assistantPaneMaxWidth,
+  double maxPaneWidth = AppLayout.assistantPaneMaxWidth,
   double? previewWidth,
-}) => resolveAssistantSplitGeometry(
+}) => resolvePaneSplitGeometry(
   windowWidth: windowWidth,
   railWidth: railWidth ?? AppLayout.railWidthForWindow(windowWidth),
-  mode: mode,
   ratio: ratio,
-  maxAssistantWidth: maxAssistantWidth,
+  maxPaneWidth: maxPaneWidth,
   previewWidth: previewWidth,
 );
 
 void main() {
   group('橱窗门常量与断点', () {
-    test('并排时门槽总占 24、中间门轨 8；普通详情仍用 16 栏间距', () {
+    test('统一分页门槽总占 24、中间门轨 8，最小正文宽为 864', () {
       expect(AppLayout.splitDoorWidth, 24);
       expect(AppLayout.splitDoorTrackWidth, 8);
-      expect(AppLayout.paneGap, 16);
-      expect(AppLayout.paneMinContentWidth, 856);
-      expect(AppLayout.paneEdgeSnap, 96);
+      expect(AppLayout.paneGap, 24);
+      expect(AppLayout.paneMinContentWidth, 864);
     });
 
     test('助手门槛 480+24+360=864，常规侧栏窗口最早 953 进入分屏', () {
-      expect(AppLayout.assistantPaneMinContentWidth, 864);
-      expect(AppLayout.canSplitAssistantPane(863.9), isFalse);
-      expect(AppLayout.canSplitAssistantPane(864), isTrue);
+      expect(AppLayout.paneMinContentWidth, 864);
+      expect(AppLayout.canSplitPane(863.9), isFalse);
+      expect(AppLayout.canSplitPane(864), isTrue);
       // 945–952 比旧实现（856 门槛）晚 8dp：仍单栏；953 起分屏。
       expect(AppLayout.railWidthForWindow(952), 89);
-      expect(AppLayout.canShowAssistantDoorForWindow(952), isFalse);
-      expect(AppLayout.canShowAssistantDoorForWindow(953), isTrue);
+      expect(AppLayout.canShowSplitPaneForWindow(952), isFalse);
+      expect(AppLayout.canShowSplitPaneForWindow(953), isTrue);
       // 手机不出现门。
-      expect(AppLayout.canShowAssistantDoorForWindow(390), isFalse);
-      expect(AppLayout.canShowAssistantDoorForWindow(768), isFalse);
+      expect(AppLayout.canShowSplitPaneForWindow(390), isFalse);
+      expect(AppLayout.canShowSplitPaneForWindow(768), isFalse);
     });
 
     test('1200 侧栏加宽后按新正文宽度重算，仍能分屏', () {
       expect(AppLayout.railWidthForWindow(1199), 89);
       expect(AppLayout.railWidthForWindow(1200), 193);
-      expect(AppLayout.canShowAssistantDoorForWindow(1200), isTrue);
+      expect(AppLayout.canShowSplitPaneForWindow(1200), isTrue);
       final wide = geometryAt(1200);
       expect(wide.contentWidth, 1007);
       expect(wide.availableWidth, 983);
-      expect(wide.assistantWidth, 491.5);
+      expect(wide.rightPaneWidth, 491.5);
     });
   });
 
@@ -73,81 +70,42 @@ void main() {
       final split = geometryAt(1280);
       expect(split.contentWidth, 1087);
       expect(split.availableWidth, 1063);
-      expect(split.assistantWidth, 531.5);
+      expect(split.rightPaneWidth, 531.5);
       expect(split.workspaceWidth, 1280 - 24 - 531.5);
       expect(
-        split.workspaceWidth + AppLayout.splitDoorWidth + split.assistantWidth,
+        split.workspaceWidth + AppLayout.splitDoorWidth + split.rightPaneWidth,
         1280,
       );
-      expect(split.doorAtEnd, isTrue);
-      expect(split.doorOffset, split.assistantWidth);
-      expect(split.dragStartWidth, split.assistantWidth);
+      expect(split.doorOffset, split.rightPaneWidth);
+      expect(split.dragStartWidth, split.rightPaneWidth);
       expect(split.previewOverflow, 0);
     });
 
     test('按两侧最小与右栏上限夹取，不重写提交比例', () {
       final narrowest = geometryAt(953);
       expect(narrowest.availableWidth, 840);
-      expect(narrowest.assistantWidth, 360);
+      expect(narrowest.rightPaneWidth, 360);
       expect(narrowest.workspaceWidth, 953 - 24 - 360);
 
       final widest = geometryAt(2600, ratio: 0.8);
-      expect(widest.assistantWidth, 1180);
+      expect(widest.rightPaneWidth, 1180);
       expect(widest.workspaceWidth, 2600 - 24 - 1180);
 
       // 普通详情右栏上限 640 也参与夹取。
-      final detail = geometryAt(2000, maxAssistantWidth: 640);
-      expect(detail.assistantWidth, 640);
+      final detail = geometryAt(2000, maxPaneWidth: 640);
+      expect(detail.rightPaneWidth, 640);
     });
 
     test('拖动预览到达可读下限后槽留在夹取位置，超出的量单独报告', () {
       final pulledToNone = geometryAt(1280, previewWidth: 120);
-      expect(pulledToNone.assistantWidth, 360);
+      expect(pulledToNone.rightPaneWidth, 360);
       expect(pulledToNone.doorOffset, 360);
       expect(pulledToNone.previewOverflow, lessThan(0));
       expect(pulledToNone.previewOverflow, closeTo(120 - 360, 0.001));
 
       final pulledToAll = geometryAt(1280, previewWidth: 2000);
-      expect(pulledToAll.assistantWidth, 1087 - 24 - 480);
+      expect(pulledToAll.rightPaneWidth, 1087 - 24 - 480);
       expect(pulledToAll.previewOverflow, greaterThan(0));
-    });
-
-    test('折叠态：助手隐藏贴末端、工作区隐藏贴起点，隐藏子树仍拿到合法宽度', () {
-      final workspaceOnly = geometryAt(
-        1280,
-        mode: AssistantPaneMode.workspaceExpanded,
-      );
-      expect(workspaceOnly.workspaceWidth, 1280 - 24);
-      expect(workspaceOnly.doorAtEnd, isTrue);
-      expect(workspaceOnly.doorOffset, 0);
-      expect(workspaceOnly.assistantWidth, 531.5);
-      expect(workspaceOnly.dragStartWidth, 0);
-
-      final assistantOnly = geometryAt(
-        1280,
-        mode: AssistantPaneMode.assistantExpanded,
-      );
-      expect(assistantOnly.assistantWidth, 1280 - 24);
-      expect(assistantOnly.doorAtEnd, isFalse);
-      expect(assistantOnly.doorOffset, 0);
-      expect(assistantOnly.dragStartWidth, assistantOnly.availableWidth);
-      expect(
-        assistantOnly.workspaceWidth,
-        1280 - 24 - assistantOnly.committedAssistantWidth,
-      );
-    });
-
-    test('折叠态向内拉出时先按分屏几何预览，松手才提交模式', () {
-      final pulled = geometryAt(
-        1280,
-        mode: AssistantPaneMode.workspaceExpanded,
-        previewWidth: 600,
-      );
-      // 600 超过「工作区至少 480」的上限，预览已按夹取后的 583 摆放。
-      expect(pulled.assistantWidth, 583);
-      expect(pulled.doorOffset, 583);
-      expect(pulled.dragStartWidth, 0);
-      expect(pulled.mode, AssistantPaneMode.workspaceExpanded);
     });
   });
 
@@ -157,108 +115,103 @@ void main() {
       addTearDown(controller.dispose);
       expect(controller.isAssistantConversationActive, isTrue);
       expect(controller.isAssistantConversationVisibleTop, isTrue);
-      expect(controller.assistantSplitRatio, 0.5);
-      expect(controller.assistantSlotWidthFor(1000), 500);
+      expect(controller.paneSplitRatio, 0.5);
+      expect(controller.paneWidthFor(1000), 500);
 
       controller.entries
         ..clear()
         ..add(DetailPaneEntry('普通任务详情', (_) => const SizedBox.shrink()));
       expect(controller.isAssistantConversationActive, isFalse);
       expect(controller.isAssistantConversationVisibleTop, isFalse);
-      expect(controller.assistantSlotWidthFor(1000), 500);
+      expect(controller.paneWidthFor(1000), 500);
     });
 
     test('拖动实时改预览，松手提交比例；取消保留上次提交比例', () {
       final controller = assistantController();
       addTearDown(controller.dispose);
-      controller.beginAssistantResize(800);
-      controller.updateAssistantResize(
+      controller.beginPaneResize(800);
+      controller.updatePaneResize(
         physicalDelta: -200,
         availableWidth: 1600,
         textDirection: TextDirection.ltr,
       );
-      expect(controller.assistantSlotWidthFor(1600), 1000);
-      expect(controller.assistantPreviewOverflowFor(1600), 0);
-      expect(controller.assistantSplitRatio, 0.5);
-      controller.endAssistantResize(availableWidth: 1600);
-      expect(controller.assistantSplitRatio, closeTo(0.625, 0.0001));
+      expect(controller.paneWidthFor(1600), 1000);
+      expect(controller.panePreviewOverflowFor(1600), 0);
+      expect(controller.paneSplitRatio, 0.5);
+      controller.endPaneResize(availableWidth: 1600);
+      expect(controller.paneSplitRatio, closeTo(0.625, 0.0001));
       // 1200 宽时按同一比例重算，再被「工作区至少 480」的上限夹到 720。
-      expect(controller.assistantSlotWidthFor(1200), 720);
+      expect(controller.paneWidthFor(1200), 720);
 
       // 窗口宽度变化只重算显示值，不改写用户比例。
-      expect(controller.assistantSplitRatio, closeTo(0.625, 0.0001));
+      expect(controller.paneSplitRatio, closeTo(0.625, 0.0001));
 
-      controller.beginAssistantResize(720);
-      controller.updateAssistantResize(
+      controller.beginPaneResize(720);
+      controller.updatePaneResize(
         physicalDelta: 500,
         availableWidth: 1200,
         textDirection: TextDirection.ltr,
       );
       // 预览跨过可读下限：交互槽停在 360，超出量用边缘提示表达。
-      expect(controller.assistantSlotWidthFor(1200), 360);
-      expect(controller.assistantPreviewOverflowFor(1200), lessThan(0));
-      controller.cancelAssistantResize();
-      expect(controller.assistantSlotWidthFor(1200), 720);
-      expect(controller.assistantSplitRatio, closeTo(0.625, 0.0001));
+      expect(controller.paneWidthFor(1200), 360);
+      expect(controller.panePreviewOverflowFor(1200), lessThan(0));
+      controller.cancelPaneResize();
+      expect(controller.paneWidthFor(1200), 720);
+      expect(controller.paneSplitRatio, closeTo(0.625, 0.0001));
     });
 
-    test('96dp 吸附区分别收向助手与工作区，恢复后保留比例', () {
+    test('拖动到可读边界只夹取栏宽，不吸附为单栏', () {
       final controller = assistantController();
       addTearDown(controller.dispose);
-      controller.beginAssistantResize(600);
-      controller.updateAssistantResize(
+      controller.beginPaneResize(600);
+      controller.updatePaneResize(
         physicalDelta: 520,
         availableWidth: 1200,
         textDirection: TextDirection.ltr,
       );
-      controller.endAssistantResize(availableWidth: 1200);
-      expect(controller.assistantPaneMode, AssistantPaneMode.workspaceExpanded);
-      controller.restoreAssistantSplit();
-      expect(controller.assistantPaneMode, AssistantPaneMode.split);
-      expect(controller.assistantSplitRatio, 0.5);
+      controller.endPaneResize(availableWidth: 1200);
+      expect(controller.paneDisplayMode, PaneDisplayMode.split);
+      expect(controller.paneWidthFor(1200), 360);
 
-      controller.beginAssistantResize(600);
-      controller.updateAssistantResize(
+      controller.beginPaneResize(600);
+      controller.updatePaneResize(
         physicalDelta: -520,
         availableWidth: 1200,
         textDirection: TextDirection.ltr,
       );
-      controller.endAssistantResize(availableWidth: 1200);
-      expect(controller.assistantPaneMode, AssistantPaneMode.assistantExpanded);
-      controller.restoreAssistantSplit();
-      expect(controller.assistantSplitRatio, 0.5);
+      controller.endPaneResize(availableWidth: 1200);
+      expect(controller.paneDisplayMode, PaneDisplayMode.split);
+      expect(controller.paneWidthFor(1200), 720);
     });
 
     test('RTL 下物理拖动按阅读方向镜像，键盘与读屏加减按 40dp', () {
       final controller = assistantController();
       addTearDown(controller.dispose);
-      controller.beginAssistantResize(700);
-      controller.updateAssistantResize(
+      controller.beginPaneResize(700);
+      controller.updatePaneResize(
         physicalDelta: 200,
         availableWidth: 1400,
         textDirection: TextDirection.rtl,
       );
-      expect(controller.assistantSlotWidthFor(1400), 900);
-      controller.endAssistantResize(availableWidth: 1400);
+      expect(controller.paneWidthFor(1400), 900);
+      controller.endPaneResize(availableWidth: 1400);
       // 助手栏上限 = min(1180, 可分配宽 - 480) = 920。
-      controller.adjustAssistantSplit(widthDelta: 40, availableWidth: 1400);
-      expect(controller.assistantSlotWidthFor(1400), 920);
-      controller.adjustAssistantSplit(widthDelta: -80, availableWidth: 1400);
-      expect(controller.assistantSlotWidthFor(1400), 840);
+      controller.adjustPaneWidth(widthDelta: 40, availableWidth: 1400);
+      expect(controller.paneWidthFor(1400), 920);
+      controller.adjustPaneWidth(widthDelta: -80, availableWidth: 1400);
+      expect(controller.paneWidthFor(1400), 840);
     });
 
-    test('显式模式：Home/End 切单栏，恢复回到两栏并丢弃预览', () {
+    test('显式模式：切换全屏，恢复回到两栏并丢弃预览', () {
       final controller = assistantController();
       addTearDown(controller.dispose);
-      controller.beginAssistantResize(500);
-      controller.setAssistantPaneMode(AssistantPaneMode.workspaceExpanded);
-      expect(controller.assistantPaneMode, AssistantPaneMode.workspaceExpanded);
-      expect(controller.assistantPreviewWidth, isNull);
-      expect(controller.assistantSplitRatio, 0.5);
-      controller.setAssistantPaneMode(AssistantPaneMode.assistantExpanded);
-      expect(controller.assistantPaneMode, AssistantPaneMode.assistantExpanded);
-      controller.restoreAssistantSplit();
-      expect(controller.assistantPaneMode, AssistantPaneMode.split);
+      controller.beginPaneResize(500);
+      controller.togglePaneFullScreen();
+      expect(controller.isPaneFullScreen, isTrue);
+      expect(controller.panePreviewWidth, isNull);
+      expect(controller.paneSplitRatio, 0.5);
+      controller.restorePaneSplit();
+      expect(controller.paneDisplayMode, PaneDisplayMode.split);
     });
   });
 
@@ -279,12 +232,10 @@ void main() {
                 SizedBox(
                   width: AppLayout.splitDoorWidth,
                   height: double.infinity,
-                  child: AssistantSplitDoor(
+                  child: PaneSplitDoor(
                     controller: controller,
                     availableWidth: availableWidth,
-                    assistantWidth: controller.assistantSlotWidthFor(
-                      availableWidth,
-                    ),
+                    rightPaneWidth: controller.paneWidthFor(availableWidth),
                     textDirection: direction,
                   ),
                 ),
@@ -302,17 +253,15 @@ void main() {
       await tester.pumpWidget(harness(controller));
       await tester.pumpAndSettle();
 
-      final door = find.byKey(const Key('assistant-split-door'));
+      final door = find.byKey(const Key('pane-split-door'));
       expect(tester.getSize(door), const Size(AppLayout.splitDoorWidth, 600));
       expect(
-        tester
-            .getSize(find.byKey(const Key('assistant-split-door-track')))
-            .width,
+        tester.getSize(find.byKey(const Key('pane-split-door-track'))).width,
         AppLayout.splitDoorTrackWidth,
       );
 
       // 10% / 50% / 90% 高度都能起拖，每次向左拖动都加宽助手。
-      var previous = controller.assistantSplitRatio;
+      var previous = controller.paneSplitRatio;
       for (final fraction in [0.1, 0.5, 0.9]) {
         final rect = tester.getRect(door);
         final gesture = await tester.startGesture(
@@ -322,47 +271,32 @@ void main() {
         await tester.pump();
         await gesture.up();
         await tester.pumpAndSettle();
-        expect(controller.assistantSplitRatio, greaterThan(previous));
-        previous = controller.assistantSplitRatio;
+        expect(controller.paneSplitRatio, greaterThan(previous));
+        previous = controller.paneSplitRatio;
       }
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('方向键按 40dp 调整，Home/End 切单栏，Enter 恢复', (tester) async {
+    testWidgets('点击后 Enter 显式还原分栏', (tester) async {
       final controller = assistantController();
       addTearDown(controller.dispose);
       await tester.pumpWidget(harness(controller));
       await tester.pumpAndSettle();
 
-      final door = find.byKey(const Key('assistant-split-door'));
+      final door = find.byKey(const Key('pane-split-door'));
       await tester.tap(door);
       await tester.pumpAndSettle();
-      expect(controller.assistantSplitRatio, 0.5);
+      expect(controller.isPaneFullScreen, isTrue);
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.tap(door);
       await tester.pumpAndSettle();
-      expect(controller.assistantSlotWidthFor(1600), 760);
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      expect(controller.isPaneFullScreen, isFalse);
+      await tester.tap(door);
       await tester.pumpAndSettle();
-      expect(controller.assistantSlotWidthFor(1600), 840);
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.home);
-      await tester.pumpAndSettle();
-      expect(controller.assistantPaneMode, AssistantPaneMode.workspaceExpanded);
-      expect(
-        find.byKey(const Key('assistant-split-door-grip')),
-        findsOneWidget,
-      );
-      await tester.sendKeyEvent(LogicalKeyboardKey.end);
-      await tester.pumpAndSettle();
-      expect(controller.assistantPaneMode, AssistantPaneMode.assistantExpanded);
-
+      expect(controller.isPaneFullScreen, isTrue);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
-      expect(controller.assistantPaneMode, AssistantPaneMode.split);
-      // 恢复保留上次比例：840/1600。
-      expect(controller.assistantSlotWidthFor(1600), 840);
+      expect(controller.isPaneFullScreen, isFalse);
       expect(tester.takeException(), isNull);
     });
 
@@ -373,22 +307,22 @@ void main() {
       try {
         await tester.pumpWidget(harness(controller));
         await tester.pumpAndSettle();
-        final node = find.byKey(const Key('assistant-split-door-semantics'));
+        final node = find.byKey(const Key('pane-split-door-semantics'));
         var data = tester.getSemantics(node).getSemanticsData();
-        expect(data.label, '调整助手分屏');
-        expect(data.value, '助手栏 50%');
+        expect(data.label, '调整分页宽度');
+        expect(data.value, '右侧页面占宽 50%');
         expect(data.flagsCollection.isSlider, isTrue);
         expect(data.hasAction(SemanticsAction.increase), isTrue);
         expect(data.hasAction(SemanticsAction.decrease), isTrue);
         expect(
           data.customSemanticsActionIds?.length ?? 0,
-          greaterThanOrEqualTo(2),
+          greaterThanOrEqualTo(1),
         );
 
-        controller.setAssistantPaneMode(AssistantPaneMode.workspaceExpanded);
+        controller.togglePaneFullScreen();
         await tester.pumpAndSettle();
         data = tester.getSemantics(node).getSemanticsData();
-        expect(data.label, '恢复助手分屏');
+        expect(data.label, '恢复并排分页');
         expect(data.flagsCollection.isButton, isTrue);
         expect(data.hasAction(SemanticsAction.tap), isTrue);
       } finally {
@@ -396,38 +330,26 @@ void main() {
       }
     });
 
-    testWidgets('预览超出可读下限时只画不接收命中的边缘提示', (tester) async {
+    testWidgets('预览超出可读下限时只夹取交互槽，不显示边缘吸附提示', (tester) async {
       final controller = assistantController();
       addTearDown(controller.dispose);
       await tester.pumpWidget(harness(controller));
       await tester.pumpAndSettle();
-      expect(
-        find.byKey(const Key('assistant-split-door-edge-hint')),
-        findsNothing,
-      );
+      expect(find.byKey(const Key('pane-split-door-edge-hint')), findsNothing);
 
-      controller.beginAssistantResize(800);
-      controller.updateAssistantResize(
+      controller.beginPaneResize(800);
+      controller.updatePaneResize(
         physicalDelta: 700,
         availableWidth: 1600,
         textDirection: TextDirection.ltr,
       );
       await tester.pump();
-      final hint = find.byKey(const Key('assistant-split-door-edge-hint'));
-      expect(hint, findsOneWidget);
-      expect(
-        find.ancestor(of: hint, matching: find.byType(IgnorePointer)),
-        findsWidgets,
-      );
-      expect(
-        find.ancestor(of: hint, matching: find.byType(ExcludeSemantics)),
-        findsOneWidget,
-      );
-      // 交互槽留在可读下限，提示不改变命中区域。
-      expect(controller.assistantSlotWidthFor(1600), 360);
-      controller.cancelAssistantResize();
+      // 交互槽留在可读下限，不再绘制边缘吸附提示。
+      expect(find.byKey(const Key('pane-split-door-edge-hint')), findsNothing);
+      expect(controller.paneWidthFor(1600), 360);
+      controller.cancelPaneResize();
       await tester.pumpAndSettle();
-      expect(hint, findsNothing);
+      expect(find.byKey(const Key('pane-split-door-edge-hint')), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });

@@ -50,10 +50,10 @@ class _RelatedRecordsEntryState extends State<RelatedRecordsEntry> {
     super.dispose();
   }
 
-  Future<void> _open() => Navigator.of(context).push<void>(
-    MaterialPageRoute(
-      builder: (_) => RecordsPage(goalId: widget.goalId, nodeId: widget.nodeId),
-    ),
+  Future<void> _open() => openDetailPane<void>(
+    context,
+    label: '目标记录',
+    builder: (_) => RecordsPage(goalId: widget.goalId, nodeId: widget.nodeId),
   );
 
   @override
@@ -105,14 +105,14 @@ class RecordsEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     if (RecordScope.maybeOf(context) == null) return const SizedBox.shrink();
     Future<void> open() async {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => RecordsPage(
-            goalId: goalId,
-            nodeId: nodeId,
-            missionId: missionId,
-            date: date,
-          ),
+      await openDetailPane<void>(
+        context,
+        label: '查看记录',
+        builder: (_) => RecordsPage(
+          goalId: goalId,
+          nodeId: nodeId,
+          missionId: missionId,
+          date: date,
         ),
       );
       if (context.mounted) onReturn?.call();
@@ -275,10 +275,10 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => RecordsPage(date: widget.date),
-                        ),
+                      onPressed: () => openDetailPane<void>(
+                        context,
+                        label: '查看全部记录',
+                        builder: (_) => RecordsPage(date: widget.date),
                       ),
                       child: const Text('查看全部'),
                     ),
@@ -287,8 +287,10 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
                 for (final r in items.take(3))
                   InkWell(
                     borderRadius: BorderRadius.circular(AppLayout.radiusMd),
-                    onTap: () => Navigator.of(context).push<void>(
-                      MaterialPageRoute(builder: (_) => RecordDetail(id: r.id)),
+                    onTap: () => openDetailPane<void>(
+                      context,
+                      label: '记录详情',
+                      builder: (_) => RecordDetail(id: r.id),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(

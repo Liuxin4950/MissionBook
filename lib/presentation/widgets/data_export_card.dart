@@ -28,8 +28,9 @@ class _DataExportCardState extends State<DataExportCard> {
     setState(() => _choosing = true);
     final Set<BackupResource>? resources;
     try {
-      resources = await Navigator.of(context).push<Set<BackupResource>>(
-        MaterialPageRoute(builder: (_) => const BackupScopePage()),
+      resources = await showAdaptiveSheet<Set<BackupResource>>(
+        context: context,
+        builder: (_) => const BackupScopePage(),
       );
     } finally {
       if (mounted) setState(() => _choosing = false);

@@ -856,10 +856,10 @@ class _TodayHeader extends StatelessWidget {
                 IconButton(
                   key: const Key('today-camera-record'),
                   tooltip: '拍照记录',
-                  onPressed: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) => const RecordEditor(capture: true),
-                    ),
+                  onPressed: () => openDetailPane<void>(
+                    context,
+                    label: '新建记录',
+                    builder: (_) => const RecordEditor(capture: true),
                   ),
                   icon: const Icon(Icons.photo_camera_outlined),
                 ),

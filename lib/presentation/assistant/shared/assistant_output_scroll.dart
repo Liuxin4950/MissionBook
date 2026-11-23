@@ -1,12 +1,14 @@
 import 'package:flutter/widgets.dart';
 
-/// 助手输出滚动的共同判定，适用于 reverse=true 的消息列表。
+/// 助手输出滚动的共同判定；主页面正向排列，悬浮聊天可使用反向排列。
 abstract final class AssistantOutputScroll {
   static const latestThreshold = 24.0;
 
-  /// reverse 列表的最小滚动范围就是视觉上的最新消息位置。
-  static bool isAtLatest(ScrollMetrics metrics) =>
-      (metrics.pixels - metrics.minScrollExtent).abs() <= latestThreshold;
+  /// 判断当前位置是否在最新消息端。
+  static bool isAtLatest(ScrollMetrics metrics, {bool reverse = true}) {
+    final latest = reverse ? metrics.minScrollExtent : metrics.maxScrollExtent;
+    return (metrics.pixels - latest).abs() <= latestThreshold;
+  }
 
   /// 新内容到达且用户离开最新位置时，才显示回到底部入口。
   static bool shouldShowJumpToLatest({

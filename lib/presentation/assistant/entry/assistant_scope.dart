@@ -123,13 +123,7 @@ Future<void> showAssistantConversation(
       assistantConversationPaneIdentity,
     );
     if (existing?.route?.isActive ?? false) {
-      return detailPane.reveal(assistantConversationPaneIdentity).then((shown) {
-        if (shown &&
-            detailPane.assistantPaneMode ==
-                AssistantPaneMode.workspaceExpanded) {
-          detailPane.restoreAssistantSplit();
-        }
-      });
+      return detailPane.reveal(assistantConversationPaneIdentity).then((_) {});
     }
     // 保留任务/目标详情作为返回目标，同时仍经统一的右栏入口打开。
     return openDetailPane<void>(

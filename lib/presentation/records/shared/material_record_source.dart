@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../domain/entities/saved_record.dart';
 import 'record_scope.dart';
 import '../list/records_page.dart';
+import '../../widgets/detail_pane.dart';
 
 /// 仅展示材料来源的存续状态；材料正文始终来自已提交快照。
 class MaterialRecordSource extends StatefulWidget {
@@ -47,10 +48,10 @@ class _MaterialRecordSourceState extends State<MaterialRecordSource> {
         if (snapshot.data!.items.isEmpty) return const Text('来源记录已删除，提交材料仍保留');
         return TextButton(
           onPressed: () async {
-            await Navigator.of(context).push<void>(
-              MaterialPageRoute(
-                builder: (_) => RecordDetail(id: widget.recordId),
-              ),
+            await openDetailPane<void>(
+              context,
+              label: '来源记录',
+              builder: (_) => RecordDetail(id: widget.recordId),
             );
             if (mounted) _load();
           },

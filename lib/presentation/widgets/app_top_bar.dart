@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_layout.dart';
+import 'detail_pane.dart';
 
 /// 二级页面共用的顶栏：浅绿圆形返回、森林绿箭头和靠左标题。
 ///
@@ -37,6 +38,8 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final pane = DetailPaneScope.maybeOf(context);
+    final restorePane = pane?.isPaneFullScreen == true;
     final handleBack =
         onBack ??
         () {
@@ -55,7 +58,16 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
           titleSpacing: AppLayout.spaceMd,
           title: Text(title),
           titleTextStyle: theme.textTheme.titleMedium,
-          actions: actions,
+          actions: [
+            if (restorePane)
+              IconButton(
+                key: const Key('pane-restore-split'),
+                tooltip: '还原并排分页',
+                onPressed: pane!.restorePaneSplit,
+                icon: const Icon(Icons.splitscreen_rounded),
+              ),
+            ...?actions,
+          ],
           actionsPadding: EdgeInsets.only(right: inset),
           // 返回按钮与正文共用左右边距；标准24、窄屏16，加上最小触控宽度。
           leadingWidth: inset + AppLayout.touchTargetMin,

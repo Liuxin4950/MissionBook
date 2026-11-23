@@ -15,6 +15,7 @@ import '../../widgets/app_top_bar.dart';
 import 'assistant_model_picker.dart';
 import 'assistant_provider_edit_page.dart';
 import 'assistant_settings_form.dart';
+import '../../widgets/detail_pane.dart';
 
 /// 服务目录总览：默认/摘要/当前会话模型与服务列表。
 ///
@@ -323,12 +324,12 @@ class _ModelOverviewState extends State<_ModelOverview> {
   }
 
   Future<void> _openProvider(ProviderConfig? provider) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => AssistantProviderEditPage(
-          controller: _controller,
-          provider: provider,
-        ),
+    await openDetailPane<void>(
+      context,
+      label: provider == null ? '新建服务' : '编辑服务',
+      builder: (_) => AssistantProviderEditPage(
+        controller: _controller,
+        provider: provider,
       ),
     );
     if (mounted) setState(() {});

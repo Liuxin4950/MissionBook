@@ -11,7 +11,8 @@ import 'local_resources_base.dart';
 
 LocalResourceStore createLocalResourceStore() => IoLocalResourceStore();
 
-/// 助手设置来自设备安全存储，资料/动效/提醒是应用支持目录下的独立偏好文件。
+/// 助手设置来自设备安全存储，资料/动效/提醒是应用支持目录下的独立偏好文件；
+/// 页面分页偏好只保留在本机，不随可备份的动效偏好导出或恢复。
 class IoLocalResourceStore implements LocalResourceStore {
   IoLocalResourceStore({
     Future<Directory> Function()? directory,
@@ -44,7 +45,10 @@ class IoLocalResourceStore implements LocalResourceStore {
     }
     if (resources.contains(BackupResource.localPreferences)) {
       for (final entry in _preferenceFiles.entries) {
-        sections[entry.key] = await _readText(entry.value);
+        final value = await _readText(entry.value);
+        sections[entry.key] = entry.key == 'motion' && value != null
+            ? _withoutPanePreference(value)
+            : value;
       }
     }
     if (sections.isNotEmpty) {
@@ -91,9 +95,15 @@ class IoLocalResourceStore implements LocalResourceStore {
         }
       }
       for (final entry in _preferenceFiles.entries) {
-        final value = decoded[entry.key];
+        var value = decoded[entry.key];
         if (value == null) continue;
         if (value is! String) throw const FormatException('本机偏好内容无效');
+        if (entry.key == 'motion') {
+          value = _preservingLocalPanePreference(
+            await _readText(entry.value),
+            value,
+          );
+        }
         await _writeText(entry.value, value);
       }
     }
@@ -101,9 +111,7 @@ class IoLocalResourceStore implements LocalResourceStore {
         .where((entry) => entry.key.startsWith(speechEntryPrefix))
         .toList();
     if (model.isEmpty) return;
-    final target = Directory(
-      '${(await _directory()).path}/speech/sensevoice',
-    );
+    final target = Directory('${(await _directory()).path}/speech/sensevoice');
     await target.create(recursive: true);
     for (final entry in model) {
       final name = entry.key.substring(speechEntryPrefix.length);
@@ -135,5 +143,41 @@ class IoLocalResourceStore implements LocalResourceStore {
     final temporary = File('${file.path}.tmp');
     await temporary.writeAsString(value, flush: true);
     await temporary.rename(file.path);
+  }
+}
+
+String _withoutPanePreference(String value) {
+  final settings = _decodeMotionSettings(value);
+  if (settings == null) return value;
+  settings.remove('openSubpagesInPane');
+  return jsonEncode(settings);
+}
+
+String _preservingLocalPanePreference(String? current, String incoming) {
+  final currentSettings = current == null
+      ? null
+      : _decodeMotionSettings(current);
+  final localPanePreference = currentSettings?['openSubpagesInPane'];
+  final incomingSettings = _decodeMotionSettings(incoming);
+  if (incomingSettings == null) return incoming;
+  incomingSettings.remove('openSubpagesInPane');
+  if (localPanePreference is bool) {
+    incomingSettings['openSubpagesInPane'] = localPanePreference;
+  }
+  return jsonEncode(incomingSettings);
+}
+
+Map<String, dynamic>? _decodeMotionSettings(String value) {
+  try {
+    if (!value.trimLeft().startsWith('{')) {
+      return {'preference': value};
+    }
+    final decoded = jsonDecode(value);
+    if (decoded is! Map) return null;
+    return Map<String, dynamic>.from(decoded);
+  } on FormatException {
+    return null;
+  } on TypeError {
+    return null;
   }
 }

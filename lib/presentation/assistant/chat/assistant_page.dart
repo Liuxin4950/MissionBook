@@ -93,7 +93,7 @@ class _AssistantPageState extends State<AssistantPage> {
   }
 
   static const _contentWidth = AppLayout.assistantPaneMaxWidth;
-  static const _sidebarWidth = 272.0; // 会话导航的内容宽度，不是页面间距。
+  static const _expandedContentWidth = AppLayout.dashboardMaxWidth;
   final _attachments = <AssistantAttachment>[];
   bool _picking = false;
   AssistantVoiceController? _voice;
@@ -318,7 +318,7 @@ class _AssistantPageState extends State<AssistantPage> {
                     : widget.controller.sessionTitle,
                 // 顶栏返回与系统返回同义：手动折叠时先恢复两栏，再考虑离开。
                 onBack: _handleBack,
-                maxContentWidth: _contentWidth,
+                maxContentWidth: _pageMaxWidth(context),
                 actions: _headerActions(),
               ),
             ),
@@ -328,7 +328,8 @@ class _AssistantPageState extends State<AssistantPage> {
       top: false,
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _contentWidth),
+          key: const Key('assistant-page-content'),
+          constraints: BoxConstraints(maxWidth: _pageMaxWidth(context)),
           child: ListenableBuilder(
             listenable: widget.controller,
             builder: (context, _) {
@@ -445,7 +446,8 @@ class _AssistantPageState extends State<AssistantPage> {
                     children: [
                       if (wide)
                         SizedBox(
-                          width: _sidebarWidth,
+                          key: const Key('assistant-sidebar-pane'),
+                          width: _sidebarWidth(box.maxWidth),
                           child: _buildSidebar(controller),
                         ),
                       Expanded(child: conversation),
@@ -461,15 +463,22 @@ class _AssistantPageState extends State<AssistantPage> {
   );
   Widget _buildSidebar(AssistantController controller) {
     final conversations = controller.conversations;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppLayout.spaceXxl,
-        AppLayout.spaceLg,
-        0,
-        AppLayout.spaceXxl,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        border: Border(
+          right: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
       ),
-      child: AppSectionCard(
-        padding: const EdgeInsets.all(AppLayout.spaceLg),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppLayout.spaceXl,
+          AppLayout.spaceLg,
+          AppLayout.spaceMd,
+          AppLayout.spaceXl,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -492,38 +501,117 @@ class _AssistantPageState extends State<AssistantPage> {
                 ),
               ],
             ),
-            const SizedBox(height: AppLayout.spaceLg),
-            FilledButton.tonalIcon(
+            const SizedBox(height: AppLayout.spaceSm),
+            OutlinedButton.icon(
               key: const Key('assistant-sidebar-new'),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: AppColors.card,
+                foregroundColor: AppColors.primary,
+                minimumSize: const Size.fromHeight(AppLayout.touchTargetMin),
+                alignment: AlignmentDirectional.centerStart,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppLayout.spaceMd,
+                ),
+                side: const BorderSide(color: AppColors.hairline),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+                ),
+              ),
               onPressed: controller.isBusy ? null : _newSession,
               icon: const Icon(Icons.add_rounded),
               label: const Text('开启新会话'),
             ),
-            const SizedBox(height: AppLayout.spaceXl),
+            if (conversations.isNotEmpty) ...[
+              const SizedBox(height: AppLayout.spaceMd),
+              const Divider(height: AppLayout.spaceLg),
+              Text(
+                '最近会话',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppLayout.spaceSm),
+            ] else
+              const SizedBox(height: AppLayout.spaceLg),
             Expanded(
               child: conversations.isEmpty
-                  ? const Text('对话会自动保存在这台设备上。')
-                  : ListView.builder(
+                  ? Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: AppLayout.spaceLg),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.forum_outlined,
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                            const SizedBox(height: AppLayout.spaceSm),
+                            Text(
+                              '还没有会话',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: EdgeInsets.zero,
                       itemCount: conversations.length,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: AppLayout.spaceXs),
                       itemBuilder: (context, index) {
                         final item = conversations[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: AppLayout.spaceSm,
+                        final selected = item.id == controller.currentSessionId;
+                        final colors = Theme.of(context).colorScheme;
+                        return AppInteractiveSurface(
+                          key: ValueKey('assistant-sidebar-${item.id}'),
+                          selected: selected,
+                          enabled: !controller.isBusy,
+                          onTap: controller.isBusy
+                              ? null
+                              : () => _selectConversation(item.id),
+                          semanticsLabel: item.title,
+                          selectedColor: AppColors.card,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppLayout.spaceSm,
+                            vertical: AppLayout.spaceMd,
                           ),
-                          child: AppInteractiveSurface(
-                            key: ValueKey('assistant-sidebar-${item.id}'),
-                            selected: item.id == controller.currentSessionId,
-                            enabled: !controller.isBusy,
-                            onTap: controller.isBusy
-                                ? null
-                                : () => _selectConversation(item.id),
-                            semanticsLabel: item.title,
-                            child: Text(
-                              item.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          borderRadius: AppLayout.radiusSm,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: AppLayout.spaceXs,
+                                height: AppLayout.iconLg,
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? AppColors.primary
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(
+                                    AppLayout.radiusXs,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: AppLayout.spaceSm),
+                              Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                size: AppLayout.iconSm,
+                                color: selected
+                                    ? colors.primary
+                                    : colors.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: AppLayout.spaceSm),
+                              Expanded(
+                                child: Text(
+                                  item.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: selected
+                                      ? Theme.of(context).textTheme.labelLarge
+                                      : Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       },
@@ -557,6 +645,19 @@ class _AssistantPageState extends State<AssistantPage> {
     }
     return availableWidth >= AppLayout.assistantSidebarBreakpoint * textScale;
   }
+
+  double _pageMaxWidth(BuildContext context) {
+    final pane = DetailPaneScope.maybeOf(context);
+    if (widget.showBack &&
+        pane?.isAssistantConversationVisibleTop == true &&
+        pane?.isPaneFullScreen == true) {
+      return _expandedContentWidth;
+    }
+    return _contentWidth;
+  }
+
+  double _sidebarWidth(double availableWidth) =>
+      (availableWidth * .2).clamp(272.0, 360.0).toDouble();
 
   /// 会话级模型切换：只影响当前会话，不修改新会话默认值。
   Future<void> _switchModel() async {
@@ -723,30 +824,9 @@ class _AssistantPageState extends State<AssistantPage> {
     }
   }
 
-  /// 顶栏「恢复分屏」：工作区被折叠时提供 48dp 替代动作，不新增栏宽。
-  Widget? _restoreSplitAction() {
-    final pane = DetailPaneScope.maybeOf(context);
-    if (pane == null ||
-        pane.assistantPaneMode != AssistantPaneMode.assistantExpanded ||
-        !pane.isAssistantConversationVisibleTop ||
-        !AppLayout.canShowAssistantDoorForWindow(
-          MediaQuery.sizeOf(context).width,
-        )) {
-      return null;
-    }
-    return IconButton(
-      key: const Key('assistant-restore-split'),
-      tooltip: '恢复分屏',
-      onPressed: pane.restoreAssistantSplit,
-      icon: const Icon(Icons.splitscreen_rounded),
-    );
-  }
-
   List<Widget> _headerActions() {
     final compact = AppLayout.windowClassOf(context) == WindowClass.compact;
-    final restoreSplit = _restoreSplitAction();
     return [
-      ?restoreSplit,
       IconButton(
         key: const Key('assistant-new-session'),
         tooltip: '新会话',
@@ -891,6 +971,7 @@ class _AssistantPageState extends State<AssistantPage> {
               _scroll.hasClients) {
             final atLatest = AssistantOutputScroll.isAtLatest(
               notification.metrics,
+              reverse: false,
             );
             final hasNewOutput = atLatest ? false : _hasNewOutput;
             final showJump = AssistantOutputScroll.shouldShowJumpToLatest(
@@ -928,7 +1009,6 @@ class _AssistantPageState extends State<AssistantPage> {
                   ),
               child: ListView.separated(
                 key: const Key('assistant-conversation-list'),
-                reverse: transcript.isNotEmpty,
                 controller: _scroll,
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,
@@ -940,19 +1020,13 @@ class _AssistantPageState extends State<AssistantPage> {
                 ),
                 itemCount: children.length,
                 separatorBuilder: (_, index) {
-                  final current =
-                      children[transcript.isNotEmpty
-                          ? children.length - 1 - index
-                          : index + 1];
+                  final current = children[index + 1];
                   if (current is _MessageBubble && !current.firstSlice) {
                     return const SizedBox.shrink();
                   }
                   return const SizedBox(height: AppLayout.spaceMd);
                 },
-                itemBuilder: (_, index) =>
-                    children[transcript.isNotEmpty
-                        ? children.length - 1 - index
-                        : index],
+                itemBuilder: (_, index) => children[index],
               ),
             ),
             if (_showJumpToLatest)
@@ -996,7 +1070,7 @@ class _AssistantPageState extends State<AssistantPage> {
       _scrollScheduled = false;
       if (!mounted || !_scroll.hasClients || !_followOutput) return;
       final position = _scroll.position;
-      final target = position.minScrollExtent;
+      final target = position.maxScrollExtent;
       if ((position.pixels - target).abs() < 0.5) {
         if (_showJumpToLatest) setState(() => _showJumpToLatest = false);
         return;
@@ -1036,16 +1110,15 @@ class _AssistantPageState extends State<AssistantPage> {
     }
   }
 
-  /// 顶栏返回：当前宽度能分屏、聊天可见且手动折叠时优先恢复两栏。
+  /// 顶栏返回：当前宽度能分栏且当前页在全屏时优先还原分栏。
   void _handleBack() {
     final pane = DetailPaneScope.maybeOf(context);
     if (pane != null &&
-        pane.assistantPaneMode != AssistantPaneMode.split &&
+        pane.isPaneFullScreen &&
+        pane.shouldRestorePaneOnBack &&
         pane.isAssistantConversationVisibleTop &&
-        AppLayout.canShowAssistantDoorForWindow(
-          MediaQuery.sizeOf(context).width,
-        )) {
-      pane.restoreAssistantSplit();
+        AppLayout.canShowSplitPaneForWindow(MediaQuery.sizeOf(context).width)) {
+      pane.restorePaneSplit();
       return;
     }
     Navigator.of(context).maybePop();
@@ -1054,20 +1127,20 @@ class _AssistantPageState extends State<AssistantPage> {
   Future<void> _openHistory() async {
     await _cancelVoiceInput();
     if (!mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => AssistantHistoryPage(controller: widget.controller),
-      ),
+    await openDetailPane<void>(
+      context,
+      label: '会话历史',
+      builder: (_) => AssistantHistoryPage(controller: widget.controller),
     );
   }
 
   Future<void> _openSettings() async {
     await _cancelVoiceInput();
     if (!mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => AssistantSettingsPage(controller: widget.controller),
-      ),
+    await openDetailPane<void>(
+      context,
+      label: '助手设置',
+      builder: (_) => AssistantSettingsPage(controller: widget.controller),
     );
   }
 

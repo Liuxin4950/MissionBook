@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/backup/backup_service.dart';
 import 'package:mission_book/application/settings/app_device.dart';
+import 'package:mission_book/application/settings/motion_settings.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/presentation/me/settings_page.dart';
+import 'package:mission_book/presentation/widgets/motion_settings_scope.dart';
 import '../support/me_fakes.dart';
 
 class _Backup implements BackupExporter {
@@ -77,6 +80,7 @@ void main() {
     bool reduceMotion = false,
     double width = 390,
     double textScale = 1,
+    MotionSettings? motion,
   }) async {
     tester.view.physicalSize = Size(width, 1000);
     tester.view.devicePixelRatio = 1;
@@ -85,15 +89,19 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(
-            disableAnimations: reduceMotion,
-            textScaler: TextScaler.linear(textScale),
-          ),
-          child: child!,
-        ),
+        builder: (context, child) {
+          Widget content = MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              disableAnimations: reduceMotion,
+              textScaler: TextScaler.linear(textScale),
+            ),
+            child: child!,
+          );
+          if (motion != null) {
+            content = MotionSettingsHost(settings: motion, child: content);
+          }
+          return content;
+        },
         home: Scaffold(
           body: SettingsPage(device: device, backup: backup),
         ),
@@ -101,6 +109,35 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('分页偏好开关即时保存并在重载后保留', (tester) async {
+    String? saved;
+    final motion = MotionSettings(
+      read: () async => saved,
+      write: (value) async => saved = value,
+    );
+    addTearDown(motion.dispose);
+    await motion.load();
+    await open(tester, motion: motion);
+
+    final row = find.byKey(const Key('open-subpages-in-pane'));
+    await tester.ensureVisible(row);
+    final toggle = find.descendant(of: row, matching: find.byType(Switch));
+    expect(tester.widget<Switch>(toggle).value, isTrue);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(motion.openSubpagesInPane, isFalse);
+    expect(jsonDecode(saved!)['openSubpagesInPane'], isFalse);
+
+    final reloaded = MotionSettings(
+      read: () async => saved,
+      write: (_) async {},
+    );
+    addTearDown(reloaded.dispose);
+    await reloaded.load();
+    expect(reloaded.openSubpagesInPane, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets('导出先选范围，等待阻止重复操作，取消不显示成功，失败后可以重试保存', (tester) async {
     Future<void> startExport({bool pending = false}) async {
@@ -131,7 +168,7 @@ void main() {
     await tester.tap(export);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('backup-scope-confirm')), findsOneWidget);
-    await tester.tap(find.byTooltip('返回'));
+    await tester.tap(find.byTooltip('返回').last);
     await tester.pumpAndSettle();
     expect(backup.calls, 0);
 

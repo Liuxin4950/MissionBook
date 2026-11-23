@@ -1,9 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/settings/motion_settings.dart';
 import 'package:mission_book/data/settings/motion_settings_store_native.dart';
+import 'package:mission_book/application/backup/backup_service.dart';
+import 'package:mission_book/data/backup/local_resources_base.dart';
+import 'package:mission_book/data/backup/local_resources_io.dart';
 
 void main() {
   for (final style in PageMotionStyle.values) {
@@ -83,5 +88,45 @@ void main() {
     await loading;
     expect(settings.preference, MotionPreference.full);
     expect(settings.error, isNull);
+  });
+
+  test('分页偏好不进入本机偏好备份，恢复时保留当前设备值', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'mission-motion-backup-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final motionFile = File('${directory.path}/page_motion.txt');
+    await motionFile.writeAsString(
+      jsonEncode({
+        'preference': 'reduced',
+        'pageStyle': 'slide',
+        'openSubpagesInPane': false,
+      }),
+    );
+    final resources = IoLocalResourceStore(directory: () async => directory);
+
+    final backup = await resources.collect({BackupResource.localPreferences});
+    final sections =
+        jsonDecode(utf8.decode(backup[localResourcesEntry]!))
+            as Map<String, dynamic>;
+    final exportedMotion = jsonDecode(sections['motion'] as String) as Map;
+    expect(exportedMotion.containsKey('openSubpagesInPane'), isFalse);
+
+    final incoming = Uint8List.fromList(
+      utf8.encode(
+        jsonEncode({
+          'motion': jsonEncode({
+            'preference': 'full',
+            'pageStyle': 'fade',
+            'openSubpagesInPane': true,
+          }),
+        }),
+      ),
+    );
+    await resources.apply({localResourcesEntry: incoming});
+    final restored = jsonDecode(await motionFile.readAsString()) as Map;
+    expect(restored['preference'], 'full');
+    expect(restored['pageStyle'], 'fade');
+    expect(restored['openSubpagesInPane'], isFalse);
   });
 }

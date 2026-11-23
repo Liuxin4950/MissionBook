@@ -31,39 +31,30 @@ abstract final class AppLayout {
   static bool useExtendedRail(BuildContext context) =>
       MediaQuery.sizeOf(context).width >= extendedRailBreakpoint;
 
-  // 双栏三要素：左栏最小宽 + 栏间距 + 右栏最小宽。
-  // 只有内容区宽度凑齐三者才分栏，否则自动落回单列（宽窗口也可能因侧栏落回）。
+  // 统一分页宽度：工作区最小宽 + 分隔槽 + 右栏最小宽。
+  // 只有内容区凑齐三者才并排，否则右栏占满窗口。
   static const paneLeftMin = 480.0;
-  static const paneGap = spaceLg;
+  static const paneGap = spaceXxl;
   static const paneRightMin = 360.0;
   static const paneMinContentWidth = paneLeftMin + paneGap + paneRightMin;
 
-  // 助手「橱窗门」：并排时总占宽 24，中间 8 宽门轨；普通详情继续用 16 栏间距。
-  // 门槛按扣除导航与系统侧边后的正文宽度计算：480（工作区）+ 24（门）+ 360（助手）。
+  // 分隔槽总占宽 24，中间 8 宽门轨；详情与助手共用相同几何。
   static const splitDoorWidth = spaceXxl;
   static const splitDoorTrackWidth = spaceSm;
-  static const assistantPaneMinContentWidth =
-      paneLeftMin + splitDoorWidth + paneRightMin;
-  // 边缘吸附区沿用现行 96，按可分配正文宽度（已扣门槽）定义。
-  static const paneEdgeSnap = 96.0;
 
   // 侧栏实际占位（含 1dp 边线）：常规 88+1、扩展 192+1。
   // 外壳与助手顶栏共用同一换算，窗口宽度决定助手分屏是否可用。
   static const railWidthCompact = 89.0;
   static const railWidthExtended = 193.0;
 
-  /// 常规侧栏无额外系统边距时，窗口最早 953dp 进入助手分屏（944–952 仍单栏）。
-  static bool canSplitAssistantPane(double contentWidth) =>
-      contentWidth >= assistantPaneMinContentWidth;
-
   static double railWidthForWindow(double windowWidth) =>
       windowWidth >= extendedRailBreakpoint
       ? railWidthExtended
       : railWidthCompact;
 
-  /// 按窗口宽度推断助手分屏是否可用；手机宽度恒为 false。
-  static bool canShowAssistantDoorForWindow(double windowWidth) =>
-      canSplitAssistantPane(windowWidth - railWidthForWindow(windowWidth));
+  /// 按窗口宽度推断是否能显示共用分页门；手机宽度恒为 false。
+  static bool canShowSplitPaneForWindow(double windowWidth) =>
+      canSplitPane(windowWidth - railWidthForWindow(windowWidth));
 
   // 形状 token：按用途分层，页面不再直接写圆角数字。
   static const radiusXxs = 2.0; // 细条端点等极小装饰。

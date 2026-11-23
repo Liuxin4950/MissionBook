@@ -27,6 +27,7 @@ import 'presentation/me/me_page.dart';
 import 'presentation/widgets/detail_pane.dart';
 import 'presentation/widgets/app_interactive_surface.dart';
 import 'presentation/widgets/app_content_transition.dart';
+import 'presentation/widgets/motion_settings_scope.dart';
 
 /// 管理顶层导航入口，并保留各页状态、转交共享业务对象。
 class AppShell extends StatefulWidget {
@@ -85,6 +86,9 @@ class _AppShellState extends State<AppShell> {
   // 因此只按它自己的分组滚动定位，不新建页面、不复制设置 UI。
   static const _voiceSettingsRowKey = Key('assistant-speech-settings-entry');
   bool _openingVoiceSettings = false;
+
+  bool get _openSubpagesInPane =>
+      MotionSettingsScope.maybeOf(context)?.settings.openSubpagesInPane ?? true;
 
   @override
   void initState() {
@@ -207,13 +211,15 @@ class _AppShellState extends State<AppShell> {
         ).showSnackBar(const SnackBar(content: Text('这张截图已失效')));
         return;
       }
-      await Navigator.of(context, rootNavigator: true).push<void>(
-        MaterialPageRoute(
-          builder: (_) => RecordEditor(
+      await _detailPane.openFromWorkspace<void>(
+        DetailPaneEntry(
+          '新建记录',
+          (_) => RecordEditor(
             initialImage: image.bytes,
             missionId: image.missionId,
           ),
         ),
+        openInPane: _openSubpagesInPane,
       );
     } on PlatformException {
       if (mounted) {
@@ -271,11 +277,13 @@ class _AppShellState extends State<AppShell> {
     _openingVoiceSettings = true;
     final pageKey = GlobalKey();
     try {
-      final opened = Navigator.of(context, rootNavigator: true).push<void>(
-        MaterialPageRoute(
-          builder: (_) =>
-              AssistantSettingsPage(key: pageKey, controller: controller),
+      final opened = _detailPane.openFromWorkspace<void>(
+        DetailPaneEntry(
+          '助手设置',
+          (_) => AssistantSettingsPage(key: pageKey, controller: controller),
         ),
+        replace: DetailPaneReplace.all,
+        openInPane: _openSubpagesInPane,
       );
       // 设置页先读本机配置再建表单，等它挂载后按首帧位置滚动一次。
       unawaited(_revealVoiceSettingsRow(pageKey));
@@ -411,7 +419,7 @@ class _AppShellState extends State<AppShell> {
       MissionPhase.paused,
       MissionPhase.reportPending,
     }.contains(detail.phase);
-    await _detailPane.open<void>(
+    await _detailPane.openFromWorkspace<void>(
       DetailPaneEntry(
         executing ? '任务执行' : '任务详情',
         (_) => executing
@@ -426,7 +434,8 @@ class _AppShellState extends State<AppShell> {
                 missionService: widget.missionService,
               ),
       ),
-      replace: DetailPaneReplace.none,
+      replace: DetailPaneReplace.all,
+      openInPane: _openSubpagesInPane,
     );
   }
 
@@ -507,14 +516,7 @@ class _AppShellState extends State<AppShell> {
       child: ListenableBuilder(
         listenable: _detailPane,
         builder: (context, _) {
-          final mode = _detailPane.assistantPaneMode;
-          final chatAttached = _detailPane.isAssistantConversationActive;
-          // 显式「仅工作区」：宽屏折成贴边细门轨，窄窗也保持工作区，
-          // 聊天留在右栏栈里等入口恢复（不 pop、不重建）。
-          final workspaceOnly =
-              _detailPane.hasContent &&
-              chatAttached &&
-              mode == AssistantPaneMode.workspaceExpanded;
+          final paneFullScreen = _detailPane.isPaneFullScreen;
           // 让位判断在构建外壳前就要有结论：页面正文的 TickerMode 依赖它。
           // 侧栏只在隐藏页面上暂停动画，外壳操作（助手入口菜单收尾）继续走完。
           final windowWidth = MediaQuery.sizeOf(context).width;
@@ -522,21 +524,10 @@ class _AppShellState extends State<AppShell> {
               ? 0.0
               : AppLayout.railWidthForWindow(windowWidth);
           final shellContentWidth = math.max(0.0, windowWidth - shellRailWidth);
-          final shellAssistantRoom = AppLayout.canSplitAssistantPane(
-            shellContentWidth,
-          );
-          final shellSplitAssistant =
-              _detailPane.hasContent && chatAttached && shellAssistantRoom;
-          final shellNormalSplit =
-              _detailPane.hasContent &&
-              !chatAttached &&
-              AppLayout.canSplitPane(shellContentWidth);
-          final shellPaused =
-              _detailPane.hasContent &&
-              !workspaceOnly &&
-              !shellNormalSplit &&
-              (!shellSplitAssistant ||
-                  mode == AssistantPaneMode.assistantExpanded);
+          final shellCanSplit = AppLayout.canSplitPane(shellContentWidth);
+          final shellSplit =
+              _detailPane.hasContent && shellCanSplit && !paneFullScreen;
+          final shellPaused = _detailPane.hasContent && !shellSplit;
           final pageBodyPaused = TickerMode(enabled: !shellPaused, child: body);
           // 手机形态：底部胶囊导航（现行稿）；宽屏形态在下方改为左侧导航栏。
           final shell = compact
@@ -544,8 +535,7 @@ class _AppShellState extends State<AppShell> {
                   key: const Key('nav-capsule'),
                   body: pageBodyPaused,
                   // 右栏全屏接管时底部导航跟着下场：子页不复制底部导航。
-                  // 聊天被折叠隐藏时导航与当前任务栏仍属于可见工作区。
-                  bottomNavigationBar: _detailPane.hasContent && !workspaceOnly
+                  bottomNavigationBar: _detailPane.hasContent && paneFullScreen
                       ? null
                       : Column(
                           mainAxisSize: MainAxisSize.min,
@@ -590,69 +580,38 @@ class _AppShellState extends State<AppShell> {
                   ? 0.0
                   : AppLayout.railWidthForWindow(width);
               final contentWidth = math.max(0.0, width - railWidth);
-              // 助手专用门槛按「工作区 480 + 门 24 + 助手 360」判定；
-              // 普通详情继续用 16dp 栏间距的 856 门槛。
-              final assistantRoom = AppLayout.canSplitAssistantPane(
-                contentWidth,
-              );
-              final splitAssistant =
-                  _detailPane.hasContent && chatAttached && assistantRoom;
-              final normalSplit =
-                  _detailPane.hasContent &&
-                  !chatAttached &&
-                  AppLayout.canSplitPane(contentWidth);
-              final assistantOnly =
-                  splitAssistant && mode == AssistantPaneMode.assistantExpanded;
-
-              AssistantSplitGeometry? split;
+              final canSplit = AppLayout.canSplitPane(contentWidth);
+              final split =
+                  _detailPane.hasContent && canSplit && !paneFullScreen
+                  ? _detailPane.resolvePaneGeometry(
+                      windowWidth: width,
+                      railWidth: railWidth,
+                    )
+                  : null;
               double paneWidth;
               double workspaceWidth;
-              if (splitAssistant) {
-                split = _detailPane.resolveAssistantGeometry(
-                  windowWidth: width,
-                  railWidth: railWidth,
-                );
+              if (split != null) {
                 workspaceWidth = split.workspaceWidth;
-                paneWidth = split.assistantWidth;
-              } else if (normalSplit) {
-                final availableWidth = contentWidth - AppLayout.paneGap;
-                paneWidth = (availableWidth - AppLayout.paneLeftMin).clamp(
-                  AppLayout.paneRightMin,
-                  _detailPane.activeMaxWidth,
-                );
-                workspaceWidth = width - paneWidth - AppLayout.paneGap;
-              } else if (workspaceOnly) {
-                // 窄窗显式「仅工作区」：聊天子树按有效栏宽隐藏布局，
-                // 恢复时仍是同一个会话、同一份草稿。
-                paneWidth = _detailPane.assistantSplitWidthFor(contentWidth);
-                workspaceWidth = width;
+                paneWidth = split.rightPaneWidth;
               } else if (_detailPane.hasContent) {
-                // 窄窗接管：同一聊天/详情路由铺满窗口，草稿与返回链不迁移。
+                // 内容区不足或用户选择全屏时，右栏接管整个窗口。
                 paneWidth = width;
                 workspaceWidth = width;
               } else {
                 paneWidth = 0;
                 workspaceWidth = width;
               }
-              // 工作区只在右栏真正铺满窗口时让位；并排/显式保留时始终可见。
-              final workspaceHidden =
-                  _detailPane.hasContent &&
-                  !workspaceOnly &&
-                  !normalSplit &&
-                  (!splitAssistant || assistantOnly);
-              final paneHidden = workspaceOnly;
-              // 门只在助手会话是实际可见栈顶时出现；被历史/设置盖住时只留 24dp 缝隙。
-              final showDoor =
-                  split != null &&
-                  _detailPane.isAssistantConversationVisibleTop;
+              final workspaceHidden = _detailPane.hasContent && split == null;
+              final paneHidden = false;
+              final showDoor = split != null;
               // 键盘只在这里缩一次：两栏、橱窗门和右栏一同止于可用内容底部，
               // 子树自己的 Scaffold 不再重复扣减，避免门铺到键盘下面。
               final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-              return _AssistantSplitLayoutGuard(
+              return _PaneLayoutGuard(
                 controller: _detailPane,
                 availableWidth: split?.availableWidth ?? 0,
-                assistantRoom: assistantRoom,
-                visibleTop: _detailPane.isAssistantConversationVisibleTop,
+                canSplit: canSplit,
+                hasContent: _detailPane.hasContent,
                 child: MediaQuery.removeViewInsets(
                   context: context,
                   removeBottom: true,
@@ -690,12 +649,16 @@ class _AppShellState extends State<AppShell> {
                                 excluding: paneHidden,
                                 child: TickerMode(
                                   enabled: !paneHidden,
-                                  child: DetailPaneHost(
-                                    controller: _detailPane,
-                                    active: !paneHidden,
-                                    restoreSplitOnBack:
-                                        splitAssistant &&
-                                        mode != AssistantPaneMode.split,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      DetailPaneHost(
+                                        controller: _detailPane,
+                                        active: !paneHidden,
+                                        restoreSplitOnBack:
+                                            paneFullScreen && canSplit,
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -703,8 +666,7 @@ class _AppShellState extends State<AppShell> {
                           ),
                           if (showDoor)
                             PositionedDirectional(
-                              start: split.doorAtEnd ? null : split.doorOffset,
-                              end: split.doorAtEnd ? split.doorOffset : null,
+                              end: split.doorOffset,
                               top: 0,
                               bottom: 0,
                               width: AppLayout.splitDoorWidth,
@@ -712,10 +674,10 @@ class _AppShellState extends State<AppShell> {
                               child: SafeArea(
                                 left: false,
                                 right: false,
-                                child: AssistantSplitDoor(
+                                child: PaneSplitDoor(
                                   controller: _detailPane,
                                   availableWidth: split.availableWidth,
-                                  assistantWidth: split.dragStartWidth,
+                                  rightPaneWidth: split.dragStartWidth,
                                   textDirection: Directionality.of(context),
                                 ),
                               ),
@@ -926,11 +888,11 @@ class _AppShellState extends State<AppShell> {
                 padding: const EdgeInsets.all(AppLayout.spaceXs),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final assistantWidth = widget.assistant == null
+                    final rightPaneWidth = widget.assistant == null
                         ? 0.0
                         : 56 + AppLayout.spaceXs * 2;
                     final itemWidth =
-                        (constraints.maxWidth - assistantWidth) / 4;
+                        (constraints.maxWidth - rightPaneWidth) / 4;
                     return Stack(
                       children: [
                         AnimatedPositionedDirectional(
@@ -944,7 +906,7 @@ class _AppShellState extends State<AppShell> {
                           curve: AppMotion.curve,
                           start:
                               itemWidth * _selectedIndex +
-                              (_selectedIndex >= 2 ? assistantWidth : 0),
+                              (_selectedIndex >= 2 ? rightPaneWidth : 0),
                           top: 0,
                           bottom: 0,
                           width: itemWidth,
@@ -1233,39 +1195,37 @@ Widget _railSelectionSurface() => DecoratedBox(
 );
 
 /// 分屏布局守卫：窗口宽度或实际可见栈顶变化时丢弃拖动预览，保留提交比例。
-class _AssistantSplitLayoutGuard extends StatefulWidget {
-  const _AssistantSplitLayoutGuard({
+class _PaneLayoutGuard extends StatefulWidget {
+  const _PaneLayoutGuard({
     required this.controller,
     required this.availableWidth,
-    required this.assistantRoom,
-    required this.visibleTop,
+    required this.canSplit,
+    required this.hasContent,
     required this.child,
   });
 
   final DetailPaneController controller;
   final double availableWidth;
-  final bool assistantRoom;
-  final bool visibleTop;
+  final bool canSplit;
+  final bool hasContent;
   final Widget child;
 
   @override
-  State<_AssistantSplitLayoutGuard> createState() =>
-      _AssistantSplitLayoutGuardState();
+  State<_PaneLayoutGuard> createState() => _PaneLayoutGuardState();
 }
 
-class _AssistantSplitLayoutGuardState
-    extends State<_AssistantSplitLayoutGuard> {
+class _PaneLayoutGuardState extends State<_PaneLayoutGuard> {
   @override
-  void didUpdateWidget(covariant _AssistantSplitLayoutGuard oldWidget) {
+  void didUpdateWidget(covariant _PaneLayoutGuard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.availableWidth == widget.availableWidth &&
-        oldWidget.assistantRoom == widget.assistantRoom &&
-        oldWidget.visibleTop == widget.visibleTop) {
+        oldWidget.canSplit == widget.canSplit &&
+        oldWidget.hasContent == widget.hasContent) {
       return;
     }
     // 只在帧末丢弃预览：不在 build 里写控制器，也不把旧几何带进下一帧。
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) widget.controller.cancelAssistantResize();
+      if (mounted) widget.controller.cancelPaneResize();
     });
   }
 

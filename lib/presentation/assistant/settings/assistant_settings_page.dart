@@ -32,6 +32,7 @@ import '../../widgets/app_section_card.dart';
 import '../../widgets/app_settings_row.dart';
 import '../../widgets/app_selection_option.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/detail_pane.dart';
 
 class AssistantSettingsPage extends StatefulWidget {
   const AssistantSettingsPage({
@@ -286,8 +287,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                     key: const Key('assistant-memory-entry'),
                     icon: Icons.psychology_outlined,
                     title: 'AI 日记本',
-                    onTap: () => Navigator.of(context).push<void>(
-                      MaterialPageRoute(builder: (_) => const MemoryPage()),
+                    onTap: () => openDetailPane<void>(
+                      context,
+                      label: 'AI 日记本',
+                      builder: (_) => const MemoryPage(),
                     ),
                   ),
                   if (RecordScope.maybeOf(context)?.web != null) ...[
@@ -300,10 +303,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                       key: const Key('assistant-web-settings-entry'),
                       icon: Icons.travel_explore,
                       title: '联网搜索',
-                      onTap: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => const WebSettingsPage(),
-                        ),
+                      onTap: () => openDetailPane<void>(
+                        context,
+                        label: '联网搜索',
+                        builder: (_) => const WebSettingsPage(),
                       ),
                     ),
                   ],
@@ -317,10 +320,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                     icon: Icons.auto_awesome_outlined,
                     title: '自动总结',
                     subtitle: '记录 · 任务 · 节点 · 目标',
-                    onTap: () => Navigator.of(context).push<void>(
-                      MaterialPageRoute(
-                        builder: (_) => const AnalysisSettingsPage(),
-                      ),
+                    onTap: () => openDetailPane<void>(
+                      context,
+                      label: '自动总结',
+                      builder: (_) => const AnalysisSettingsPage(),
                     ),
                   ),
                 ],
@@ -340,11 +343,11 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                       '${widget.controller.providerCatalog.modelOfProfile(widget.controller.defaultProfileId)?.label ?? '未选择默认模型'} · ${widget.controller.providerCatalog.providers.where((provider) => !provider.archived).length} 个服务',
                   onTap: _saving || widget.controller.isBusy
                       ? null
-                      : () => Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => AssistantModelSettingsPage(
-                              controller: widget.controller,
-                            ),
+                      : () => openDetailPane<void>(
+                          context,
+                          label: 'AI 模型',
+                          builder: (_) => AssistantModelSettingsPage(
+                            controller: widget.controller,
                           ),
                         ),
                 ),
@@ -362,14 +365,14 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                       : '离线识别',
                   onTap: _saving || widget.controller.isBusy
                       ? null
-                      : () => Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => AssistantSpeechSettingsPage(
-                              controller: widget.controller,
-                              createVoiceTest: AssistantScope.maybeOf(
-                                context,
-                              )?.createVoiceTest,
-                            ),
+                      : () => openDetailPane<void>(
+                          context,
+                          label: '语音输入',
+                          builder: (_) => AssistantSpeechSettingsPage(
+                            controller: widget.controller,
+                            createVoiceTest: AssistantScope.maybeOf(
+                              context,
+                            )?.createVoiceTest,
                           ),
                         ),
                 ),
@@ -384,12 +387,12 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                       key: const Key('assistant-backup-entry'),
                       icon: Icons.archive_outlined,
                       title: '数据备份',
-                      onTap: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => DataBackupPage(
-                            backup: scope.backup!,
-                            device: scope.device!,
-                          ),
+                      onTap: () => openDetailPane<void>(
+                        context,
+                        label: '数据备份',
+                        builder: (_) => DataBackupPage(
+                          backup: scope.backup!,
+                          device: scope.device!,
                         ),
                       ),
                     ),
@@ -453,14 +456,14 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
   Future<void> _editPersonaText(AssistantPersonaTextKind kind) async {
     final persona = _readPersona();
     final isRole = kind == AssistantPersonaTextKind.role;
-    final result = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (_) => AssistantPersonaTextPage(
-          kind: kind,
-          initialText: isRole
-              ? persona.roleInstruction
-              : persona.replyStyleInstruction,
-        ),
+    final result = await openDetailPane<String>(
+      context,
+      label: isRole ? '编辑助手角色' : '编辑回复风格',
+      builder: (_) => AssistantPersonaTextPage(
+        kind: kind,
+        initialText: isRole
+            ? persona.roleInstruction
+            : persona.replyStyleInstruction,
       ),
     );
     if (!mounted || result == null) return;

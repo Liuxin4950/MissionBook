@@ -17,6 +17,7 @@ import 'assistant_scope.dart';
 import '../settings/assistant_settings_page.dart';
 import '../../../core/theme/app_layout.dart';
 import '../../../core/theme/app_motion.dart';
+import '../../widgets/detail_pane.dart';
 
 /// 业务页面仅提供身份；助手状态、识别和操作不归业务页面持有。
 class AssistantEntryScope extends InheritedWidget {
@@ -854,11 +855,11 @@ class AssistantLauncherState extends State<AssistantLauncher>
                         onPressed: () async {
                           await _closeBubble();
                           if (!mounted) return;
-                          await Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  AssistantSettingsPage(controller: controller),
-                            ),
+                          await openDetailPane<void>(
+                            context,
+                            label: '助手设置',
+                            builder: (_) =>
+                                AssistantSettingsPage(controller: controller),
                           );
                         },
                         icon: const Icon(

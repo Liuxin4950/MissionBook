@@ -4,7 +4,7 @@ import 'dart:typed_data';
 /// 因此不在此列；这里只表达用户可以选择要不要带走的部分。
 enum BackupResource {
   assistantSettings('API Key 与助手设置', '模型、语音、权限、人格与推理档位'),
-  localPreferences('本机资料与偏好', '姓名简介、页面动效与提醒偏好'),
+  localPreferences('本机资料与偏好', '姓名简介、动效与提醒偏好'),
   speechModel('离线语音模型', '已下载的 SenseVoice 模型，约 228 MiB');
 
   const BackupResource(this.label, this.description);

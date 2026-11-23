@@ -237,14 +237,12 @@ class _SettingsPageState extends State<SettingsPage>
                       icon: Icons.auto_awesome_outlined,
                       title: 'AI 助手设置',
                       subtitle: '模型、语音与操作权限',
-                      onTap: () =>
-                          Navigator.of(context, rootNavigator: true).push<void>(
-                            MaterialPageRoute(
-                              builder: (_) => AssistantSettingsPage(
-                                controller: scope.controller,
-                              ),
-                            ),
-                          ),
+                      onTap: () => openDetailPane<void>(
+                        context,
+                        label: '助手设置',
+                        builder: (_) =>
+                            AssistantSettingsPage(controller: scope.controller),
+                      ),
                     ),
                   ),
                 if (motion != null || showTodayWidget)
@@ -258,17 +256,16 @@ class _SettingsPageState extends State<SettingsPage>
                     key: const Key('settings-onboarding-entry'),
                     icon: Icons.auto_stories_outlined,
                     title: '使用引导',
-                    onTap: () =>
-                        Navigator.of(context, rootNavigator: true).push<void>(
-                          MaterialPageRoute(
-                            builder: (routeContext) => OnboardingPage(
-                              onFinish: () async {
-                                Navigator.of(routeContext).pop();
-                                return true;
-                              },
-                            ),
-                          ),
-                        ),
+                    onTap: () => openDetailPane<void>(
+                      context,
+                      label: '使用引导',
+                      builder: (routeContext) => OnboardingPage(
+                        onFinish: () async {
+                          Navigator.of(routeContext).pop();
+                          return true;
+                        },
+                      ),
+                    ),
                   ),
                 ),
                 _buildAboutSection(context),
@@ -378,6 +375,23 @@ class _SettingsPageState extends State<SettingsPage>
           context: context,
           builder: (_) => MotionStyleSheet(settings: settings),
         ),
+      ),
+      _rowDivider,
+      AppSettingsRow(
+        key: const Key('open-subpages-in-pane'),
+        icon: Icons.view_sidebar_outlined,
+        title: '以分页打开子页面',
+        subtitle: '平板与大屏使用可调的右侧工作区',
+        enabled: !settings.saving,
+        trailing: Switch(
+          value: settings.openSubpagesInPane,
+          onChanged: settings.saving ? null : settings.selectOpenSubpagesInPane,
+        ),
+        onTap: settings.saving
+            ? null
+            : () => settings.selectOpenSubpagesInPane(
+                !settings.openSubpagesInPane,
+              ),
       ),
       if (settings.error case final error?) ...[
         _rowDivider,
@@ -641,11 +655,11 @@ class _SettingsPageState extends State<SettingsPage>
       icon: Icons.archive_outlined,
       title: '数据备份',
       subtitle: '导出任务、记录、附件与助手会话',
-      onTap: () => Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) =>
-              DataBackupPage(backup: widget.backup, device: widget.device),
-        ),
+      onTap: () => openDetailPane<void>(
+        context,
+        label: '数据备份',
+        builder: (_) =>
+            DataBackupPage(backup: widget.backup, device: widget.device),
       ),
     ),
   );

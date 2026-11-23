@@ -10,6 +10,7 @@ import '../../widgets/app_confirm_dialog.dart';
 import 'assistant_settings_form.dart';
 import 'offline_speech_model_section.dart';
 import 'assistant_speech_test_page.dart';
+import '../../widgets/detail_pane.dart';
 
 /// 语音方式、离线模型与转写凭据的独立设置页。
 class AssistantSpeechSettingsPage extends StatelessWidget {
@@ -112,11 +113,11 @@ class _SpeechFormState extends State<_SpeechForm> {
               title: '试用语音',
               subtitle: _speechChanged ? '请先保存当前修改' : '录音并检查识别文字',
               enabled: !_saving && !widget.controller.isBusy && !_speechChanged,
-              onTap: () => Navigator.of(context).push<void>(
-                MaterialPageRoute(
-                  builder: (_) => AssistantSpeechTestPage(
-                    createVoice: widget.createVoiceTest!,
-                  ),
+              onTap: () => openDetailPane<void>(
+                context,
+                label: '试用语音',
+                builder: (_) => AssistantSpeechTestPage(
+                  createVoice: widget.createVoiceTest!,
                 ),
               ),
             ),

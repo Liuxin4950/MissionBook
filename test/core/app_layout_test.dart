@@ -20,6 +20,7 @@ void main() {
 
   test('页面区块与分栏间距统一为 16', () {
     expect(AppLayout.sectionGap, 16);
-    expect(AppLayout.paneGap, AppLayout.sectionGap);
+    expect(AppLayout.paneGap, 24);
+    expect(AppLayout.paneMinContentWidth, 864);
   });
 }
