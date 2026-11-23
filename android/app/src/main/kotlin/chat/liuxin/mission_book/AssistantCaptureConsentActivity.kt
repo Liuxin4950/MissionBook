@@ -23,6 +23,8 @@ class AssistantCaptureConsentActivity : Activity() {
     private var captureStarted = false
     private var captureCompleted = false
     private var editorVisible = false
+    /** 长截图等已经把处理交给截图服务；Activity 退出时不能再当成来源恢复。 */
+    private var handoff = false
     private val handler = Handler(Looper.getMainLooper())
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -38,6 +40,14 @@ class AssistantCaptureConsentActivity : Activity() {
         handler.removeCallbacksAndMessages(null)
         unregisterReceiver(receiver)
         editorBitmap = null
+        // 系统回收、异常退出等没有走完正常回传时也要释放投影并恢复截图发起来源；
+        // 旋转重建和长截图交接由后续 Activity/截图服务继续处理，不能提前结束票据。
+        if (!captureCompleted && !handoff && !isChangingConfigurations && !watching) {
+            captureCompleted = true
+            // 截图服务可能仍在持有 MediaProjection，先让它结束并释放资源，再恢复悬浮来源。
+            sendCaptureAction(AssistantScreenCaptureService.ACTION_CANCEL_CAPTURE, ticket)
+            AssistantOverlayService.captureDone(ticket, null, CaptureOutcome.Failed)
+        }
         super.onDestroy()
     }
 
@@ -48,7 +58,8 @@ class AssistantCaptureConsentActivity : Activity() {
             clearEditorRequest(ticket)
             returnToPreviousApp()
         } else if (!captureCompleted) {
-            AssistantOverlayService.captureDone(ticket, null)
+            captureCompleted = true
+            AssistantOverlayService.captureDone(ticket, null, CaptureOutcome.Cancelled)
             returnToPreviousApp()
         } else {
             super.onBackPressed()
@@ -76,13 +87,13 @@ class AssistantCaptureConsentActivity : Activity() {
             else manager.createScreenCaptureIntent()
         } catch (error: Exception) {
             Log.e(TAG, "无法创建系统截屏授权", error)
-            cancelCapture("无法打开系统截屏授权")
+            cancelCapture("无法打开系统截屏授权", CaptureOutcome.Failed)
             return
         }
         try { startActivityForResult(request, REQUEST_CAPTURE) }
         catch (error: Exception) {
             Log.e(TAG, "无法打开系统截屏授权", error)
-            cancelCapture("无法打开系统截屏授权")
+            cancelCapture("无法打开系统截屏授权", CaptureOutcome.Failed)
         }
     }
 
@@ -100,6 +111,10 @@ class AssistantCaptureConsentActivity : Activity() {
             editorRequest?.takeIf { it.ticket == requestedTicket }
         } ?: run {
             Log.e(TAG, "截图编辑页没有对应的帧，ticket=$requestedTicket")
+            // 没有可编辑的帧时结束票据，让截图服务释放投影并恢复悬浮来源。
+            sendCaptureAction(AssistantScreenCaptureService.ACTION_CANCEL_CAPTURE, requestedTicket)
+            captureCompleted = true
+            AssistantOverlayService.captureDone(requestedTicket, null, CaptureOutcome.Failed)
             finish()
             return
         }
@@ -127,14 +142,17 @@ class AssistantCaptureConsentActivity : Activity() {
 
     private fun submitSelection(ticket: String, region: Rect, scrolling: Boolean) {
         captureStarted = true
+        handoff = true
         clearEditorRequest(ticket)
-        window.decorView.setBackgroundColor(android.graphics.Color.BLACK)
+        window.decorView.setBackgroundColor(AssistantNativeTheme.mediaBackground)
         setContentView(android.widget.TextView(this).apply {
             text = if (scrolling) "长截图准备中…" else "正在处理截图…"
-            textSize = 16f
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, AssistantNativeTheme.textTitle)
             gravity = android.view.Gravity.CENTER
-            setTextColor(android.graphics.Color.WHITE)
-            setBackgroundColor(0xFF30332F.toInt())
+            setTextColor(AssistantNativeTheme.textPrimary)
+            setBackgroundColor(AssistantNativeTheme.pageBackground)
+            setPadding(AssistantNativeTheme.dp(this@AssistantCaptureConsentActivity, AssistantNativeTheme.spaceLg), 0,
+                AssistantNativeTheme.dp(this@AssistantCaptureConsentActivity, AssistantNativeTheme.spaceLg), 0)
         })
         val action = Intent(this, AssistantScreenCaptureService::class.java)
             .setAction(AssistantScreenCaptureService.ACTION_CONFIRM_SELECTION)
@@ -144,8 +162,8 @@ class AssistantCaptureConsentActivity : Activity() {
         try { startService(action) }
         catch (error: Exception) {
             Log.e(TAG, "提交截图选区失败", error)
-            AssistantOverlayService.captureDone(ticket, null)
             captureCompleted = true
+            AssistantOverlayService.captureDone(ticket, null, CaptureOutcome.Failed)
             finish()
         }
     }
@@ -157,7 +175,8 @@ class AssistantCaptureConsentActivity : Activity() {
                 .putExtra(AssistantScreenCaptureService.EXTRA_TICKET, captureTicket))
         } catch (error: Exception) {
             Log.w(TAG, "提交截图操作失败：$action", error)
-            AssistantOverlayService.captureDone(captureTicket, null)
+            captureCompleted = true
+            AssistantOverlayService.captureDone(captureTicket, null, CaptureOutcome.Failed)
         }
     }
 
@@ -178,11 +197,11 @@ class AssistantCaptureConsentActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         Log.d(TAG, "MediaProjection returned request=$requestCode result=$resultCode hasData=${data != null}")
         if (requestCode != REQUEST_CAPTURE) {
-            cancelCapture(null)
+            cancelCapture(null, CaptureOutcome.Cancelled)
             return
         }
         if (resultCode != RESULT_OK || data == null) {
-            cancelCapture("已取消截屏授权")
+            cancelCapture("已取消截屏授权", CaptureOutcome.ConsentDenied)
             return
         }
         val capture = Intent(this, AssistantScreenCaptureService::class.java).apply {
@@ -196,7 +215,7 @@ class AssistantCaptureConsentActivity : Activity() {
             captureStarted = true
         } catch (error: Exception) {
             Log.e(TAG, "截屏服务启动失败", error)
-            cancelCapture("截屏服务启动失败")
+            cancelCapture("截屏服务启动失败", CaptureOutcome.Failed)
             return
         }
         if (watching) { finish(); return }
@@ -210,8 +229,9 @@ class AssistantCaptureConsentActivity : Activity() {
         }, 5 * 60 * 1000L)
     }
 
-    private fun cancelCapture(reason: String?) {
-        AssistantOverlayService.captureDone(ticket, null)
+    private fun cancelCapture(reason: String?, outcome: CaptureOutcome = CaptureOutcome.Cancelled) {
+        captureCompleted = true
+        AssistantOverlayService.captureDone(ticket, null, outcome)
         reason?.let { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
         returnToPreviousApp()
     }
@@ -239,7 +259,17 @@ class AssistantCaptureConsentActivity : Activity() {
             catch (error: Exception) {
                 synchronized(editorLock) { if (editorRequest?.ticket == ticket) editorRequest = null }
                 Log.e(TAG, "无法显示截图编辑页", error)
-                AssistantOverlayService.captureDone(ticket, null)
+                cancelServiceCapture(context, ticket)
+                AssistantOverlayService.captureDone(ticket, null, CaptureOutcome.Failed)
+            }
+        }
+
+        /** 编辑页无法显示时让截图服务结束票据并释放投影，避免后台继续持有画面。 */
+        private fun cancelServiceCapture(context: Context, ticket: String) {
+            runCatching {
+                context.startService(Intent(context, AssistantScreenCaptureService::class.java)
+                    .setAction(AssistantScreenCaptureService.ACTION_CANCEL_CAPTURE)
+                    .putExtra(AssistantScreenCaptureService.EXTRA_TICKET, ticket))
             }
         }
     }

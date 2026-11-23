@@ -33,11 +33,12 @@ internal class AssistantOverlayPanel(
     private val onMission: (String) -> Unit,
     private val onRecord: (String) -> Unit,
     private val enableIme: () -> Unit,
+    private val noticeOnly: Boolean = false,
 ) : LinearLayout(context) {
-    private val heading = textView("书祺", 13f, INK).apply {
+    private val heading = textView("书祺", AssistantNativeTheme.textBody, AssistantNativeTheme.textPrimary).apply {
         setTypeface(null, Typeface.BOLD); maxLines = 1; ellipsize = TextUtils.TruncateAt.END
     }
-    private val hint = textView("正在准备助手…", 11f, SECONDARY)
+    private val hint = textView("正在准备助手…", AssistantNativeTheme.textCaption, AssistantNativeTheme.textSecondary)
     private val images = LinearLayout(context).apply { orientation = HORIZONTAL }
     private val imageStrip = HorizontalScrollView(context).apply {
         isHorizontalScrollBarEnabled = false
@@ -55,26 +56,29 @@ internal class AssistantOverlayPanel(
     }
     private val input = EditText(context).apply {
         hint = "问书祺…"
-        textSize = 12f
-        minHeight = dp(48)
+        textSize = AssistantNativeTheme.textMetadata
+        minHeight = dp(AssistantNativeTheme.minTouchDp)
         inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         imeOptions = EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_EXTRACT_UI
         maxLines = 3
         filters = arrayOf(InputFilter.LengthFilter(16000))
-        setPadding(dp(10), dp(5), dp(10), dp(5))
-        setTextColor(INK)
-        setHintTextColor(SECONDARY)
-        background = shape(SURFACE, 12)
+        setPadding(dp(AssistantNativeTheme.spaceSm), dp(AssistantNativeTheme.spaceXs),
+            dp(AssistantNativeTheme.spaceSm), dp(AssistantNativeTheme.spaceXs))
+        setTextColor(AssistantNativeTheme.textPrimary)
+        setHintTextColor(AssistantNativeTheme.textSecondary)
+        background = shape(AssistantNativeTheme.surfaceMuted, AssistantNativeTheme.radiusMd)
     }
-    private val sendButton = icon(R.drawable.assistant_arrow_up, "发送", GREEN, WHITE) {
+    private val sendButton = icon(R.drawable.assistant_arrow_up, "发送", AssistantNativeTheme.primarySoft, AssistantNativeTheme.primary) {
         if (running) requestStop() else requestSend()
     }
     private val composer = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         addView(input, LayoutParams(0, -2, 1f))
-        addView(sendButton, LayoutParams(dp(48), dp(48)).apply { marginStart = dp(6) })
-        setPadding(0, dp(6), 0, 0)
+        addView(sendButton, LayoutParams(dp(AssistantNativeTheme.minTouchDp), dp(AssistantNativeTheme.minTouchDp)).apply {
+            marginStart = dp(AssistantNativeTheme.spaceSm)
+        })
+        setPadding(0, dp(AssistantNativeTheme.spaceXs), 0, 0)
         visibility = GONE
     }
     private var key: String? = null
@@ -97,16 +101,28 @@ internal class AssistantOverlayPanel(
     private var previewId: String? = null
     private var snapshotRevision = -1
     private var snapshotGeneration = -1
+    private var expectedDraft: String? = null
+    private var draftMismatch: (() -> Unit)? = null
+    private var pendingVoiceDraft: String? = null
+    /** 当前仍在提醒面上的主动提醒身份；截图来源会带上它，恢复时据此保住提醒。 */
+    var activeNoticeId: String? = null
+        private set
+    val showingNoticeOnly: Boolean get() = noticeOnly
     private val back = icon(R.drawable.assistant_back, "返回工具") { showTools() }.apply { visibility = GONE }
 
     init {
         orientation = VERTICAL
         descendantFocusability = FOCUS_BEFORE_DESCENDANTS
         isFocusableInTouchMode = true
-        setPadding(dp(10), dp(2), dp(10), dp(10))
-        background = GradientDrawable().apply {
-            setColor(WHITE); cornerRadius = dp(16).toFloat(); setStroke(dp(1), EDGE)
-        }
+        setPadding(dp(AssistantNativeTheme.spaceMd), dp(AssistantNativeTheme.spaceXs),
+            dp(AssistantNativeTheme.spaceMd), dp(AssistantNativeTheme.spaceMd))
+        background = AssistantNativeTheme.surface(
+            context,
+            AssistantNativeTheme.cardSurface,
+            AssistantNativeTheme.radiusLg,
+            AssistantNativeTheme.hairline,
+            1f,
+        )
         elevation = dp(4).toFloat()
         val titleRow = LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
@@ -147,6 +163,13 @@ internal class AssistantOverlayPanel(
                 if (!changingInput) { updateSend(); syncDraft() }
             }
         })
+        if (noticeOnly) {
+            // 主动提醒面只承载提醒内容与动作，不重新出现“书祺 + 截图/语音/文字”的矩形工具首页。
+            tools.visibility = GONE
+            moreArea.visibility = GONE
+            back.visibility = GONE
+        }
+        updateSend()
     }
 
     fun limitHeight(pixels: Int) {
@@ -163,11 +186,13 @@ internal class AssistantOverlayPanel(
         moreArea.removeAllViews()
         moreArea.visibility = VISIBLE
         fun option(title: String, action: () -> Unit) {
-            moreArea.addView(textView(title, 12f, INK).apply {
-                gravity = Gravity.CENTER_VERTICAL; minHeight = dp(48); isFocusable = true
-                background = touchSurface(WHITE, 8)
+            moreArea.addView(textView(title, AssistantNativeTheme.textMetadata, AssistantNativeTheme.textPrimary).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                minHeight = dp(AssistantNativeTheme.minTouchDp)
+                isFocusable = true
+                background = touchSurface(AssistantNativeTheme.cardSurface, AssistantNativeTheme.radiusSm)
                 setOnClickListener { moreArea.visibility = GONE; action() }
-            }, LayoutParams(-1, -2))
+            }, LayoutParams(-1, -2).apply { topMargin = dp(AssistantNativeTheme.spaceXs) })
         }
         option("打开完整会话", onOpen)
         val status = AssistantUsageMonitorService.status(context)
@@ -204,10 +229,25 @@ internal class AssistantOverlayPanel(
             changeInput(draft)
             sendPending = false
         }
+        // 截图/语音恢复只认发起时绑定的草稿；会话已切换时明确报错，不把结果写到其它草稿。
+        expectedDraft?.let { wanted ->
+            expectedDraft = null
+            if (wanted != key) {
+                showError("原会话已切换，截图已保存在发起时的草稿")
+                draftMismatch?.invoke()
+                draftMismatch = null
+                if (inConversation) showTools()
+            }
+        }
+        pendingVoiceDraft?.let { wanted ->
+            pendingVoiceDraft = null
+            if (wanted == key) openComposer(false)
+            else showError("语音结果已保存在原草稿，当前会话已切换")
+        }
         heading.text = state["name"] as? String ?: "书祺"
         busy = state["busy"] == true
         val error = state["error"] as? String
-        hint.setTextColor(if (error == null) SECONDARY else ERROR)
+        applyHint(error)
         hint.text = error ?: if (busy && inConversation && (state["partial"] as? String).isNullOrBlank()) "正在处理…" else ""
         hint.visibility = if (hint.text.isEmpty()) GONE else VISIBLE
         val photos = maps(state["images"])
@@ -232,21 +272,35 @@ internal class AssistantOverlayPanel(
     }
 
     fun showError(message: String) {
-        hint.setTextColor(ERROR)
+        applyHint(message)
         hint.visibility = VISIBLE
         hint.text = message
+    }
+
+    /** 错误状态用错误色与浅错误底；正常提示使用次要文字色，与悬浮主题保持同一套语义。 */
+    private fun applyHint(error: String?) {
+        hint.setTextColor(if (error == null) AssistantNativeTheme.textSecondary else AssistantNativeTheme.error)
+        hint.background = if (error == null) null else shape(AssistantNativeTheme.errorSoft, AssistantNativeTheme.radiusSm)
     }
 
     fun notice(value: Map<*, *>, clear: () -> Unit) {
         val id = value["sessionId"] as? String ?: return
         val task = value["missionId"] as? String
         val message = value["message"] as? String ?: return
-        fun gone() { noticeArea.visibility = GONE; noticeArea.removeAllViews(); clear() }
+        activeNoticeId = id
+        fun gone() {
+            activeNoticeId = null
+            noticeArea.visibility = GONE
+            noticeArea.removeAllViews()
+            clear()
+        }
         fun dismiss(later: Boolean) {
             AssistantWorkspaceHost.call("dismissNotice", mapOf("later" to later), ::showError) { gone() }
         }
         noticeArea.removeAllViews()
-        noticeArea.addView(textView(message, 12f, INK).apply { background = shape(SOFT, 12) })
+        noticeArea.addView(textView(message, AssistantNativeTheme.textMetadata, AssistantNativeTheme.textPrimary).apply {
+            background = shape(AssistantNativeTheme.primarySoft, AssistantNativeTheme.radiusMd)
+        }, LayoutParams(-1, -2).apply { bottomMargin = dp(AssistantNativeTheme.spaceXs) })
         noticeArea.addView(actions("回复" to {
             AssistantWorkspaceHost.call("openNotice", mapOf("sessionId" to id), ::showError) { snapshot ->
                 gone(); accept(snapshot); openComposer(true)
@@ -256,9 +310,25 @@ internal class AssistantOverlayPanel(
         noticeArea.visibility = VISIBLE
     }
 
+    /**
+     * 截图来源是已有会话时，等工作区快照确认仍是同一草稿后再进入原会话。
+     * [onMismatch] 让服务关闭面板回到主球，而不是把矩形工具首页当失败兜底。
+     */
+    fun expectDraft(target: String?, onMismatch: (() -> Unit)? = null) {
+        expectedDraft = target
+        draftMismatch = onMismatch
+    }
+
+    /** 语音结果回填：只有当前草稿仍是票据绑定的草稿时才打开输入区。 */
     fun showVoiceDraft(target: String) {
-        if (key != target) return
-        openComposer(false)
+        val current = key
+        if (current != null) {
+            if (current != target) { showError("语音结果已保存在原草稿，当前会话已切换"); return }
+            openComposer(false)
+            load()
+            return
+        }
+        pendingVoiceDraft = target
         load()
     }
 
@@ -321,9 +391,19 @@ internal class AssistantOverlayPanel(
             sendButton.contentDescription = label
             if (android.os.Build.VERSION.SDK_INT >= 26) sendButton.tooltipText = label
         }
-        sendButton.isEnabled = key != null && if (running) !stopping else
+        val enabled = key != null && if (running) !stopping else
             !busy && !sending && !sendPending && (input.text.isNotBlank() || photoIds.isNotEmpty())
-        sendButton.alpha = if (sendButton.isEnabled) 1f else .4f
+        sendButton.isEnabled = enabled
+        // 禁用状态用语义色而不是只降透明度，按压/焦点由统一水波纹提供。
+        sendButton.background = AssistantNativeTheme.clickableSurface(
+            context,
+            if (enabled) AssistantNativeTheme.primarySoft else AssistantNativeTheme.disabled,
+            AssistantNativeTheme.radiusXxl,
+        )
+        sendButton.imageTintList = ColorStateList.valueOf(
+            if (enabled) AssistantNativeTheme.primary else AssistantNativeTheme.onDisabled,
+        )
+        sendButton.alpha = 1f
     }
 
     fun openConversation() = openComposer(false)
@@ -331,7 +411,9 @@ internal class AssistantOverlayPanel(
     private fun openComposer(focus: Boolean) {
         composer.visibility = VISIBLE
         inConversation = true
-        back.visibility = VISIBLE; tools.visibility = GONE; moreArea.visibility = GONE
+        // 提醒面进入会话后不再提供“返回工具”，避免把主动提醒面变成矩形工具首页。
+        back.visibility = if (noticeOnly) GONE else VISIBLE
+        tools.visibility = GONE; moreArea.visibility = GONE
         previewId = null
         redrawConversation()
         if (focus) {
@@ -343,11 +425,12 @@ internal class AssistantOverlayPanel(
     }
 
     private fun showTools() {
+        if (noticeOnly) return
         hideKeyboard(); requestFocus(); editing = false
         inConversation = false; previewId = null
         back.visibility = GONE; composer.visibility = GONE; moreArea.visibility = GONE
         tools.visibility = VISIBLE; timeline.visibility = GONE; timeline.removeAllViews()
-        if (busy && hint.currentTextColor != ERROR) hint.visibility = GONE
+        if (busy && hint.currentTextColor != AssistantNativeTheme.error) hint.visibility = GONE
         scroll.scrollTo(0, 0)
     }
 
@@ -364,9 +447,11 @@ internal class AssistantOverlayPanel(
 
     private fun addPhoto(target: String, photo: Map<*, *>) {
         val id = photo["id"] as? String ?: return
-        val thumb = icon(R.drawable.assistant_capture, photo["name"] as? String ?: "预览附件", SOFT) { preview(target, id) }
+        val thumb = icon(R.drawable.assistant_capture, photo["name"] as? String ?: "预览附件", AssistantNativeTheme.primarySoft) { preview(target, id) }
         thumb.setPadding(0, 0, 0, 0); thumb.clipToOutline = true
-        images.addView(thumb, LayoutParams(dp(48), dp(48)).apply { setMargins(0, dp(6), dp(6), dp(4)) })
+        images.addView(thumb, LayoutParams(dp(AssistantNativeTheme.minTouchDp), dp(AssistantNativeTheme.minTouchDp)).apply {
+            setMargins(0, dp(AssistantNativeTheme.spaceXs), dp(AssistantNativeTheme.spaceXs), 0)
+        })
         AssistantWorkspaceHost.call("image", mapOf("key" to target, "image" to id), failure = {}) { payload ->
             if (key != target || id !in photoIds) return@call
             val bytes = payload as? ByteArray ?: return@call
@@ -423,7 +508,7 @@ internal class AssistantOverlayPanel(
             val detail = (operation["detail"] as? String).orEmpty()
             val preview = (operation["preview"] as? String).orEmpty()
             val status = when (state) { "succeeded" -> if (operation["writes"] == true) "已保存" else "已读取"; "failed" -> "未完成"; "unknown" -> "结果待核对"; else -> "待确认" }
-            addToTimeline(textView(listOf("$label · $status", preview, detail).filter(String::isNotBlank).joinToString("\n"), 12f, INK))
+            addToTimeline(textView(listOf("$label · $status", preview, detail).filter(String::isNotBlank).joinToString("\n"), AssistantNativeTheme.textMetadata, AssistantNativeTheme.textPrimary))
             if (state == "waitingConfirmation") {
                 val reject = "取消" to { command("reject", mapOf("operation" to id)) }
                 if (operation["confirmable"] == true) addToTimeline(actions(reject, "确认" to { command("confirm", mapOf("operation" to id, "version" to operation["version"])) }))
@@ -441,25 +526,35 @@ internal class AssistantOverlayPanel(
     }
 
     private fun addMessage(content: String, user: Boolean) {
-        val message = textView(content, 12f, INK).apply {
-            setPadding(dp(9), dp(5), dp(9), dp(5))
-            background = shape(if (user) SOFT else SURFACE, 12)
+        val message = textView(content, AssistantNativeTheme.textMetadata, AssistantNativeTheme.textPrimary).apply {
+            setPadding(dp(AssistantNativeTheme.spaceSm), dp(AssistantNativeTheme.spaceXs),
+                dp(AssistantNativeTheme.spaceSm), dp(AssistantNativeTheme.spaceXs))
+            background = shape(
+                if (user) AssistantNativeTheme.primarySoft else AssistantNativeTheme.pageBackground,
+                AssistantNativeTheme.radiusMd,
+            )
         }
         timeline.addView(message, LayoutParams(-2, -2).apply {
             gravity = if (user) Gravity.END else Gravity.START
-            setMargins(if (user) dp(20) else 0, dp(2), if (user) 0 else dp(20), dp(4))
+            setMargins(
+                if (user) dp(AssistantNativeTheme.spaceXl) else 0, dp(AssistantNativeTheme.spaceXs),
+                if (user) 0 else dp(AssistantNativeTheme.spaceXl), dp(AssistantNativeTheme.spaceXs),
+            )
         })
     }
 
     private fun addToTimeline(view: View, left: Int = 0, right: Int = 0) {
-        timeline.addView(view, LayoutParams(-1, -2).apply { setMargins(left, 0, right, dp(5)) })
+        timeline.addView(view, LayoutParams(-1, -2).apply { setMargins(left, 0, right, dp(AssistantNativeTheme.spaceXs)) })
     }
 
     private fun actions(vararg items: Pair<String, () -> Unit>) = LinearLayout(context).apply {
         gravity = Gravity.END
         items.forEach { (title, action) ->
-            addView(textView(title, 12f, GREEN).apply {
-                minHeight = dp(48); gravity = Gravity.CENTER; isFocusable = true
+            addView(textView(title, AssistantNativeTheme.textMetadata, AssistantNativeTheme.primary).apply {
+                minHeight = dp(AssistantNativeTheme.minTouchDp)
+                gravity = Gravity.CENTER
+                isFocusable = true
+                background = RippleDrawable(ColorStateList.valueOf(AssistantNativeTheme.ripple), null, null)
                 setOnClickListener { action() }
             }, LayoutParams(0, -2, 1f))
         }
@@ -467,38 +562,47 @@ internal class AssistantOverlayPanel(
 
     private fun textView(value: String, size: Float, color: Int) = TextView(context).apply {
         text = value; textSize = size; setTextColor(color)
-        setPadding(dp(8), dp(5), dp(8), dp(5))
+        setPadding(dp(AssistantNativeTheme.spaceSm), dp(AssistantNativeTheme.spaceXs),
+            dp(AssistantNativeTheme.spaceSm), dp(AssistantNativeTheme.spaceXs))
     }
 
     private fun tool(resource: Int, label: String, action: () -> Unit) = LinearLayout(context).apply {
         orientation = VERTICAL; gravity = Gravity.CENTER
         layoutParams = LayoutParams(0, -2, 1f)
+        minimumHeight = dp(AssistantNativeTheme.minTouchDp)
         addView(ImageView(context).apply {
-            setImageResource(resource); imageTintList = ColorStateList.valueOf(GREEN)
-            setPadding(dp(9), dp(9), dp(9), dp(9)); background = shape(SOFT, 24)
+            setImageResource(resource); imageTintList = ColorStateList.valueOf(AssistantNativeTheme.primary)
+            setPadding(dp(AssistantNativeTheme.spaceSm), dp(AssistantNativeTheme.spaceSm),
+                dp(AssistantNativeTheme.spaceSm), dp(AssistantNativeTheme.spaceSm))
+            background = shape(AssistantNativeTheme.primarySoft, AssistantNativeTheme.radiusXxl)
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LayoutParams(dp(40), dp(40)))
-        addView(textView(label, 11f, INK).apply { gravity = Gravity.CENTER; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO })
-        contentDescription = label; isFocusable = true; background = touchSurface(WHITE, 8)
+        addView(textView(label, AssistantNativeTheme.textCaption, AssistantNativeTheme.textPrimary).apply {
+            gravity = Gravity.CENTER
+            importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+        })
+        contentDescription = label; isFocusable = true
+        background = touchSurface(AssistantNativeTheme.cardSurface, AssistantNativeTheme.radiusSm)
         if (android.os.Build.VERSION.SDK_INT >= 26) tooltipText = label
         setOnClickListener { action() }
     }
 
-    private fun icon(resource: Int, label: String, fill: Int = WHITE, tint: Int = GREEN, action: () -> Unit) = ImageButton(context).apply {
-        layoutParams = LayoutParams(dp(48), dp(48))
-        setPadding(dp(12), dp(12), dp(12), dp(12))
+    private fun icon(resource: Int, label: String, fill: Int = AssistantNativeTheme.cardSurface, tint: Int = AssistantNativeTheme.primary, action: () -> Unit) = ImageButton(context).apply {
+        layoutParams = LayoutParams(dp(AssistantNativeTheme.minTouchDp), dp(AssistantNativeTheme.minTouchDp))
+        setPadding(dp(AssistantNativeTheme.spaceMd), dp(AssistantNativeTheme.spaceMd),
+            dp(AssistantNativeTheme.spaceMd), dp(AssistantNativeTheme.spaceMd))
         setImageResource(resource); imageTintList = ColorStateList.valueOf(tint)
         contentDescription = label
         if (android.os.Build.VERSION.SDK_INT >= 26) tooltipText = label
-        background = touchSurface(fill, 24)
+        background = touchSurface(fill, AssistantNativeTheme.radiusXxl)
         setOnClickListener { action() }
     }
 
-    private fun touchSurface(color: Int, radius: Int) = RippleDrawable(ColorStateList.valueOf(0x20244D3D), shape(color, radius), null)
+    private fun touchSurface(color: Int, radiusDp: Float): RippleDrawable =
+        AssistantNativeTheme.clickableSurface(context, color, radiusDp)
 
-    private fun shape(color: Int, radius: Int) = GradientDrawable().apply {
-        setColor(color); cornerRadius = dp(radius).toFloat()
-    }
+    private fun shape(color: Int, radiusDp: Float): GradientDrawable =
+        AssistantNativeTheme.surface(context, color, radiusDp)
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     private fun maps(value: Any?) = (value as? List<*>)?.filterIsInstance<Map<*, *>>() ?: emptyList()
@@ -509,16 +613,5 @@ internal class AssistantOverlayPanel(
         while (maxOf(outWidth, outHeight) / inSampleSize > size * 2) inSampleSize *= 2
         inJustDecodeBounds = false
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, this)
-    }
-
-    companion object {
-        private const val INK = 0xFF282E2A.toInt()
-        private const val SECONDARY = 0xFF626A64.toInt()
-        private const val GREEN = 0xFF244D3D.toInt()
-        private const val WHITE = 0xFFFFFFFF.toInt()
-        private const val SOFT = 0xFFEEF2EC.toInt()
-        private const val SURFACE = 0xFFF7F8F5.toInt()
-        private const val EDGE = 0xFFE0E5DD.toInt()
-        private const val ERROR = 0xFFA35448.toInt()
     }
 }

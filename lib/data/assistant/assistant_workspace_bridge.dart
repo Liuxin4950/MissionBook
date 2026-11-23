@@ -11,6 +11,7 @@ import '../../application/assistant/assistant_schedule.dart';
 import '../../application/assistant/assistant_speech.dart';
 import '../../application/assistant/assistant_supervision.dart';
 import '../../application/errors/user_error_message.dart';
+import 'assistant_voice_ticket.dart';
 import 'configured_assistant_speech.dart';
 
 /// 连接原生悬浮窗与同一个助手控制器，不持有另外一份聊天。
@@ -20,7 +21,18 @@ class AssistantWorkspaceBridge {
     this.speech,
     this.desktopVoice,
     this.supervision,
-  });
+  }) {
+    _voice = AssistantVoiceChannel(
+      speech: speech,
+      generation: generation,
+      prepare: assistant.prepareExternalEntry,
+      isCurrent: () => _current,
+      draftKey: () => assistant.draftKey,
+      draftFor: assistant.draftFor,
+      saveDraft: assistant.saveDraft,
+      canWrite: _canWriteDraft,
+    );
+  }
 
   static const channel = MethodChannel('mission_book/assistant_workspace');
   static AssistantWorkspaceBridge? _active;
@@ -28,12 +40,12 @@ class AssistantWorkspaceBridge {
   final AssistantController assistant;
   final ConfiguredAssistantSpeech? speech;
   final AssistantVoiceController? desktopVoice;
+  late final AssistantVoiceChannel _voice;
   String? _desktopVoiceDraft;
   int _desktopVoiceRevision = 0;
   bool get desktopVoiceActive => _desktopVoiceDraft != null;
 
   final AssistantSupervision? supervision;
-  String? _voiceTicket;
   final int generation = ++_serial;
   final _attachmentIds = Expando<String>();
   final _proposalVersions = Expando<String>();
@@ -63,8 +75,8 @@ class AssistantWorkspaceBridge {
     _capture = null;
     _record = null;
     supervision?.close();
-    if (_voiceTicket != null) unawaited(speech?.cancel());
-    _voiceTicket = null;
+    // 只释放本桥接的悬浮票据；不取消 AssistantVoiceController 正在使用的录音会话。
+    unawaited(_voice.release());
     if (desktopVoiceActive) unawaited(_cancelDesktopVoice());
     _watching = false;
     _push?.cancel();
@@ -117,6 +129,35 @@ class AssistantWorkspaceBridge {
 
   Future<Object?> _handle(MethodCall call) async {
     final args = call.arguments as Map? ?? const {};
+    if (call.method == 'beginVoice' ||
+        call.method == 'voice' ||
+        call.method == 'cancelVoice') {
+      // 语音方法由 Dart 返回结构化结果，代次不符也不能抛异常给原生。
+      if (!_current || args['generation'] != generation) {
+        return switch (call.method) {
+          'beginVoice' => _voice.beginUnavailable(),
+          'voice' => _voice.voiceUnavailable(),
+          _ => null,
+        };
+      }
+      final ticket = args['ticket'] is String ? args['ticket'] as String : '';
+      switch (call.method) {
+        case 'beginVoice':
+          return _voice.begin(ticket);
+        case 'voice':
+          final pcm = args['pcm'];
+          final result = await _voice.voice(
+            ticket,
+            pcm is Uint8List ? pcm : Uint8List(0),
+          );
+          if (result['accepted'] == true) _changed();
+          return result;
+        default:
+          // cancelVoice 幂等：票据不存在、已终结或工作区已切换都返回成功。
+          await _voice.cancel(ticket);
+          return null;
+      }
+    }
     try {
       if (!_current || args['generation'] != generation) {
         throw StateError('助手工作区已切换，请重试');
@@ -201,38 +242,6 @@ class AssistantWorkspaceBridge {
         case 'voiceCancel':
           if (desktopVoiceActive) await _cancelDesktopVoice();
           return null;
-        case 'cancelVoice':
-          if (_voiceTicket == args['ticket']) {
-            _voiceTicket = null;
-            await speech?.cancel();
-          }
-          return null;
-        case 'voice':
-          final key = args['key'] as String;
-          if (key != assistant.draftKey ||
-              _voiceTicket != null ||
-              speech == null) {
-            throw StateError('会话已变化或语音正在转写');
-          }
-          final ticket = args['ticket'] as String;
-          _voiceTicket = ticket;
-          try {
-            final result = await speech!.transcribePcm(
-              args['pcm'] as Uint8List,
-            );
-            if (!_current || _voiceTicket != ticket || result.isEmpty) {
-              return false;
-            }
-            final prior = assistant.draftFor(key);
-            assistant.saveDraft(
-              key,
-              prior.isEmpty ? result : [prior, result].join('\n'),
-            );
-            _changed();
-            return true;
-          } finally {
-            if (_voiceTicket == ticket) _voiceTicket = null;
-          }
       }
       if (args['key'] != assistant.draftKey) throw StateError('会话已切换，请重新打开');
       switch (call.method) {
@@ -360,6 +369,13 @@ class AssistantWorkspaceBridge {
       );
     }
   }
+
+  /// 与 AssistantController 的草稿写入边界一致：当前草稿、未提交的对象草稿和
+  /// 仍存在的会话可写；已删除会话的旧编号不能再被迟到文字复活。
+  bool _canWriteDraft(String key) =>
+      key == assistant.draftKey ||
+      key.startsWith('draft:') ||
+      assistant.conversations.any((conversation) => conversation.id == key);
 
   Future<void> _cancelDesktopVoice() async {
     _desktopVoiceDraft = null;

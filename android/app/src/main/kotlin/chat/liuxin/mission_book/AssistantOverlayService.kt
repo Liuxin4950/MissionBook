@@ -1,10 +1,8 @@
 package chat.liuxin.mission_book
 
 import android.app.Notification
-import android.animation.ValueAnimator
 import android.view.animation.PathInterpolator
 import java.io.File
-import org.json.JSONObject
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -16,8 +14,6 @@ import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.graphics.PixelFormat
 import android.graphics.BitmapFactory
-import android.content.res.ColorStateList
-import android.graphics.drawable.RippleDrawable
 import android.util.Base64
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -38,7 +34,63 @@ import android.view.WindowManager
 import android.view.ViewConfiguration
 import android.widget.TextView
 import android.widget.Toast
+import java.util.UUID
 import java.util.concurrent.Executors
+
+/**
+ * 截图发起时所在的悬浮表面。恢复时按 capture ticket 绑定的这份快照决定动作，
+ * 不读取“当前菜单是什么”来猜测来源。
+ */
+internal sealed class CaptureOrigin {
+    /** 主球展开的圆形快捷动作层。 */
+    object QuickActions : CaptureOrigin()
+
+    /** 已有聊天面板；draftKey 为发起时的草稿，noticeId 为当时仍在显示的主动提醒。 */
+    data class Conversation(val draftKey: String?, val noticeId: String? = null) : CaptureOrigin()
+
+    /** 主动提醒悬浮面。 */
+    data class Notice(val noticeId: String?) : CaptureOrigin()
+}
+
+/** 截图结束原因；取消与各种失败都恢复来源，只有 [Delivered] 才算图片已交付。 */
+internal enum class CaptureOutcome { Delivered, Cancelled, ConsentDenied, ProjectionLost, Failed }
+
+/** capture ticket 与发起来源的唯一绑定；ticket 不匹配的迟到回调直接丢弃，不恢复、不投递。 */
+internal data class CaptureTicketBinding(val ticket: String, val origin: CaptureOrigin) {
+    fun matches(candidate: String?): Boolean = candidate != null && candidate == ticket
+}
+
+/** 纯映射结果，服务只负责把它换成窗口动作。 */
+internal sealed class OverlayRestorePlan {
+    /** 来源未知：只显示主球，不打开任何矩形面板。 */
+    object Bubble : OverlayRestorePlan()
+
+    /** 重新展开同一组圆形动作。 */
+    object QuickActions : OverlayRestorePlan()
+
+    /** 恢复原会话；deliveredImage 表示图片已投递到发起时的草稿。 */
+    data class Conversation(val draftKey: String?, val deliveredImage: Boolean) : OverlayRestorePlan()
+
+    /** 恢复主动提醒面（提醒仍待处理时）。 */
+    data class Notice(val noticeId: String?) : OverlayRestorePlan()
+}
+
+/** 截图来源恢复与主动通知互斥的可测纯规则，服务与 JVM 检查共用。 */
+internal object CaptureRestoreRules {
+    fun plan(origin: CaptureOrigin?, outcome: CaptureOutcome): OverlayRestorePlan = when (origin) {
+        CaptureOrigin.QuickActions -> OverlayRestorePlan.QuickActions
+        is CaptureOrigin.Conversation -> OverlayRestorePlan.Conversation(
+            origin.draftKey,
+            outcome == CaptureOutcome.Delivered,
+        )
+        is CaptureOrigin.Notice -> OverlayRestorePlan.Notice(origin.noticeId)
+        null -> OverlayRestorePlan.Bubble
+    }
+
+    /** 捕获进行中、已有待提醒或没有悬浮权限时都不能插入主动提醒。 */
+    fun noticeAllowed(takingCapture: Boolean, noticePending: Boolean, overlaysAllowed: Boolean): Boolean =
+        !takingCapture && !noticePending && overlaysAllowed
+}
 
 class AssistantOverlayService : Service() {
     private lateinit var overlayContext: Context
@@ -51,7 +103,8 @@ class AssistantOverlayService : Service() {
     private var positionX = -1
     private var positionY = -1
     private var takingCapture = false
-    private var captureTicket: String? = null
+    private var capture: CaptureTicketBinding? = null
+    private var voiceTicket: String? = null
     private var latestNotice: Map<*, *>? = null
     private var pendingPanelAction: (() -> Unit)? = null
     private val workspaceLease = Any()
@@ -98,7 +151,8 @@ class AssistantOverlayService : Service() {
         AssistantWorkspaceHost.onError = { (menu as? AssistantOverlayPanel)?.showError(it) }
         AssistantWorkspaceHost.onUnavailable = {
             takingCapture = false
-            captureTicket = null
+            capture = null
+            voiceTicket = null
             latestNotice = null
             removeMenu()
             showBubble()
@@ -139,8 +193,8 @@ class AssistantOverlayService : Service() {
         val label = FrameLayout(overlayContext).apply {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(0xFFFFFFFF.toInt())
-                setStroke(dp(1), 0xFFE0E7DF.toInt())
+                setColor(AssistantNativeTheme.cardSurface)
+                setStroke(dp(1), AssistantNativeTheme.hairline)
             }
             elevation = dp(4).toFloat()
             clipToOutline = true
@@ -149,7 +203,7 @@ class AssistantOverlayService : Service() {
         }
         val avatar = ImageView(overlayContext).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFFE7F1EA.toInt()) }
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(AssistantNativeTheme.primarySoft) }
             clipToOutline = true
         }
         val custom = prefs.getString("persona_custom_avatar", null)
@@ -284,14 +338,14 @@ class AssistantOverlayService : Service() {
         label.getChildAt(0).visibility = if (docked) View.GONE else View.VISIBLE
         val shape = GradientDrawable().apply {
             this.shape = GradientDrawable.OVAL
-            setColor(0xFFFFFFFF.toInt())
-            setStroke(dp(1), 0xFFD5E1D8.toInt())
+            setColor(AssistantNativeTheme.cardSurface)
+            setStroke(dp(1), AssistantNativeTheme.hairline)
         }
         // 只缩窄可见把手，48dp × 64dp 的触控区域保持不变。
         val gripX = if (dockLeft) 8 else 36
         label.background = if (docked) android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT) else shape
         label.foreground = if (docked) GradientDrawable().apply {
-            setColor(0xFF244D3D.toInt())
+            setColor(AssistantNativeTheme.primary)
             cornerRadius = dp(2).toFloat()
         }.let { InsetDrawable(it, dp(gripX), dp(11), dp(44 - gripX), dp(11)) } else null
         // 把手的 InsetDrawable 不能改变 View 的实际触控范围；切回头像时清除残留内边距。
@@ -314,12 +368,18 @@ class AssistantOverlayService : Service() {
         super.onConfigurationChanged(newConfig)
         val shown = bubble != null
         val reopen = menu != null
-        val chatting = (menu as? AssistantOverlayPanel)?.inConversation == true
+        val panel = menu as? AssistantOverlayPanel
+        val chatting = panel?.inConversation == true
+        val noticeOnly = panel?.showingNoticeOnly == true
         removeBubble()
         if (shown) showBubble()
         if (shown && reopen) {
             (bubble?.layoutParams as? WindowManager.LayoutParams)?.let {
-                if (chatting) showPanel(it, true) else showMenu(it)
+                when {
+                    chatting -> showPanel(it, true)
+                    noticeOnly -> showPanel(it, noticeOnly = true)
+                    else -> showMenu(it)
+                }
             }
         }
     }
@@ -386,24 +446,32 @@ class AssistantOverlayService : Service() {
             revealBall(label, bubbleLayout, safeFrame())
             windowManager?.updateViewLayout(label, bubbleLayout)
         }
-        val ball = Rect(bubbleLayout.x, bubbleLayout.y,
-            bubbleLayout.x + bubbleLayout.width, bubbleLayout.y + bubbleLayout.height)
-        val placement = AssistantOverlayQuickMenu.place(safeFrame(), ball, ::dp)
-            ?: return showPanel(bubbleLayout)
+        val ball = OverlayPanelPlacement.Box(
+            bubbleLayout.x,
+            bubbleLayout.y,
+            bubbleLayout.x + bubbleLayout.width,
+            bubbleLayout.y + bubbleLayout.height,
+        )
+        val frame = safeFrame()
+        val placement = AssistantOverlayQuickMenu.place(
+            OverlayPanelPlacement.Box(frame.left, frame.top, frame.right, frame.bottom),
+            ball,
+            ::dp,
+        ) ?: return showPanel(bubbleLayout)
         val quick = AssistantOverlayQuickMenu(
             overlayContext,
             placement,
             menuMotionDuration(),
             onText = ::openChat,
             onVoice = ::openVoice,
-            onCapture = ::startCapture,
+            onCapture = { startCapture(CaptureOrigin.QuickActions) },
             onOpen = { openAssistant() },
             onUsage = ::toggleUsage,
             usageTitle = ::usageTitle,
         )
         val params = WindowManager.LayoutParams(
-            placement.window.width(),
-            placement.window.height(),
+            placement.window.width,
+            placement.window.height,
             windowType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT,
@@ -423,6 +491,8 @@ class AssistantOverlayService : Service() {
     private fun showPanel(
         bubbleLayout: WindowManager.LayoutParams,
         conversation: Boolean = false,
+        noticeOnly: Boolean = false,
+        expectedDraftKey: String? = null,
         afterLoad: (() -> Unit)? = null,
     ) {
         if (menu is AssistantOverlayPanel) return
@@ -441,26 +511,47 @@ class AssistantOverlayService : Service() {
         ).apply {
             useScreenCoordinates(this)
         }
+        var panelRef: AssistantOverlayPanel? = null
         val panel = AssistantOverlayPanel(
             overlayContext,
-            ::startCapture,
-            ::startVoice,
-            { openAssistant() },
-            ::openAssistant,
+            onCapture = {
+                // 来源由发起动作时绑定，不依赖恢复时“当前打开的是什么”。
+                startCapture(CaptureOrigin.Conversation(panelRef?.draftKey(), panelRef?.activeNoticeId))
+            },
+            onVoice = ::openVoice,
+            onOpen = { openAssistant() },
+            onMission = ::openAssistant,
             onRecord = { id ->
                 try { startActivity(MainActivity.assistantIntent(this, recordId = id)); removeMenu() }
                 catch (_: Exception) { (menu as? AssistantOverlayPanel)?.showError("无法打开记录") }
             },
-        ) {
-            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-            menu?.let { windowManager?.updateViewLayout(it, params) }
+            enableIme = {
+                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                menu?.let { windowManager?.updateViewLayout(it, params) }
+            },
+            noticeOnly = noticeOnly,
+        )
+        panelRef = panel
+        panel.expectDraft(expectedDraftKey) {
+            // 原会话已切换时不恢复无关会话，也不显示矩形工具首页，只回到主球并提示。
+            if (menu === panel) removeMenu()
+            showBubble()
+            Toast.makeText(this, "原会话已切换，截图已保存在发起时的草稿", Toast.LENGTH_SHORT).show()
         }
         try {
             if (conversation) panel.openConversation()
             if (!placePanel(panel, params, bubbleLayout)) return
             windowManager?.addView(panel, params)
             menu = panel
-            latestNotice?.let { panel.notice(it) { latestNotice = null } }
+            latestNotice?.let { notice ->
+                panel.notice(notice) {
+                    latestNotice = null
+                    // 提醒面结束后回到主球；但“回复”会先切到会话，不能在切会话的同一帧撤掉面板。
+                    if (noticeOnly) panel.post {
+                        if (menu === panel && !panel.inConversation) removeMenu()
+                    }
+                }
+            }
             var queued = false
             fun reposition() {
                 if (queued || menu !== panel) return
@@ -506,8 +597,49 @@ class AssistantOverlayService : Service() {
         }
     }
 
+    /**
+     * 语音入口直接生成票据并启动录音 Activity，不再先建立矩形工具首页。
+     * 录制权限、准备/转写状态由 AssistantOverlayVoiceActivity 自己处理，服务不申请权限。
+     */
     private fun openVoice() {
-        (bubble?.layoutParams as? WindowManager.LayoutParams)?.let { showPanel(it, false) { startVoice() } }
+        val ticket = UUID.randomUUID().toString()
+        voiceTicket = ticket
+        val panel = menu as? AssistantOverlayPanel
+        panel?.hideKeyboard()
+        // 从圆形动作发起时收起动作层直接进入录音；已有会话面板保留原会话供 voiceDone 回填。
+        if (panel == null) removeMenu()
+        try {
+            startActivity(Intent(this, AssistantOverlayVoiceActivity::class.java)
+                .putExtra(AssistantOverlayVoiceActivity.EXTRA_TICKET, ticket)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (error: Exception) {
+            voiceTicket = null
+            Log.e(TAG, "无法打开录音界面", error)
+            if (panel != null) panel.showError("无法打开录音，请使用文字输入")
+            else Toast.makeText(this, "无法打开录音，请使用文字输入", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 语音票据成功后回到原草稿的对话输入区。
+     * 只接受本服务发出的票据；面板内由面板校验草稿仍是当前会话，避免迟到结果写到其它草稿。
+     */
+    private fun onVoiceDone(ticket: String, draftKey: String) {
+        val expected = voiceTicket ?: return
+        if (expected != ticket) return
+        voiceTicket = null
+        if (active !== this) return
+        val panel = menu as? AssistantOverlayPanel
+        if (panel != null) {
+            panel.showVoiceDraft(draftKey)
+            return
+        }
+        showBubble()
+        bubbleLayout()?.let { layout ->
+            showPanel(layout, afterLoad = {
+                (menu as? AssistantOverlayPanel)?.showVoiceDraft(draftKey)
+            })
+        }
     }
 
     private fun usageTitle(): String {
@@ -525,7 +657,7 @@ class AssistantOverlayService : Service() {
         (menu as? AssistantOverlayQuickMenu)?.showMoreActions(animate = false)
     }
 
-    private fun startCapture() {
+    private fun startCapture(origin: CaptureOrigin) {
         if (takingCapture) return
         takingCapture = true
         AssistantWorkspaceHost.call("beginCapture", failure = {
@@ -540,29 +672,38 @@ class AssistantOverlayService : Service() {
                 AssistantWorkspaceHost.call("capture", mapOf("ticket" to ticket), failure = {})
                 return@call
             }
-            captureTicket = ticket
+            // 来源与 ticket 同时绑定：迟到或伪造 ticket 不能触发恢复。
+            capture = CaptureTicketBinding(ticket, origin)
             removeBubble()
             try {
                 startActivity(Intent(this, AssistantCaptureConsentActivity::class.java)
                     .putExtra(AssistantScreenCaptureService.EXTRA_TICKET, ticket)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             } catch (error: Exception) {
-                finishCapture(ticket, null)
+                finishCapture(ticket, null, CaptureOutcome.Failed)
                 reportOverlayFailure("无法打开系统截屏授权", error)
             }
         }
     }
 
-    private fun finishCapture(ticket: String, file: File?) {
-        if (ticket != captureTicket) { file?.delete(); return }
-        captureTicket = null
+    /**
+     * 截图结束的唯一回收入口：先校验 ticket 仍是当前绑定，再释放图片、把图片交给
+     * 截图开始时的草稿，最后按绑定来源恢复悬浮层。成功/取消/失败走同一恢复分支。
+     */
+    private fun finishCapture(ticket: String, file: File?, outcome: CaptureOutcome = CaptureOutcome.Cancelled) {
+        val binding = capture
+        if (binding == null || !binding.matches(ticket)) { file?.delete(); return }
+        capture = null
         fun deliver(bytes: ByteArray?) {
+            // 图片投递期间仍保持 takingCapture，避免主动提醒抢在来源恢复前插入面板；
+            // restoreOrigin 会先释放捕获互斥，再恢复来源。
             if (active !== this) return
-            takingCapture = false
             AssistantWorkspaceHost.call("capture", mapOf("ticket" to ticket, "bytes" to bytes), failure = {
+                restoreOrigin(binding.origin, CaptureOutcome.Failed)
                 Toast.makeText(this, it, Toast.LENGTH_SHORT).show()
-                reopenAfterCapture()
-            }) { reopenAfterCapture() }
+            }) {
+                restoreOrigin(binding.origin, if (bytes == null) outcome else CaptureOutcome.Delivered)
+            }
         }
         if (file == null) { deliver(null); return }
         fileReader.execute {
@@ -577,33 +718,55 @@ class AssistantOverlayService : Service() {
         }
     }
 
-    private fun reopenAfterCapture() {
+    /**
+     * 截图恢复与主动通知分流：这里只恢复截图发起时的悬浮表面，不打开矩形工具首页。
+     * 成功、取消、授权拒绝、投影失效、编码/Activity 异常都走同一入口。
+     */
+    private fun restoreOrigin(origin: CaptureOrigin, outcome: CaptureOutcome) {
+        takingCapture = false
         if (active !== this) return
+        removeMenu()
         showBubble()
-        (bubble?.layoutParams as? WindowManager.LayoutParams)?.let { showPanel(it) }
-    }
-
-    private fun startVoice() {
-        val target = (menu as? AssistantOverlayPanel)?.draftKey() ?: return
-        (menu as? AssistantOverlayPanel)?.hideKeyboard()
-        try {
-            startActivity(Intent(this, AssistantOverlayVoiceActivity::class.java)
-                .putExtra(AssistantOverlayVoiceActivity.EXTRA_DRAFT, target)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (error: Exception) {
-            (menu as? AssistantOverlayPanel)?.showError("无法打开录音，请使用文字输入")
+        when (val plan = CaptureRestoreRules.plan(origin, outcome)) {
+            OverlayRestorePlan.Bubble -> Unit
+            OverlayRestorePlan.QuickActions -> bubbleLayout()?.let(::showMenu)
+            is OverlayRestorePlan.Conversation -> bubbleLayout()?.let { layout ->
+                showPanel(layout, conversation = true, expectedDraftKey = plan.draftKey)
+            }
+            is OverlayRestorePlan.Notice -> {
+                val notice = latestNotice
+                val layout = bubbleLayout()
+                if (layout != null && notice != null &&
+                    (plan.noticeId == null || notice["sessionId"] == plan.noticeId)) {
+                    showPanel(layout, noticeOnly = true)
+                } else layout?.let(::showMenu)
+            }
         }
     }
 
     /**
-     * 语音票据成功后回到原草稿的对话输入区。
-     * 具体实现由工作包 A 补全：校验 ticket 来源与草稿仍是当前会话，再建立/复用面板。
-     * 当前保持原有行为，避免面板能力在改造前中断。
+     * 主动通知的独立展示路径：有聊天窗口就叠加在原面板上；没有时建立专用提醒面，
+     * 不再借用截图恢复打开矩形工具首页。回复/稍后/本次不再/回到任务仍由面板提供。
      */
-    private fun onVoiceDone(ticket: String, draftKey: String) {
-        val panel = menu as? AssistantOverlayPanel ?: return
-        panel.showVoiceDraft(draftKey)
+    private fun presentNotice(notice: Map<*, *>): Boolean {
+        val open = menu as? AssistantOverlayPanel
+        if (open != null) {
+            open.notice(notice) {
+                latestNotice = null
+                if (open.showingNoticeOnly) open.post {
+                    if (menu === open && !open.inConversation) removeMenu()
+                }
+            }
+            return true
+        }
+        if (bubbleLayout() == null) showBubble()
+        val layout = bubbleLayout() ?: return false
+        showPanel(layout, noticeOnly = true)
+        return menu != null
     }
+
+    private fun bubbleLayout(): WindowManager.LayoutParams? =
+        bubble?.layoutParams as? WindowManager.LayoutParams
 
     private fun reportOverlayFailure(message: String, error: Exception) {
         Log.e(TAG, message, error)
@@ -647,17 +810,8 @@ class AssistantOverlayService : Service() {
         menu = null
     }
 
-    // 与 Flutter 的本机设置共用保存值，旧枚举格式仍可读取。
-    private fun menuMotionDuration(): Long {
-        val preference = runCatching {
-            val saved = File(filesDir, "page_motion.txt").takeIf { it.exists() }
-                ?.readText()?.trim().orEmpty()
-            if (saved.startsWith("{")) JSONObject(saved).optString("preference") else saved
-        }.getOrDefault("system")
-        if (preference == "reduced") return 0L
-        val systemEnabled = Build.VERSION.SDK_INT < 26 || ValueAnimator.areAnimatorsEnabled()
-        return if (preference == "full" || systemEnabled) 180L else 0L
-    }
+    // 动效时长只有 AssistantNativeTheme 一个来源：与 Flutter 页面动效偏好、系统动画开关同源。
+    private fun menuMotionDuration(): Long = AssistantNativeTheme.motionDuration(this)
 
     private fun removeBubble() {
         removeMenu()
@@ -677,8 +831,11 @@ class AssistantOverlayService : Service() {
 
     @Suppress("DEPRECATION")
     override fun onDestroy() {
-        captureTicket?.let { AssistantWorkspaceHost.call("capture", mapOf("ticket" to it), failure = {}) }
-        captureTicket = null
+        capture?.let { binding ->
+            AssistantWorkspaceHost.call("capture", mapOf("ticket" to binding.ticket), failure = {})
+        }
+        capture = null
+        voiceTicket = null
         removeBubble()
         fileReader.shutdown()
         if (active === this) {
@@ -701,13 +858,17 @@ class AssistantOverlayService : Service() {
 
         internal fun showNotice(notice: Map<*, *>): Boolean {
             val service = active ?: return false
-            if (service.takingCapture || !Settings.canDrawOverlays(service)) return false
-            if (service.latestNotice != null) return false
+            if (!CaptureRestoreRules.noticeAllowed(
+                    service.takingCapture,
+                    service.latestNotice != null,
+                    Settings.canDrawOverlays(service),
+                )) return false
+            // 提醒内容必须能落到面板上；失败时交回系统通知兜底，且不留下永远待处理的提醒。
+            if (notice["sessionId"] !is String || notice["message"] !is String) return false
             service.latestNotice = notice
-            val panel = service.menu as? AssistantOverlayPanel
-            if (panel != null) panel.notice(notice) { service.latestNotice = null }
-            else service.reopenAfterCapture()
-            return service.menu != null
+            val shown = service.presentNotice(notice)
+            if (!shown) service.latestNotice = null
+            return shown
         }
 
         internal fun maskForSample(masked: Boolean) {
@@ -716,10 +877,14 @@ class AssistantOverlayService : Service() {
             active?.menu?.visibility = value
         }
 
-        internal fun captureDone(ticket: String?, file: File?) {
+        internal fun captureDone(
+            ticket: String?,
+            file: File?,
+            outcome: CaptureOutcome = CaptureOutcome.Cancelled,
+        ) {
             val service = active
             if (service == null || ticket == null) file?.delete()
-            else service.finishCapture(ticket, file)
+            else service.finishCapture(ticket, file, outcome)
         }
 
         internal fun voiceDone(ticket: String, draftKey: String) {

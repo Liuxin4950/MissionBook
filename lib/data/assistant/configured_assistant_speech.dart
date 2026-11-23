@@ -10,19 +10,204 @@ import 'package:record/record.dart';
 import '../../application/assistant/assistant_settings.dart';
 import '../../application/assistant/assistant_speech.dart';
 import '../speech/local_speech_backend.dart';
+import 'assistant_voice_ticket.dart';
 
 /// 每次录音读取设置：默认使用本地 SenseVoice；配置了录音转写时改走用户的服务。
 class ConfiguredAssistantSpeech
-    implements AssistantSpeech, WarmUpSpeech, DisposableAssistantSpeech {
-  ConfiguredAssistantSpeech(this.settings, {LocalSpeechBackend? localBackend})
-    : _local = localBackend ?? createLocalSpeechBackend();
+    implements
+        AssistantSpeech,
+        WarmUpSpeech,
+        DisposableAssistantSpeech,
+        AssistantVoiceSpeech {
+  ConfiguredAssistantSpeech(
+    this.settings, {
+    LocalSpeechBackend? localBackend,
+    http.Client Function()? clientFactory,
+  }) : _local = localBackend ?? createLocalSpeechBackend(),
+       _clientFactory = clientFactory ?? http.Client.new;
 
   final AssistantSettingsStore settings;
   final LocalSpeechBackend _local;
+  final http.Client Function() _clientFactory;
+  final _preparedVoices = <_PreparedAssistantVoice>{};
   AssistantSpeech? _current;
   int _generation = 0;
   bool _disposed = false;
   http.Client? _externalClient;
+
+  /// 悬浮录音前的预检/准备：离线只检查并加载已安装的 SenseVoice，远程只校验
+  /// 已保存配置与独立凭据。不下载模型、不上传音频、不申请麦克风，也不返回凭据。
+  @override
+  Future<VoicePreflight> preflight() async {
+    if (_disposed) {
+      return const VoicePreflight.failed(
+        mode: AssistantVoiceMode.offline,
+        failure: AssistantVoiceFailure(
+          'offlineModelInitFailed',
+          AssistantVoiceMessages.offlineModelInitFailed,
+        ),
+      );
+    }
+    final AssistantSettings saved;
+    try {
+      saved = await settings.load();
+    } catch (_) {
+      return const VoicePreflight.failed(
+        mode: AssistantVoiceMode.offline,
+        failure: AssistantVoiceFailure(
+          'workspaceUnavailable',
+          AssistantVoiceMessages.workspaceUnavailable,
+        ),
+      );
+    }
+    if (saved.speech.useTranscription) return _remotePreflight(saved.speech);
+    return _offlinePreflight();
+  }
+
+  Future<VoicePreflight> _offlinePreflight() async {
+    if (!_local.supported) {
+      return const VoicePreflight.failed(
+        mode: AssistantVoiceMode.offline,
+        failure: AssistantVoiceFailure(
+          'offlineModelMissing',
+          AssistantVoiceMessages.offlineModelMissing,
+        ),
+      );
+    }
+    bool hasModel;
+    try {
+      hasModel = await _local.hasModel();
+    } catch (_) {
+      hasModel = false;
+    }
+    if (!hasModel) {
+      return VoicePreflight.failed(
+        mode: AssistantVoiceMode.offline,
+        failure: _missingOfflineModel(_local.lastError),
+      );
+    }
+    var prepared = false;
+    try {
+      prepared = await _local.prepare();
+    } catch (_) {
+      prepared = false;
+    }
+    if (!prepared) {
+      return VoicePreflight.failed(
+        mode: AssistantVoiceMode.offline,
+        failure: _brokenOfflineModel(_local.lastError),
+      );
+    }
+    final route = _PreparedAssistantVoice.offline(_local);
+    _track(route);
+    return VoicePreflight.ready(
+      mode: AssistantVoiceMode.offline,
+      prepared: route,
+    );
+  }
+
+  Future<VoicePreflight> _remotePreflight(AssistantSpeechSettings route) async {
+    final endpoint = route.endpoint.trim();
+    final model = route.model.trim();
+    if (endpoint.isEmpty || model.isEmpty) {
+      return const VoicePreflight.failed(
+        mode: AssistantVoiceMode.remote,
+        failure: AssistantVoiceFailure(
+          'remoteConfigMissing',
+          AssistantVoiceMessages.remoteConfigMissing,
+        ),
+      );
+    }
+    try {
+      route.validate();
+    } on ArgumentError {
+      return const VoicePreflight.failed(
+        mode: AssistantVoiceMode.remote,
+        failure: AssistantVoiceFailure(
+          'remoteConfigInvalid',
+          AssistantVoiceMessages.remoteConfigInvalid,
+        ),
+      );
+    }
+    String? credential;
+    try {
+      credential = await settings.resolveCredential(
+        'MISSIONBOOK_TRANSCRIPTION_API_KEY',
+      );
+    } catch (_) {
+      credential = null;
+    }
+    final key = credential?.trim() ?? '';
+    if (key.isEmpty) {
+      return const VoicePreflight.failed(
+        mode: AssistantVoiceMode.remote,
+        failure: AssistantVoiceFailure(
+          'remoteConfigMissing',
+          AssistantVoiceMessages.remoteConfigMissing,
+        ),
+      );
+    }
+    final prepared = _PreparedAssistantVoice.remote(_clientFactory, route, key);
+    _track(prepared);
+    return VoicePreflight.ready(
+      mode: AssistantVoiceMode.remote,
+      prepared: prepared,
+    );
+  }
+
+  void _track(_PreparedAssistantVoice voice) {
+    _preparedVoices.add(voice);
+    voice._owner = this;
+  }
+
+  /// 后端只能通过 lastError 附加细节；没有可识别原因时按缺模型处理，
+  /// 让用户走可下载/重新下载的明确路径。
+  static AssistantVoiceFailure _missingOfflineModel(String? lastError) {
+    final reason = lastError ?? '';
+    if (_looksBroken(reason)) {
+      return const AssistantVoiceFailure(
+        'offlineModelInvalid',
+        AssistantVoiceMessages.offlineModelInvalid,
+      );
+    }
+    return const AssistantVoiceFailure(
+      'offlineModelMissing',
+      AssistantVoiceMessages.offlineModelMissing,
+    );
+  }
+
+  static AssistantVoiceFailure _brokenOfflineModel(String? lastError) {
+    final reason = lastError ?? '';
+    if (_looksMissing(reason)) {
+      return const AssistantVoiceFailure(
+        'offlineModelMissing',
+        AssistantVoiceMessages.offlineModelMissing,
+      );
+    }
+    if (_looksBroken(reason)) {
+      return const AssistantVoiceFailure(
+        'offlineModelInvalid',
+        AssistantVoiceMessages.offlineModelInvalid,
+      );
+    }
+    return const AssistantVoiceFailure(
+      'offlineModelInitFailed',
+      AssistantVoiceMessages.offlineModelInitFailed,
+    );
+  }
+
+  static bool _looksBroken(String reason) =>
+      reason.contains('校验') ||
+      reason.contains('完整性') ||
+      reason.contains('损坏') ||
+      reason.toLowerCase().contains('sha');
+
+  static bool _looksMissing(String reason) =>
+      reason.contains('尚未下载') ||
+      reason.contains('未安装') ||
+      reason.contains('不存在') ||
+      reason.contains('not found') ||
+      reason.contains('no such file');
 
   /// 由 Android 可见录音窗口提供 PCM，使用同一本地或远程转写配置。
   Future<String> transcribePcm(Uint8List pcm) async {
@@ -173,8 +358,178 @@ class ConfiguredAssistantSpeech
     try {
       await current?.cancel();
     } finally {
+      // 悬浮录音的远程请求可能仍在等待；关闭时一并取消，避免留下孤立连接。
+      for (final voice in _preparedVoices.toList()) {
+        await voice.cancel();
+      }
+      _preparedVoices.clear();
       await _local.dispose();
     }
+  }
+}
+
+/// 悬浮录音一轮的后端副本：离线路线不再重新读取设置，远程路线固定
+/// 本轮 endpoint/model/凭据，并且拥有独立的 HTTP 客户端用于取消。
+class _PreparedAssistantVoice implements PreparedAssistantVoice {
+  _PreparedAssistantVoice._({
+    required this.mode,
+    LocalSpeechBackend? local,
+    http.Client Function()? clientFactory,
+    AssistantSpeechSettings? settings,
+    String? credential,
+  }) : _local = local,
+       _clientFactory = clientFactory,
+       _settings = settings,
+       _credential = credential;
+
+  factory _PreparedAssistantVoice.offline(LocalSpeechBackend local) =>
+      _PreparedAssistantVoice._(mode: AssistantVoiceMode.offline, local: local);
+
+  factory _PreparedAssistantVoice.remote(
+    http.Client Function() clientFactory,
+    AssistantSpeechSettings settings,
+    String credential,
+  ) => _PreparedAssistantVoice._(
+    mode: AssistantVoiceMode.remote,
+    clientFactory: clientFactory,
+    settings: settings,
+    credential: credential,
+  );
+
+  static const _cancelled = AssistantVoiceFailure(
+    'cancelled',
+    AssistantVoiceMessages.cancelled,
+  );
+  static const _emptyAudio = AssistantVoiceFailure(
+    'emptyAudio',
+    AssistantVoiceMessages.emptyAudio,
+  );
+  static const _timeout = AssistantVoiceFailure(
+    'transcribeTimeout',
+    AssistantVoiceMessages.transcribeTimeout,
+  );
+  static const _noSpeech = AssistantVoiceFailure(
+    'noSpeech',
+    AssistantVoiceMessages.noSpeech,
+  );
+  static const _offlineInitFailed = AssistantVoiceFailure(
+    'offlineModelInitFailed',
+    AssistantVoiceMessages.offlineModelInitFailed,
+  );
+  static const _remoteFailed = AssistantVoiceFailure(
+    'remoteRequestFailed',
+    AssistantVoiceMessages.remoteRequestFailed,
+  );
+  static const _failed = AssistantVoiceFailure(
+    'failed',
+    AssistantVoiceMessages.failed,
+  );
+
+  @override
+  final AssistantVoiceMode mode;
+
+  final LocalSpeechBackend? _local;
+  final http.Client Function()? _clientFactory;
+  final AssistantSpeechSettings? _settings;
+  final String? _credential;
+  ConfiguredAssistantSpeech? _owner;
+  http.Client? _client;
+  bool _cancelledRequest = false;
+  bool _detached = false;
+
+  @override
+  Future<String> transcribe(Uint8List pcm16) async {
+    if (_cancelledRequest) throw _cancelled;
+    if (!isValidVoicePcm(pcm16)) throw _emptyAudio;
+    try {
+      final text = _local == null
+          ? await _transcribeRemote(pcm16)
+          : await _transcribeOffline(pcm16);
+      if (_cancelledRequest) throw _cancelled;
+      final trimmed = text.trim();
+      if (!hasRecognizedSpeech(trimmed)) throw _noSpeech;
+      return trimmed;
+    } finally {
+      _detach();
+    }
+  }
+
+  Future<String> _transcribeOffline(Uint8List pcm16) async {
+    try {
+      return await _local!
+          .transcribe(pcm16)
+          .timeout(const Duration(seconds: 60));
+    } on TimeoutException {
+      throw _timeout;
+    } on FormatException {
+      // 预检后模型又被删除或 worker 重建失败：不能静默转远程。
+      throw _offlineInitFailed;
+    } catch (_) {
+      throw _failed;
+    }
+  }
+
+  Future<String> _transcribeRemote(Uint8List pcm16) async {
+    final client = _clientFactory!();
+    _client = client;
+    try {
+      return await transcribeAudio(
+        client,
+        _settings!,
+        _credential,
+        pcmToWav(pcm16),
+      ).timeout(const Duration(seconds: 60));
+    } on TimeoutException {
+      throw _timeout;
+    } on http.ClientException {
+      throw _cancelledRequest ? _cancelled : _remoteFailed;
+    } on FormatException catch (error) {
+      if (_cancelledRequest) throw _cancelled;
+      throw _remoteFailure(error.message);
+    } catch (_) {
+      throw _cancelledRequest ? _cancelled : _remoteFailed;
+    } finally {
+      client.close();
+      if (identical(_client, client)) _client = null;
+    }
+  }
+
+  static AssistantVoiceFailure _remoteFailure(String message) {
+    if (message.contains('401') ||
+        message.contains('403') ||
+        message.contains('拒绝访问')) {
+      return const AssistantVoiceFailure(
+        'remoteAuthFailed',
+        AssistantVoiceMessages.remoteAuthFailed,
+      );
+    }
+    if (message.contains('没有返回文字')) {
+      return _noSpeech;
+    }
+    if (message.contains('过大') || message.contains('过长')) {
+      return _failed;
+    }
+    if (message.contains('转写服务')) {
+      return AssistantVoiceFailure('remoteRequestFailed', message);
+    }
+    return _remoteFailed;
+  }
+
+  @override
+  Future<void> cancel() async {
+    if (_cancelledRequest) return;
+    _cancelledRequest = true;
+    final client = _client;
+    _client = null;
+    client?.close();
+    _detach();
+  }
+
+  void _detach() {
+    if (_detached) return;
+    _detached = true;
+    _owner?._preparedVoices.remove(this);
+    _owner = null;
   }
 }
 

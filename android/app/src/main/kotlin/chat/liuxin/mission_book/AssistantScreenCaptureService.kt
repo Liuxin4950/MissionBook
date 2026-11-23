@@ -11,7 +11,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.Rect
-import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
@@ -568,16 +567,27 @@ class AssistantScreenCaptureService : Service() {
         hideControls()
         try {
             check(Settings.canDrawOverlays(this))
-            fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+            fun dp(value: Int) = AssistantNativeTheme.dp(this, value)
             val panel = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(8), dp(4), dp(8), dp(4))
-                background = GradientDrawable().apply {
-                    setColor(0xFFF7F8F5.toInt()); cornerRadius = dp(16).toFloat()
-                    setStroke(dp(1), 0xFFE0E7DF.toInt())
-                }
+                setPadding(dp(AssistantNativeTheme.spaceSm), dp(AssistantNativeTheme.spaceXs),
+                    dp(AssistantNativeTheme.spaceSm), dp(AssistantNativeTheme.spaceXs))
+                background = AssistantNativeTheme.surface(
+                    this@AssistantScreenCaptureService,
+                    AssistantNativeTheme.cardSurface,
+                    AssistantNativeTheme.radiusLg,
+                    AssistantNativeTheme.hairline,
+                    1f,
+                )
                 elevation = dp(3).toFloat()
+            }
+            val failed = message != null && !message.contains("滚动页面") && !message.contains("达到")
+            val warning = message?.contains("达到") == true
+            val statusColor = when {
+                failed -> AssistantNativeTheme.error
+                warning -> AssistantNativeTheme.warning
+                else -> AssistantNativeTheme.primary
             }
             panel.addView(TextView(this).apply {
                 text = when {
@@ -585,28 +595,35 @@ class AssistantScreenCaptureService : Service() {
                     message == null || message.contains("滚动页面") -> "滚动采集 · $frameCount/12"
                     else -> "本屏未加入 · $frameCount/12"
                 }
-                textSize = 12f; setTextColor(0xFF244D3D.toInt())
-                setPadding(dp(8), 0, dp(8), 0)
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, AssistantNativeTheme.textMetadata)
+                setTextColor(statusColor)
+                setPadding(dp(AssistantNativeTheme.spaceSm), 0, dp(AssistantNativeTheme.spaceSm), 0)
                 contentDescription = message ?: "长截图，已采集 $frameCount 屏，滚动原页面继续"
                 if (Build.VERSION.SDK_INT >= 26) tooltipText = message
             }, LinearLayout.LayoutParams(0, -2, 1f))
-            fun action(label: String, callback: () -> Unit) {
+            fun action(label: String, enabled: Boolean = true, callback: () -> Unit) {
                 panel.addView(TextView(this).apply {
-                    text = label; textSize = 13f; gravity = Gravity.CENTER
-                    minWidth = dp(48); minimumHeight = dp(48)
-                    setTextColor(0xFF244D3D.toInt()); isFocusable = true
-                    background = RippleDrawable(ColorStateList.valueOf(0x22244D3D), null, null)
+                    text = label
+                    setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, AssistantNativeTheme.textBody)
+                    gravity = Gravity.CENTER
+                    minWidth = dp(AssistantNativeTheme.minTouchDp)
+                    minimumHeight = dp(AssistantNativeTheme.minTouchDp)
+                    isEnabled = enabled
+                    isFocusable = true
+                    contentDescription = label
+                    setTextColor(if (enabled) AssistantNativeTheme.primary else AssistantNativeTheme.onDisabled)
+                    background = RippleDrawable(ColorStateList.valueOf(AssistantNativeTheme.ripple), null, null)
                     setOnClickListener { callback() }
                 }, LinearLayout.LayoutParams(-2, -2))
             }
-            action("完成") { finishLongCapture() }
+            action("完成", frameCount > 0) { finishLongCapture() }
             action("取消") { cancelCapture() }
             manager.addView(panel, WindowManager.LayoutParams(
-                minOf(dp(360), resources.displayMetrics.widthPixels - dp(24)), -2,
+                minOf(dp(360), resources.displayMetrics.widthPixels - dp(AssistantNativeTheme.spaceXl)), -2,
                 if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT,
-            ).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL; y = dp(12) })
+            ).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL; y = dp(AssistantNativeTheme.spaceMd) })
             controls = panel
             if (message != null && message != lastIssue && !message.contains("滚动页面")) {
                 android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()

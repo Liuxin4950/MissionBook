@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.view.Gravity
 import android.view.KeyEvent
@@ -14,7 +13,10 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 
-/** 顶部单行工具栏；窄屏 / 大字号可横向滚动，不挤压截图画布。 */
+/**
+ * 顶部单行工具栏；窄屏 / 大字号可横向滚动，不挤压截图画布。
+ * 画布保持黑色媒体画布，控制条使用暖白 + 森林绿语义 token。
+ */
 internal class CaptureEditorView(
     context: Context,
     image: Bitmap,
@@ -22,17 +24,21 @@ internal class CaptureEditorView(
     onLongCapture: (android.graphics.Rect) -> Unit,
     private val onCancel: () -> Unit,
 ) : FrameLayout(context) {
-    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+    private fun dp(value: Int) = AssistantNativeTheme.dp(context, value)
     private val canvas = CaptureSelectionView(context, image)
     init {
         addView(canvas, LayoutParams(-1, -1))
         val toolbar = LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6), dp(4), dp(6), dp(4))
-            background = GradientDrawable().apply {
-                setColor(0xFFF7F8F5.toInt()); cornerRadius = dp(16).toFloat()
-                setStroke(dp(1), 0xFFE0E7DF.toInt())
-            }
+            setPadding(dp(AssistantNativeTheme.spaceXs), dp(AssistantNativeTheme.spaceXs),
+                dp(AssistantNativeTheme.spaceXs), dp(AssistantNativeTheme.spaceXs))
+            background = AssistantNativeTheme.surface(
+                context,
+                AssistantNativeTheme.cardSurface,
+                AssistantNativeTheme.radiusLg,
+                AssistantNativeTheme.hairline,
+                1f,
+            )
             elevation = dp(3).toFloat()
         }
         val scroll = HorizontalScrollView(context).apply {
@@ -41,31 +47,35 @@ internal class CaptureEditorView(
             addView(toolbar)
         }
         val barParams = LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-            leftMargin = dp(12); rightMargin = dp(12); topMargin = dp(12)
+            leftMargin = dp(AssistantNativeTheme.spaceMd)
+            rightMargin = dp(AssistantNativeTheme.spaceMd)
+            topMargin = dp(AssistantNativeTheme.spaceMd)
         }
         addView(scroll, barParams)
         setOnApplyWindowInsetsListener { _, insets ->
             val top = if (android.os.Build.VERSION.SDK_INT >= 30) {
                 insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()).top
             } else @Suppress("DEPRECATION") insets.systemWindowInsetTop
-            barParams.topMargin = top + dp(12)
+            barParams.topMargin = top + dp(AssistantNativeTheme.spaceMd)
             scroll.layoutParams = barParams
             insets
         }
         fun tool(label: String, action: () -> Unit): TextView {
             return TextView(context).apply {
                 text = label
-                textSize = 13f
-                setTextColor(0xFF244D3D.toInt())
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, AssistantNativeTheme.textBody)
+                setTextColor(actionColors())
                 gravity = Gravity.CENTER
-                minWidth = dp(48)
-                minimumHeight = dp(48)
-                setPadding(dp(12), 0, dp(12), 0)
+                minWidth = dp(AssistantNativeTheme.minTouchDp)
+                minimumHeight = dp(AssistantNativeTheme.minTouchDp)
+                setPadding(dp(AssistantNativeTheme.spaceMd), 0, dp(AssistantNativeTheme.spaceMd), 0)
                 isFocusable = true
                 contentDescription = label
-                background = RippleDrawable(ColorStateList.valueOf(0x22244D3D), GradientDrawable().apply {
-                    setColor(Color.TRANSPARENT); cornerRadius = dp(12).toFloat()
-                }, null)
+                background = RippleDrawable(
+                    ColorStateList.valueOf(AssistantNativeTheme.ripple),
+                    AssistantNativeTheme.surface(context, Color.TRANSPARENT, AssistantNativeTheme.radiusMd),
+                    null,
+                )
                 setOnClickListener { action() }
                 toolbar.addView(this, LinearLayout.LayoutParams(-2, -2))
             }
@@ -76,8 +86,8 @@ internal class CaptureEditorView(
             canvas.fullScreen = all
             region.isSelected = !all
             full.isSelected = all
-            region.setTextColor(if (all) 0xFF748077.toInt() else 0xFF244D3D.toInt())
-            full.setTextColor(if (all) 0xFF244D3D.toInt() else 0xFF748077.toInt())
+            region.setTextColor(if (all) AssistantNativeTheme.textSecondary else AssistantNativeTheme.primary)
+            full.setTextColor(if (all) AssistantNativeTheme.primary else AssistantNativeTheme.textSecondary)
             region.paint.isFakeBoldText = !all
             full.paint.isFakeBoldText = all
             region.invalidate(); full.invalidate()
@@ -94,23 +104,41 @@ internal class CaptureEditorView(
         tool("×") { onCancel() }.contentDescription = "取消截图"
         val hint = TextView(context).apply {
             text = "拖动框选 · 框内移动 · 四角调整"
-            textSize = 12f
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, AssistantNativeTheme.textMetadata)
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            setShadowLayer(dp(2).toFloat(), 0f, 0f, 0x88000000.toInt())
+            setTextColor(AssistantNativeTheme.onMedia)
+            setShadowLayer(dp(2).toFloat(), 0f, 0f, AssistantNativeTheme.shadow)
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         addView(hint, LayoutParams(-1, -2, Gravity.BOTTOM).apply { bottomMargin = dp(56) })
         canvas.onSelectionChanged = {
             done.isEnabled = canvas.crop() != null
-            done.alpha = if (done.isEnabled) 1f else .4f
+            done.setTextColor(if (done.isEnabled) AssistantNativeTheme.primary else AssistantNativeTheme.onDisabled)
+            done.alpha = 1f
         }
         done.isEnabled = false
-        done.alpha = .4f
+        done.setTextColor(AssistantNativeTheme.onDisabled)
         select(false)
         isFocusableInTouchMode = true
         requestFocus()
     }
+
+    /** 截图工具动作的按压/焦点/禁用状态色。 */
+    private fun actionColors(): ColorStateList = ColorStateList(
+        arrayOf(
+            intArrayOf(android.R.attr.state_enabled, android.R.attr.state_pressed),
+            intArrayOf(android.R.attr.state_enabled, android.R.attr.state_focused),
+            intArrayOf(-android.R.attr.state_enabled),
+            intArrayOf(),
+        ),
+        intArrayOf(
+            AssistantNativeTheme.primaryPressed,
+            AssistantNativeTheme.primaryPressed,
+            AssistantNativeTheme.onDisabled,
+            AssistantNativeTheme.primary,
+        ),
+    )
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_UP && (event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_ESCAPE)) {
             onCancel(); return true

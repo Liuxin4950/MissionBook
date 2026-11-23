@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  原生语音面板专用颜色。
+  语义色（暖白底、森林绿、错误色等）统一来自 AssistantNativeTheme.kt；
+  这里只放主题里没有、也无需参与 Flutter 主题的窗口遮罩色。
+-->
+<resources>
+    <!-- 面板后方的遮罩：让悬浮语音窗口保持焦点，同时不把媒体内容改成白底。 -->
+    <color name="assistant_voice_scrim">#66000000</color>
+</resources>

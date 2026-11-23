@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  原生悬浮语音面板的中文文案。
+  Dart 契约已给出的 message 优先直接显示；这里只放原生自己的状态、按钮与兜底原因，
+  不把模型路径、服务地址或凭据拼进文案。
+-->
+<resources>
+    <!-- 识别方式 -->
+    <string name="assistant_voice_mode_format">识别方式：%1$s</string>
+    <string name="assistant_voice_mode_offline">离线语音</string>
+    <string name="assistant_voice_mode_remote">录音转写服务</string>
+
+    <!-- 正在准备：不确定进度，只说真实在做的事 -->
+    <string name="assistant_voice_title_preparing">准备语音</string>
+    <string name="assistant_voice_status_preparing">正在准备语音识别</string>
+    <string name="assistant_voice_detail_preparing">正在加载你已保存的识别方式（离线模型或转写服务）。准备完成前不会录音，也不会下载模型。</string>
+
+    <!-- 麦克风授权：说明用途；系统弹窗外观由 Android 控制 -->
+    <string name="assistant_voice_status_permission">需要麦克风权限</string>
+    <string name="assistant_voice_status_permission_remote">需要麦克风权限（录音会上传）</string>
+    <string name="assistant_voice_detail_permission">允许麦克风后，用说话代替打字来口述任务、记录或问题。识别结果只回填助手输入框，不会自动发送。</string>
+    <string name="assistant_voice_detail_permission_remote">你要把这段录音发送到已保存的转写服务识别。允许麦克风后开始录音；结果只回填助手输入框，不会自动发送。</string>
+
+    <!-- 正在录音：真实计时，最多 30 秒 -->
+    <string name="assistant_voice_title_recording">正在录音</string>
+    <string name="assistant_voice_status_recording">正在录音 · %1$s</string>
+    <string name="assistant_voice_detail_recording">说清要做的事；点按「完成」开始转写。最多 30 秒，到时自动停止。</string>
+    <string name="assistant_voice_elapsed">已录 %1$d 秒 · 最多 %2$d 秒</string>
+
+    <!-- 正在转写：停止计时，可取消，无百分比 -->
+    <string name="assistant_voice_title_transcribing">正在转写</string>
+    <string name="assistant_voice_status_transcribing">正在识别语音…</string>
+    <string name="assistant_voice_detail_transcribing">%1$s正在处理这段录音。识别完成后回到助手输入框，不会自动发送。</string>
+
+    <!-- 失败 / 取消 -->
+    <string name="assistant_voice_title_failed">无法完成语音输入</string>
+    <string name="assistant_voice_detail_prepare_failed">语音没有开始，也没有使用麦克风。</string>
+    <string name="assistant_voice_detail_permission_failed">麦克风没有授权，录音未开始。</string>
+    <string name="assistant_voice_detail_transcribe_failed">这段录音还留在本次面板中，可以重试转写或重新录音。</string>
+    <string name="assistant_voice_detail_transcribe_failed_dropped">本次录音已丢弃，请重新录音。</string>
+    <string name="assistant_voice_detail_device_failed">麦克风或系统暂时不可用。</string>
+    <string name="assistant_voice_detail_recreated">界面被系统重建，本次已取消（已录 %1$d 秒）。请重新录音或改用文字。</string>
+    <string name="assistant_voice_detail_recording_interrupted">这段录音已丢弃，请重新录音或改用文字。</string>
+    <string name="assistant_voice_detail_paused">离开面板时本轮语音已结束，重试会重新准备识别方式。</string>
+    <string name="assistant_voice_detail_transcribe_cancelled">这次转写已取消，录音还留在本次面板中，可以重试转写。</string>
+
+    <!-- 原生原因：Dart 未给 message 时显示 -->
+    <string name="assistant_voice_text_prepare_timeout">准备语音超时，请重试。</string>
+    <string name="assistant_voice_text_transcribe_timeout">语音识别超时，请重试或改用文字。</string>
+    <string name="assistant_voice_text_mic_unavailable">麦克风不可用，请改用文字或稍后重试。</string>
+    <string name="assistant_voice_text_recorder_failed">无法开始录音，请重试或改用文字。</string>
+    <string name="assistant_voice_text_recording_interrupted">录音被系统中断，本次已丢弃。</string>
+    <string name="assistant_voice_text_recording_too_short">录音太短，请重新录音。</string>
+    <string name="assistant_voice_text_permission_denied">没有麦克风权限，无法录音。可重新授权或改用文字。</string>
+    <string name="assistant_voice_text_permission_blocked">麦克风权限已被拒绝且不再询问。请到系统设置允许后再试，或改用文字。</string>
+    <string name="assistant_voice_text_recreated_recording">界面被系统重建，本次录音已取消。</string>
+    <string name="assistant_voice_text_recreated_transcribing">界面被系统重建，本次转写已取消。</string>
+    <string name="assistant_voice_text_paused">本轮语音已结束，请重试或改用文字。</string>
+    <string name="assistant_voice_text_transcribe_cancelled">转写已取消，录音仍在本次面板中。</string>
+    <string name="assistant_voice_text_generic">语音输入未完成，请重试或改用文字。</string>
+
+    <!-- 动作 -->
+    <string name="assistant_voice_action_finish">完成</string>
+    <string name="assistant_voice_action_grant">允许录音</string>
+    <string name="assistant_voice_action_retry">重试</string>
+    <string name="assistant_voice_action_retry_transcription">重试转写</string>
+    <string name="assistant_voice_action_record_again">重新录音</string>
+    <string name="assistant_voice_action_use_text">使用文字</string>
+    <string name="assistant_voice_action_voice_settings">打开语音设置</string>
+    <string name="assistant_voice_action_app_settings">打开系统设置</string>
+
+    <!-- 右上角终结按钮 -->
+    <string name="assistant_voice_cancel">取消</string>
+    <string name="assistant_voice_close">关闭</string>
+    <string name="assistant_voice_cancel_a11y">取消并关闭语音面板</string>
+    <string name="assistant_voice_close_a11y">关闭语音面板</string>
+</resources>
