@@ -40,11 +40,11 @@ class _AssistantPersonaTextPageState extends State<AssistantPersonaTextPage> {
       ? '请帮我编写可直接粘贴到 MissionBook 的角色定位。\n'
             '我的使用场景是【填写学习、工作或生活场景】。\n'
             '我希望助手重点帮助【填写具体事项】，采用【填写协作方式】。\n'
-            '用三至五句话写清职责、关注重点和信息不全时如何处理。只输出定位正文，保留实际工具权限与事实约束。'
+            '用三至五句话写清职责、关注重点和关键取舍。优先利用已知信息自主拆解与估算，只问影响决策的问题。只输出定位正文，保留实际工具权限与事实约束。'
       : '请帮我编写可直接粘贴到 MissionBook 的回答风格。\n'
             '我希望语气【填写偏好】，回答长度【填写偏好】，优先使用【段落、清单、表格或例子】。\n'
             '我不喜欢【填写需要避免的表达】。\n'
-            '用三至五句话说明语气、结构、详细程度和解释方式。只输出风格正文。';
+            '用三至五句话说明语气、结构、详细程度和解释方式。风格不改变主动规划职责，也不增加字段追问或改变操作权限。只输出风格正文。';
   List<({String label, String text})> get _presets => _isRole
       ? [
           for (final value in AssistantRole.values)
@@ -193,6 +193,13 @@ class _AssistantPersonaTextPageState extends State<AssistantPersonaTextPage> {
             child: ListView(
               padding: AppLayout.pagePadding(context),
               children: [
+                Text(
+                  _isRole
+                      ? '角色决定关注重点；助手都会主动规划，只询问影响决策的关键问题。'
+                      : '风格调整语气、结构和解释方式。提问引导聚焦关键取舍，不会要求你逐项填写任务；操作仍按权限处理。',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: AppLayout.spaceLg),
                 AppSectionCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,

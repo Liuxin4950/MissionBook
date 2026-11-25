@@ -422,7 +422,10 @@ void main() {
     expect(restored.currentSessionId, id);
     await restored.send('继续刚才的讨论');
     final prompt = model.requests.last.systemPrompt;
-    expect(prompt, contains('用户在讨论、举例'));
+    expect(prompt, contains('讨论、举例和假设不自动保存为正式任务'));
+    expect(prompt, contains('EXPLORE'));
+    expect(prompt, contains('PLAN'));
+    expect(prompt, contains('EXECUTE'));
     expect(prompt, contains('工具提交成功前不得声称'));
     expect(prompt, contains('STOP 只表示到点停止计时'));
     expect(prompt, contains('角色和风格只调整称呼'));

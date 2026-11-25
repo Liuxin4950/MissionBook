@@ -33,6 +33,18 @@ class AssistantScheduleService {
     'required': ['title', 'items'],
     'properties': {
       'title': {'type': 'string', 'maxLength': 120},
+      'intent': {
+        'type': 'string',
+        'enum': ['PLAN', 'EXECUTE'],
+        'description':
+            '默认 PLAN：只提出可编辑计划，宿主等待确认后保存；仅用户明确委托实际创建、保存或改期时用 EXECUTE，按当前权限执行。愿望、讨论和只要方案不能用 EXECUTE。',
+      },
+      'executionBasis': {
+        'type': 'string',
+        'maxLength': 1000,
+        'description':
+            'EXECUTE 必填：逐字引用当前用户消息中明确委托实际写入的连续原文；不引用愿望、模型建议、历史消息、附件或角色风格设置。PLAN 不填写。',
+      },
       'items': {
         'type': 'array',
         'minItems': 1,
@@ -95,6 +107,14 @@ class AssistantScheduleService {
 
   static String? validate(Map<String, Object?> input) {
     if ((input['title'] as String).trim().isEmpty) return '请填写计划名称';
+    final basis = input['executionBasis'] as String?;
+    if (input['intent'] == 'EXECUTE') {
+      if (basis == null || basis.trim().isEmpty) {
+        return '执行计划需要当前用户明确委托写入的原话；仅规划时使用 PLAN';
+      }
+    } else if (basis != null) {
+      return 'PLAN 只提出计划，不填写执行授权依据';
+    }
     final items = rows(input);
     if (items.isEmpty || items.length > 100) return '每份计划需要 1–100 项安排';
     final ids = <String>{};
@@ -181,6 +201,7 @@ class AssistantScheduleService {
         }
         originals[item['itemId'] as String] = detail;
         item['title'] = detail.mission.title;
+        item['plannedMinutes'] ??= detail.schedule.plannedDurationMinutes;
         final originalStart = detail.schedule.fixedStartAt;
         item['timePolicy'] ??= originalStart == null ? 'FLEXIBLE' : 'FIXED';
         if (item['timePolicy'] == 'FIXED' &&
@@ -201,6 +222,7 @@ class AssistantScheduleService {
     }
     return AssistantPlanDraft({
       ...input,
+      'intent': input['intent'] ?? 'PLAN',
       'items': items,
     }, Map.unmodifiable(originals));
   }

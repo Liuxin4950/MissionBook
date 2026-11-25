@@ -60,6 +60,11 @@ class _AssistantOperations {
       }
     }
     if (pending.operation.toolName == 'planMissions') {
+      for (final field in ['intent', 'executionBasis']) {
+        if (input[field] != pending.prepared.input[field]) {
+          return '不能在编辑计划时更换规划意图或执行依据，请重新提出计划';
+        }
+      }
       final oldItems = {
         for (final item in AssistantScheduleService.rows(
           pending.prepared.input,
@@ -192,6 +197,31 @@ class _AssistantOperations {
     if (toolName == 'completeHistory' && !_hasHistorySource(call.input)) {
       return const ToolDecision.deny('补记依据必须来自本会话的用户原话');
     }
+    if (toolName == 'planMissions' && call.input['intent'] == 'EXECUTE') {
+      final basis = call.input['executionBasis'];
+      final userMessage = _controller._session?.transcript
+          .whereType<UserMessage>()
+          .lastOrNull;
+      // UserMessage.text 会合并文本附件，授权依据只接受用户输入的正文块。
+      final userText =
+          userMessage?.content
+              .whereType<TextBlock>()
+              .where(
+                (block) =>
+                    !block.text.startsWith(AssistantAttachment.textPrefix),
+              )
+              .map((block) => block.text)
+              .join('\n') ??
+          '';
+      if (basis is! String ||
+          basis.trim().isEmpty ||
+          !userText.contains(basis)) {
+        return const ToolDecision.deny(
+          '执行依据必须逐字来自当前用户消息；没有明确写入委托时改用 PLAN 展示提案。',
+          code: 'invalid_execution_basis',
+        );
+      }
+    }
     final isWrite = _controller._tools.isWriteTool(toolName);
     if (!isWrite &&
         !_controller._settings.permissionMode.requiresConfirmation(
@@ -232,7 +262,12 @@ class _AssistantOperations {
             prepared.snapshot['planOriginals'] as Map<String, MissionDetail>
         ..planPreviewReady = true;
     }
-    if (!(isWrite && _controller._confirmExternalWrites) &&
+    // PLAN 是待用户决定的方案；完全权限只自动放行已委托的 EXECUTE。
+    // 引文校验固定事实来源，语义判断仍由模型负责，不能把来源校验当成意图证明。
+    final planOnly =
+        toolName == 'planMissions' && prepared.input['intent'] != 'EXECUTE';
+    if (!planOnly &&
+        !(isWrite && _controller._confirmExternalWrites) &&
         !_controller._settings.permissionMode.requiresConfirmation(
           isWrite: isWrite,
         )) {

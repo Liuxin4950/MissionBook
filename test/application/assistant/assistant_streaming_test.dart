@@ -15,6 +15,7 @@ import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/presentation/assistant/chat/assistant_page.dart';
 import 'package:mission_book/presentation/assistant/shared/assistant_thinking.dart';
+import 'package:mission_book/presentation/widgets/app_interactive_surface.dart';
 
 import '../../support/assistant_fakes.dart';
 
@@ -292,6 +293,9 @@ void main() {
   });
   testWidgets('生成期间已渲染 Markdown，展开的思考在结束后保留', (tester) async {
     final model = GatedMarkdownModel();
+    addTearDown(() {
+      if (!model.gate.isCompleted) model.gate.complete();
+    });
     final assistant = await makeController(model);
     await tester.pumpWidget(
       MaterialApp(
@@ -317,7 +321,7 @@ void main() {
     final process = find.byType(AssistantProcess);
     // 显式收起再展开，验证结束时遵守用户选择。
     final processHeader = find
-        .descendant(of: process, matching: find.byType(TextButton))
+        .descendant(of: process, matching: find.byType(AppInteractiveSurface))
         .first;
     await tester.tap(processHeader);
     await tester.pump();

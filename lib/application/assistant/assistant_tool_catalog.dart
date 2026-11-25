@@ -103,7 +103,7 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'planMissions',
-        '集中安排或改期 1–100 项任务，先查真实任务和相关日期安排。整份计划可编辑、移除条目；冲突时整份零写入，成功后返回真实结果；校验错误会指出具体 itemId。多个任务优先用本工具。',
+        '集中安排或改期 1–100 项任务，单项也可用；先核对相关真实目标、任务和日期。同一工作不重复，但须覆盖用户指定的新增数量和日期，复用旧任务不算新增。CREATE 日期和估算分钟必填，未指定固定时段默认 FLEXIBLE；RESCHEDULE 保留原时间策略，分钟可省略。intent 默认 PLAN，无论权限都展示可编辑提案、确认后保存；当前用户明确委托实际写入时用 EXECUTE 并逐字提供 executionBasis，按现有权限执行。冲突时整份零写入，成功后才报告已保存。校验错误指出具体 itemId。',
         AssistantScheduleService.schema,
         _owner._applyPlan,
       ),
@@ -141,7 +141,7 @@ class _AssistantToolCatalog {
       ),
       AssistantTools._tool(
         'getSchedule',
-        '读取指定日期日程，默认今天。回答有无时间、会不会冲突时，先确认日期和起止，传入 startAt 和 endAt 完整核对时间窗；不可从某一页推断有空。',
+        '分页读取指定日期的已记录任务，默认今天；根据 nextOffset 按需继续读取。灵活任务不需要起止时刻，不为安排 FLEXIBLE 反复询问固定时间。核对已知固定时段时传入带时区的 startAt/endAt 检查重叠。返回不代表完整现实空闲时间，也不保证当天总负担可行；不可从某一页或无重叠推断有空。',
         AssistantTools._schema({
           'date': AssistantTools._string('YYYY-MM-DD'),
           'startAt': AssistantTools._string('活动起点，ISO 8601 含时区，精确到分钟'),

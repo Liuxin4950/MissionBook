@@ -301,7 +301,7 @@ class _AssistantSessions {
       await session.replaceContext(
         source: 'mission_book_entry',
         text: confirmWrites
-            ? '本轮在悬浮助手中。对新增日程或改期使用 planMissions，即使只有一项；写入须展示可确认的提案。确认前不要说已保存。缺少起止时间时先问。'
+            ? '本轮在悬浮助手中。对新增日程或改期使用 planMissions，即使只有一项；写入须展示可确认的提案。确认前不要说已保存。新任务未指定固定时段时优先 FLEXIBLE，不追问起止；已有任务改期保留原时间策略。先利用已知信息规划，仅询问真正影响决策的关键事实。'
             : null,
       );
       await _provideReferencedPlan(session);
