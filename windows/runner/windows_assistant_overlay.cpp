@@ -424,6 +424,11 @@ class WindowsAssistantOverlay::Host {
       InvalidateUsage();
       UpdateTimer();
       Layout();
+    } else if (method == "closeOverlay") {
+      if (!SetEnabled(false)) {
+        result->Error("overlay_preference", "无法关闭悬浮球，请重试");
+        return;
+      }
     } else if (method == "openMain") {
       OpenMain(Text(args, "missionId"), Text(args, "recordId"));
     } else if (method == "workspace") {
@@ -713,7 +718,7 @@ class WindowsAssistantOverlay::Host {
 
   void AddTools(RECT ball, RECT safe, std::vector<Part>& parts) const {
     static constexpr const char* primary[] = {"text", "voice", "capture", "more"};
-    static constexpr const char* more[] = {"main", "capture", "usage", "back"};
+    static constexpr const char* more[] = {"main", "usage", "close", "back"};
     const auto& names = mode_ == "more" ? more : primary;
     const LONG size = Dp(kToolDiameterDp);
     const LONG gap = Dp(kToolGapDp);

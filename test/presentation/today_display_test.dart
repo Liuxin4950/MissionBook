@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mission_book/domain/entities/execution_event.dart';
 import 'package:mission_book/domain/entities/mission.dart';
 import 'package:mission_book/domain/entities/mission_phase.dart';
 import 'package:mission_book/domain/entities/mission_schedule_revision.dart';
@@ -14,10 +15,12 @@ ScheduledMission mission(
   bool cancelled = false,
   int plannedDurationMinutes = 25,
   MissionPhase phase = MissionPhase.notStarted,
+  List<ExecutionEvent> events = const [],
 }) {
   final now = DateTime.utc(2026, 10, 21);
   return ScheduledMission(
     phase: phase,
+    events: events,
     mission: Mission(
       id: id,
       title: '任务 $id',
@@ -222,6 +225,37 @@ void main() {
       mission('flexible'),
     ]).flexible.single;
     expect(plannedTimeSlotProgress(flexible, start), 0);
+  });
+
+  test('固定日程区间使用计划终点、加时和排期时区', () {
+    final start = DateTime.utc(2026, 11, 2, 15, 30); // 上海 23:30
+    final ordinary = groupMissionsForDisplay([
+      mission('普通区间', start: start, plannedDurationMinutes: 90),
+    ]).fixed.single;
+    expect(scheduleTimeRangeLabel(ordinary), '23:30–次日01:00');
+
+    final extended = groupMissionsForDisplay([
+      mission(
+        '已加时区间',
+        start: start,
+        plannedDurationMinutes: 90,
+        events: [
+          ExecutionEvent(
+            id: 'extend',
+            missionId: '已加时区间',
+            sequence: 1,
+            type: ExecutionEventType.extend,
+            occurredAt: start,
+            scheduleRevisionId: '已加时区间-schedule',
+            grantedDurationMinutes: 30,
+          ),
+        ],
+      ),
+    ]).fixed.single;
+    expect(scheduleTimeRangeLabel(extended), '23:30–次日01:30');
+
+    final flexible = groupMissionsForDisplay([mission('自选任务')]).flexible.single;
+    expect(scheduleTimeRangeLabel(flexible), flexible.plannedDurationLabel);
   });
 
   test('绿线按节点间真实时间插值，支持相同开始时间、单节点与时钟回拨', () {

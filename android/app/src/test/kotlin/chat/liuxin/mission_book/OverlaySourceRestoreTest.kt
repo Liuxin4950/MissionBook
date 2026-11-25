@@ -86,7 +86,7 @@ class OverlaySourceRestoreTest {
             AssistantOverlayQuickMenu.primaryActions.map { it.label },
         )
         assertEquals(
-            listOf("会话", "截图", "感知", "返回"),
+            listOf("会话", "感知", "关闭", "返回"),
             AssistantOverlayQuickMenu.moreActions.map { it.label },
         )
     }

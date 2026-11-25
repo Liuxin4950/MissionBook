@@ -51,7 +51,6 @@ Future<List<display.TodayMissionItem>> pumpScheduleRows(
                         key: ValueKey('schedule-test-row-${items[index].id}'),
                         item: items[index],
                         now: now,
-                        clock: () => now,
                         isFirst: index == 0,
                         isLast: index == items.length - 1,
                         onTap: () => onOpen?.call(items[index].id),
@@ -152,16 +151,9 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
     expect(find.text('待到时'), findsNWidgets(2));
-    // 计划进度按“已过时段比例”画：还没到时只保留空轨道，不写剩余分钟，
-    // 到点后同一行变成当前时段并补上剩余文案（不额外查询）。
-    final emptyTracks = tester
-        .widgetList<LinearProgressIndicator>(
-          find.byType(LinearProgressIndicator),
-        )
-        .toList();
-    expect(emptyTracks, hasLength(2));
-    expect(emptyTracks.every((bar) => bar.value == 0), isTrue);
-    expect(find.textContaining('计划时段剩余'), findsNothing);
+    // 未来或已经过去的时段不绘制空/满进度条。
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.textContaining('计划剩余'), findsNothing);
     expect(repository.requests, hasLength(1));
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -229,7 +221,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // 窄列表：同一任务项纵向布局，标题优先，时间/计划分钟与阶段/专注顺序换行。
+  // 标题在上，开始/结束时刻和真实阶段在辅助行，空间不足自然换行。
   for (final (width, scale) in [(320.0, 2.0), (386.0, 1.0), (390.0, 1.3)]) {
     testWidgets('窄列表在 $width 宽、$scale 字号向下换行且整项可打开', (tester) async {
       final now = DateTime.utc(2026, 11, 2, 6, 29);
@@ -266,12 +258,12 @@ void main() {
       expect(
         _hasKey(tester, ValueKey('schedule-meta-$id')),
         isTrue,
-        reason: '窄列表把开始与计划分钟放在辅助行',
+        reason: '窄列表把开始/结束时刻放在辅助行',
       );
       expect(_hasKey(tester, ValueKey('schedule-time-$id')), isFalse);
       expect(find.text('执行中'), findsOneWidget);
-      expect(find.text('29:00'), findsOneWidget);
-      expect(find.textContaining('计划时段剩余 71 分钟'), findsOneWidget);
+      expect(find.textContaining('专注'), findsNothing);
+      expect(find.textContaining('计划剩余 71 分钟'), findsOneWidget);
       expect(find.text('查看'), findsNothing);
       final row = _rect(tester, ValueKey('schedule-test-row-$id'));
       final titleRect = _rect(tester, ValueKey('schedule-title-$id'));
@@ -283,10 +275,10 @@ void main() {
       expect(meta.top, greaterThan(titleRect.bottom));
       // 右箭头共线并固定占 20dp 槽。
       expect(arrow.width, closeTo(20, .5));
-      expect(arrow.right, closeTo(row.right, .5));
+      expect(arrow.right, closeTo(row.right - 8, .5));
       expect(row.height, greaterThanOrEqualTo(48));
       expect(titleRect.width, greaterThan(width * .3));
-      // 阶段与专注在辅助行内依次换行，不被省略号吞掉。
+      // 阶段在辅助行内换行，不被省略号吞掉。
       final status = _rect(tester, ValueKey('schedule-status-$id'));
       if ((status.top - meta.top).abs() < 1) {
         expect(status.left, greaterThanOrEqualTo(meta.right - 1));
@@ -300,11 +292,10 @@ void main() {
     });
   }
 
-  // 宽列表：时间/轨道/正文/状态/箭头各占一列，四列基准在同列内误差 ≤1dp。
+  // 宽屏沿用两行层级；各行标题、时间区间、状态与箭头共用列线。
   for (final width in [480.0, 600.0, 768.0, 1024.0, 1280.0]) {
     for (final scale in [1.0, 1.3, 2.0]) {
-      if (width == 480 && scale == 2.0) continue; // 量槽后回窄列表，见下一条。
-      testWidgets('宽列表在 $width 宽、$scale 字号四列共线', (tester) async {
+      testWidgets('日程在 $width 宽、$scale 字号信息分层且各行共线', (tester) async {
         final now = DateTime.utc(2026, 11, 2, 6, 29);
         final items = await pumpScheduleRows(
           tester,
@@ -340,41 +331,33 @@ void main() {
         );
         final first = items.first.id;
         final second = items.last.id;
-        for (final id in [first, second]) {
-          expect(
-            _hasKey(tester, ValueKey('schedule-time-$id')),
-            isTrue,
-            reason: '宽列表左侧是时间与计划分钟两行',
-          );
-          expect(_hasKey(tester, ValueKey('schedule-meta-$id')), isFalse);
-        }
         final rowA = _rect(tester, ValueKey('schedule-test-row-$first'));
-        final timeA = _rect(tester, ValueKey('schedule-time-$first'));
-        final durationA = _rect(tester, ValueKey('schedule-duration-$first'));
         final titleA = _rect(tester, ValueKey('schedule-title-$first'));
+        final metaA = _rect(tester, ValueKey('schedule-meta-$first'));
         final statusA = _rect(tester, ValueKey('schedule-status-$first'));
         final arrowA = _rect(tester, ValueKey('schedule-open-$first'));
         final titleB = _rect(tester, ValueKey('schedule-title-$second'));
+        final metaB = _rect(tester, ValueKey('schedule-meta-$second'));
         final statusB = _rect(tester, ValueKey('schedule-status-$second'));
         final arrowB = _rect(tester, ValueKey('schedule-open-$second'));
-        // 时间栏两行左对齐，计划分钟在开始时间下方。
-        expect(durationA.left, closeTo(timeA.left, 1));
-        expect(durationA.top, greaterThan(timeA.bottom));
-        // 同一列的所有行共用基准：标题、状态、箭头误差 ≤1dp。
-        expect(titleB.left, closeTo(titleA.left, 1));
-        expect(statusB.right, closeTo(statusA.right, 1));
-        expect(arrowB.left, closeTo(arrowA.left, 1));
-        // 轨道 16dp 加两侧留白把时间栏和正文槽分开。
-        expect(titleA.left - timeA.right, greaterThanOrEqualTo(24));
-        // 状态与箭头贴末端：状态右沿在箭头槽左侧，箭头永远占末尾 20dp。
-        expect(arrowA.width, closeTo(20, .5));
-        expect(arrowA.right, closeTo(rowA.right, .5));
+        expect(titleB.left, closeTo(titleA.left, .5));
+        expect(metaB.left, closeTo(metaA.left, .5));
+        expect(statusB.right, closeTo(statusA.right, .5));
+        expect(arrowB.right, closeTo(arrowA.right, .5));
+        expect(titleA.left - rowA.left, closeTo(16, .5));
+        expect(metaA.left - titleA.left, closeTo(8, .5));
+        expect(metaA.top, greaterThan(titleA.bottom));
         expect(rowA.height, greaterThanOrEqualTo(48));
-        expect(statusA.right, lessThanOrEqualTo(arrowA.left));
-        expect(statusA.top, closeTo(timeA.top, 1));
-        // 正文槽仍吸收剩余空间：标题起点在时间栏之后，且不超过状态列。
-        expect(titleA.left, lessThan(statusA.left));
-        expect(titleB.left, lessThan(statusB.left));
+        expect(find.textContaining('专注'), findsNothing);
+        if ((statusA.top - metaA.top).abs() < 1) {
+          expect(statusA.left, greaterThanOrEqualTo(metaA.right));
+        } else {
+          expect(statusA.top, greaterThanOrEqualTo(metaA.bottom));
+        }
+        expect(
+          find.byKey(ValueKey('schedule-plan-progress-$second')),
+          findsNothing,
+        );
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());
       });
@@ -404,7 +387,7 @@ void main() {
       final row = _rect(tester, ValueKey('schedule-test-row-$id'));
       final arrow = _rect(tester, ValueKey('schedule-open-$id'));
       // 方向相关的行内布局：RTL 时箭头落在起始边，时间栏移到末端。
-      expect(arrow.left, closeTo(row.left, .5));
+      expect(arrow.left, closeTo(row.left + 8, .5));
       if (_hasKey(tester, ValueKey('schedule-time-$id'))) {
         final time = _rect(tester, ValueKey('schedule-time-$id'));
         expect(time.right, closeTo(row.right, .5));
@@ -419,7 +402,7 @@ void main() {
     }
   });
 
-  testWidgets('480 宽双倍字号量槽后标题不足 160dp，回到窄列表', (tester) async {
+  testWidgets('480 宽双倍字号保持两行层级且辅助信息不溢出', (tester) async {
     final now = DateTime.utc(2026, 11, 2, 6, 29);
     final items = await pumpScheduleRows(
       tester,
@@ -443,7 +426,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('当前计划时段用浅强调面、轨道标记与正文槽内计划进度', (tester) async {
+  testWidgets('当前计划时段用浅强调面、轨道标记与仅当前时段的计划进度', (tester) async {
     final now = DateTime.utc(2026, 11, 2, 6, 29);
     final items = await pumpScheduleRows(
       tester,
@@ -491,16 +474,18 @@ void main() {
         tester.element(find.byType(ScheduleMissionRow).first),
       ).colorScheme.primary,
     );
-    expect(find.text('计划时段剩余 71 分钟'), findsOneWidget);
+    expect(find.text('计划剩余 71 分钟'), findsOneWidget);
     final bar = _rect(tester, ValueKey('schedule-plan-progress-$current'));
     final remaining = _rect(
       tester,
       ValueKey('schedule-plan-remaining-$current'),
     );
     final status = _rect(tester, ValueKey('schedule-status-$current'));
-    // 剩余分钟在进度条下方，进度条只占正文槽，不和时间抢宽。
-    expect(remaining.top, greaterThan(bar.bottom - .5));
-    expect(bar.right, lessThanOrEqualTo(status.left));
+    // 进度只保留在当前时段；足够宽时与剩余分钟同排。
+    expect((bar.center.dy - remaining.center.dy).abs(), lessThan(1));
+    expect(bar.right, lessThan(remaining.left));
+    expect(remaining.top, greaterThan(status.bottom));
+    expect(find.byKey(ValueKey('schedule-plan-progress-$later')), findsNothing);
     expect(
       tester
           .widget<LinearProgressIndicator>(
@@ -611,7 +596,7 @@ void main() {
     );
     expect(find.text('当前时段'), findsOneWidget);
     // 原计划 20 分钟 + 加时 10 分钟 = 30 分钟窗口，已过 10 分钟。
-    expect(find.text('计划时段剩余 20 分钟'), findsOneWidget);
+    expect(find.text('计划剩余 20 分钟'), findsOneWidget);
     expect(
       tester
           .widget<LinearProgressIndicator>(

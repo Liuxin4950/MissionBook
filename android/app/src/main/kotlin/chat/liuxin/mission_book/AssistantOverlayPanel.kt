@@ -31,6 +31,7 @@ internal class AssistantOverlayPanel(
     onVoice: () -> Unit,
     private val onOpen: () -> Unit,
     private val onMission: (String) -> Unit,
+    private val onClose: () -> Unit,
     private val onRecord: (String) -> Unit,
     private val enableIme: () -> Unit,
     private val noticeOnly: Boolean = false,
@@ -195,6 +196,7 @@ internal class AssistantOverlayPanel(
             }, LayoutParams(-1, -2).apply { topMargin = dp(AssistantNativeTheme.spaceXs) })
         }
         option("打开完整会话", onOpen)
+        option("关闭悬浮球", onClose)
         val status = AssistantUsageMonitorService.status(context)
         if (status["enabled"] != true) return
         val paused = status["paused"] == true

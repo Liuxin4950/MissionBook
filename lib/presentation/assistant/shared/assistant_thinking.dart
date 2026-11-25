@@ -236,6 +236,7 @@ class _AssistantProcessState extends State<AssistantProcess> {
         ),
         if (_expanded && widget.children.isNotEmpty)
           Container(
+            margin: const EdgeInsets.only(top: AppLayout.spaceSm),
             decoration: const BoxDecoration(
               border: Border(left: BorderSide(color: AppColors.hairline)),
             ),

@@ -95,7 +95,7 @@ DeviceCapabilities 以唯一的 DevicePlatform 标识平台；通知、准时提
 ## Android 跨应用助手
 
 - [AssistantWorkspaceHost](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantWorkspaceHost.kt) 让 MainActivity、悬浮和监督服务按需持有同一个主 FlutterEngine。[App 工作区](../../../../lib/app_services.dart)在页面构建前装配同一份业务资源，与计划任务唤醒引擎分开。最后一个持有者释放时先等工作区关闭。备份恢复先禁用监督、撤掉旧桥接，再重建工作区；有代次的回调不能落到新工作区。
-- [悬浮服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayService.kt)由本机开关和系统悬浮权限控制。进入或离开 MissionBook 不隐藏头像；打开完整会话、任务或记录只收面板，手动截图才临时隐藏头像。[圆形动作层](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayQuickMenu.kt)是唯一入口：点头像先展开文字、语音、截图、更多四个动作球，更多再进会话、截图和应用感知，不再回到矩形工具首页。聊天内容按高度滚动，窗口在同一屏幕坐标内避开头像、系统栏和键盘。
+- [悬浮服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayService.kt)由本机开关和系统悬浮权限控制。进入或离开 MissionBook 不隐藏头像；打开完整会话、任务或记录只收面板，手动截图才临时隐藏头像。[圆形动作层](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayQuickMenu.kt)是唯一入口：点头像先展开文字、语音、截图、更多四个动作球，更多层为会话、感知、关闭、返回，与 Windows 一致。「关闭」读屏名称为「关闭悬浮球」，与通知关闭动作共用 `closeOverlay`：保存本机开关为关闭并停止服务，由 `onDestroy` 移除窗口、释放工作区租约和常驻通知；重启保持关闭，从助手设置重新开启。空间不足时面板回退的更多菜单也提供完整名称的关闭入口。聊天内容按高度滚动，窗口在同一屏幕坐标内避开头像、系统栏和键盘。
 - 截图来源恢复：[AssistantOverlayService](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantOverlayService.kt) 的 `CaptureRestoreRules` 用发起来源（圆形动作层、会话、主动提醒）和结果（已投递或取消）算出恢复面：来源未知时只显示主球，绝不再自动创建矩形工具首页；会话来源回到原草稿，已投递时说明图片去向。主动提醒还要求当前不在截图中、没有待处理提醒且悬浮权限仍在，否则交回系统通知兜底。
 - 通知分流：`showNotice` 只接受带会话与文案的提示，展示失败立即清空待处理标记，不重试也不打开工具面板；任务提醒、执行通知仍由[应用通知服务](../../../../lib/application/notifications/app_notification_service.dart)负责。
 - [截图服务](../../../../android/app/src/main/kotlin/chat/liuxin/mission_book/AssistantScreenCaptureService.kt)仅开放手动单次授权，保留原编辑器的选区、全屏、长截图及一次性草稿交付。Android 14+ 选择单应用后按系统回调尺寸同步调整虚拟屏与图像缓冲，首帧迟到时有限重试。主动画面授权和取样已搁置。原生临时图交付后删除，未消费缓存到期清理。
@@ -170,4 +170,4 @@ flutter build apk --release --target-platform android-arm64
 
 跨应用悬浮聊天面板最大宽 328dp。点击侧边把手会先恢复完整头像，再按新位置放面板；向内拖动也复用同一恢复逻辑。聊天正文和输入用 12sp，保留系统字体缩放；发送按钮触控区保持 48dp，生成中在原位切成停止按钮，不在消息列表另放操作。
 
-悬浮入口的工具层与聊天层分离：`AssistantOverlayService` 点击主球先显示 `AssistantOverlayQuickMenu`，文字、语音、截图和更多四个动作球在主球的屏幕内侧排成圆弧，左右镜像，从主球中心向各自位置展开。接近屏幕上下边缘时移动整组按钮以免裁掉。更多层仍可打开会话、截图和切换应用感知；聊天继续由 `AssistantOverlayPanel` 和同一 `AssistantWorkspaceHost` 承担。侧边收起保留 48dp × 64dp 的透明触控区，可见绿色把手为 4dp × 42dp。
+悬浮入口的工具层与聊天层分离：`AssistantOverlayService` 点击主球先显示 `AssistantOverlayQuickMenu`，文字、语音、截图和更多四个动作球在主球的屏幕内侧排成圆弧，左右镜像，从主球中心向各自位置展开。接近屏幕上下边缘时移动整组按钮以免裁掉。更多层提供会话、应用感知、关闭悬浮球与返回；聊天继续由 `AssistantOverlayPanel` 和同一 `AssistantWorkspaceHost` 承担。侧边收起保留 48dp × 64dp 的透明触控区，可见绿色把手为 4dp × 42dp。

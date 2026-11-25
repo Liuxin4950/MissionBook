@@ -186,6 +186,35 @@ DateTime? plannedTimeSlotEnd(TodayMissionItem item) {
       : fixedTimeSlotEnd(start, item.plannedDurationMinutes, item.events);
 }
 
+/// 固定日程用起止时刻呈现计划区间；跨日时明确标注结束日期。
+/// 时长和已提交 EXTEND 都来自同一排期时间规则，不读取本地系统时区。
+String scheduleTimeRangeLabel(TodayMissionItem item) {
+  final start = item.fixedStartAt;
+  final end = plannedTimeSlotEnd(item);
+  final schedule = item.schedule;
+  if (start == null || end == null || schedule == null) {
+    return item.plannedDurationLabel;
+  }
+  final location = tz.getLocation(schedule.timeZone);
+  final localStart = tz.TZDateTime.from(start, location);
+  final localEnd = tz.TZDateTime.from(end, location);
+  String clock(DateTime value) =>
+      '${value.hour.toString().padLeft(2, '0')}:'
+      '${value.minute.toString().padLeft(2, '0')}';
+
+  final startDate = scheduleDateKey(localStart);
+  final endDate = scheduleDateKey(localEnd);
+  final nextDate = scheduleDateKey(
+    DateTime.utc(localStart.year, localStart.month, localStart.day + 1),
+  );
+  final endLabel = endDate == startDate
+      ? clock(localEnd)
+      : endDate == nextDate
+      ? '次日${clock(localEnd)}'
+      : '${localEnd.month}/${localEnd.day} ${clock(localEnd)}';
+  return '${clock(localStart)}–$endLabel';
+}
+
 /// 一行日程显示的状态值：未开始固定任务显示计划时段状态，有执行事实后优先真实阶段。
 ///
 /// 计划时段与执行阶段是两件事：STOP 后的待确认、已结束都不会显示成“执行中”。

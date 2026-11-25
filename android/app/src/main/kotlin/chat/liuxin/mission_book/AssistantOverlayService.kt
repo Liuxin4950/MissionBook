@@ -177,12 +177,18 @@ class AssistantOverlayService : Service() {
                 }
             }
             ACTION_STOP -> {
-                getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(ENABLED_KEY, false).apply()
-                stopSelf()
+                closeOverlay()
+                return START_NOT_STICKY
             }
             else -> showBubble()
         }
         return START_STICKY
+    }
+
+    /** 菜单和通知共用关闭入口，保存开关后释放悬浮窗口与服务资源。 */
+    private fun closeOverlay() {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(ENABLED_KEY, false).apply()
+        stopSelf()
     }
 
     private fun showBubble() {
@@ -467,6 +473,7 @@ class AssistantOverlayService : Service() {
             onCapture = { startCapture(CaptureOrigin.QuickActions) },
             onOpen = { openAssistant() },
             onUsage = ::toggleUsage,
+            onClose = ::closeOverlay,
             usageTitle = ::usageTitle,
         )
         val params = WindowManager.LayoutParams(
@@ -521,6 +528,7 @@ class AssistantOverlayService : Service() {
             onVoice = ::openVoice,
             onOpen = { openAssistant() },
             onMission = ::openAssistant,
+            onClose = ::closeOverlay,
             onRecord = { id ->
                 try { startActivity(MainActivity.assistantIntent(this, recordId = id)); removeMenu() }
                 catch (_: Exception) { (menu as? AssistantOverlayPanel)?.showError("无法打开记录") }

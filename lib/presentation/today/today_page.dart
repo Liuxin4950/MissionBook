@@ -27,13 +27,10 @@ import '../widgets/app_section_card.dart';
 import '../widgets/app_segmented_control.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/scheduled_mission.dart';
-import '../missions/shared/mission_live_status.dart';
 import '../missions/shared/mission_phase_display.dart';
 import '../missions/shared/mission_phase_icon.dart';
 import '../../domain/entities/mission_detail.dart';
 import '../../domain/entities/mission_phase.dart';
-import '../../domain/rules/execution_time_rules.dart';
-import '../missions/shared/mission_execution_display.dart';
 
 // 本页负责加载和导航；日程布局由 ScheduleSection 复用，日期和窗口选择由 display 处理。
 // App 创建一个 MissionService，AppShell 将同一份引用传到这里。
@@ -519,7 +516,6 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: AppLayout.spaceSm),
-                      Text('其他日期结束的任务也可以从这里打开执行记录，继续补交材料。'),
                       for (final detail in _pendingEvidence)
                         Padding(
                           key: ValueKey('today-pending-${detail.mission.id}'),
@@ -529,7 +525,6 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                           child: ListTile(
                             contentPadding: EdgeInsets.zero,
                             title: Text(detail.mission.title),
-                            subtitle: const Text('打开执行记录补交材料'),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () => _openPendingRecord(detail),
                           ),
@@ -586,19 +581,12 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _FlexibleMissionSection(
-              clock: widget.clock,
               items: missions.flexible,
               onOpenMission: _openDetail,
               onCreate: _openCreate,
             ),
             const SizedBox(height: AppLayout.sectionGap),
-            _ScheduleOverview(
-              missions: missions,
-              now: _loadedDate == display.scheduleDateKey(_today)
-                  ? _today
-                  : null,
-              onOpen: _openDetail,
-            ),
+            _ScheduleOverview(missions: missions),
           ],
         );
         Widget schedule = ScheduleSection(
@@ -1040,13 +1028,8 @@ class _WeekStrip extends StatelessWidget {
 }
 
 // 任务卡片语义标签
-String _missionSemanticsLabel(
-  display.TodayMissionItem item, {
-  bool isCurrent = false,
-  required DateTime Function() clock,
-}) {
+String _missionSemanticsLabel(display.TodayMissionItem item) {
   final parts = [
-    if (isCurrent) '当前计划时段',
     item.isFixed ? item.startTime : '自选时间',
     item.title,
     item.durationLabel,
@@ -1054,17 +1037,6 @@ String _missionSemanticsLabel(
     if (!item.isCancelled && item.phase == MissionPhase.notStarted)
       phaseLabel(item.phase),
   ];
-  if (item.events.isNotEmpty &&
-      (item.phase == MissionPhase.running ||
-          (item.phase == MissionPhase.paused ||
-              item.phase == MissionPhase.reportPending))) {
-    final focus = calculateExecutionTimes(
-      item.events,
-      clock().toUtc(),
-      schedule: item.schedule,
-    ).focus;
-    parts.add('专注 ${focusDuration(focus)}');
-  }
   return parts.join('，');
 }
 
@@ -1074,13 +1046,11 @@ class _FlexibleMissionSection extends StatefulWidget {
     required this.items, // 今天页已加载并转换的完整自选任务列表。
     required this.onOpenMission, // 用户点击后交回页面打开详情。
     required this.onCreate, // 用户点击添加后交回页面打开创建表单。
-    required this.clock,
   });
 
   final List<display.TodayMissionItem> items;
   final ValueChanged<String> onOpenMission;
   final VoidCallback onCreate;
-  final DateTime Function() clock;
 
   @override
   State<_FlexibleMissionSection> createState() =>
@@ -1152,7 +1122,6 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _FlexibleMissionRow(
-                          clock: widget.clock,
                           item: item,
                           onTap: () => widget.onOpenMission(item.id),
                         ),
@@ -1215,15 +1184,10 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
 
 // 自选任务行只负责展示与详情入口。
 class _FlexibleMissionRow extends StatelessWidget {
-  const _FlexibleMissionRow({
-    required this.item,
-    required this.onTap,
-    required this.clock,
-  });
+  const _FlexibleMissionRow({required this.item, required this.onTap});
 
   final display.TodayMissionItem item;
   final VoidCallback onTap;
-  final DateTime Function() clock;
 
   @override
   Widget build(BuildContext context) {
@@ -1231,7 +1195,7 @@ class _FlexibleMissionRow extends StatelessWidget {
       key: ValueKey('mission-${item.id}'),
       padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
       child: _MissionDetailLink(
-        label: _missionSemanticsLabel(item, clock: clock),
+        label: _missionSemanticsLabel(item),
         hint: missionOpenLabel(item.phase),
         onTap: onTap,
         // 留白放在点击容器内部，悬停、按下和键盘焦点的底色都会包住留白。
@@ -1246,9 +1210,7 @@ class _FlexibleMissionRow extends StatelessWidget {
             children: [
               MissionPhaseIcon(phase: item.phase),
               const SizedBox(width: AppLayout.spaceMd),
-              Expanded(
-                child: _MissionDetails(item: item, compact: true, clock: clock),
-              ),
+              Expanded(child: _MissionDetails(item: item)),
             ],
           ),
         ),
@@ -1296,15 +1258,9 @@ class _MissionDetailLink extends StatelessWidget {
 // 自选任务文字已由显示转换函数准备好。
 // 这是布局复用，不做类型转换、分组或查询。
 class _MissionDetails extends StatelessWidget {
-  const _MissionDetails({
-    required this.item,
-    this.compact = false,
-    required this.clock,
-  });
+  const _MissionDetails({required this.item});
 
   final display.TodayMissionItem item;
-  final bool compact;
-  final DateTime Function() clock;
 
   @override
   Widget build(BuildContext context) {
@@ -1314,23 +1270,15 @@ class _MissionDetails extends StatelessWidget {
       children: [
         Text(
           item.title,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: _todayTitleStyle(context).copyWith(
             // 已取消由分区和状态文字表达，保留可阅读的完整标题。
             color: item.isCancelled ? theme.colorScheme.onSurfaceVariant : null,
           ),
         ),
-        SizedBox(height: compact ? 2 : 4),
+        const SizedBox(height: AppLayout.spaceXs),
         Text(item.durationLabel, style: _todayMetadataStyle(context)),
-        if (item.events.isNotEmpty)
-          MissionLiveStatus(
-            phase: item.phase,
-            events: item.events,
-            schedule: item.schedule,
-            includePhase: false,
-            clock: clock,
-          ),
         if (item.timeZoneLabel != null)
           Text(item.timeZoneLabel!, style: theme.textTheme.bodySmall),
       ],
@@ -1365,132 +1313,37 @@ TextStyle _todayTitleStyle(BuildContext context) =>
 TextStyle _todayMetadataStyle(BuildContext context) =>
     Theme.of(context).textTheme.bodySmall!;
 
-/// 当前查询只有排期事实，概览统计真实安排，不推断完成或执行次数。
+/// 全日只汇总一次总量；固定/自选分类和任务入口由上方各列表表达。
 class _ScheduleOverview extends StatelessWidget {
-  const _ScheduleOverview({
-    required this.missions,
-    required this.now,
-    required this.onOpen,
-  });
+  const _ScheduleOverview({required this.missions});
+
   final display.TodayMissionGroups missions;
-  final DateTime? now;
-  final ValueChanged<String> onOpen;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final at = now;
-    final current = at == null
-        ? null
-        : [...missions.fixed, ...missions.flexible]
-                  .where(
-                    (item) =>
-                        item.phase == MissionPhase.running ||
-                        item.phase == MissionPhase.reportPending,
-                  )
-                  .firstOrNull ??
-              missions.fixed
-                  .where(
-                    (item) =>
-                        item.phase == MissionPhase.notStarted &&
-                        display.isInPlannedTimeSlot(item, at),
-                  )
-                  .firstOrNull;
-    final next = at == null
-        ? null
-        : missions.fixed
-              .where(
-                (item) =>
-                    item.phase == MissionPhase.notStarted &&
-                    item.fixedStartAt?.isAfter(at) == true,
-              )
-              .firstOrNull;
-    final totalMinutes = [
-      ...missions.fixed,
-      ...missions.flexible,
-    ].fold(0, (total, item) => total + item.plannedDurationMinutes);
-    final entries = [
-      (Icons.event_note_outlined, '${missions.fixed.length}', '固定日程'),
-      (Icons.free_breakfast_outlined, '${missions.flexible.length}', '自选任务'),
-      (Icons.schedule_outlined, '$totalMinutes', '计划分钟'),
-    ];
+    final items = [...missions.fixed, ...missions.flexible];
+    if (items.isEmpty) return const SizedBox.shrink();
+    final totalMinutes = items.fold(
+      0,
+      (total, item) => total + item.plannedDurationMinutes,
+    );
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    final duration = [
+      if (hours > 0) '$hours 小时',
+      if (minutes > 0 || hours == 0) '$minutes 分钟',
+    ].join(' ');
     return LayoutBuilder(
-      builder: (context, box) {
-        final inset = todaySectionInset(box.maxWidth);
-        return Material(
-          key: const Key('today-overview-section'),
-          color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(AppLayout.radiusXl),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              inset,
-              AppLayout.spaceMd,
-              inset,
-              AppLayout.spaceMd,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Semantics(
-                  header: true,
-                  child: Text('安排概览', style: theme.textTheme.labelLarge),
-                ),
-                if (current != null || next != null) ...[
-                  for (final (label, item) in [
-                    (
-                      current?.phase == MissionPhase.reportPending
-                          ? '待确认'
-                          : '现在',
-                      current,
-                    ),
-                    ('接下来', next),
-                  ])
-                    if (item != null)
-                      ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(
-                          identical(item, current)
-                              ? Icons.near_me_outlined
-                              : Icons.next_plan_outlined,
-                        ),
-                        title: Text(item.title),
-                        subtitle: Text(label),
-                        trailing: const Icon(Icons.chevron_right_rounded),
-                        onTap: () => onOpen(item.id),
-                      ),
-                ],
-                const SizedBox(height: AppLayout.spaceMd),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final entry in entries)
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Icon(
-                              entry.$1,
-                              size: AppLayout.iconSm,
-                              color: theme.colorScheme.primary,
-                            ),
-                            const SizedBox(height: AppLayout.spaceXs),
-                            Text(entry.$2, style: theme.textTheme.titleSmall),
-                            const SizedBox(height: AppLayout.spaceXs),
-                            Text(
-                              entry.$3,
-                              style: theme.textTheme.bodySmall,
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (context, box) => Padding(
+        key: const Key('today-overview-section'),
+        padding: EdgeInsets.symmetric(
+          horizontal: todaySectionInset(box.maxWidth),
+        ),
+        child: Text(
+          '${items.length} 项安排 · 计划 $duration',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
     );
   }
 }

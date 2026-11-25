@@ -750,8 +750,8 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('固定任务时间与时长成组，状态和专注按空间换行', (tester) async {
-    // 窄列表样式：标题优先，时间/计划分钟与阶段/专注在辅助行依次换行。
+  testWidgets('固定任务只保留计划信息与阶段，去除重复专注计时', (tester) async {
+    // 标题优先，辅助行只保留计划信息和真实阶段。
     tester.view.physicalSize = const Size(390, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -792,37 +792,33 @@ void main() {
     ]);
     await tester.pumpAndSettle();
     expect(find.text('已结束'), findsOneWidget);
-    expect(find.text('09:00 · 100 分钟'), findsOneWidget);
-    expect(find.text('00:00'), findsOneWidget);
+    expect(find.text('09:00–10:40'), findsOneWidget);
+    expect(find.textContaining('专注'), findsNothing);
+    expect(find.text('00:00'), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.text('计划 100 分钟'), findsNothing);
     expect(find.textContaining('已结束 ·'), findsNothing);
     expect(find.bySemanticsLabel('09:00，已结束任务，计划 100 分钟，已结束'), findsOneWidget);
     final row = tester.getRect(find.byKey(const ValueKey('mission-已结束任务')));
     final title = tester.getRect(find.text('已结束任务'));
     final status = tester.getRect(find.text('已结束'));
-    final duration = tester.getRect(find.text('09:00 · 100 分钟'));
-    final focus = tester.getRect(find.text('00:00'));
+    final duration = tester.getRect(find.text('09:00–10:40'));
     // 轨道 16dp 后是标题，辅助行再向内收 8dp。
     expect(title.left - row.left, closeTo(16, 0.5));
     expect(duration.left - title.left, closeTo(8, 0.5));
     expect(duration.top, greaterThan(title.bottom));
-    // 阶段与专注在辅助行内向右依次排布，空间不足时换到下一行。
+    // 时间区间与阶段在辅助行内分开，空间不足时换行。
     if ((status.top - duration.top).abs() < 1) {
       expect(status.left, greaterThanOrEqualTo(duration.right - 1));
     } else {
       expect(status.top, greaterThan(duration.bottom - 1));
-    }
-    if ((focus.top - status.top).abs() < 1) {
-      expect(focus.left, greaterThanOrEqualTo(status.right - 1));
-    } else {
-      expect(focus.top, greaterThan(status.bottom - 1));
     }
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     semantics.dispose();
   });
 
-  testWidgets('未来固定任务辅助信息紧凑成组，不再重复“计划”', (tester) async {
+  testWidgets('未来固定任务以起止时刻紧凑展示，不重复时长文本', (tester) async {
     tester.view.physicalSize = const Size(412, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -843,7 +839,7 @@ void main() {
     ]);
     await tester.pumpAndSettle();
     expect(find.text('待到时'), findsOneWidget);
-    expect(find.text('19:00 · 210 分钟'), findsOneWidget);
+    expect(find.text('19:00–22:30'), findsOneWidget);
     expect(find.text('计划 210 分钟'), findsNothing);
     expect(find.textContaining('专注'), findsNothing);
     expect(
@@ -857,7 +853,7 @@ void main() {
     );
     final title = tester.getRect(titleFinder);
     final status = tester.getRect(find.text('待到时'));
-    final duration = tester.getRect(find.text('19:00 · 210 分钟'));
+    final duration = tester.getRect(find.text('19:00–22:30'));
     expect(duration.left - title.left, closeTo(8, 0.5));
     expect(duration.top, greaterThan(title.bottom));
     if ((status.top - duration.top).abs() < 1) {
@@ -894,12 +890,8 @@ void main() {
       example('可见任务', fixed: true, start: start),
     ]);
     await tester.pumpAndSettle();
-    // 卡头时间与安排概览的“现在”同时存在，这里只数卡头里的那一个。
-    final headerNow = find.descendant(
-      of: find.byKey(const Key('timeline-current-time')),
-      matching: find.text('现在'),
-    );
-    expect(headerNow, findsOneWidget);
+    expect(find.byKey(const Key('timeline-current-time')), findsNothing);
+    expect(find.text('当前时段'), findsOneWidget);
     visible.value = false;
     await tester.pump();
     final hiddenReads = reads;
@@ -908,8 +900,7 @@ void main() {
     expect(reads, hiddenReads);
     visible.value = true;
     await tester.pump();
-    expect(headerNow, findsOneWidget);
-    expect(find.text('10:00'), findsOneWidget);
+    expect(find.text('时段已过'), findsOneWidget);
     expect(reads, greaterThan(hiddenReads));
     expect(repository.requests, hasLength(1));
     await tester.pumpWidget(const SizedBox.shrink());
@@ -959,15 +950,9 @@ void main() {
     final titleStyle = tester.widget<Text>(find.text('自选任务 1')).style!;
     expect(titleStyle.fontSize, AppTheme.light.textTheme.labelSmall?.fontSize);
     expect(titleStyle.fontWeight, FontWeight.w500);
-    expect(
-      tester.widget<Text>(find.text('100')).style?.fontSize,
-      AppTheme.light.textTheme.titleSmall?.fontSize,
-    );
-    expect(
-      tester.widget<Text>(find.text('计划分钟')).style?.fontSize,
-      AppTheme.light.textTheme.bodySmall?.fontSize,
-    );
-
+    expect(find.text('5 项安排 · 计划 1 小时 40 分钟'), findsOneWidget);
+    expect(find.text('安排概览'), findsNothing);
+    expect(find.text('计划分钟'), findsNothing);
     await tester.ensureVisible(
       find.byKey(const Key('flexible-missions-toggle')),
     );
@@ -1209,11 +1194,7 @@ void main() {
     expect(flexible.right, closeTo(create.right, .5));
     expect(overview.right, closeTo(create.right, .5));
     // 同性内边距：窄栏同一列都用 12dp，卡头动作贴另一侧内容边线。
-    for (final (card, header) in [
-      (schedule, '计划日程'),
-      (flexible, '自选时间'),
-      (overview, '安排概览'),
-    ]) {
+    for (final (card, header) in [(schedule, '计划日程'), (flexible, '自选时间')]) {
       final title = tester.getRect(find.text(header));
       expect(title.left - card.left, closeTo(12, .5));
     }
@@ -1222,6 +1203,8 @@ void main() {
     // 区块间距统一 16dp。
     expect(flexible.top - schedule.bottom, closeTo(16, .5));
     expect(overview.top - flexible.bottom, closeTo(16, .5));
+    expect(overview.height, lessThan(48));
+    expect(find.text('安排概览'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

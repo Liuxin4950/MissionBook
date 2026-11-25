@@ -23,6 +23,7 @@ internal enum class QuickMenuAction(val label: String) {
     More("更多"),
     Conversation("会话"),
     Usage("感知"),
+    Close("关闭"),
     Back("返回"),
 }
 
@@ -44,6 +45,7 @@ internal class AssistantOverlayQuickMenu(
     private val onCapture: () -> Unit,
     private val onOpen: () -> Unit,
     private val onUsage: () -> Unit,
+    private val onClose: () -> Unit,
     private val usageTitle: () -> String,
 ) : FrameLayout(context) {
     init {
@@ -59,7 +61,8 @@ internal class AssistantOverlayQuickMenu(
     fun showMoreActions(animate: Boolean = true) {
         removeAllViews()
         moreActions.forEach { action ->
-            addItem(titleFor(action), iconFor(action), handlerFor(action), animate)
+            addItem(titleFor(action), iconFor(action), handlerFor(action), animate,
+                description = if (action == QuickMenuAction.Close) "关闭悬浮球" else titleFor(action))
         }
     }
 
@@ -73,6 +76,7 @@ internal class AssistantOverlayQuickMenu(
         QuickMenuAction.More -> R.drawable.assistant_more
         QuickMenuAction.Conversation -> R.drawable.assistant_chat
         QuickMenuAction.Usage -> R.drawable.assistant_compass
+        QuickMenuAction.Close -> R.drawable.assistant_close
         QuickMenuAction.Back -> R.drawable.assistant_back
     }
 
@@ -83,10 +87,12 @@ internal class AssistantOverlayQuickMenu(
         QuickMenuAction.More -> ({ showMoreActions() })
         QuickMenuAction.Conversation -> onOpen
         QuickMenuAction.Usage -> onUsage
+        QuickMenuAction.Close -> onClose
         QuickMenuAction.Back -> ({ showPrimary() })
     }
 
-    private fun addItem(title: String, icon: Int, action: () -> Unit, animate: Boolean = true) {
+    private fun addItem(title: String, icon: Int, action: () -> Unit, animate: Boolean = true,
+                        description: String = title) {
         val index = childCount
         val target = placement.buttons[index]
         val contentColors = contentColors()
@@ -95,8 +101,8 @@ internal class AssistantOverlayQuickMenu(
             gravity = Gravity.CENTER
             isClickable = true
             isFocusable = true
-            contentDescription = title
-            if (android.os.Build.VERSION.SDK_INT >= 26) tooltipText = title
+            contentDescription = description
+            if (android.os.Build.VERSION.SDK_INT >= 26) tooltipText = description
             background = RippleDrawable(
                 ColorStateList.valueOf(AssistantNativeTheme.ripple),
                 oval(AssistantNativeTheme.pageBackground),
@@ -184,11 +190,11 @@ internal class AssistantOverlayQuickMenu(
             QuickMenuAction.More,
         )
 
-        /** 更多层动作顺序：会话、截图、应用感知、返回。 */
+        /** 更多层动作顺序：会话、应用感知、关闭悬浮球、返回。 */
         internal val moreActions = listOf(
             QuickMenuAction.Conversation,
-            QuickMenuAction.Capture,
             QuickMenuAction.Usage,
+            QuickMenuAction.Close,
             QuickMenuAction.Back,
         )
 

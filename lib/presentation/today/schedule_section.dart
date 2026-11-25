@@ -2,12 +2,10 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:timezone/timezone.dart' as tz;
 
 import '../../core/theme/app_layout.dart';
 import '../../core/theme/app_motion.dart';
-import '../../domain/entities/mission_schedule_revision.dart';
-import '../missions/shared/mission_live_status.dart';
+import '../../domain/entities/mission_phase.dart';
 import '../missions/shared/mission_phase_display.dart';
 import '../widgets/app_animated_size.dart';
 import '../widgets/app_section_card.dart';
@@ -17,7 +15,7 @@ import 'today_display.dart' as display;
 
 // 今天页一套内容边线：页头、日期带和各分区外框共用页面左右边距；
 // 同一列的分区内部再按自身宽度取同一级内边距，避免相邻卡片起始文字不齐。
-/// 宽面板（高/中密度）16dp，窄栏 12dp；与「计划日程 / 自选时间 / 安排概览」同级。
+/// 宽面板（高/中密度）16dp，窄栏 12dp；首页分区共用内容边线。
 double todaySectionInset(double availableWidth) =>
     availableWidth >= _widePanelMinWidth
     ? AppLayout.spaceLg
@@ -150,10 +148,6 @@ class _ScheduleSectionState extends State<ScheduleSection>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final local = tz.TZDateTime.from(
-      _now,
-      tz.getLocation(defaultScheduleTimeZone),
-    );
     return LayoutBuilder(
       builder: (context, box) {
         final inset = todaySectionInset(box.maxWidth);
@@ -199,24 +193,6 @@ class _ScheduleSectionState extends State<ScheduleSection>
                           '共 ${widget.items.length} 项',
                           style: theme.textTheme.bodySmall,
                         ),
-                        if (widget.items.isNotEmpty &&
-                            DateUtils.isSameDay(local, widget.selectedDate))
-                          Wrap(
-                            key: const Key('timeline-current-time'),
-                            spacing: AppLayout.spaceXs,
-                            runSpacing: AppLayout.spaceXs,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              Text('现在', style: theme.textTheme.bodySmall),
-                              Text(
-                                '${local.hour.toString().padLeft(2, '0')}:'
-                                '${local.minute.toString().padLeft(2, '0')}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontFeatures: _tabularFigures,
-                                ),
-                              ),
-                            ],
-                          ),
                       ],
                     ),
                   ),
@@ -253,7 +229,6 @@ class _ScheduleSectionState extends State<ScheduleSection>
                           key: ValueKey('mission-${items[index].id}'),
                           item: items[index],
                           now: _now,
-                          clock: widget.clock,
                           isFirst: index == 0,
                           isLast: index == items.length - 1,
                           showFullTitle: widget.fullList,
@@ -341,12 +316,10 @@ class ScheduleMissionRow extends StatelessWidget {
     this.isFirst = true,
     this.isLast = true,
     this.showFullTitle = false,
-    this.clock = DateTime.now,
   });
 
   final display.TodayMissionItem item;
   final DateTime now;
-  final DateTime Function() clock;
   final VoidCallback onTap;
   final bool isFirst;
   final bool isLast;
@@ -367,15 +340,16 @@ class ScheduleMissionRow extends StatelessWidget {
     final statusStyle = theme.textTheme.labelSmall!.copyWith(
       color: colors.onSurface,
     );
-    final current = display.isInPlannedTimeSlot(item, now);
+    final current =
+        display.isInPlannedTimeSlot(item, now) &&
+        const [
+          MissionPhase.notStarted,
+          MissionPhase.running,
+          MissionPhase.paused,
+        ].contains(item.phase);
     // 计划时段只是排期；有执行事实后优先呈现真实执行阶段。
     final status = display.scheduleRowStatus(item, now);
     final remaining = display.plannedTimeSlotRemainingMinutes(item, now);
-    final hasPlanTrack =
-        item.isFixed &&
-        !item.isCancelled &&
-        item.fixedStartAt != null &&
-        item.plannedDurationMinutes > 0;
     final label = [
       item.startTime,
       item.title,
@@ -524,9 +498,8 @@ class ScheduleMissionRow extends StatelessWidget {
                                 status: status,
                                 metaStyle: metaStyle,
                                 statusStyle: statusStyle,
-                                clock: clock,
                               ),
-                              if (hasPlanTrack) ...[
+                              if (current) ...[
                                 const SizedBox(height: AppLayout.spaceXs),
                                 _PlanProgress(
                                   id: item.id,
@@ -534,9 +507,7 @@ class ScheduleMissionRow extends StatelessWidget {
                                     item,
                                     now,
                                   ),
-                                  remainingLabel: current
-                                      ? '计划剩余 $remaining 分钟'
-                                      : null,
+                                  remainingLabel: '计划剩余 $remaining 分钟',
                                   style: metaStyle,
                                 ),
                               ],
@@ -556,25 +527,23 @@ class ScheduleMissionRow extends StatelessWidget {
   }
 }
 
-/// 开始时间和计划分钟在起始侧，真实阶段与专注计时在末端成组。
+/// 开始与结束时刻成组，末端只显示真实阶段；执行时长在执行页阅读。
 class _ScheduleMetadata extends StatelessWidget {
   const _ScheduleMetadata({
     required this.item,
     required this.status,
     required this.metaStyle,
     required this.statusStyle,
-    required this.clock,
   });
 
   final display.TodayMissionItem item;
   final String status;
   final TextStyle metaStyle;
   final TextStyle statusStyle;
-  final DateTime Function() clock;
 
   @override
   Widget build(BuildContext context) {
-    final time = '${item.startTime} · ${item.plannedDurationLabel}';
+    final time = display.scheduleTimeRangeLabel(item);
     final timeGroup = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -602,14 +571,6 @@ class _ScheduleMetadata extends StatelessWidget {
           style: statusStyle,
           textAlign: TextAlign.end,
         ),
-        if (item.events.isNotEmpty)
-          MissionLiveStatus(
-            phase: item.phase,
-            events: item.events,
-            schedule: item.schedule,
-            clock: clock,
-            includePhase: false,
-          ),
       ],
     );
     return LayoutBuilder(
@@ -651,7 +612,7 @@ class _PlanProgress extends StatelessWidget {
 
   final String id;
   final double progress;
-  final String? remainingLabel;
+  final String remainingLabel;
   final TextStyle style;
 
   @override
@@ -667,15 +628,12 @@ class _PlanProgress extends StatelessWidget {
         value: value,
         minHeight: AppLayout.spaceXs,
         borderRadius: BorderRadius.circular(AppLayout.radiusXs),
-        color: label != null
-            ? colors.primary
-            : colors.primary.withValues(alpha: .45),
+        color: colors.primary,
         backgroundColor: colors.outlineVariant,
         trackGap: 0,
         stopIndicatorRadius: 0,
       ),
     );
-    if (label == null) return track;
     final remaining = Text(
       label,
       key: ValueKey('schedule-plan-remaining-$id'),
