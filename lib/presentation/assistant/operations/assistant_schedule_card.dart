@@ -325,6 +325,9 @@ class AssistantScheduleCard extends StatelessWidget {
         context,
       ).textTheme.bodyMedium?.copyWith(color: AppColors.primary),
     );
+    final location = isNew
+        ? item['location'] as String?
+        : before?.mission.location;
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -332,6 +335,15 @@ class AssistantScheduleCard extends StatelessWidget {
           '${item['title'] ?? before?.mission.title ?? '任务'}',
           style: Theme.of(context).textTheme.titleSmall,
         ),
+        if (location != null && location.trim().isNotEmpty) ...[
+          const SizedBox(height: AppLayout.spaceXs),
+          Text(
+            '📍 $location',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
         if (objective != null && objective != item['title']) ...[
           const SizedBox(height: AppLayout.spaceXs),
           Text(objective, style: Theme.of(context).textTheme.bodySmall),
@@ -539,6 +551,9 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
   late final _objective = TextEditingController(
     text: widget.row['objective'] as String? ?? '',
   );
+  late final _location = TextEditingController(
+    text: widget.row['location'] as String? ?? '',
+  );
   late final _date = TextEditingController(
     text: widget.row['scheduledDate'] as String,
   );
@@ -554,7 +569,14 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
 
   @override
   void dispose() {
-    for (final controller in [_title, _objective, _date, _minutes, _time]) {
+    for (final controller in [
+      _title,
+      _objective,
+      _location,
+      _date,
+      _minutes,
+      _time,
+    ]) {
       controller.dispose();
     }
     super.dispose();
@@ -574,6 +596,11 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
     };
     if (widget.row['kind'] == 'CREATE') {
       input['title'] = _title.text.trim();
+      if (_location.text.trim().isEmpty) {
+        input.remove('location');
+      } else {
+        input['location'] = _location.text;
+      }
       if (_objective.text.trim().isNotEmpty) {
         input['objective'] = _objective.text.trim();
       } else {
@@ -626,6 +653,13 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
                   minLines: 1,
                   maxLines: 3,
                   decoration: const InputDecoration(labelText: '具体目标（可选）'),
+                ),
+                const SizedBox(height: AppLayout.spaceMd),
+                TextFormField(
+                  key: const Key('plan-item-location'),
+                  controller: _location,
+                  enabled: !_saving,
+                  decoration: const InputDecoration(labelText: '地点（可选）'),
                 ),
               ],
               const SizedBox(height: AppLayout.spaceMd),

@@ -94,6 +94,46 @@ void main() {
     throw StateError('等待计划预览超时');
   }
 
+  test('新建计划地点预览零写入，保存及批量改期保留地点', () async {
+    final plan = await build([
+      {...createRow('new'), 'location': ' 二教 A203 '},
+    ]);
+    expect(plan.items.single.creation!.mission.location, '二教 A203');
+    expect(await database.select(database.missions).get(), isEmpty);
+    await missions.applyPlan(plan);
+    final original = (await missions.findAllDetails()).single;
+    final moved = await build([
+      {
+        'itemId': 'move',
+        'kind': 'RESCHEDULE',
+        'missionId': original.mission.id,
+        'scheduledDate': '2026-10-30',
+      },
+    ], id: 'move-location-plan');
+    await missions.applyPlan(moved);
+    expect(
+      (await missions.findDetail(
+        missionId: original.mission.id,
+      ))!.mission.location,
+      '二教 A203',
+    );
+    expect(
+      AssistantScheduleService.validate({
+        'title': '不允许用改期改地点',
+        'items': [
+          {
+            'itemId': 'bad',
+            'kind': 'RESCHEDULE',
+            'missionId': original.mission.id,
+            'scheduledDate': '2026-10-30',
+            'location': '操场',
+          },
+        ],
+      }),
+      contains('任务编辑'),
+    );
+  });
+
   test('计划校验和任务缺失都指出具体条目编号', () async {
     expect(
       AssistantScheduleService.validate({

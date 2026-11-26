@@ -1032,6 +1032,7 @@ String _missionSemanticsLabel(display.TodayMissionItem item) {
   final parts = [
     item.isFixed ? item.startTime : '自选时间',
     item.title,
+    if (item.location case final location?) '地点：$location',
     item.durationLabel,
     if (item.timeZoneLabel != null) item.timeZoneLabel!,
     if (!item.isCancelled && item.phase == MissionPhase.notStarted)
@@ -1278,6 +1279,16 @@ class _MissionDetails extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppLayout.spaceXs),
+        if (item.location case final location?) ...[
+          Text(
+            '📍 $location',
+            key: ValueKey('mission-location-${item.id}'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _todayMetadataStyle(context),
+          ),
+          const SizedBox(height: AppLayout.spaceXs),
+        ],
         Text(item.durationLabel, style: _todayMetadataStyle(context)),
         if (item.timeZoneLabel != null)
           Text(item.timeZoneLabel!, style: theme.textTheme.bodySmall),

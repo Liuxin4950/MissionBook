@@ -14,11 +14,18 @@ ScheduledMission widgetMission(
   String id, {
   MissionPhase phase = MissionPhase.notStarted,
   DateTime? start,
+  String? location,
 }) {
   final now = DateTime.utc(2026, 11, 22);
   return ScheduledMission(
     phase: phase,
-    mission: Mission(id: id, title: '任务 $id', createdAt: now, updatedAt: now),
+    mission: Mission(
+      id: id,
+      title: '任务 $id',
+      location: location,
+      createdAt: now,
+      updatedAt: now,
+    ),
     schedule: MissionScheduleRevision(
       id: '$id-schedule',
       missionId: id,
@@ -36,6 +43,32 @@ ScheduledMission widgetMission(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(tzdata.initializeTimeZones);
+
+  test('地点进入普通与焦点快照，自选任务也可有地点', () async {
+    final data =
+        jsonDecode(
+              await buildTodayWidgetSnapshot(
+                now: DateTime.utc(2026, 11, 23),
+                query: (_) async => [
+                  widgetMission(
+                    'fixed',
+                    start: DateTime.utc(2026, 11, 23, 1),
+                    location: '二教 A203',
+                  ),
+                  widgetMission('flexible', location: '图书馆'),
+                  widgetMission('no-location'),
+                ],
+              ),
+            )
+            as Map<String, dynamic>;
+    final day = data['days'][0];
+    expect(day['rows'].map((dynamic row) => row['location']), [
+      '二教 A203',
+      '图书馆',
+      null,
+    ]);
+    expect(day['featured']['location'], '二教 A203');
+  });
 
   test('快照按上海日界读取今天和明天，并排除取消任务', () async {
     final calls = <String>[];

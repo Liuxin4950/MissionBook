@@ -3,12 +3,14 @@ import 'package:timezone/timezone.dart' as tz;
 import '../entities/mission_creation.dart';
 import '../entities/mission_schedule_revision.dart';
 import 'evidence_rules.dart';
+import 'mission_location_rules.dart';
 
 /// 手工创建、导入和仓储共用同一份创建校验，避免只在表单保护输入。
 void validateMissionCreation(MissionCreation request) {
   final mission = request.mission;
   final schedule = request.schedule;
   final plan = request.plan;
+  validateMissionLocation(mission.location);
   for (final id in [mission.id, schedule.id, plan.id]) {
     if (id.isEmpty || id != id.trim()) throw ArgumentError('创建编号无效');
   }

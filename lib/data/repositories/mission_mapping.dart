@@ -11,6 +11,7 @@ MissionsCompanion missionToCompanion(Mission mission) {
     // Value 表示明确提供这一列的值：有文字就写文字，为 null 就写空值。
     // 它与 Value.absent()（省略这一列）不同。
     description: Value(mission.description),
+    location: Value(mission.location),
     why: Value(mission.why),
     goalId: Value(mission.goalId),
     goalNodeId: Value(mission.goalNodeId),
@@ -44,6 +45,7 @@ Mission missionFromRow(MissionRow row) {
     id: row.id,
     title: row.title,
     description: row.description,
+    location: row.location,
     why: row.why,
     goalId: row.goalId,
     goalNodeId: row.goalNodeId,

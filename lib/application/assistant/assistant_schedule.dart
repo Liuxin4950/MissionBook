@@ -90,6 +90,12 @@ class AssistantScheduleService {
             },
             'notes': {'type': 'string'},
             'description': {'type': 'string'},
+            'location': {
+              'type': 'string',
+              'maxLength': 200,
+              'description':
+                  '仅 CREATE 可用的可选地点，例如二教 A203；省略无地点。RESCHEDULE 保留原地点，修改地点请用 updateMission。',
+            },
             'why': {'type': 'string'},
             'goalId': {'type': 'string'},
             'goalNodeId': {'type': 'string'},
@@ -148,6 +154,7 @@ class AssistantScheduleService {
           'steps',
           'notes',
           'description',
+          'location',
           'why',
           'goalId',
           'goalNodeId',
@@ -294,6 +301,7 @@ class AssistantScheduleService {
               goalNodeId: item['goalNodeId'] as String?,
             ),
             description: item['description'] as String?,
+            location: item['location'] as String?,
             why: item['why'] as String?,
             requestId: '$operationId:$id',
           ),

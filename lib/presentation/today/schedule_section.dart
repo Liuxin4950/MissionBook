@@ -139,7 +139,13 @@ class _ScheduleSectionState extends State<ScheduleSection>
     final titleHeight = _lineHeight(theme.textTheme.titleSmall, scaler);
     final metaHeight = _lineHeight(theme.textTheme.bodySmall, scaler);
     final rowExtent =
-        titleHeight + metaHeight + AppLayout.spaceSm * 2 + AppLayout.strokeThin;
+        titleHeight +
+        metaHeight +
+        AppLayout.spaceSm * 2 +
+        AppLayout.strokeThin +
+        (widget.items.any((item) => item.location != null)
+            ? metaHeight + AppLayout.spaceXs
+            : 0);
     final visibleHeight =
         widget.visibleHeight ?? MediaQuery.sizeOf(context).height;
     return ((visibleHeight * .4 - 96) / rowExtent).floor().clamp(2, 4);
@@ -353,6 +359,7 @@ class ScheduleMissionRow extends StatelessWidget {
     final label = [
       item.startTime,
       item.title,
+      if (item.location case final location?) '地点：$location',
       '计划 ${item.plannedDurationMinutes} 分钟',
       if (item.timeZoneLabel != null) item.timeZoneLabel!,
       status,
@@ -493,6 +500,16 @@ class ScheduleMissionRow extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              if (item.location case final location?) ...[
+                                Text(
+                                  '📍 $location',
+                                  key: ValueKey('schedule-location-${item.id}'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: metaStyle,
+                                ),
+                                const SizedBox(height: AppLayout.spaceXs),
+                              ],
                               _ScheduleMetadata(
                                 item: item,
                                 status: status,

@@ -35,4 +35,5 @@
         <item>市场调研方法</item>
         <item>整理本周笔记</item>
     </string-array>
+    <string name="today_widget_sample_location">二教 A203</string>
 </resources>

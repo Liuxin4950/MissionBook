@@ -93,6 +93,29 @@ class TodayWidgetLayoutPlannerTest {
     )
 
     @Test
+    fun `location gets a separate line and reserves height in all sizes`() {
+        for (size in WidgetSizeClass.entries) {
+            val ordinary = items(1)
+            val location = "第二教学楼 A203 ".repeat(20)
+            val located = ordinary.map { it.copy(locationText = location) }
+            val without = plan(size, 600, 500, ordinary)
+            val with = plan(size, 600, 500, located)
+            assertEquals(WidgetPlan.ROW_LAYOUT_STACKED, with.rowLayout)
+            assertEquals(location, with.rows.single().location)
+            assertTrue(with.rows.single().contentDescription.contains(location))
+            assertTrue(with.metrics.rowHeightPx > without.metrics.rowHeightPx)
+            val hidden = plan(size, 600, 500, located,
+                appearance = TodayWidgetAppearance(showDetails = false))
+            assertNull(hidden.rows.single().location)
+            val locationOnly = plan(size, 600, 500, located,
+                appearance = TodayWidgetAppearance(showStatus = false, timeMode = TodayWidgetAppearance.TIME_NONE))
+            assertEquals(location, locationOnly.rows.single().location)
+            assertFalse(locationOnly.rows.single().showTime)
+            assertFalse(locationOnly.rows.single().showStatus)
+        }
+    }
+
+    @Test
     fun `small shows one focus row and head count only when it fits`() {
         val result = plan(WidgetSizeClass.SMALL, 109, 109, items(1), total = 6)
         assertEquals(1, result.rows.size)
@@ -441,7 +464,7 @@ class TodayWidgetLayoutPlannerTest {
         @Suppress("UNCHECKED_CAST")
         val rows = payload["rows"] as List<Map<String, Any?>>
         assertEquals(
-            setOf("time", "title", "status", "showTime", "showStatus", "titleMaxLines", "progress", "currentSlot"),
+            setOf("time", "title", "location", "status", "showTime", "showStatus", "titleMaxLines", "progress", "currentSlot"),
             rows.first().keys,
         )
         @Suppress("UNCHECKED_CAST")

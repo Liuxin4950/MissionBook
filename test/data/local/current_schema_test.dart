@@ -48,6 +48,20 @@ void main() {
 
     test('当前版本新装二十五表与索引符合当前定义', () async {
       expect(await _version(database), database.schemaVersion);
+      expect(database.schemaVersion, 19);
+      final columns = await database
+          .customSelect('PRAGMA table_info(missions)')
+          .get();
+      final location = columns.singleWhere(
+        (row) => row.read<String>('name') == 'location',
+      );
+      expect(location.read<int>('notnull'), 0);
+      expect(
+        (await database.select(database.missions).get()).every(
+          (row) => row.location == null,
+        ),
+        isTrue,
+      );
       expect(database.allTables, hasLength(25));
       await database.validateDatabaseSchema();
       expect(

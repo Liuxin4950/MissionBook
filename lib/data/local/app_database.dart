@@ -86,7 +86,7 @@ class AppDatabase extends _$AppDatabase {
 
   // 当前开发结构：任务材料保存快照，来源记录独立维护。
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   @override
   Future<T> transaction<T>(
@@ -114,13 +114,12 @@ class AppDatabase extends _$AppDatabase {
       await migrator.createAll();
       await installAnalysisTriggers(this);
     },
-    // 当前开发阶段不维护旧结构：旧库直接清空并按最新表结构重建。
-    // 新安装与旧库升级最终得到同一套表、索引和触发器。
+    // 开发体验按当前结构重建，不维护历史数据库迁移。
+    // 用户已明确本轮可以丢弃旧体验数据；新装与升级都会得到完整当前结构。
     onUpgrade: (migrator, from, to) async {
       if (to != schemaVersion) {
         throw StateError('不支持的数据库升级：v$from → v$to');
       }
-      // 先关闭外键，避免按任意顺序删除有引用关系的表时被约束挡住。
       await customStatement('PRAGMA foreign_keys = OFF');
       final tables = await customSelect(
         "SELECT name FROM sqlite_master WHERE type = 'table' "

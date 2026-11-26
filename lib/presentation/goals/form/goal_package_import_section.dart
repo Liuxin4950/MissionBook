@@ -336,7 +336,8 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
       key: ValueKey(entry.id),
       title: Text(value['title']! as String),
       subtitle: Text(
-        '${at == null ? value['scheduledDate']! as String : _time(at, value['timeZone'])} · ${value['plannedDurationMinutes']} 分钟',
+        '${at == null ? value['scheduledDate']! as String : _time(at, value['timeZone'])} · ${value['plannedDurationMinutes']} 分钟'
+        '${value['location'] == null ? '' : '\n📍 ${value['location']}'}',
       ),
       insetHeader: false,
       headerPadding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),

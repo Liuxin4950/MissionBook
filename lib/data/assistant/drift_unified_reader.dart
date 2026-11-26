@@ -423,6 +423,7 @@ class DriftUnifiedReader implements UnifiedReader {
             'steps',
             'notes',
             'description',
+            'location',
             'why',
           ],
         },
@@ -512,6 +513,7 @@ class DriftUnifiedReader implements UnifiedReader {
                   'title': String.fromCharCodes(
                     detail.mission.title.runes.take(120),
                   ),
+                  'location': detail.mission.location,
                   'phase': detail.phase.name,
                   if (detail.schedule.fixedStartAt case final start?)
                     'fixedStartAt': start.toIso8601String(),

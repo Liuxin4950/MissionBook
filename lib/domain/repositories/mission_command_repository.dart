@@ -28,6 +28,8 @@ abstract interface class MissionCommandRepository {
     String? description,
     String? why,
     bool updateContext = false, // true 时按表单值写说明和 Why，允许明确清空。
+    String? location,
+    bool updateLocation = false, // false 保留原值；true 允许明确清空为 null。
     String? operationId, // 外部入口提供固定身份时，业务事实与回执同事务保存。
   });
 

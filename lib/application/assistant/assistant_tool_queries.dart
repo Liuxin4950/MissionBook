@@ -132,6 +132,7 @@ class _AssistantToolQueries {
     'scheduleRevisionId': detail.schedule.id,
     'plannedMinutes': detail.schedule.plannedDurationMinutes,
     'timePolicy': detail.schedule.timePolicy.name,
+    'location': AssistantTools._preview(detail.mission.location, 200),
     'fixedStartAt': detail.schedule.fixedStartAt?.toUtc().toIso8601String(),
     'stepCount': detail.executionPlan.steps.length,
     'notesPreview': AssistantTools._preview(detail.executionPlan.notes, 500),

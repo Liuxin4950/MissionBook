@@ -124,6 +124,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
   late String _initialSteps, _initialNotes;
   bool _objectiveEdited = false; // 用户亲自改过具体目标后，不再用任务名称覆盖它。
   final _descriptionController = TextEditingController();
+  final _locationController = TextEditingController();
+  late String _initialLocation;
   final _whyController = TextEditingController();
   late MissionOwnership _ownership;
   late MissionOwnership _initialOwnership;
@@ -192,6 +194,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
       int.parse(parts[2]),
     );
     final seed = original ?? widget.retrySource;
+    _locationController.text = seed?.mission.location ?? '';
+    _initialLocation = _locationController.text;
     _ownership =
         seed?.mission.ownership ??
         MissionOwnership(
@@ -269,6 +273,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
       _ownership != _initialOwnership ||
       _pendingCreation != null ||
       _descriptionController.text != _initialDescription ||
+      _locationController.text != _initialLocation ||
       _whyController.text != _initialWhy ||
       _titleController.text != _initialTitle ||
       _objectiveController.text != _initialObjective ||
@@ -306,6 +311,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
     _stepsController.dispose();
     _notesController.dispose();
     _descriptionController.dispose();
+    _locationController.dispose();
     _whyController.dispose();
     _durationController.dispose();
     _hourController.dispose();
@@ -410,6 +416,7 @@ class _MissionFormPageState extends State<MissionFormPage> {
           notes: _notesController.text,
           ownership: _ownership,
           description: _descriptionController.text,
+          location: _locationController.text,
           why: _whyController.text,
           verificationPolicy: _verificationPolicy,
           verificationCriteria: verificationCriteria,
@@ -438,6 +445,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
           description: _descriptionController.text,
           why: _whyController.text,
           updateContext: true,
+          location: _locationController.text,
+          updateLocation: true,
         );
       }
       if (!mounted) return;
@@ -529,6 +538,8 @@ class _MissionFormPageState extends State<MissionFormPage> {
       _notesController.clear();
       _initialSteps = _initialNotes = '';
       _descriptionController.clear();
+      _locationController.clear();
+      _initialLocation = '';
       _whyController.clear();
       _durationController.clear();
       _hourController.clear();
@@ -731,6 +742,19 @@ class _MissionFormPageState extends State<MissionFormPage> {
                               titleController: _titleController,
                               enabled: _canEdit,
                             ),
+                            MissionInputLabel(
+                              label: '地点（可选）',
+                              child: TextField(
+                                key: const Key('mission-location'),
+                                controller: _locationController,
+                                enabled: _canEdit,
+                                decoration: missionInputDecoration(
+                                  context,
+                                  hint: '例如：二教 A203、图书馆',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: AppLayout.spaceXl),
                             MissionScheduleFields(
                               selectedDate: _scheduledDate,
                               dateText: _dateText,

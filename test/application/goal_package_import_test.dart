@@ -9,9 +9,8 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_package_repository.dart';
 import 'package:mission_book/domain/entities/goal_package_import.dart';
 
-Future<String> sample() => File(
-  'docs/设计/目标计划导入/examples/课标试运行.goal-package.v1.json',
-).readAsString();
+Future<String> sample() =>
+    File('docs/设计/目标计划导入/examples/课标试运行.goal-package.v1.json').readAsString();
 
 void main() {
   late AppDatabase db;
@@ -29,6 +28,27 @@ void main() {
   tearDown(() async {
     await stage.close();
     await db.close();
+  });
+
+  test('目标包地点从预览传递到保存，空白归一化，超长输入拒绝', () async {
+    final input = jsonDecode(await sample()) as Map<String, dynamic>;
+    input['missions'][0]['location'] = ' 二教\n A203 ';
+    input['missions'][1]['location'] = '  ';
+    final preview = await service.prepare(
+      GoalImportSource.text(jsonEncode(input)),
+    );
+    final entries = await service.page(preview, 'MISSION', 0);
+    expect(entries[0].resolved!['location'], '二教 A203');
+    expect(entries[1].resolved!['location'], isNull);
+    await service.commit(preview, const GoalImportOptions());
+    final rows = await db.select(db.missions).get();
+    expect(rows.where((row) => row.location == '二教 A203'), hasLength(1));
+    expect(rows.where((row) => row.location == null), hasLength(4));
+    input['missions'][0]['location'] = List.filled(201, '中').join();
+    await expectLater(
+      service.prepare(GoalImportSource.text(jsonEncode(input))),
+      throwsA(isA<GoalImportException>()),
+    );
   });
 
   test('完整目标包预览零写入，提交完整三件套、默认截止及稳定回执', () async {

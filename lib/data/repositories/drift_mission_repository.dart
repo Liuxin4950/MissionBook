@@ -23,6 +23,7 @@ import '../../domain/entities/schedule_proposal.dart';
 import '../../domain/repositories/schedule_proposal_repository.dart';
 import '../../domain/rules/historical_completion_rules.dart';
 import '../../domain/rules/mission_creation_rules.dart';
+import '../../domain/rules/mission_location_rules.dart';
 import '../../domain/entities/mission_schedule_revision.dart';
 import '../../domain/entities/scheduled_mission.dart';
 import '../../domain/entities/mission_detail.dart';
@@ -259,6 +260,8 @@ WHERE m.cancelled_at IS NULL AND r.time_policy='FIXED'
     String? description,
     String? why,
     bool updateContext = false,
+    String? location,
+    bool updateLocation = false,
     String? operationId,
   }) => _commands.edit(
     original: original,
@@ -272,6 +275,8 @@ WHERE m.cancelled_at IS NULL AND r.time_policy='FIXED'
     description: description,
     why: why,
     updateContext: updateContext,
+    location: location,
+    updateLocation: updateLocation,
     operationId: operationId,
   );
   @override
@@ -345,10 +350,12 @@ String _planFingerprint(ScheduleProposal plan) {
           'goalId': item.creation!.mission.goalId,
           'goalNodeId': item.creation!.mission.goalNodeId,
           'description': item.creation!.mission.description,
+          'location': item.creation!.mission.location,
           'why': item.creation!.mission.why,
         },
         if (item.original != null) ...{
           'beforeSchedule': item.original!.schedule.id,
+          'beforeLocation': item.original!.mission.location,
           'beforeMissionUpdatedAt':
               item.original!.mission.updatedAt.millisecondsSinceEpoch,
           'beforePlanUpdatedAt':
@@ -371,6 +378,8 @@ String _editFingerprint({
   String? description,
   String? why,
   required bool updateContext,
+  String? location,
+  required bool updateLocation,
 }) {
   final input = {
     'missionId': original.mission.id,
@@ -403,6 +412,8 @@ String _editFingerprint({
     'description': description,
     'why': why,
     'updateContext': updateContext,
+    'location': location,
+    'updateLocation': updateLocation,
   };
   return sha256.convert(utf8.encode(jsonEncode(input))).toString();
 }

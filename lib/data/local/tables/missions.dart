@@ -30,6 +30,9 @@ class Missions extends Table {
   // 任务描述，可以没有。
   TextColumn get description => text().nullable()();
 
+  // 地点独立于时间策略；历史任务未记录时为 null。
+  TextColumn get location => text().nullable()();
+
   // 为什么现在做这个任务，可以没有。
   TextColumn get why => text().nullable()();
 

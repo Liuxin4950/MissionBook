@@ -157,6 +157,7 @@ abstract class TodayWidgetProvider(
             val start: String?,
             val end: String?,
             val phase: String,
+            val location: String?,
         )
 
         /** Dart supplies a bounded, derived snapshot; neither the launcher nor Kotlin writes tasks. */
@@ -273,6 +274,7 @@ abstract class TodayWidgetProvider(
             start = row.optionalString("start"),
             end = row.optionalString("end"),
             phase = row.getString("phase"),
+            location = row.optionalString("location"),
         )
 
         private fun JSONObject.optionalString(key: String): String? =
@@ -423,6 +425,7 @@ abstract class TodayWidgetProvider(
                 WidgetItem(
                     id = row.id,
                     title = row.title,
+                    locationText = row.location,
                     startText = row.start,
                     endText = row.end,
                     statusText = phaseLabel(context, row.phase),
@@ -697,6 +700,16 @@ abstract class TodayWidgetProvider(
                     row.showStatus -> row.status.orEmpty()
                     else -> ""
                 }
+                views.setTextViewText(R.id.today_widget_row_location, row.location?.let { "📍 $it" }.orEmpty())
+                views.setTextViewTextSize(
+                    R.id.today_widget_row_location, TypedValue.COMPLEX_UNIT_SP,
+                    appearance.metaSp.toFloat(),
+                )
+                views.setTextColor(R.id.today_widget_row_location, colors.secondaryText)
+                views.setViewVisibility(
+                    R.id.today_widget_row_location,
+                    if (row.location != null) View.VISIBLE else View.GONE,
+                )
                 views.setTextViewText(R.id.today_widget_row_subtitle, subtitle)
                 views.setTextViewTextSize(
                     R.id.today_widget_row_subtitle, TypedValue.COMPLEX_UNIT_SP,
@@ -928,6 +941,7 @@ internal object TodayWidgetPreview {
         return listOf(
             WidgetItem(
                 id = "sample-1", title = title(0), startText = "08:00", endText = "09:40",
+                locationText = context.getString(R.string.today_widget_sample_location),
                 statusText = context.getString(R.string.today_widget_phase_running),
                 flexibleTime = false, currentSlot = true, progressText = progress,
             ),

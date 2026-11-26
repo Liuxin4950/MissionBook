@@ -35,6 +35,7 @@ void main() {
           unorderedEquals([
             'id',
             'title',
+            'location',
             'phase',
             'timeZone',
             'plannedMinutes',

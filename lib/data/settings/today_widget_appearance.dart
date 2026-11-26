@@ -853,6 +853,7 @@ class TodayWidgetPreviewRow {
     this.status,
     this.progress,
     this.currentSlot = false,
+    this.location,
   });
 
   final String? time;
@@ -864,6 +865,7 @@ class TodayWidgetPreviewRow {
 
   /// 仅当前时段行有值；是计划进度文案，不是执行事实。
   final String? progress;
+  final String? location;
   final bool currentSlot;
 
   factory TodayWidgetPreviewRow.fromMap(Map<Object?, Object?> map) =>
@@ -871,6 +873,7 @@ class TodayWidgetPreviewRow {
         time: _readNullableString(map, 'time'),
         title: _readString(map, 'title'),
         status: _readNullableString(map, 'status'),
+        location: _readNullableString(map, 'location'),
         showTime: _readBool(map, 'showTime', fallback: false),
         showStatus: _readBool(map, 'showStatus', fallback: false),
         titleMaxLines: _readInt(map, 'titleMaxLines', min: 1, max: 2),

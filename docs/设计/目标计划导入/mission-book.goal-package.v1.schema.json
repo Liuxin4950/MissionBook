@@ -162,6 +162,7 @@
         "nodeKey": {"$ref": "#/$defs/key"},
         "title": {"$ref": "#/$defs/title"},
         "description": {"$ref": "#/$defs/text"},
+        "location": {"type": "string", "maxLength": 200},
         "why": {"$ref": "#/$defs/text"},
         "verificationPolicy": {"$ref": "#/$defs/verificationPolicy"},
         "schedule": {"$ref": "#/$defs/schedule"},

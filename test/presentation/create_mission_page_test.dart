@@ -79,6 +79,8 @@ class PendingRepository with UnusedMissionWrites implements MissionRepository {
     String? description,
     String? why,
     bool updateContext = false,
+    String? location,
+    bool updateLocation = false,
     String? operationId,
   }) => throw UnsupportedError('本测试不编辑任务');
 

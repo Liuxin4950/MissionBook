@@ -22,6 +22,7 @@ class Mission {
     required this.createdAt,
     required this.updatedAt,
     this.description,
+    this.location,
     this.why,
     this.cancelledAt,
     this.evidenceWaivedAt,
@@ -41,6 +42,9 @@ class Mission {
 
   /// 可选的任务说明，未填写时为 null。
   final String? description;
+
+  /// 本次行动约定的地点；未记录为 null，不代表已验证实际到场。
+  final String? location;
 
   /// 为什么安排本次行动，未填写时为 null。
   final String? why;

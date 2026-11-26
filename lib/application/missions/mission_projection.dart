@@ -7,6 +7,7 @@ import '../../domain/rules/mission_attention_rules.dart';
 Map<String, Object?> missionIndexProjection(MissionDetail d, DateTime now) => {
   'id': d.mission.id,
   'title': String.fromCharCodes(d.mission.title.runes.take(120)),
+  'location': d.mission.location,
   'titleLength': d.mission.title.runes.length,
   'goalId': d.mission.goalId,
   'nodeId': d.mission.goalNodeId,
@@ -38,6 +39,7 @@ Map<String, Object?> missionProjection(MissionDetail d, DateTime now) {
     'objective': short(d.executionPlan.objective),
     'objectiveLength': d.executionPlan.objective.length,
     'description': short(d.mission.description),
+    'location': short(d.mission.location),
     'why': short(d.mission.why),
     'criteria': short(d.executionPlan.verificationCriteria),
     'lastSequence': d.lastSequence,

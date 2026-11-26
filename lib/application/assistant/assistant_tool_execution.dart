@@ -387,6 +387,7 @@ class _AssistantToolExecution {
         steps: AssistantTools._stringList(values['steps']),
         notes: values['notes'] as String?,
         description: values['description'] as String?,
+        location: values['location'] as String?,
         why: values['why'] as String?,
         requestId: context.idempotencyKey,
       ),
@@ -485,6 +486,9 @@ class _AssistantToolExecution {
             : null,
         notes: values['notes'] as String?,
         description: source.mission.description,
+        location: values.containsKey('location')
+            ? values['location'] as String?
+            : source.mission.location,
         why: source.mission.why,
         verificationPolicy: source.mission.verificationPolicy,
         verificationCriteria: source.executionPlan.verificationCriteria,
@@ -555,6 +559,8 @@ class _AssistantToolExecution {
         why: values.containsKey('why')
             ? values['why'] as String?
             : original.mission.why,
+        location: values['location'] as String?,
+        updateLocation: values.containsKey('location'),
         ownership: original.mission.ownership,
         scheduledDate: values['scheduledDate'] as String,
         plannedDurationMinutes:

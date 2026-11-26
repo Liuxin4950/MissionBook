@@ -31,7 +31,7 @@
 | --- | --- |
 | [app.dart](../../lib/app.dart) | 数据库、任务、目标、记录、记忆、助手与平台服务装配和释放 |
 | [app_shell.dart](../../lib/app_shell.dart) | 主导航、自适应工作区与未访问页面的按需挂载 |
-| [app_database.dart](../../lib/data/local/app_database.dart) | 当前开发结构（schemaVersion 18；新装 25 表，以 current_schema_test 为准）、建库与连接约束 |
+| [app_database.dart](../../lib/data/local/app_database.dart) | 当前开发结构（schemaVersion 19；新装 25 表，以 current_schema_test 为准）、建库与连接约束 |
 | [mission_detail.dart](../../lib/domain/entities/mission_detail.dart) | 不可变完整快照，构造时由唯一核心推导阶段 |
 | [execution_event_rules.dart](../../lib/domain/rules/execution_event_rules.dart) | 完整阶段派生与执行合法性规则 |
 | [mission_service.dart](../../lib/application/missions/mission_service.dart) | 命令、显式维护和通知页面重读 |

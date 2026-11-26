@@ -24,6 +24,8 @@ class EditingRepository extends PendingRepository {
   final edits = <MissionScheduleRevision>[];
   final titles = <String>[];
   final objectives = <String>[];
+  final locations = <String?>[];
+  final locationUpdates = <bool>[];
   Completer<void> saving = Completer<void>();
   @override
   Future<void> edit({
@@ -38,8 +40,12 @@ class EditingRepository extends PendingRepository {
     String? description,
     String? why,
     bool updateContext = false,
+    String? location,
+    bool updateLocation = false,
     String? operationId,
   }) {
+    locations.add(location);
+    locationUpdates.add(updateLocation);
     edits.add(schedule);
     titles.add(title);
     objectives.add(objective);
@@ -102,6 +108,36 @@ Future<void> chooseMissionAction(WidgetTester tester, String action) async {
 }
 
 void main() {
+  for (final replacement in ['图书馆', '']) {
+    testWidgets('编辑地点预填并支持${replacement.isEmpty ? '清空' : '替换'}', (
+      tester,
+    ) async {
+      final repository = EditingRepository();
+      await openEditor(
+        tester,
+        repository,
+        detail: exampleDetail(location: '二教 A203'),
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('mission-location')))
+            .controller!
+            .text,
+        '二教 A203',
+      );
+      await enter(tester, 'mission-location', replacement);
+      await tester.tap(find.text('保存修改'));
+      await tester.pump();
+      expect(
+        repository.locations.single,
+        replacement.isEmpty ? null : replacement,
+      );
+      expect(repository.locationUpdates.single, isTrue);
+      repository.saving.complete();
+      await tester.pumpAndSettle();
+    });
+  }
+
   testWidgets('固定排期按原时区带入，只改文字不丢失原时刻秒与毫秒', (tester) async {
     final repository = EditingRepository();
     final source = exampleDetail();

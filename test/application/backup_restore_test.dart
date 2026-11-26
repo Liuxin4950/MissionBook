@@ -129,6 +129,7 @@ void main() {
     for (var i = 0; i < 2; i++) {
       await sourceMissions.create(
         title: '备份任务',
+        location: i == 0 ? '二教 A203' : null,
         scheduledDate: '2026-11-02',
         timeZone: 'Asia/Shanghai',
         plannedDurationMinutes: 20,
@@ -275,6 +276,10 @@ void main() {
     );
     await importer.restore(plan);
     expect(await targetMissions.findAllDetails(), hasLength(2));
+    expect(
+      (await targetMissions.findAllDetails()).map((d) => d.mission.location),
+      unorderedEquals(['二教 A203', null]),
+    );
     // 当前回执列名带数字，不能被 SQL 列名校验误拒绝。
     final receipt = (await target.select(target.importReceipts).get()).single;
     expect(receipt.payloadSha256, 'payload-hash');

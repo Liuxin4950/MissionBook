@@ -111,6 +111,7 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
                   contentPadding: EdgeInsets.zero,
                   title: Text(slot.detail.mission.title),
                   subtitle: Text(
+                    '${slot.detail.mission.location == null ? '' : '📍 ${slot.detail.mission.location}\n'}'
                     '${slot.timeLabel} · ${phaseLabel(slot.detail.phase, schedule: slot.detail.schedule, now: widget.clock())}'
                     '${slot.conflicts.isNotEmpty ? ' · 计划冲突 ${slot.conflictMinutes.ceil()} 分钟' : ''}',
                   ),
@@ -126,11 +127,8 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
                   contentPadding: EdgeInsets.zero,
                   title: Text(detail.mission.title),
                   subtitle: Text(
-                    phaseLabel(
-                      detail.phase,
-                      schedule: detail.schedule,
-                      now: widget.clock(),
-                    ),
+                    '${detail.mission.location == null ? '' : '📍 ${detail.mission.location}\n'}'
+                    '${phaseLabel(detail.phase, schedule: detail.schedule, now: widget.clock())}',
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.pop(context, detail.mission.id),
@@ -521,6 +519,8 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
     final title = multiple
         ? '${block.slots.length}项安排'
         : first.detail.mission.title;
+    final location = multiple ? null : first.detail.mission.location;
+    final titleAndLocation = location == null ? title : '$title\n📍 $location';
     final status = phaseLabel(
       first.detail.phase,
       schedule: first.detail.schedule,
@@ -529,7 +529,7 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
     final label = block.slots
         .map(
           (slot) =>
-              '${slot.detail.mission.title}，${slot.timeLabel}，${phaseLabel(slot.detail.phase, schedule: slot.detail.schedule, now: widget.clock())}',
+              '${slot.detail.mission.title}，${slot.timeLabel}，${slot.detail.mission.location == null ? '' : '地点：${slot.detail.mission.location}，'}${phaseLabel(slot.detail.phase, schedule: slot.detail.schedule, now: widget.clock())}',
         )
         .join('；');
     return Semantics(
@@ -579,8 +579,8 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
                     padding: const EdgeInsets.fromLTRB(4, 2, 2, 2),
                     child: Text(
                       wide
-                          ? '$title\n${multiple ? '点击展开' : first.timeLabel}\n${multiple ? '' : status}'
-                          : title,
+                          ? '$titleAndLocation\n${multiple ? '点击展开' : first.timeLabel}\n${multiple ? '' : status}'
+                          : titleAndLocation,
                       maxLines: titleLines,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelSmall,

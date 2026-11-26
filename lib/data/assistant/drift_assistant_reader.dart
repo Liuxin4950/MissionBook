@@ -50,7 +50,7 @@ class DriftAssistantReader {
               .read<int>('total');
       final rows = await database
           .customSelect(
-            '''SELECT m.id, substr(m.title, 1, 120) AS title,
+            '''SELECT m.id, substr(m.title, 1, 120) AS title, m.location,
         m.goal_id AS goalId, m.goal_node_id AS nodeId, m.updated_at AS updatedAt,
         m.cancelled_at AS cancelledAt, s.scheduled_date AS scheduledDate, s.time_zone AS timeZone,
         s.planned_duration_minutes AS plannedMinutes, s.time_policy AS timePolicy,
@@ -196,6 +196,7 @@ class DriftAssistantReader {
       'steps' => ('execution_plans', 'steps', 'mission_id'),
       'notes' => ('execution_plans', 'notes', 'mission_id'),
       'description' => ('missions', 'description', 'id'),
+      'location' => ('missions', 'location', 'id'),
       'why' => ('missions', 'why', 'id'),
       _ => throw ArgumentError('不支持的任务正文字段'),
     };

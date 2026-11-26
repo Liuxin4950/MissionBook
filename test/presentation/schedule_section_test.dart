@@ -75,6 +75,34 @@ Rect _rect(WidgetTester tester, Key key) => tester.getRect(find.byKey(key));
 
 void main() {
   setUpAll(tzdata.initializeTimeZones);
+  testWidgets('固定日程地点独立显示，长地点省略且读屏保留全文', (tester) async {
+    final location = List.filled(30, '第二教学楼 A203 ').join();
+    await pumpScheduleRows(
+      tester,
+      width: 260,
+      scale: 1.8,
+      now: DateTime.utc(2026, 10, 21),
+      missions: [
+        example('课程', fixed: true, location: location),
+        example('无地点', fixed: true),
+      ],
+    );
+    final text = tester.widget<Text>(
+      find.byKey(const ValueKey('schedule-location-课程')),
+    );
+    expect(text.data, '📍 $location');
+    expect(text.maxLines, 1);
+    expect(text.overflow, TextOverflow.ellipsis);
+    expect(find.byKey(const ValueKey('schedule-location-无地点')), findsNothing);
+    final semantics = tester.ensureSemantics();
+    expect(
+      find.bySemanticsLabel(RegExp('地点：${RegExp.escape(location)}')),
+      findsOneWidget,
+    );
+    semantics.dispose();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('日程在失去输入焦点但仍可见时跨越计划边界继续刷新', (tester) async {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     addTearDown(() async {

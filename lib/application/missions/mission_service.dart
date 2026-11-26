@@ -33,6 +33,7 @@ import '../../domain/repositories/schedule_proposal_repository.dart';
 import '../../domain/repositories/mission_makeup_repository.dart';
 import '../../domain/rules/evidence_rules.dart';
 import '../../domain/rules/mission_creation_rules.dart';
+import '../../domain/rules/mission_location_rules.dart';
 import '../../domain/rules/scheduled_execution_rules.dart';
 import '../attachments/attachment_coordinator.dart';
 
@@ -567,8 +568,10 @@ class MissionService {
     String? verificationCriteria,
     MissionOwnership? ownership,
     String? description,
+    String? location,
     String? why,
     bool updateContext = false,
+    bool updateLocation = false,
     DateTime? evidenceDeadlineAt,
     String? operationId,
   }) async {
@@ -623,6 +626,8 @@ class MissionService {
       verificationCriteria: _clean(verificationCriteria),
       ownership: ownership,
       description: _clean(description),
+      location: updateLocation ? normalizeMissionLocation(location) : null,
+      updateLocation: updateLocation,
       why: _clean(why),
       updateContext: updateContext,
       operationId: operationId,
@@ -684,6 +689,7 @@ class MissionService {
     DateTime? evidenceDeadlineAt,
     MissionOwnership ownership = const MissionOwnership(),
     String? description,
+    String? location,
     String? why,
   }) async {
     final request = prepareCreation(
@@ -702,6 +708,7 @@ class MissionService {
       evidenceDeadlineAt: evidenceDeadlineAt,
       ownership: ownership,
       description: description,
+      location: location,
       why: why,
     );
     await createPrepared(request);
@@ -724,6 +731,7 @@ class MissionService {
     DateTime? evidenceDeadlineAt,
     MissionOwnership ownership = const MissionOwnership(),
     String? description,
+    String? location,
     String? why,
     String? requestId,
   }) {
@@ -765,6 +773,9 @@ class MissionService {
       id: missionId,
       title: cleanTitle,
       description: _clean(description ?? retrySource?.mission.description),
+      location: normalizeMissionLocation(
+        location ?? retrySource?.mission.location,
+      ),
       why: _clean(why ?? retrySource?.mission.why),
       goalId: ownership.goalId,
       goalNodeId: ownership.goalNodeId,

@@ -109,6 +109,7 @@ TodayMissionItem _missionItem(ScheduledMission item, DateTime? now) {
     events: item.events,
     id: item.mission.id,
     title: item.mission.title,
+    location: item.mission.location,
     isFixed: isFixed,
     isCancelled: isCancelled,
     startTime: startTime,
@@ -152,6 +153,7 @@ class TodayMissionItem {
     this.schedule,
     required this.id,
     required this.title,
+    this.location,
     required this.isFixed,
     required this.isCancelled,
     required this.startTime,
@@ -167,6 +169,7 @@ class TodayMissionItem {
   final String id;
   final MissionScheduleRevision? schedule;
   final String title;
+  final String? location;
   final bool isFixed;
   final bool isCancelled;
   final String startTime;

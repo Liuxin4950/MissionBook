@@ -309,6 +309,7 @@ class GoalPackageParser {
         'nodeKey',
         'title',
         'description',
+        'location',
         'why',
         'verificationPolicy',
         'schedule',

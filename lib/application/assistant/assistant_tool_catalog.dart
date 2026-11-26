@@ -92,6 +92,7 @@ class _AssistantToolCatalog {
             'objective': AssistantTools._string('改进后的具体目标，省略沿用来源'),
             'steps': AssistantTools._stringArray('改进后的完整步骤，省略沿用来源'),
             'notes': AssistantTools._string('新备注，省略沿用来源'),
+            'location': AssistantTools._string('新地点，省略沿用来源；空串清空'),
             'fixedStartLocal': AssistantTools._string('可选 HH:mm；省略为自选'),
             'evidenceDeadlineLocal': AssistantTools._string(
               '仅强制材料必填 YYYY-MM-DD HH:mm，应用时区',
@@ -164,6 +165,7 @@ class _AssistantToolCatalog {
               'steps',
               'notes',
               'description',
+              'location',
               'why',
             ]),
             'offset': AssistantTools._offsetSchema,
@@ -269,6 +271,7 @@ class _AssistantToolCatalog {
             'steps': AssistantTools._stringArray('可选行动步骤'),
             'notes': AssistantTools._string('可选方案备注'),
             'description': AssistantTools._string('可选任务说明'),
+            'location': AssistantTools._string('可选地点；空串清空，例如“二教 A203”'),
             'why': AssistantTools._string('可选安排原因'),
           },
           required: ['title', 'scheduledDate', 'plannedMinutes'],
@@ -308,6 +311,7 @@ class _AssistantToolCatalog {
             'notes': AssistantTools._string('新备注；空串清空'),
             'description': AssistantTools._string('新说明；空串清空'),
             'why': AssistantTools._string('新原因；空串清空'),
+            'location': AssistantTools._string('新地点；空串清空，省略保持原值'),
             'scheduledDate': AssistantTools._string('新日期 YYYY-MM-DD'),
             'plannedMinutes': AssistantTools._integer(
               '计划分钟，1–$maxPlannedDurationMinutes',

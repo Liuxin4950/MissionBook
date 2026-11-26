@@ -1161,6 +1161,17 @@ class $MissionsTable extends Missions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _locationMeta = const VerificationMeta(
+    'location',
+  );
+  @override
+  late final GeneratedColumn<String> location = GeneratedColumn<String>(
+    'location',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _whyMeta = const VerificationMeta('why');
   @override
   late final GeneratedColumn<String> why = GeneratedColumn<String>(
@@ -1260,6 +1271,7 @@ class $MissionsTable extends Missions
     id,
     title,
     description,
+    location,
     why,
     verificationPolicy,
     createdAt,
@@ -1316,6 +1328,12 @@ class $MissionsTable extends Missions
           data['description']!,
           _descriptionMeta,
         ),
+      );
+    }
+    if (data.containsKey('location')) {
+      context.handle(
+        _locationMeta,
+        location.isAcceptableOrUnknown(data['location']!, _locationMeta),
       );
     }
     if (data.containsKey('why')) {
@@ -1414,6 +1432,10 @@ class $MissionsTable extends Missions
         DriftSqlType.string,
         data['${effectivePrefix}description'],
       ),
+      location: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location'],
+      ),
       why: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}why'],
@@ -1461,6 +1483,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
   final String id;
   final String title;
   final String? description;
+  final String? location;
   final String? why;
   final String verificationPolicy;
   final int createdAt;
@@ -1475,6 +1498,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     required this.id,
     required this.title,
     this.description,
+    this.location,
     this.why,
     required this.verificationPolicy,
     required this.createdAt,
@@ -1497,6 +1521,9 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     map['title'] = Variable<String>(title);
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
+    }
+    if (!nullToAbsent || location != null) {
+      map['location'] = Variable<String>(location);
     }
     if (!nullToAbsent || why != null) {
       map['why'] = Variable<String>(why);
@@ -1532,6 +1559,9 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       description: description == null && nullToAbsent
           ? const Value.absent()
           : Value(description),
+      location: location == null && nullToAbsent
+          ? const Value.absent()
+          : Value(location),
       why: why == null && nullToAbsent ? const Value.absent() : Value(why),
       verificationPolicy: Value(verificationPolicy),
       createdAt: Value(createdAt),
@@ -1562,6 +1592,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       id: serializer.fromJson<String>(json['id']),
       title: serializer.fromJson<String>(json['title']),
       description: serializer.fromJson<String?>(json['description']),
+      location: serializer.fromJson<String?>(json['location']),
       why: serializer.fromJson<String?>(json['why']),
       verificationPolicy: serializer.fromJson<String>(
         json['verificationPolicy'],
@@ -1583,6 +1614,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       'id': serializer.toJson<String>(id),
       'title': serializer.toJson<String>(title),
       'description': serializer.toJson<String?>(description),
+      'location': serializer.toJson<String?>(location),
       'why': serializer.toJson<String?>(why),
       'verificationPolicy': serializer.toJson<String>(verificationPolicy),
       'createdAt': serializer.toJson<int>(createdAt),
@@ -1600,6 +1632,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     String? id,
     String? title,
     Value<String?> description = const Value.absent(),
+    Value<String?> location = const Value.absent(),
     Value<String?> why = const Value.absent(),
     String? verificationPolicy,
     int? createdAt,
@@ -1614,6 +1647,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     id: id ?? this.id,
     title: title ?? this.title,
     description: description.present ? description.value : this.description,
+    location: location.present ? location.value : this.location,
     why: why.present ? why.value : this.why,
     verificationPolicy: verificationPolicy ?? this.verificationPolicy,
     createdAt: createdAt ?? this.createdAt,
@@ -1638,6 +1672,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
       description: data.description.present
           ? data.description.value
           : this.description,
+      location: data.location.present ? data.location.value : this.location,
       why: data.why.present ? data.why.value : this.why,
       verificationPolicy: data.verificationPolicy.present
           ? data.verificationPolicy.value
@@ -1667,6 +1702,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('description: $description, ')
+          ..write('location: $location, ')
           ..write('why: $why, ')
           ..write('verificationPolicy: $verificationPolicy, ')
           ..write('createdAt: $createdAt, ')
@@ -1686,6 +1722,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
     id,
     title,
     description,
+    location,
     why,
     verificationPolicy,
     createdAt,
@@ -1704,6 +1741,7 @@ class MissionRow extends DataClass implements Insertable<MissionRow> {
           other.id == this.id &&
           other.title == this.title &&
           other.description == this.description &&
+          other.location == this.location &&
           other.why == this.why &&
           other.verificationPolicy == this.verificationPolicy &&
           other.createdAt == this.createdAt &&
@@ -1720,6 +1758,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
   final Value<String> id;
   final Value<String> title;
   final Value<String?> description;
+  final Value<String?> location;
   final Value<String?> why;
   final Value<String> verificationPolicy;
   final Value<int> createdAt;
@@ -1735,6 +1774,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     this.id = const Value.absent(),
     this.title = const Value.absent(),
     this.description = const Value.absent(),
+    this.location = const Value.absent(),
     this.why = const Value.absent(),
     this.verificationPolicy = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1751,6 +1791,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     required String id,
     required String title,
     this.description = const Value.absent(),
+    this.location = const Value.absent(),
     this.why = const Value.absent(),
     this.verificationPolicy = const Value.absent(),
     required int createdAt,
@@ -1770,6 +1811,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     Expression<String>? id,
     Expression<String>? title,
     Expression<String>? description,
+    Expression<String>? location,
     Expression<String>? why,
     Expression<String>? verificationPolicy,
     Expression<int>? createdAt,
@@ -1786,6 +1828,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
       if (id != null) 'id': id,
       if (title != null) 'title': title,
       if (description != null) 'description': description,
+      if (location != null) 'location': location,
       if (why != null) 'why': why,
       if (verificationPolicy != null) 'verification_policy': verificationPolicy,
       if (createdAt != null) 'created_at': createdAt,
@@ -1804,6 +1847,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     Value<String>? id,
     Value<String>? title,
     Value<String?>? description,
+    Value<String?>? location,
     Value<String?>? why,
     Value<String>? verificationPolicy,
     Value<int>? createdAt,
@@ -1820,6 +1864,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
       id: id ?? this.id,
       title: title ?? this.title,
       description: description ?? this.description,
+      location: location ?? this.location,
       why: why ?? this.why,
       verificationPolicy: verificationPolicy ?? this.verificationPolicy,
       createdAt: createdAt ?? this.createdAt,
@@ -1849,6 +1894,9 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
     }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
+    }
+    if (location.present) {
+      map['location'] = Variable<String>(location.value);
     }
     if (why.present) {
       map['why'] = Variable<String>(why.value);
@@ -1888,6 +1936,7 @@ class MissionsCompanion extends UpdateCompanion<MissionRow> {
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('description: $description, ')
+          ..write('location: $location, ')
           ..write('why: $why, ')
           ..write('verificationPolicy: $verificationPolicy, ')
           ..write('createdAt: $createdAt, ')
@@ -14687,6 +14736,7 @@ typedef $$MissionsTableCreateCompanionBuilder =
       required String id,
       required String title,
       Value<String?> description,
+      Value<String?> location,
       Value<String?> why,
       Value<String> verificationPolicy,
       required int createdAt,
@@ -14704,6 +14754,7 @@ typedef $$MissionsTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> title,
       Value<String?> description,
+      Value<String?> location,
       Value<String?> why,
       Value<String> verificationPolicy,
       Value<int> createdAt,
@@ -14918,6 +14969,11 @@ class $$MissionsTableFilterComposer
 
   ColumnFilters<String> get description => $composableBuilder(
     column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get location => $composableBuilder(
+    column: $table.location,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -15202,6 +15258,11 @@ class $$MissionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get why => $composableBuilder(
     column: $table.why,
     builder: (column) => ColumnOrderings(column),
@@ -15326,6 +15387,9 @@ class $$MissionsTableAnnotationComposer
     column: $table.description,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get location =>
+      $composableBuilder(column: $table.location, builder: (column) => column);
 
   GeneratedColumn<String> get why =>
       $composableBuilder(column: $table.why, builder: (column) => column);
@@ -15622,6 +15686,7 @@ class $$MissionsTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<String?> description = const Value.absent(),
+                Value<String?> location = const Value.absent(),
                 Value<String?> why = const Value.absent(),
                 Value<String> verificationPolicy = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
@@ -15637,6 +15702,7 @@ class $$MissionsTableTableManager
                 id: id,
                 title: title,
                 description: description,
+                location: location,
                 why: why,
                 verificationPolicy: verificationPolicy,
                 createdAt: createdAt,
@@ -15654,6 +15720,7 @@ class $$MissionsTableTableManager
                 required String id,
                 required String title,
                 Value<String?> description = const Value.absent(),
+                Value<String?> location = const Value.absent(),
                 Value<String?> why = const Value.absent(),
                 Value<String> verificationPolicy = const Value.absent(),
                 required int createdAt,
@@ -15669,6 +15736,7 @@ class $$MissionsTableTableManager
                 id: id,
                 title: title,
                 description: description,
+                location: location,
                 why: why,
                 verificationPolicy: verificationPolicy,
                 createdAt: createdAt,

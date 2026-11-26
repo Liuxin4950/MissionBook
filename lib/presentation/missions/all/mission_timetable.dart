@@ -412,6 +412,13 @@ class _MissionTimetableState extends State<MissionTimetable>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(slot.timeLabel, style: theme.textTheme.bodySmall),
+                if (slot.detail.mission.location case final location?)
+                  Text(
+                    '📍 $location',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
                 if (slot.conflicts.isNotEmpty)
                   Text(
                     '计划冲突 ${slot.conflictMinutes.ceil()} 分钟',
@@ -489,10 +496,13 @@ class _MissionTimetableState extends State<MissionTimetable>
     return Semantics(
       label:
           '${slot.detail.mission.title}，${slot.timeLabel}，$status'
+          '${slot.detail.mission.location == null ? '' : '，地点：${slot.detail.mission.location}'}'
           '${hasConflict ? '，冲突 ${slot.conflictMinutes.ceil()} 分钟' : ''}',
       button: true,
       child: Tooltip(
-        message: '${slot.timeLabel} ${slot.detail.mission.title} · $status',
+        message:
+            '${slot.timeLabel} ${slot.detail.mission.title} · $status'
+            '${slot.detail.mission.location == null ? '' : '\n📍 ${slot.detail.mission.location}'}',
         child: Material(
           color: color,
           borderRadius: BorderRadius.circular(AppLayout.radiusXs),
@@ -540,6 +550,14 @@ class _MissionTimetableState extends State<MissionTimetable>
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelSmall,
                         ),
+                        if (slot.detail.mission.location case final location?
+                            when minutes * pixelsPerMinute >= 90 * scale)
+                          Text(
+                            '📍 $location',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall,
+                          ),
                         if (minutes * pixelsPerMinute >= 68 * scale) ...[
                           const SizedBox(height: 2),
                           Text(

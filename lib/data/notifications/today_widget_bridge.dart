@@ -80,6 +80,7 @@ Map<String, Object?> _widgetRow(ScheduledMission item) {
   return {
     'id': item.mission.id,
     'title': String.fromCharCodes(item.mission.title.runes.take(160)),
+    'location': item.mission.location,
     'start': start == null ? null : formatTime(start),
     'end': start == null
         ? null

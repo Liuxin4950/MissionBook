@@ -6,6 +6,7 @@ import '../entities/mission.dart';
 import '../entities/mission_creation.dart';
 import '../entities/mission_schedule_revision.dart';
 import 'mission_creation_rules.dart';
+import 'mission_location_rules.dart';
 
 /// 协议字段校验及默认值展开；不决定当前任务是否可以执行，不写数据库。
 abstract final class GoalPackageRules {
@@ -210,6 +211,11 @@ abstract final class GoalPackageRules {
     return {
       'title': title,
       'description': optional(raw, 'description', path),
+      'location': raw.containsKey('location')
+          ? normalizeMissionLocation(
+              text(raw, 'location', path, max: maxMissionLocationLength),
+            )
+          : null,
       'why': optional(raw, 'why', path),
       'goalNodeId': nodeKey == null ? null : nodes[nodeKey],
       'verificationPolicy': effectivePolicy,
@@ -237,6 +243,7 @@ abstract final class GoalPackageRules {
       id: entry.id,
       title: values['title']! as String,
       description: values['description'] as String?,
+      location: values['location'] as String?,
       why: values['why'] as String?,
       goalId: goalId,
       goalNodeId: values['goalNodeId'] as String?,

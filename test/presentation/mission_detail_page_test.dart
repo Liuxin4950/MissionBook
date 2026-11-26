@@ -81,6 +81,8 @@ class DetailRepository with UnusedMissionWrites implements MissionRepository {
     String? description,
     String? why,
     bool updateContext = false,
+    String? location,
+    bool updateLocation = false,
     String? operationId,
   }) => throw UnsupportedError('本测试不编辑任务');
 
@@ -121,12 +123,14 @@ MissionDetail exampleDetail({
   bool full = false,
   bool cancelled = false,
   String? notes,
+  String? location,
 }) {
   final now = DateTime.utc(2026, 10, 23, 1);
   return MissionDetail(
     mission: Mission(
       id: 'detail-a',
       title: full ? '完整任务标题保留每一个字，即使在窄屏上也要自然换行供用户阅读' : '阅读二十分钟',
+      location: location,
       description: full ? '真实说明' : null,
       why: full ? '理解数据的调用过程' : null,
       verificationPolicy: full

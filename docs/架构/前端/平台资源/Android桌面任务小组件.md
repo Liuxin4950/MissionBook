@@ -89,3 +89,8 @@ MissionService.changes / App 恢复 / 组件首次添加或上海日期轮换
 - JVM 单测：`cd android && ./gradlew :app:testDebugUnitTest --offline --tests 'chat.liuxin.mission_book.TodayWidget*'`（规划器 27 项 + 外观 19 项，覆盖容量、条数夹取、字段开关、时间降级、字号 1.0/1.3/2.0、三槽与上下切换、迁移与非法拒绝）。
 - Flutter：`flutter test test/presentation/today_widget_appearance_test.dart test/data/today_widget_bridge_test.dart`（模型/回执/预览/守卫/非 Android 入口）。
 - 未验收：真实 Launcher 的选择器预览、三种尺寸与缩放的视觉、深色/大字、冷启动点按、日期跨夜、组件移除与重加、HyperOS 平板上的实际表现。APK 构建成功不能替代这些验证；Flutter 的通道替身也不代表真实桌面已绘制。
+
+
+## 地点展示
+
+Dart 快照的每个 row 可带 `location`。Android 解析为 `Row.location` 和 `WidgetItem.locationText`，有地点时使用 stacked 行增加一行带省略号的地点文字；无地点隐藏该行。地点纳入无障碍摘要和预览 payload，不写回任务库。

@@ -30,6 +30,7 @@ internal data class WidgetItem(
     val flexibleTime: Boolean,
     val currentSlot: Boolean,
     val progressText: String?,
+    val locationText: String? = null,
 )
 
 /**
@@ -86,6 +87,7 @@ internal data class WidgetRowPlan(
     val progress: String?,
     val currentSlot: Boolean,
     val contentDescription: String,
+    val location: String? = null,
 )
 
 internal data class WidgetHeaderPlan(
@@ -286,6 +288,7 @@ internal object TodayWidgetLayoutPlanner {
             appearance = appearance,
             titleMaxLines = titleMaxLines,
             hasMetaLine = hasMetaLine,
+            hasLocationLine = appearance.showDetails && request.items.any { !it.locationText.isNullOrBlank() },
             rowPaddingPx = rowPaddingPx,
             density = density,
         )
@@ -489,7 +492,9 @@ internal object TodayWidgetLayoutPlanner {
         }
         // 契约的「可用宽」指扣掉外侧左右留白后、行内边距之前的宽度。
         val wideEnough = usableWidth >= dp(TRISLOT_MIN_WIDTH_DP, request.density)
-        if (!wideEnough || request.sizeClass == WidgetSizeClass.SMALL) {
+        if (!wideEnough || request.sizeClass == WidgetSizeClass.SMALL ||
+            request.items.any { !it.locationText.isNullOrBlank() }
+        ) {
             return SlotChoice(WidgetPlan.ROW_LAYOUT_STACKED, stackedTimeMode(request, rowInnerWidth))
         }
         val titleNeed = minOf(
@@ -567,6 +572,7 @@ internal object TodayWidgetLayoutPlanner {
         appearance: TodayWidgetAppearance,
         titleMaxLines: Int,
         hasMetaLine: Boolean,
+        hasLocationLine: Boolean,
         rowPaddingPx: Int,
         density: Float,
     ): Float {
@@ -579,6 +585,7 @@ internal object TodayWidgetLayoutPlanner {
         } else {
             titleMaxLines * metrics.lineHeightPx(appearance.taskSp) +
                 (if (hasMetaLine) metrics.lineHeightPx(appearance.metaSp) + dp(META_GAP_DP, density) else 0f) +
+                (if (hasLocationLine) metrics.lineHeightPx(appearance.metaSp) + dp(META_GAP_DP, density) else 0f) +
                 verticalPadding
         }
         return maxOf(content, dp(ROW_TOUCH_MIN_DP, density))
@@ -595,8 +602,10 @@ internal object TodayWidgetLayoutPlanner {
         val title = item.title.ifBlank { labels.untitled }
         val time = if (appearance.showDetails) timeText(item, timeMode, labels) else null
         val status = if (appearance.showDetails && appearance.showStatus) item.statusText else null
+        val location = if (appearance.showDetails) item.locationText?.takeIf { it.isNotBlank() } else null
         val description = buildList {
             add(title)
+            if (location != null) add(location)
             if (!time.isNullOrEmpty()) add(time)
             if (!status.isNullOrEmpty()) add(status)
         }.joinToString(", ")
@@ -612,6 +621,7 @@ internal object TodayWidgetLayoutPlanner {
             progress = if (item.currentSlot) item.progressText else null,
             currentSlot = item.currentSlot,
             contentDescription = description,
+            location = location,
         )
     }
 
@@ -696,6 +706,7 @@ internal object TodayWidgetPreviewPayload {
             linkedMapOf(
                 "time" to row.time,
                 "title" to row.title,
+                "location" to row.location,
                 "status" to row.status,
                 "showTime" to row.showTime,
                 "showStatus" to row.showStatus,

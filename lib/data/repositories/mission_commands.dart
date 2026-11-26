@@ -23,6 +23,8 @@ class _MissionCommands {
     String? description,
     String? why,
     bool updateContext = false,
+    String? location,
+    bool updateLocation = false,
     String? operationId,
   }) async {
     final missionId = original.mission.id;
@@ -48,6 +50,10 @@ class _MissionCommands {
             description: description,
             why: why,
             updateContext: updateContext,
+            location: updateLocation
+                ? normalizeMissionLocation(location)
+                : null,
+            updateLocation: updateLocation,
           );
     await _repository.database.transaction(() async {
       await _repository._acquireWrite(missionId);
@@ -110,6 +116,10 @@ class _MissionCommands {
           ? description
           : original.mission.description;
       final newWhy = updateContext ? why : original.mission.why;
+      final newLocation = updateLocation
+          ? normalizeMissionLocation(location)
+          : original.mission.location;
+      final locationChanged = newLocation != current.mission.location;
       final contextChanged =
           newDescription != current.mission.description ||
           newWhy != current.mission.why;
@@ -121,7 +131,8 @@ class _MissionCommands {
           !policyChanged &&
           !criteriaChanged &&
           !ownershipChanged &&
-          !contextChanged) {
+          !contextChanged &&
+          !locationChanged) {
         await _repository._writeOperationReceipt(
           operationId: operationId,
           missionId: missionId,
@@ -143,6 +154,7 @@ class _MissionCommands {
           current.mission.verificationPolicy != oldMission.verificationPolicy ||
           current.mission.ownership != oldMission.ownership ||
           current.mission.description != oldMission.description ||
+          current.mission.location != oldMission.location ||
           current.mission.why != oldMission.why ||
           current.executionPlan.verificationCriteria !=
               oldPlan.verificationCriteria) {
@@ -178,6 +190,7 @@ class _MissionCommands {
           goalId: Value(newOwnership.goalId),
           goalNodeId: Value(newOwnership.goalNodeId),
           description: Value(newDescription),
+          location: Value(newLocation),
           why: Value(newWhy),
           updatedAt: Value(now),
           verificationPolicy: Value(switch (newPolicy) {
@@ -386,6 +399,7 @@ class _MissionCommands {
     final oldPlan = saved.executionPlan;
     return old.title == mission.title &&
         old.description == mission.description &&
+        old.location == mission.location &&
         old.why == mission.why &&
         old.ownership == mission.ownership &&
         old.sourceMissionId == mission.sourceMissionId &&

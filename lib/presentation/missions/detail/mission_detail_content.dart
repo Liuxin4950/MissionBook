@@ -69,6 +69,11 @@ class MissionDetailContent extends StatelessWidget {
                       const SizedBox(height: AppLayout.sectionGap),
                       _ScheduleCard(schedule: detail.schedule),
                       const SizedBox(height: AppLayout.sectionGap),
+                      if (_hasText(mission.location))
+                        _DetailSection(
+                          title: '地点',
+                          child: Text(mission.location!),
+                        ),
                       if (cancelledAt != null)
                         Padding(
                           padding: const EdgeInsets.only(

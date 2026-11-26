@@ -96,6 +96,8 @@ class ControlledQueryRepository
     String? description,
     String? why,
     bool updateContext = false,
+    String? location,
+    bool updateLocation = false,
     String? operationId,
   }) => throw UnsupportedError('本测试不编辑任务');
 
@@ -209,6 +211,7 @@ SemanticsNode tappableSemanticsNode(SemanticsNode node) {
 
 ScheduledMission example(
   String id, {
+  String? location,
   bool fixed = false,
   bool cancelled = false,
   DateTime? start,
@@ -224,6 +227,7 @@ ScheduledMission example(
     mission: Mission(
       id: id,
       title: id,
+      location: location,
       createdAt: now,
       updatedAt: now,
       cancelledAt: cancelled ? now : null,
@@ -252,6 +256,19 @@ Future<void> chooseMissionAction(WidgetTester tester, String action) async {
 }
 
 void main() {
+  testWidgets('自选任务直接显示地点，无地点隐藏地点行', (tester) async {
+    final repo = ControlledQueryRepository();
+    await tester.pumpWidget(testApp(repo));
+    repo.requests.single.complete([
+      example('有地点', location: '图书馆'),
+      example('无地点'),
+    ]);
+    await tester.pumpAndSettle();
+    expect(find.text('📍 图书馆'), findsOneWidget);
+    expect(find.byKey(const ValueKey('mission-location-无地点')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('四个导航项具有读屏点击动作，读屏切页后更新选中状态', (tester) async {
     final semantics = tester.ensureSemantics();
     try {
