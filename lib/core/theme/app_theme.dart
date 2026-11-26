@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart'; // 引入 Flutter 主题组件
 
-import 'app_layout.dart';
+import 'app_metrics.dart';
 import 'app_typography.dart';
 import 'colors.dart'; // 引入全局颜色令牌
 
@@ -44,7 +44,7 @@ abstract final class AppTheme {
       titleTextStyle: AppTypography.itemTitle,
       subtitleTextStyle: AppTypography.metadata,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(AppLayout.radiusMd)),
+        borderRadius: BorderRadius.all(Radius.circular(AppMetrics.radiusMd)),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
@@ -54,13 +54,13 @@ abstract final class AppTheme {
         color: AppColors.onPrimary,
       ),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
       ),
       insetPadding: const EdgeInsets.fromLTRB(
-        AppLayout.spaceLg,
-        AppLayout.spaceSm,
-        AppLayout.spaceLg,
-        AppLayout.spaceLg,
+        AppMetrics.spaceLg,
+        AppMetrics.spaceSm,
+        AppMetrics.spaceLg,
+        AppMetrics.spaceLg,
       ),
     ),
     cardTheme: CardThemeData(
@@ -68,7 +68,7 @@ abstract final class AppTheme {
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusXl),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusXl),
       ),
       clipBehavior: Clip.antiAlias,
     ),
@@ -76,8 +76,8 @@ abstract final class AppTheme {
       filled: true,
       fillColor: AppColors.card,
       contentPadding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceLg,
-        vertical: AppLayout.spaceLg,
+        horizontal: AppMetrics.spaceLg,
+        vertical: AppMetrics.spaceLg,
       ),
       floatingLabelBehavior: FloatingLabelBehavior.always,
       alignLabelWithHint: true,
@@ -86,29 +86,29 @@ abstract final class AppTheme {
         color: AppColors.textSecondary,
       ),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         borderSide: const BorderSide(color: AppColors.hairline),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         borderSide: const BorderSide(color: AppColors.hairline),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         borderSide: const BorderSide(
           color: AppColors.primary,
-          width: AppLayout.strokeFocus,
+          width: AppMetrics.strokeFocus,
         ),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         borderSide: const BorderSide(color: AppColors.error),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         borderSide: const BorderSide(
           color: AppColors.error,
-          width: AppLayout.strokeFocus,
+          width: AppMetrics.strokeFocus,
         ),
       ),
     ),
@@ -121,11 +121,11 @@ abstract final class AppTheme {
       checkmarkColor: AppColors.primary,
       side: const BorderSide(color: AppColors.hairline),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
       ),
       padding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceSm,
-        vertical: AppLayout.spaceSm,
+        horizontal: AppMetrics.spaceSm,
+        vertical: AppMetrics.spaceSm,
       ),
     ),
     // 原生 AlertDialog 也使用确认框的白色面、24圆角和统一标题层级。
@@ -134,23 +134,23 @@ abstract final class AppTheme {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
       ),
-      insetPadding: const EdgeInsets.all(AppLayout.spaceXxl),
+      insetPadding: const EdgeInsets.all(AppMetrics.spaceXxl),
       titleTextStyle: AppTypography.textTheme.titleLarge,
       contentTextStyle: AppTypography.textTheme.bodyMedium,
       actionsPadding: const EdgeInsets.fromLTRB(
-        AppLayout.spaceXxl,
+        AppMetrics.spaceXxl,
         0,
-        AppLayout.spaceXxl,
-        AppLayout.spaceXxl,
+        AppMetrics.spaceXxl,
+        AppMetrics.spaceXxl,
       ),
     ),
     bottomSheetTheme: const BottomSheetThemeData(
       backgroundColor: AppColors.background,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppLayout.radiusXxl),
+          top: Radius.circular(AppMetrics.radiusXxl),
         ),
       ),
     ),
@@ -159,7 +159,7 @@ abstract final class AppTheme {
       surfaceTintColor: Colors.transparent,
       elevation: 2,
       shadowColor: AppColors.shadow,
-      menuPadding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
+      menuPadding: const EdgeInsets.symmetric(vertical: AppMetrics.spaceSm),
       textStyle: AppTypography.textTheme.bodyMedium?.copyWith(
         color: AppColors.textPrimary,
       ),
@@ -172,7 +172,7 @@ abstract final class AppTheme {
         );
       }),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
@@ -182,11 +182,11 @@ abstract final class AppTheme {
             disabledBackgroundColor: AppColors.disabled,
             disabledForegroundColor: AppColors.onDisabled,
             minimumSize: const Size(
-              AppLayout.touchTargetMin,
-              AppLayout.touchTargetMin,
+              AppMetrics.touchTargetMin,
+              AppMetrics.touchTargetMin,
             ),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+              borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
             ),
           ).copyWith(
             splashFactory: NoSplash.splashFactory,
@@ -198,11 +198,11 @@ abstract final class AppTheme {
           OutlinedButton.styleFrom(
             textStyle: AppTypography.textTheme.labelMedium,
             minimumSize: const Size(
-              AppLayout.touchTargetMin,
-              AppLayout.touchTargetMin,
+              AppMetrics.touchTargetMin,
+              AppMetrics.touchTargetMin,
             ),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+              borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
             ),
           ).copyWith(
             splashFactory: NoSplash.splashFactory,

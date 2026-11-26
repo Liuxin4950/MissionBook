@@ -60,39 +60,39 @@ class _Welcome extends StatelessWidget {
                 width: 64,
                 height: 64,
               ),
-              const SizedBox(width: AppLayout.spaceMd),
+              const SizedBox(width: AppMetrics.spaceMd),
               Expanded(child: Text('今天想做什么？', style: text.titleLarge)),
             ],
           ),
         ),
-        const SizedBox(height: AppLayout.sectionGap),
+        const SizedBox(height: AppMetrics.sectionGap),
         AdaptiveColumns(
           minColumnWidth: 156,
           maxColumns: 3,
-          spacing: AppLayout.spaceMd,
+          spacing: AppMetrics.spaceMd,
           children: [
             for (final item in prompts)
               Material(
                 color: AppColors.card,
-                borderRadius: BorderRadius.circular(AppLayout.radiusXl),
+                borderRadius: BorderRadius.circular(AppMetrics.radiusXl),
                 child: InkWell(
                   key: item.$1,
                   onTap: item.$4,
-                  borderRadius: BorderRadius.circular(AppLayout.radiusXl),
+                  borderRadius: BorderRadius.circular(AppMetrics.radiusXl),
                   child: Padding(
-                    padding: const EdgeInsets.all(AppLayout.spaceMd),
+                    padding: const EdgeInsets.all(AppMetrics.spaceMd),
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(
-                        minHeight: AppLayout.touchTargetMin,
+                        minHeight: AppMetrics.touchTargetMin,
                       ),
                       child: Row(
                         children: [
                           Icon(
                             item.$2,
                             color: AppColors.primary,
-                            size: AppLayout.iconMd,
+                            size: AppMetrics.iconMd,
                           ),
-                          const SizedBox(width: AppLayout.spaceSm),
+                          const SizedBox(width: AppMetrics.spaceSm),
                           Expanded(
                             child: Text(item.$3, style: text.titleSmall),
                           ),

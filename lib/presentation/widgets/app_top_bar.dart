@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/layout/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import 'detail_pane.dart';
 
 /// 二级页面共用的顶栏：浅绿圆形返回、森林绿箭头和靠左标题。
@@ -32,7 +33,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   // Scaffold.appBar 要求 PreferredSizeWidget，以便在布局前取得顶栏高度。
   // 64 只包含工具栏，系统状态栏的安全区域仍由内部 AppBar 处理。
   @override
-  Size get preferredSize => const Size.fromHeight(AppLayout.topBarHeight);
+  Size get preferredSize => const Size.fromHeight(AppMetrics.topBarHeight);
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +56,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
         return AppBar(
           toolbarHeight: preferredSize.height,
           centerTitle: false,
-          titleSpacing: AppLayout.spaceMd,
+          titleSpacing: AppMetrics.spaceMd,
           title: Text(title),
           titleTextStyle: theme.textTheme.titleMedium,
           actions: [
@@ -70,7 +71,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
           ],
           actionsPadding: EdgeInsets.only(right: inset),
           // 返回按钮与正文共用左右边距；标准24、窄屏16，加上最小触控宽度。
-          leadingWidth: inset + AppLayout.touchTargetMin,
+          leadingWidth: inset + AppMetrics.touchTargetMin,
           leading: Padding(
             padding: EdgeInsets.only(left: inset),
             child: Center(
@@ -79,8 +80,8 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                 tooltip: '返回',
                 style: IconButton.styleFrom(
                   fixedSize: const Size(
-                    AppLayout.touchTargetMin,
-                    AppLayout.touchTargetMin,
+                    AppMetrics.touchTargetMin,
+                    AppMetrics.touchTargetMin,
                   ),
                   padding: EdgeInsets.zero,
                   shape: const CircleBorder(),
@@ -90,7 +91,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                 // 浅色返回面使用深色图标，与正文标题保持同一颜色层级。
                 icon: Icon(
                   Icons.arrow_back,
-                  size: AppLayout.iconLg,
+                  size: AppMetrics.iconLg,
                   color: canGoBack ? colors.primary : colors.onSurfaceVariant,
                 ),
               ),

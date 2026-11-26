@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/app_interactive_surface.dart';
 import 'assistant_markdown.dart';
@@ -72,15 +72,15 @@ class _AssistantThinkingState extends State<AssistantThinking> {
             selected: _expanded,
             child: Row(
               children: [
-                const Icon(Icons.psychology_outlined, size: AppLayout.iconSm),
-                const SizedBox(width: AppLayout.spaceSm),
+                const Icon(Icons.psychology_outlined, size: AppMetrics.iconSm),
+                const SizedBox(width: AppMetrics.spaceSm),
                 Text(
                   widget.streaming ? '正在思考' : '思考',
                   style: text.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(width: AppLayout.spaceSm),
+                const SizedBox(width: AppMetrics.spaceSm),
                 Expanded(
                   child: Text(
                     _expanded ? '' : _preview,
@@ -92,7 +92,7 @@ class _AssistantThinkingState extends State<AssistantThinking> {
                 ),
                 Icon(
                   _expanded ? Icons.expand_less : Icons.expand_more,
-                  size: AppLayout.iconSm,
+                  size: AppMetrics.iconSm,
                 ),
               ],
             ),
@@ -101,8 +101,8 @@ class _AssistantThinkingState extends State<AssistantThinking> {
         if (_expanded)
           Padding(
             padding: const EdgeInsets.only(
-              left: AppLayout.iconSm + AppLayout.spaceSm,
-              bottom: AppLayout.spaceSm,
+              left: AppMetrics.iconSm + AppMetrics.spaceSm,
+              bottom: AppMetrics.spaceSm,
             ),
             child: AssistantMarkdown(
               text: widget.text,
@@ -211,12 +211,12 @@ class _AssistantProcessState extends State<AssistantProcess> {
               children: [
                 if (widget.running)
                   const SizedBox.square(
-                    dimension: AppLayout.iconSm,
+                    dimension: AppMetrics.iconSm,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 else
-                  const Icon(Icons.toc_rounded, size: AppLayout.iconSm),
-                const SizedBox(width: AppLayout.spaceSm),
+                  const Icon(Icons.toc_rounded, size: AppMetrics.iconSm),
+                const SizedBox(width: AppMetrics.spaceSm),
                 Expanded(
                   child: Text(
                     '${widget.label}${widget.operationCount == 0 ? '' : ' · ${widget.operationCount} 项操作'}',
@@ -228,7 +228,7 @@ class _AssistantProcessState extends State<AssistantProcess> {
                 ),
                 Icon(
                   _expanded ? Icons.expand_less : Icons.expand_more,
-                  size: AppLayout.iconSm,
+                  size: AppMetrics.iconSm,
                 ),
               ],
             ),
@@ -236,11 +236,11 @@ class _AssistantProcessState extends State<AssistantProcess> {
         ),
         if (_expanded && widget.children.isNotEmpty)
           Container(
-            margin: const EdgeInsets.only(top: AppLayout.spaceSm),
+            margin: const EdgeInsets.only(top: AppMetrics.spaceSm),
             decoration: const BoxDecoration(
               border: Border(left: BorderSide(color: AppColors.hairline)),
             ),
-            padding: const EdgeInsets.only(left: AppLayout.spaceSm),
+            padding: const EdgeInsets.only(left: AppMetrics.spaceSm),
             child: body,
           ),
       ],

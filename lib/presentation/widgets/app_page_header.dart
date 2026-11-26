@@ -1,4 +1,4 @@
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import 'package:flutter/material.dart';
 
 /// 主页面共用说明与操作位置；导航已标明页面时可隐藏重复标题。
@@ -21,7 +21,7 @@ class AppPageHeader extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: AppLayout.touchTargetMin),
+        constraints: const BoxConstraints(minHeight: AppMetrics.touchTargetMin),
         child: Row(
           children: [
             Expanded(
@@ -38,13 +38,13 @@ class AppPageHeader extends StatelessWidget {
                     ),
             ),
             if (action != null) ...[
-              const SizedBox(width: AppLayout.spaceMd),
+              const SizedBox(width: AppMetrics.spaceMd),
               IconButtonTheme(
                 data: IconButtonThemeData(
                   style: IconButton.styleFrom(
                     fixedSize: const Size(
-                      AppLayout.touchTargetMin,
-                      AppLayout.touchTargetMin,
+                      AppMetrics.touchTargetMin,
+                      AppMetrics.touchTargetMin,
                     ),
                     shape: const CircleBorder(),
                   ),
@@ -60,7 +60,7 @@ class AppPageHeader extends StatelessWidget {
         ConstrainedBox(
           key: ValueKey('page-subtitle-$title'),
           constraints: const BoxConstraints(
-            minHeight: AppLayout.touchTargetMin,
+            minHeight: AppMetrics.touchTargetMin,
           ),
           child: Align(alignment: Alignment.centerLeft, child: subtitle),
         ),

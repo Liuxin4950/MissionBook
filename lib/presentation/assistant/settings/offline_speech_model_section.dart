@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../data/speech/speech_model_store.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 
 /// 用户主动下载离线模型；离开这一区域会取消尚未完成的下载。
 class OfflineSpeechModelSection extends StatefulWidget {
@@ -111,16 +111,16 @@ class _OfflineSpeechModelSectionState extends State<OfflineSpeechModelSection> {
           key: const Key('offline-model-status'),
           style: Theme.of(context).textTheme.titleSmall,
         ),
-        const SizedBox(height: AppLayout.spaceSm),
+        const SizedBox(height: AppMetrics.spaceSm),
         const Text(
           'SenseVoice 中文识别，每次最长 30 秒，无需 API Key。模型约 230 MB，点击下载才会联网；建议使用 Wi-Fi。下载后语音只在本机处理。',
         ),
         if (_downloading) ...[
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           LinearProgressIndicator(
             value: _total > 0 ? _received / _total : null,
           ),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           Text(
             _cancelling
                 ? '正在取消下载…'
@@ -140,7 +140,7 @@ class _OfflineSpeechModelSectionState extends State<OfflineSpeechModelSection> {
             child: const Text('取消下载'),
           ),
         ] else if (!_checking && !_installed) ...[
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           OutlinedButton.icon(
             key: const Key('offline-model-download'),
             onPressed: _download,
@@ -149,7 +149,7 @@ class _OfflineSpeechModelSectionState extends State<OfflineSpeechModelSection> {
           ),
         ],
         if (_message != null) ...[
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           Text(_message!, key: const Key('offline-model-message')),
         ],
       ],

@@ -8,7 +8,7 @@ import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/entities/user_execution_report.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../../domain/rules/mission_attention_rules.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/adaptive_sheet.dart';
 import '../../widgets/app_expansion.dart';
@@ -331,28 +331,28 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                   child: ListView(
                     shrinkWrap: true,
                     padding: const EdgeInsets.fromLTRB(
-                      AppLayout.spaceXxl,
-                      AppLayout.spaceXxl,
-                      AppLayout.spaceXxl,
-                      AppLayout.spaceMd,
+                      AppMetrics.spaceXxl,
+                      AppMetrics.spaceXxl,
+                      AppMetrics.spaceXxl,
+                      AppMetrics.spaceMd,
                     ),
                     children: [
                       Text(
                         ended ? '更正实际时间' : '这项任务完成了吗？',
                         style: theme.textTheme.titleLarge,
                       ),
-                      const SizedBox(height: AppLayout.spaceSm),
+                      const SizedBox(height: AppMetrics.spaceSm),
                       Text(
                         detail.mission.title,
                         style: theme.textTheme.bodyLarge,
                       ),
                       if (!ended) ...[
-                        const SizedBox(height: AppLayout.spaceSm),
+                        const SizedBox(height: AppMetrics.spaceSm),
                         const Text('计划时间已到，计时已停止。请确认实际完成情况。'),
-                        const SizedBox(height: AppLayout.spaceLg),
+                        const SizedBox(height: AppMetrics.spaceLg),
                         Wrap(
-                          spacing: AppLayout.spaceMd,
-                          runSpacing: AppLayout.spaceSm,
+                          spacing: AppMetrics.spaceMd,
+                          runSpacing: AppMetrics.spaceSm,
                           children: [
                             ChoiceChip(
                               key: const Key('retrospective-completed'),
@@ -377,7 +377,7 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                           ],
                         ),
                       ],
-                      const SizedBox(height: AppLayout.spaceLg),
+                      const SizedBox(height: AppMetrics.spaceLg),
                       Text(
                         '实际记录：$summary',
                         key: const Key('execution-report-time-summary'),
@@ -392,11 +392,11 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                         initiallyExpanded: ended,
                         insetHeader: false,
                         headerPadding: const EdgeInsets.symmetric(
-                          vertical: AppLayout.spaceSm,
+                          vertical: AppMetrics.spaceSm,
                         ),
                         childrenPadding: const EdgeInsets.only(
-                          top: AppLayout.spaceSm,
-                          bottom: AppLayout.spaceLg,
+                          top: AppMetrics.spaceSm,
+                          bottom: AppMetrics.spaceLg,
                         ),
                         title: const Text('修改日期、时段或补充说明'),
                         children: [
@@ -425,7 +425,7 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                                 labelText: '实际开始 HH:mm',
                               ),
                             ),
-                            const SizedBox(height: AppLayout.spaceMd),
+                            const SizedBox(height: AppMetrics.spaceMd),
                             TextField(
                               controller: _endDate,
                               enabled: !_saving,
@@ -434,7 +434,7 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                                 labelText: '结束日期 YYYY-MM-DD，可跨日',
                               ),
                             ),
-                            const SizedBox(height: AppLayout.spaceMd),
+                            const SizedBox(height: AppMetrics.spaceMd),
                             TextField(
                               controller: _end,
                               enabled: !_saving,
@@ -444,7 +444,7 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                               ),
                             ),
                           ],
-                          const SizedBox(height: AppLayout.spaceMd),
+                          const SizedBox(height: AppMetrics.spaceMd),
                           TextField(
                             controller: _basis,
                             enabled: !_saving,
@@ -481,10 +481,10 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                 const Divider(height: 1, color: AppColors.hairline),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    AppLayout.spaceXxl,
-                    AppLayout.spaceSm,
-                    AppLayout.spaceXxl,
-                    AppLayout.spaceLg,
+                    AppMetrics.spaceXxl,
+                    AppMetrics.spaceSm,
+                    AppMetrics.spaceXxl,
+                    AppMetrics.spaceLg,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -492,7 +492,7 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                       if (_error != null)
                         Padding(
                           padding: const EdgeInsets.only(
-                            bottom: AppLayout.spaceMd,
+                            bottom: AppMetrics.spaceMd,
                           ),
                           child: Text(
                             _error!,
@@ -510,7 +510,7 @@ class _ExecutionReportFormState extends State<_ExecutionReportForm> {
                               : '确认',
                         ),
                       ),
-                      const SizedBox(height: AppLayout.spaceSm),
+                      const SizedBox(height: AppMetrics.spaceSm),
                       OutlinedButton(
                         onPressed: _saving
                             ? null

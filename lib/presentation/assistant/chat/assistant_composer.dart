@@ -6,7 +6,7 @@ const double _composerSendSurfaceSize = 36;
 /// 工具行单行所需宽度：附件、麦克风、思考、上下文环、发送五个 48dp 触控槽，
 /// 再加附件计数的最小文字槽。实际宽度不足时思考与上下文环另起一行。
 const double _composerToolsMinWidth =
-    AppLayout.touchTargetMin * 5 + AppLayout.spaceXxl;
+    AppMetrics.touchTargetMin * 5 + AppMetrics.spaceXxl;
 
 /// 助手输入区；页面状态仍由拥有它的 State 统一释放。
 class _AssistantComposer {
@@ -52,15 +52,15 @@ class _AssistantComposer {
         child: Material(
           color: colors.surfaceContainerLow,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+            borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
             side: const BorderSide(color: AppColors.hairline),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
-              AppLayout.spaceMd,
-              AppLayout.spaceXs,
-              AppLayout.spaceMd,
-              AppLayout.spaceSm,
+              AppMetrics.spaceMd,
+              AppMetrics.spaceXs,
+              AppMetrics.spaceMd,
+              AppMetrics.spaceSm,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -91,12 +91,12 @@ class _AssistantComposer {
                   ),
                 if (_page._attachments.isNotEmpty)
                   SizedBox(
-                    height: AppLayout.touchTargetMin,
+                    height: AppMetrics.touchTargetMin,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: _page._attachments.length,
                       separatorBuilder: (_, index) =>
-                          const SizedBox(width: AppLayout.spaceSm),
+                          const SizedBox(width: AppMetrics.spaceSm),
                       itemBuilder: (context, index) {
                         final file = _page._attachments[index];
                         if (file.isImage) {
@@ -104,7 +104,7 @@ class _AssistantComposer {
                             color: colors.surface,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
-                                AppLayout.radiusMd,
+                                AppMetrics.radiusMd,
                               ),
                               side: BorderSide(color: colors.outlineVariant),
                             ),
@@ -114,14 +114,14 @@ class _AssistantComposer {
                               child: InkWell(
                                 onTap: () => _previewAttachment(file),
                                 child: SizedBox.square(
-                                  dimension: AppLayout.touchTargetMin,
+                                  dimension: AppMetrics.touchTargetMin,
                                   child: Padding(
                                     padding: const EdgeInsets.all(
-                                      AppLayout.spaceXs,
+                                      AppMetrics.spaceXs,
                                     ),
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(
-                                        AppLayout.radiusSm,
+                                        AppMetrics.radiusSm,
                                       ),
                                       child: Image.memory(
                                         file.bytes,
@@ -142,7 +142,7 @@ class _AssistantComposer {
                         return InputChip(
                           avatar: const Icon(
                             Icons.description_outlined,
-                            size: AppLayout.iconMd,
+                            size: AppMetrics.iconMd,
                           ),
                           label: SizedBox(
                             width: 108,
@@ -163,7 +163,7 @@ class _AssistantComposer {
                     ),
                   ),
                 if (_page._recordingVoice && _page._voice != null) ...[
-                  const SizedBox(height: AppLayout.spaceSm),
+                  const SizedBox(height: AppMetrics.spaceSm),
                   AssistantVoiceStatus(voice: _page._voice!),
                 ],
                 CallbackShortcuts(
@@ -217,8 +217,8 @@ class _AssistantComposer {
                       hintText: '描述你想讨论或调整的内容…',
                       filled: false,
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppLayout.spaceXs,
-                        vertical: AppLayout.spaceMd,
+                        horizontal: AppMetrics.spaceXs,
+                        vertical: AppMetrics.spaceMd,
                       ),
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
@@ -228,7 +228,7 @@ class _AssistantComposer {
                 ),
                 if (_page._voiceInputError != null)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+                    padding: const EdgeInsets.only(bottom: AppMetrics.spaceSm),
                     child: Text(
                       _page._voiceInputError!,
                       style: const TextStyle(color: AppColors.error),
@@ -259,7 +259,7 @@ class _AssistantComposer {
           child: TextButton.icon(
             key: const Key('assistant-composer-voice'),
             onPressed: _page._cancelVoiceInput,
-            icon: const Icon(Icons.close_rounded, size: AppLayout.iconMd),
+            icon: const Icon(Icons.close_rounded, size: AppMetrics.iconMd),
             label: const Text('取消'),
           ),
         ),
@@ -269,7 +269,7 @@ class _AssistantComposer {
           child: FilledButton.icon(
             key: const Key('assistant-send'),
             onPressed: voice.listening ? voice.stop : null,
-            icon: const Icon(Icons.check_rounded, size: AppLayout.iconMd),
+            icon: const Icon(Icons.check_rounded, size: AppMetrics.iconMd),
             label: const Text('完成'),
           ),
         ),
@@ -279,8 +279,8 @@ class _AssistantComposer {
 
   /// 工具行图标按钮的局部样式：48dp 触控、20dp 图标，不改全局 IconButton 主题。
   ButtonStyle get _toolStyle => IconButton.styleFrom(
-    minimumSize: const Size.square(AppLayout.touchTargetMin),
-    iconSize: AppLayout.iconMd,
+    minimumSize: const Size.square(AppMetrics.touchTargetMin),
+    iconSize: AppMetrics.iconMd,
     foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
     disabledForegroundColor: AppColors.onDisabled,
   );
@@ -333,7 +333,7 @@ class _AssistantComposer {
         style: _toolStyle,
         constraints: const BoxConstraints(minWidth: 188, maxWidth: 240),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
         ),
         enabled:
             !controller.isBusy &&
@@ -347,7 +347,7 @@ class _AssistantComposer {
                 dimension: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            : const Icon(Icons.add_rounded, size: AppLayout.iconMd),
+            : const Icon(Icons.add_rounded, size: AppMetrics.iconMd),
         itemBuilder: (_) => [
           if (kIsWeb || defaultTargetPlatform == TargetPlatform.android)
             _composerMenuItem(
@@ -386,7 +386,7 @@ class _AssistantComposer {
             _page._voice!.listening
         ? null
         : _toggleVoice,
-    icon: const Icon(Icons.mic_none_rounded, size: AppLayout.iconMd),
+    icon: const Icon(Icons.mic_none_rounded, size: AppMetrics.iconMd),
   );
 
   /// 附件数量说明占据发送前的弹性文字槽，窄宽度时省略而不挤掉触控。
@@ -421,7 +421,7 @@ class _AssistantComposer {
       iconColor = AppColors.textSecondary;
     }
     return SizedBox.square(
-      dimension: AppLayout.touchTargetMin,
+      dimension: AppMetrics.touchTargetMin,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -444,8 +444,8 @@ class _AssistantComposer {
             onPressed: action,
             style: IconButton.styleFrom(
               padding: EdgeInsets.zero,
-              minimumSize: const Size.square(AppLayout.touchTargetMin),
-              maximumSize: const Size.square(AppLayout.touchTargetMin),
+              minimumSize: const Size.square(AppMetrics.touchTargetMin),
+              maximumSize: const Size.square(AppMetrics.touchTargetMin),
               backgroundColor: Colors.transparent,
               // 森林绿圆面上用主色内容色提供按压/焦点反馈；浅色状态沿用
               // 全局主题的浅绿反馈，不新增或覆盖全局 IconButton 主题。
@@ -454,7 +454,7 @@ class _AssistantComposer {
             ),
             icon: Icon(
               canStop ? Icons.stop_rounded : Icons.arrow_upward_rounded,
-              size: AppLayout.iconMd,
+              size: AppMetrics.iconMd,
               color: iconColor,
             ),
           ),
@@ -465,7 +465,7 @@ class _AssistantComposer {
 
   Widget _reasoningSelector(AssistantController controller) {
     final scale = MediaQuery.textScalerOf(context).scale(1);
-    final available = (MediaQuery.sizeOf(context).width - AppLayout.space3Xl)
+    final available = (MediaQuery.sizeOf(context).width - AppMetrics.space3Xl)
         .clamp(0.0, double.infinity);
     final width = (128 * scale).clamp(0.0, available);
     final colors = Theme.of(context).colorScheme;
@@ -475,10 +475,12 @@ class _AssistantComposer {
         surfaceTintColor: WidgetStatePropertyAll(Colors.transparent),
         shadowColor: WidgetStatePropertyAll(AppColors.shadow),
         elevation: WidgetStatePropertyAll(2),
-        padding: WidgetStatePropertyAll(EdgeInsets.all(AppLayout.spaceXs)),
+        padding: WidgetStatePropertyAll(EdgeInsets.all(AppMetrics.spaceXs)),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(AppLayout.radiusLg)),
+            borderRadius: BorderRadius.all(
+              Radius.circular(AppMetrics.radiusLg),
+            ),
           ),
         ),
       ),
@@ -496,12 +498,12 @@ class _AssistantComposer {
                   style: const ButtonStyle(
                     padding: WidgetStatePropertyAll(EdgeInsets.zero),
                     minimumSize: WidgetStatePropertyAll(
-                      Size(0, AppLayout.touchTargetMin),
+                      Size(0, AppMetrics.touchTargetMin),
                     ),
                     shape: WidgetStatePropertyAll(
                       RoundedRectangleBorder(
                         borderRadius: BorderRadius.all(
-                          Radius.circular(AppLayout.radiusMd),
+                          Radius.circular(AppMetrics.radiusMd),
                         ),
                       ),
                     ),
@@ -523,7 +525,7 @@ class _AssistantComposer {
             ? () => menu.isOpen ? menu.close() : menu.open()
             : null,
         style: IconButton.styleFrom(
-          minimumSize: const Size.square(AppLayout.touchTargetMin),
+          minimumSize: const Size.square(AppMetrics.touchTargetMin),
           foregroundColor: controller.reasoningEffort == ReasoningEffort.off
               ? colors.onSurfaceVariant
               : colors.primary,
@@ -531,7 +533,7 @@ class _AssistantComposer {
         ),
         icon: const Icon(
           Icons.lightbulb_outline_rounded,
-          size: AppLayout.iconMd,
+          size: AppMetrics.iconMd,
         ),
       ),
     );
@@ -558,11 +560,11 @@ class _AssistantComposer {
   }) => PopupMenuItem(
     value: value,
     enabled: enabled,
-    height: AppLayout.touchTargetMin,
+    height: AppMetrics.touchTargetMin,
     child: Row(
       children: [
-        Icon(icon, size: AppLayout.iconMd),
-        const SizedBox(width: AppLayout.spaceMd),
+        Icon(icon, size: AppMetrics.iconMd),
+        const SizedBox(width: AppMetrics.spaceMd),
         Expanded(
           child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
         ),
@@ -638,7 +640,7 @@ class _AssistantComposer {
         backgroundColor: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppLayout.radiusXxl),
+            top: Radius.circular(AppMetrics.radiusXxl),
           ),
         ),
         builder: (_) => _AssistantContextSheet(controller: controller),
@@ -869,7 +871,7 @@ class _AssistantComposer {
                       child: Image.memory(file.bytes, fit: BoxFit.contain),
                     )
                   : SingleChildScrollView(
-                      padding: const EdgeInsets.all(AppLayout.spaceXl),
+                      padding: const EdgeInsets.all(AppMetrics.spaceXl),
                       child: SelectableText(
                         AssistantAttachment.textFile(file.block)!.text,
                       ),

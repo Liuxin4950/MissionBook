@@ -8,9 +8,9 @@ class _OutcomePendingBanner extends StatelessWidget {
   Widget build(BuildContext context) => Material(
     key: const Key('assistant-outcome-pending'),
     color: AppColors.accentSoft,
-    borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+    borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
     child: Padding(
-      padding: const EdgeInsets.all(AppLayout.spaceMd),
+      padding: const EdgeInsets.all(AppMetrics.spaceMd),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -44,8 +44,8 @@ class _ReferenceBanner extends StatelessWidget {
       width: double.infinity,
       color: AppColors.primarySoft,
       padding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceLg,
-        vertical: AppLayout.spaceSm,
+        horizontal: AppMetrics.spaceLg,
+        vertical: AppMetrics.spaceSm,
       ),
       child: Text(
         '当前${reference.label} · ${reference.title}${reference.path == null ? '' : '\n${reference.path}'}',
@@ -66,11 +66,11 @@ class _ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: AppColors.errorSoft,
-    borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+    borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
     child: Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceLg,
-        vertical: AppLayout.spaceSm,
+        horizontal: AppMetrics.spaceLg,
+        vertical: AppMetrics.spaceSm,
       ),
       child: Row(
         children: [
@@ -95,7 +95,7 @@ class _ErrorBanner extends StatelessWidget {
           IconButton(
             tooltip: '关闭错误提示',
             onPressed: controller.clearError,
-            icon: const Icon(Icons.close_rounded, size: AppLayout.iconSm),
+            icon: const Icon(Icons.close_rounded, size: AppMetrics.iconSm),
           ),
         ],
       ),
@@ -109,11 +109,11 @@ class _CredentialBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: AppColors.accentSoft,
-    borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+    borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
     child: Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceLg,
-        vertical: AppLayout.spaceSm,
+        horizontal: AppMetrics.spaceLg,
+        vertical: AppMetrics.spaceSm,
       ),
       child: Row(
         children: [

@@ -31,7 +31,7 @@ import '../../../domain/entities/mission_phase.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/execution_command.dart';
 import '../evidence/mission_evidence_section.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 
 // 入口意图与任务阶段分开：同一已结束任务，从任务列表读详情，从历史读执行记录。
 enum _MissionPageEntry { task, executionDetails, historyRecord, recordDetails }
@@ -434,7 +434,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
         context: context,
         builder: (sheetContext) => SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppLayout.spaceLg),
+            padding: const EdgeInsets.all(AppMetrics.spaceLg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -442,7 +442,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                   '已撤销的执行历史',
                   style: Theme.of(sheetContext).textTheme.titleLarge,
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 if (archives.isEmpty) const Text('没有撤销历史'),
                 for (final archive in archives) ...[
                   Text(
@@ -487,7 +487,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                         final evidence = raw as Map;
                         return Padding(
                           padding: const EdgeInsets.symmetric(
-                            vertical: AppLayout.spaceSm,
+                            vertical: AppMetrics.spaceSm,
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -573,7 +573,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
             PopupMenuButton<String>(
               popUpAnimationStyle: AppMotion.overlayStyle(context),
               tooltip: '任务更多操作',
-              icon: const Icon(Icons.more_horiz, size: AppLayout.iconLg),
+              icon: const Icon(Icons.more_horiz, size: AppMetrics.iconLg),
               enabled: !_isCancelBusy,
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'refresh', child: Text('刷新任务')),
@@ -721,7 +721,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                       : () => _requestRecord(detail),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(
-                      AppLayout.actionMinHeight,
+                      AppMetrics.actionMinHeight,
                     ),
                     shape: const StadiumBorder(),
                   ),
@@ -769,7 +769,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      const SizedBox(height: AppLayout.spaceSm),
+                      const SizedBox(height: AppMetrics.spaceSm),
                     ],
                     MissionActionFeedback(
                       controller: action,
@@ -811,7 +811,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                                     ),
                               style: FilledButton.styleFrom(
                                 minimumSize: const Size.fromHeight(
-                                  AppLayout.actionMinHeight,
+                                  AppMetrics.actionMinHeight,
                                 ),
                                 shape: const StadiumBorder(),
                               ),
@@ -826,7 +826,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                               ),
                             ),
                           if (showMakeup) ...[
-                            const SizedBox(height: AppLayout.spaceSm),
+                            const SizedBox(height: AppMetrics.spaceSm),
                             MakeupExecutionButton(
                               service: widget.missionService,
                               key: ValueKey(
@@ -836,7 +836,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                               enabled: !disabled,
                             ),
                           ],
-                          const SizedBox(height: AppLayout.spaceSm),
+                          const SizedBox(height: AppMetrics.spaceSm),
                           Row(
                             children: [
                               Expanded(
@@ -852,7 +852,7 @@ class _MissionDetailPageState extends State<MissionDetailPage>
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: AppLayout.spaceSm),
+                              const SizedBox(width: AppMetrics.spaceSm),
                               Expanded(
                                 child: OutlinedButton.icon(
                                   key: const Key('cancel-mission'),
@@ -891,7 +891,7 @@ class _DetailMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(AppLayout.spaceXxl),
+        padding: const EdgeInsets.all(AppMetrics.spaceXxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

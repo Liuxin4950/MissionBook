@@ -25,9 +25,9 @@ class _AssistantContextSheet extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(
-                  AppLayout.spaceLg,
-                  AppLayout.spaceSm,
-                  AppLayout.spaceSm,
+                  AppMetrics.spaceLg,
+                  AppMetrics.spaceSm,
+                  AppMetrics.spaceSm,
                   0,
                 ),
                 child: Row(
@@ -49,10 +49,10 @@ class _AssistantContextSheet extends StatelessWidget {
               Flexible(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(
-                    AppLayout.spaceLg,
-                    AppLayout.spaceSm,
-                    AppLayout.spaceLg,
-                    AppLayout.spaceLg,
+                    AppMetrics.spaceLg,
+                    AppMetrics.spaceSm,
+                    AppMetrics.spaceLg,
+                    AppMetrics.spaceLg,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -87,7 +87,7 @@ class _AssistantContextSheet extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: AppLayout.spaceMd),
+                      const SizedBox(height: AppMetrics.spaceMd),
                       _metric(context, '当前输入估算', '$used / $limit tokens'),
                       _metric(
                         context,
@@ -99,7 +99,7 @@ class _AssistantContextSheet extends StatelessWidget {
                         '模型总窗口',
                         '${controller.contextWindowTokens} tokens',
                       ),
-                      const SizedBox(height: AppLayout.spaceSm),
+                      const SizedBox(height: AppMetrics.spaceSm),
                       OutlinedButton.icon(
                         onPressed:
                             controller.isBusy ||
@@ -137,16 +137,16 @@ class _AssistantContextSheet extends StatelessWidget {
                                 }
                               },
                         style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, AppLayout.touchTargetMin),
+                          minimumSize: const Size(0, AppMetrics.touchTargetMin),
                         ),
                         icon: const Icon(
                           Icons.compress_rounded,
-                          size: AppLayout.iconSm,
+                          size: AppMetrics.iconSm,
                         ),
                         label: Text(controller.compacting ? '正在压缩' : '压缩早期对话'),
                       ),
                       if (usage.hasUsage) ...[
-                        const Divider(height: AppLayout.sectionGap),
+                        const Divider(height: AppMetrics.sectionGap),
                         Text(
                           '本会话实际用量',
                           style: Theme.of(context).textTheme.titleMedium,
@@ -162,7 +162,7 @@ class _AssistantContextSheet extends StatelessWidget {
                           '${usage.usage.outputTokens} tokens',
                         ),
                         if (cache != null) ...[
-                          const SizedBox(height: AppLayout.spaceSm),
+                          const SizedBox(height: AppMetrics.spaceSm),
                           _metric(
                             context,
                             '正文缓存命中',
@@ -170,7 +170,7 @@ class _AssistantContextSheet extends StatelessWidget {
                           ),
                           LinearProgressIndicator(
                             value: cache.clamp(0.0, 1.0),
-                            minHeight: AppLayout.spaceXs,
+                            minHeight: AppMetrics.spaceXs,
                             semanticsLabel: '正文缓存命中率',
                           ),
                           if (!usage.cacheComplete)
@@ -197,7 +197,7 @@ class _AssistantContextSheet extends StatelessWidget {
   );
 
   Widget _metric(BuildContext context, String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceXs),
+    padding: const EdgeInsets.symmetric(vertical: AppMetrics.spaceXs),
     child: Wrap(
       alignment: WrapAlignment.spaceBetween,
       spacing: 16,

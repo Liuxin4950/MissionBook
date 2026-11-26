@@ -7,7 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
-import 'package:mission_book/core/theme/app_layout.dart';
+import 'package:mission_book/core/theme/app_metrics.dart';
 import 'package:mission_book/core/theme/colors.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
@@ -537,8 +537,8 @@ void main() {
       );
       final marker = tester.getRect(find.byKey(Key('node-marker-${node.id}')));
       final header = tester.getRect(find.byKey(Key('node-header-${node.id}')));
-      expect(card.left, closeTo(marker.left + AppLayout.spaceSm, 0.01));
-      expect(card.right, closeTo(header.right - AppLayout.spaceSm, 0.01));
+      expect(card.left, closeTo(marker.left + AppMetrics.spaceSm, 0.01));
+      expect(card.right, closeTo(header.right - AppMetrics.spaceSm, 0.01));
       expect(card.width, greaterThan(0));
       expect(
         tester

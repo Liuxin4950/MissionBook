@@ -4,9 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/settings/motion_settings.dart';
 import 'package:mission_book/core/theme/app_motion.dart';
-import 'package:mission_book/core/theme/app_page_motion.dart';
-import 'package:mission_book/presentation/widgets/app_content_transition.dart';
-import 'package:mission_book/presentation/widgets/motion_settings_scope.dart';
+import 'package:mission_book/presentation/motion/app_page_motion.dart';
+import 'package:mission_book/presentation/motion/app_content_transition.dart';
+import 'package:mission_book/presentation/motion/motion_settings_scope.dart';
 import 'package:mission_book/presentation/widgets/adaptive_sheet.dart';
 import 'package:mission_book/presentation/me/motion_style_sheet.dart';
 

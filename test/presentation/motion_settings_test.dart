@@ -8,7 +8,7 @@ import 'package:mission_book/presentation/me/settings_page.dart';
 import 'package:mission_book/presentation/me/motion_preferences_sheet.dart';
 import 'package:mission_book/presentation/me/motion_style_sheet.dart';
 import 'package:mission_book/presentation/widgets/app_animated_size.dart';
-import 'package:mission_book/presentation/widgets/motion_settings_scope.dart';
+import 'package:mission_book/presentation/motion/motion_settings_scope.dart';
 
 import '../support/me_fakes.dart';
 

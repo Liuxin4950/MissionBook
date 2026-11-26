@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 
 /// 内容分区共用的白色表面；不承担加载或业务状态。
 class AppSectionCard extends StatelessWidget {
@@ -7,8 +7,8 @@ class AppSectionCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.symmetric(
-      horizontal: AppLayout.spaceXl,
-      vertical: AppLayout.spaceMd,
+      horizontal: AppMetrics.spaceXl,
+      vertical: AppMetrics.spaceMd,
     ),
     this.paperBackground = false,
   });
@@ -28,7 +28,7 @@ class AppSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: Theme.of(context).colorScheme.surfaceContainerLow,
-    borderRadius: BorderRadius.circular(AppLayout.radiusXl),
+    borderRadius: BorderRadius.circular(AppMetrics.radiusXl),
     clipBehavior: Clip.antiAlias,
     child: Ink(
       decoration: BoxDecoration(image: paperBackground ? paperTexture : null),

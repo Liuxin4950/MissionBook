@@ -32,7 +32,7 @@ class _MessageBubble extends StatelessWidget {
         .map((block) => block.text)
         .join('\n');
     return Padding(
-      padding: EdgeInsets.only(top: isUser ? AppLayout.spaceSm : 0),
+      padding: EdgeInsets.only(top: isUser ? AppMetrics.spaceSm : 0),
       child: LayoutBuilder(
         builder: (context, constraints) => Align(
           alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -53,8 +53,10 @@ class _MessageBubble extends StatelessWidget {
                     : colors.surfaceContainerLow,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(firstSlice ? AppLayout.radiusLg : 0),
-                    bottom: Radius.circular(lastSlice ? AppLayout.radiusLg : 0),
+                    top: Radius.circular(firstSlice ? AppMetrics.radiusLg : 0),
+                    bottom: Radius.circular(
+                      lastSlice ? AppMetrics.radiusLg : 0,
+                    ),
                   ),
                   side: isUser || markdownSlice != null
                       ? BorderSide.none
@@ -70,17 +72,20 @@ class _MessageBubble extends StatelessWidget {
                         ConstrainedBox(
                           constraints: BoxConstraints(
                             minHeight: isUser && onShowActions != null
-                                ? AppLayout.touchTargetMin
+                                ? AppMetrics.touchTargetMin
                                 : 0,
                           ),
                           child: Padding(
                             padding: EdgeInsets.fromLTRB(
-                              AppLayout.spaceLg,
-                              firstSlice ? AppLayout.spaceMd : 0,
+                              AppMetrics.spaceLg,
+                              firstSlice ? AppMetrics.spaceMd : 0,
                               isUser && onShowActions != null
-                                  ? AppLayout.touchTargetMin + AppLayout.spaceSm
-                                  : AppLayout.spaceLg,
-                              lastSlice ? AppLayout.spaceMd : AppLayout.spaceSm,
+                                  ? AppMetrics.touchTargetMin +
+                                        AppMetrics.spaceSm
+                                  : AppMetrics.spaceLg,
+                              lastSlice
+                                  ? AppMetrics.spaceMd
+                                  : AppMetrics.spaceSm,
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,7 +114,7 @@ class _MessageBubble extends StatelessWidget {
                                     AppExpansionTile(
                                       insetHeader: false,
                                       headerPadding: const EdgeInsets.symmetric(
-                                        vertical: AppLayout.spaceXs,
+                                        vertical: AppMetrics.spaceXs,
                                       ),
                                       childrenPadding: EdgeInsets.zero,
                                       iconColor: isUser
@@ -150,7 +155,7 @@ class _MessageBubble extends StatelessWidget {
                                     in content.whereType<ImageBlock>())
                                   Padding(
                                     padding: const EdgeInsets.only(
-                                      top: AppLayout.spaceSm,
+                                      top: AppMetrics.spaceSm,
                                     ),
                                     child: _MessageImage(block: block),
                                   ),
@@ -163,10 +168,10 @@ class _MessageBubble extends StatelessWidget {
                             key: const Key('assistant-user-message-actions'),
                             tooltip: '消息操作',
                             constraints: const BoxConstraints.tightFor(
-                              width: AppLayout.touchTargetMin,
-                              height: AppLayout.touchTargetMin,
+                              width: AppMetrics.touchTargetMin,
+                              height: AppMetrics.touchTargetMin,
                             ),
-                            iconSize: AppLayout.iconSm,
+                            iconSize: AppMetrics.iconSm,
                             color: colors.onPrimaryContainer,
                             onPressed: onShowActions,
                             icon: const Icon(Icons.more_horiz),
@@ -176,15 +181,15 @@ class _MessageBubble extends StatelessWidget {
                     if (!isUser && text.isNotEmpty && lastSlice)
                       Padding(
                         padding: const EdgeInsets.only(
-                          right: AppLayout.spaceSm,
-                          bottom: AppLayout.spaceXs,
+                          right: AppMetrics.spaceSm,
+                          bottom: AppMetrics.spaceXs,
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (onShowActions != null) ...[
                               _MessageActionsButton(onPressed: onShowActions!),
-                              const SizedBox(width: AppLayout.spaceXs),
+                              const SizedBox(width: AppMetrics.spaceXs),
                             ],
                             _CopyReplyButton(text: text),
                           ],
@@ -210,11 +215,11 @@ class _MessageActionsButton extends StatelessWidget {
     key: const Key('assistant-message-actions'),
     tooltip: '消息操作',
     constraints: const BoxConstraints.tightFor(
-      width: AppLayout.touchTargetMin,
-      height: AppLayout.touchTargetMin,
+      width: AppMetrics.touchTargetMin,
+      height: AppMetrics.touchTargetMin,
     ),
     onPressed: onPressed,
-    icon: const Icon(Icons.more_horiz, size: AppLayout.iconSm),
+    icon: const Icon(Icons.more_horiz, size: AppMetrics.iconSm),
   );
 }
 
@@ -227,9 +232,9 @@ class _CopyReplyButton extends StatelessWidget {
     tooltip: '复制回复',
     style: IconButton.styleFrom(
       shape: const CircleBorder(),
-      fixedSize: const Size.square(AppLayout.touchTargetMin),
+      fixedSize: const Size.square(AppMetrics.touchTargetMin),
     ),
-    icon: const Icon(Icons.copy_rounded, size: AppLayout.iconMd),
+    icon: const Icon(Icons.copy_rounded, size: AppMetrics.iconMd),
     onPressed: () async {
       var feedback = '已复制回复';
       try {
@@ -254,7 +259,7 @@ class _MessageImage extends StatelessWidget {
       final image = _assistantImageProvider(block.url);
       if (image == null) return const Text('图片无法解码');
       return ClipRRect(
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         child: InkWell(
           onTap: () => showDialog<void>(
             context: context,
@@ -263,7 +268,7 @@ class _MessageImage extends StatelessWidget {
               child: Stack(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(AppLayout.spaceLg),
+                    padding: const EdgeInsets.all(AppMetrics.spaceLg),
                     child: InteractiveViewer(
                       child: Image(image: image, fit: BoxFit.contain),
                     ),
@@ -292,7 +297,7 @@ class _MessageImage extends StatelessWidget {
     }
     if (block.url.startsWith('http')) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         child: Image.network(block.url, width: 240, fit: BoxFit.contain),
       );
     }

@@ -3,7 +3,8 @@ import '../../../domain/entities/analysis_scope.dart';
 import '../../../domain/entities/goal.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../application/goals/goal_service.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_empty_state.dart';
@@ -181,7 +182,7 @@ class _MemoryPageState extends State<MemoryPage> {
           _ => '助手',
         };
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppLayout.spaceMd),
+      padding: const EdgeInsets.only(bottom: AppMetrics.spaceMd),
       child: AppSectionCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -213,7 +214,7 @@ class _MemoryPageState extends State<MemoryPage> {
               entry['content'] as String,
               style: Theme.of(context).textTheme.bodyLarge,
             ),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             AppExpansionTile(
               title: const Text('来源与有效期'),
               subtitle: Text(
@@ -340,7 +341,7 @@ class _MemoryPageState extends State<MemoryPage> {
                             () => _goalChoices = _loadGoals(_goals!),
                           ),
                         ),
-                        const SizedBox(height: AppLayout.spaceLg),
+                        const SizedBox(height: AppMetrics.spaceLg),
                         if ((extraction?['pending'] as int? ?? 0) > 0 ||
                             jobs.isNotEmpty) ...[
                           AppSectionCard(
@@ -355,7 +356,7 @@ class _MemoryPageState extends State<MemoryPage> {
                               onTap: jobs.isEmpty ? null : () => retry(jobs),
                             ),
                           ),
-                          const SizedBox(height: AppLayout.spaceMd),
+                          const SizedBox(height: AppMetrics.spaceMd),
                         ],
                         if (_error != null)
                           Text(
@@ -401,7 +402,7 @@ class _MemoryPageState extends State<MemoryPage> {
                                   )
                                 : ConstrainedBox(
                                     constraints: const BoxConstraints(
-                                      minHeight: AppLayout.actionMinHeight,
+                                      minHeight: AppMetrics.actionMinHeight,
                                     ),
                                     child: FilledButton.icon(
                                       onPressed: edit,
@@ -591,7 +592,7 @@ class _MemoryToolbar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           field,
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           AppExpansionTile(
             title: Text(
               key: const Key('memory-filters'),
@@ -601,28 +602,28 @@ class _MemoryToolbar extends StatelessWidget {
             insetHeader: false,
             initiallyExpanded: filtersExpanded,
             onExpansionChanged: onFiltersExpanded,
-            childrenPadding: const EdgeInsets.only(top: AppLayout.spaceSm),
+            childrenPadding: const EdgeInsets.only(top: AppMetrics.spaceSm),
             children: [
               Wrap(children: [filter]),
-              const SizedBox(height: AppLayout.spaceMd),
+              const SizedBox(height: AppMetrics.spaceMd),
               if (inline && goalFilter != null)
                 Row(
                   children: [
                     Expanded(child: layerFilter),
-                    const SizedBox(width: AppLayout.spaceMd),
+                    const SizedBox(width: AppMetrics.spaceMd),
                     Expanded(child: goalFilter),
                   ],
                 )
               else ...[
                 layerFilter,
                 if (goalFilter != null) ...[
-                  const SizedBox(height: AppLayout.spaceMd),
+                  const SizedBox(height: AppMetrics.spaceMd),
                   goalFilter,
                 ],
               ],
             ],
           ),
-          if (total > 0) ...[const SizedBox(height: AppLayout.spaceSm), count],
+          if (total > 0) ...[const SizedBox(height: AppMetrics.spaceSm), count],
         ],
       );
     },
@@ -748,7 +749,7 @@ class _MemoryEditorState extends State<_MemoryEditor> {
             maxHeight: MediaQuery.sizeOf(context).height * .85,
           ),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppLayout.spaceXxl),
+            padding: const EdgeInsets.all(AppMetrics.spaceXxl),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -757,7 +758,7 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                   widget.entry == null ? '添加记忆' : '更正记忆',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
-                const SizedBox(height: AppLayout.spaceLg),
+                const SizedBox(height: AppMetrics.spaceLg),
                 TextField(
                   key: const Key('memory-content'),
                   controller: _content,
@@ -767,7 +768,7 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                   maxLength: 1000,
                   decoration: const InputDecoration(labelText: '内容'),
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 AppDropdownFormField<String>(
                   initialValue: _layer,
                   decoration: const InputDecoration(labelText: '层级'),
@@ -793,7 +794,7 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                           }
                         }),
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 AppDropdownFormField<String>(
                   initialValue: _certainty,
                   decoration: const InputDecoration(labelText: '确认程度'),
@@ -812,7 +813,7 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                       ? null
                       : (v) => setState(() => _certainty = v!),
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 AppDropdownFormField<int>(
                   key: const Key('memory-importance'),
                   initialValue: _importance,
@@ -825,7 +826,7 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                       ? null
                       : (value) => setState(() => _importance = value!),
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 TextField(
                   controller: _topic,
                   enabled: !_saving,
@@ -834,7 +835,7 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                     helperText: '留空时使用正文；同一主题的新说法不会覆盖原事实',
                   ),
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 TextField(
                   key: const Key('memory-aliases'),
                   controller: _aliases,
@@ -844,7 +845,7 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                     helperText: '用逗号分隔；用于检索与每轮自动命中，例如“晨跑，早上跑步”',
                   ),
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 AppSectionCard(
                   padding: EdgeInsets.zero,
                   child: Column(
@@ -880,13 +881,13 @@ class _MemoryEditorState extends State<_MemoryEditor> {
                 ),
                 if (_error != null)
                   Text(_error!, style: TextStyle(color: AppColors.error)),
-                const SizedBox(height: AppLayout.spaceLg),
+                const SizedBox(height: AppMetrics.spaceLg),
                 FilledButton(
                   key: const Key('memory-save'),
                   onPressed: _saving ? null : save,
                   child: Text(_saving ? '正在保存…' : '保存'),
                 ),
-                const SizedBox(height: AppLayout.spaceSm),
+                const SizedBox(height: AppMetrics.spaceSm),
                 OutlinedButton(
                   onPressed: _saving ? null : () => Navigator.pop(context),
                   child: const Text('取消'),

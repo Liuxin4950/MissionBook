@@ -1,4 +1,4 @@
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import 'package:flutter/material.dart';
 
 import 'app_illustration.dart';
@@ -40,7 +40,7 @@ class AppEmptyState extends StatelessWidget {
             textAlign: wide ? TextAlign.start : TextAlign.center,
           ),
           if (details != null) ...[
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             DefaultTextStyle.merge(
               textAlign: wide ? TextAlign.start : TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
@@ -48,7 +48,7 @@ class AppEmptyState extends StatelessWidget {
             ),
           ],
           if (actions != null) ...[
-            const SizedBox(height: AppLayout.spaceLg),
+            const SizedBox(height: AppMetrics.spaceLg),
             actions!,
           ],
         ],
@@ -62,13 +62,13 @@ class AppEmptyState extends StatelessWidget {
               height: wide ? 160 : 128,
             );
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceXxl),
+        padding: const EdgeInsets.symmetric(vertical: AppMetrics.spaceXxl),
         child: wide
             ? Row(
                 children: [
                   if (picture != null) ...[
                     picture,
-                    const SizedBox(width: AppLayout.space3Xl),
+                    const SizedBox(width: AppMetrics.space3Xl),
                   ],
                   Expanded(child: words),
                 ],
@@ -81,7 +81,7 @@ class AppEmptyState extends StatelessWidget {
                     children: [
                       if (picture != null) ...[
                         picture,
-                        const SizedBox(height: AppLayout.spaceLg),
+                        const SizedBox(height: AppMetrics.spaceLg),
                       ],
                       words,
                     ],

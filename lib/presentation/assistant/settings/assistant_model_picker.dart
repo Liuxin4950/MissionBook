@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../application/assistant/assistant_provider_catalog.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/app_interactive_surface.dart';
 
@@ -63,10 +63,10 @@ class _AssistantModelChoicePickerState
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
-                AppLayout.spaceLg,
-                AppLayout.spaceLg,
-                AppLayout.spaceLg,
-                AppLayout.spaceXs,
+                AppMetrics.spaceLg,
+                AppMetrics.spaceLg,
+                AppMetrics.spaceLg,
+                AppMetrics.spaceXs,
               ),
               child: Semantics(
                 header: true,
@@ -160,7 +160,7 @@ class _ModelPickerDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Dialog(
-    insetPadding: const EdgeInsets.all(AppLayout.spaceLg),
+    insetPadding: const EdgeInsets.all(AppMetrics.spaceLg),
     backgroundColor: AppColors.card,
     clipBehavior: Clip.antiAlias,
     constraints: const BoxConstraints(maxWidth: 560, maxHeight: 560),
@@ -168,7 +168,7 @@ class _ModelPickerDialog extends StatelessWidget {
       shrinkWrap: true,
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.all(AppLayout.spaceLg),
+          padding: const EdgeInsets.all(AppMetrics.spaceLg),
           sliver: SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -184,15 +184,15 @@ class _ModelPickerDialog extends StatelessWidget {
                     IconButton(
                       tooltip: '取消',
                       constraints: const BoxConstraints.tightFor(
-                        width: AppLayout.touchTargetMin,
-                        height: AppLayout.touchTargetMin,
+                        width: AppMetrics.touchTargetMin,
+                        height: AppMetrics.touchTargetMin,
                       ),
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.close_rounded),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppLayout.spaceSm),
+                const SizedBox(height: AppMetrics.spaceSm),
                 TextField(
                   decoration: InputDecoration(
                     labelText: searchLabel,
@@ -205,7 +205,7 @@ class _ModelPickerDialog extends StatelessWidget {
           ),
         ),
         ...slivers,
-        const SliverToBoxAdapter(child: SizedBox(height: AppLayout.spaceSm)),
+        const SliverToBoxAdapter(child: SizedBox(height: AppMetrics.spaceSm)),
       ],
     ),
   );
@@ -226,7 +226,7 @@ class _ModelChoiceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: AppLayout.spaceSm),
+    padding: const EdgeInsets.symmetric(horizontal: AppMetrics.spaceSm),
     child: AppInteractiveSurface(
       selected: selected,
       onTap: onTap,
@@ -251,7 +251,7 @@ class _ModelChoiceRow extends StatelessWidget {
           if (selected)
             const Icon(
               Icons.check_rounded,
-              size: AppLayout.iconSm,
+              size: AppMetrics.iconSm,
               color: AppColors.primary,
             ),
         ],
@@ -262,7 +262,7 @@ class _ModelChoiceRow extends StatelessWidget {
 
 Widget _emptyModels(String message) => SliverToBoxAdapter(
   child: Padding(
-    padding: const EdgeInsets.all(AppLayout.spaceXxl),
+    padding: const EdgeInsets.all(AppMetrics.spaceXxl),
     child: Text(message, textAlign: TextAlign.center),
   ),
 );

@@ -1,6 +1,9 @@
 part of 'windows_assistant_overlay.dart';
 
 class _WindowsOverlayChat extends StatelessWidget {
+  // 工具栏的绘制尺寸，按钮仍使用共享触控下限。
+  static const _toolbarVisualSize = 40.0;
+
   const _WindowsOverlayChat({required this.host});
 
   final _WindowsOverlayState host;
@@ -17,7 +20,7 @@ class _WindowsOverlayChat extends StatelessWidget {
     return Material(
       color: AppColors.card,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         side: const BorderSide(color: AppColors.hairline),
       ),
       clipBehavior: Clip.antiAlias,
@@ -29,8 +32,8 @@ class _WindowsOverlayChat extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.only(
-                  left: AppLayout.spaceMd,
-                  right: AppLayout.spaceXs,
+                  left: AppMetrics.spaceMd,
+                  right: AppMetrics.spaceXs,
                 ),
                 child: Row(
                   children: [
@@ -40,7 +43,7 @@ class _WindowsOverlayChat extends StatelessWidget {
                         backgroundColor: AppColors.primary,
                         child: host._avatar(22),
                       ),
-                      const SizedBox(width: AppLayout.spaceSm),
+                      const SizedBox(width: AppMetrics.spaceSm),
                     ],
                     Expanded(
                       child: Text(
@@ -62,7 +65,7 @@ class _WindowsOverlayChat extends StatelessWidget {
                       popUpAnimationStyle: AppMotion.overlayStyle(context),
                       icon: const Icon(
                         Icons.more_horiz_rounded,
-                        size: AppLayout.iconSm,
+                        size: AppMetrics.iconSm,
                       ),
                       onSelected: (choice) async {
                         if (choice == 'main') {
@@ -139,7 +142,7 @@ class _WindowsOverlayChat extends StatelessWidget {
         const Align(
           alignment: Alignment.centerLeft,
           child: Padding(
-            padding: EdgeInsets.all(AppLayout.spaceSm),
+            padding: EdgeInsets.all(AppMetrics.spaceSm),
             child: SizedBox.square(
               dimension: 14,
               child: CircularProgressIndicator(
@@ -210,19 +213,19 @@ class _WindowsOverlayChat extends StatelessWidget {
               reverse: true,
               controller: host._scroll,
               padding: const EdgeInsets.symmetric(
-                horizontal: AppLayout.spaceMd,
-                vertical: AppLayout.spaceSm,
+                horizontal: AppMetrics.spaceMd,
+                vertical: AppMetrics.spaceSm,
               ),
               itemBuilder: (_, index) => content[content.length - index - 1],
               separatorBuilder: (_, index) =>
-                  const SizedBox(height: AppLayout.spaceSm),
+                  const SizedBox(height: AppMetrics.spaceSm),
               itemCount: content.length,
             ),
           ),
           if (host._showJumpToLatest)
             Positioned(
-              right: AppLayout.spaceSm,
-              bottom: AppLayout.spaceSm,
+              right: AppMetrics.spaceSm,
+              bottom: AppMetrics.spaceSm,
               child: KeyedSubtree(
                 key: const Key('windows-overlay-jump-to-latest'),
                 child: _quietAction(
@@ -246,16 +249,16 @@ class _WindowsOverlayChat extends StatelessWidget {
     alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
     child: Container(
       margin: EdgeInsets.only(
-        left: isUser ? AppLayout.spaceXl : 0,
-        right: isUser ? 0 : AppLayout.spaceXl,
+        left: isUser ? AppMetrics.spaceXl : 0,
+        right: isUser ? 0 : AppMetrics.spaceXl,
       ),
       padding: const EdgeInsets.symmetric(
-        vertical: AppLayout.spaceSm,
-        horizontal: AppLayout.spaceMd,
+        vertical: AppMetrics.spaceSm,
+        horizontal: AppMetrics.spaceMd,
       ),
       decoration: BoxDecoration(
         color: isUser ? AppColors.primarySoft : AppColors.background,
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -287,13 +290,13 @@ class _WindowsOverlayChat extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.background,
         border: Border.all(color: AppColors.hairline),
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-          AppLayout.spaceMd,
-          AppLayout.spaceSm,
-          AppLayout.spaceMd,
+          AppMetrics.spaceMd,
+          AppMetrics.spaceSm,
+          AppMetrics.spaceMd,
           0,
         ),
         child: Column(
@@ -353,7 +356,7 @@ class _WindowsOverlayChat extends StatelessWidget {
     height: 40,
     child: ListView.separated(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: AppLayout.spaceSm),
+      padding: const EdgeInsets.symmetric(horizontal: AppMetrics.spaceSm),
       itemBuilder: (_, index) {
         final item = host._images[index];
         return _icon(
@@ -371,7 +374,7 @@ class _WindowsOverlayChat extends StatelessWidget {
                 }),
         );
       },
-      separatorBuilder: (_, index) => const SizedBox(width: AppLayout.spaceXs),
+      separatorBuilder: (_, index) => const SizedBox(width: AppMetrics.spaceXs),
       itemCount: host._images.length,
     ),
   );
@@ -442,8 +445,8 @@ class _WindowsOverlayChat extends StatelessWidget {
         : '语音输入';
     return Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceSm,
-        vertical: AppLayout.spaceXs,
+        horizontal: AppMetrics.spaceSm,
+        vertical: AppMetrics.spaceXs,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -550,10 +553,10 @@ class _WindowsOverlayChat extends StatelessWidget {
       });
       return Padding(
         padding: const EdgeInsets.fromLTRB(
-          AppLayout.spaceSm,
-          AppLayout.spaceXs,
-          AppLayout.spaceSm,
-          AppLayout.spaceSm,
+          AppMetrics.spaceSm,
+          AppMetrics.spaceXs,
+          AppMetrics.spaceSm,
+          AppMetrics.spaceSm,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -597,18 +600,18 @@ class _WindowsOverlayChat extends StatelessWidget {
                     hintStyle: AppTypography.metadata,
                     fillColor: AppColors.surfaceMuted,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: AppLayout.spaceMd,
-                      vertical: AppLayout.spaceSm,
+                      horizontal: AppMetrics.spaceMd,
+                      vertical: AppMetrics.spaceSm,
                     ),
                     constraints: const BoxConstraints(
-                      minHeight: AppLayout.desktopToolbarVisualSize,
+                      minHeight: _toolbarVisualSize,
                     ),
                   ),
                   onChanged: host._edited,
                 ),
               ),
             ),
-            const SizedBox(width: AppLayout.spaceXs),
+            const SizedBox(width: AppMetrics.spaceXs),
             _sendAction(
               label: host._running ? '停止生成' : '发送（Enter）',
               icon: host._running
@@ -630,7 +633,7 @@ class _WindowsOverlayChat extends StatelessWidget {
 
   Widget _quietAction(String label, IconData icon, VoidCallback action) =>
       SizedBox.square(
-        dimension: AppLayout.touchTargetMin,
+        dimension: AppMetrics.touchTargetMin,
         child: Tooltip(
           message: label,
           child: Semantics(
@@ -644,8 +647,8 @@ class _WindowsOverlayChat extends StatelessWidget {
                 onTap: action,
                 child: Center(
                   child: Container(
-                    width: AppLayout.desktopToolbarVisualSize,
-                    height: AppLayout.desktopToolbarVisualSize,
+                    width: _toolbarVisualSize,
+                    height: _toolbarVisualSize,
                     decoration: const BoxDecoration(
                       color: AppColors.surfaceMuted,
                       shape: BoxShape.circle,
@@ -653,7 +656,7 @@ class _WindowsOverlayChat extends StatelessWidget {
                     alignment: Alignment.center,
                     child: Icon(
                       icon,
-                      size: AppLayout.iconSm,
+                      size: AppMetrics.iconSm,
                       color: AppColors.textPrimary,
                     ),
                   ),
@@ -669,7 +672,7 @@ class _WindowsOverlayChat extends StatelessWidget {
     required IconData icon,
     required VoidCallback? action,
   }) => SizedBox.square(
-    dimension: AppLayout.touchTargetMin,
+    dimension: AppMetrics.touchTargetMin,
     child: Tooltip(
       message: label,
       child: Semantics(
@@ -684,8 +687,8 @@ class _WindowsOverlayChat extends StatelessWidget {
             onTap: action,
             child: Center(
               child: Container(
-                width: AppLayout.desktopToolbarVisualSize,
-                height: AppLayout.desktopToolbarVisualSize,
+                width: _toolbarVisualSize,
+                height: _toolbarVisualSize,
                 decoration: BoxDecoration(
                   color: action == null
                       ? AppColors.disabled
@@ -695,7 +698,7 @@ class _WindowsOverlayChat extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Icon(
                   icon,
-                  size: AppLayout.iconSm,
+                  size: AppMetrics.iconSm,
                   color: action == null
                       ? AppColors.onDisabled
                       : AppColors.onPrimary,
@@ -711,10 +714,10 @@ class _WindowsOverlayChat extends StatelessWidget {
   Widget _icon(String label, IconData icon, VoidCallback? action) => IconButton(
     tooltip: label,
     onPressed: action,
-    iconSize: AppLayout.iconSm,
+    iconSize: AppMetrics.iconSm,
     constraints: const BoxConstraints.tightFor(
-      width: AppLayout.touchTargetMin,
-      height: AppLayout.touchTargetMin,
+      width: AppMetrics.touchTargetMin,
+      height: AppMetrics.touchTargetMin,
     ),
     padding: EdgeInsets.zero,
     icon: Icon(icon),

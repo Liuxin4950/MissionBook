@@ -6,7 +6,7 @@ import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 import '../../core/theme/colors.dart';
 import 'attachment_image_status.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 
 /// 列表只展示有界缩略图；原有字节供独立查看层使用，不另存缩略文件或修改原图。
 class AttachmentImagePreview extends StatelessWidget {
@@ -54,10 +54,10 @@ class AttachmentImagePreview extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    AppLayout.spaceXl,
-                    AppLayout.spaceSm,
-                    AppLayout.spaceSm,
-                    AppLayout.spaceSm,
+                    AppMetrics.spaceXl,
+                    AppMetrics.spaceSm,
+                    AppMetrics.spaceSm,
+                    AppMetrics.spaceSm,
                   ),
                   child: Row(
                     children: [
@@ -99,7 +99,7 @@ class AttachmentImagePreview extends StatelessWidget {
                   ),
                 ),
                 const Padding(
-                  padding: EdgeInsets.all(AppLayout.spaceXl),
+                  padding: EdgeInsets.all(AppMetrics.spaceXl),
                   child: Text(
                     '双指缩放 · 拖动查看',
                     style: TextStyle(color: AppColors.textSecondary),
@@ -119,7 +119,7 @@ class AttachmentImagePreview extends StatelessWidget {
     label: '放大图片：$name',
     child: Material(
       color: AppColors.primarySoft,
-      borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+      borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => _open(context),
@@ -151,7 +151,7 @@ class AttachmentImagePreview extends StatelessWidget {
                   ),
                   child: const Icon(
                     Icons.open_in_full_rounded,
-                    size: AppLayout.iconSm,
+                    size: AppMetrics.iconSm,
                   ),
                 ),
               ),

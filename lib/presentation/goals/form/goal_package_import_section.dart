@@ -14,7 +14,7 @@ import '../../widgets/app_expansion.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/app_section_card.dart';
 import '../../../core/theme/colors.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 
 /// 原导入区域内完成文件读取、分页预览和确认，支持恢复本机封存草稿。
 class GoalPackageImportSection extends StatefulWidget {
@@ -306,7 +306,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
     final values = entry.resolved;
     if (entry.kind == 'NODE') {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceMd),
+        padding: const EdgeInsets.symmetric(vertical: AppMetrics.spaceMd),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -340,8 +340,8 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
         '${value['location'] == null ? '' : '\n📍 ${value['location']}'}',
       ),
       insetHeader: false,
-      headerPadding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
-      childrenPadding: const EdgeInsets.only(bottom: AppLayout.spaceLg),
+      headerPadding: const EdgeInsets.symmetric(vertical: AppMetrics.spaceSm),
+      childrenPadding: const EdgeInsets.only(bottom: AppMetrics.spaceLg),
       expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('$path'),
@@ -384,14 +384,14 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Wrap(
-            spacing: AppLayout.spaceSm,
-            runSpacing: AppLayout.spaceSm,
+            spacing: AppMetrics.spaceSm,
+            runSpacing: AppMetrics.spaceSm,
             children: [
               for (final (index, label) in ['选择内容', '检查预览', '确认导入'].indexed)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: AppLayout.spaceMd,
-                    vertical: AppLayout.spaceSm,
+                    horizontal: AppMetrics.spaceMd,
+                    vertical: AppMetrics.spaceSm,
                   ),
                   decoration: BoxDecoration(
                     color:
@@ -403,7 +403,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                             index
                         ? AppColors.primarySoft
                         : AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                    borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
                   ),
                   child: Text(
                     '${index + 1}  $label',
@@ -422,31 +422,31 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                 ),
             ],
           ),
-          const SizedBox(height: AppLayout.spaceXl),
+          const SizedBox(height: AppMetrics.spaceXl),
           if (preview == null) ...[
             FilledButton.tonalIcon(
               key: const Key('goal-import-file'),
               style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(AppLayout.topBarHeight),
+                minimumSize: const Size.fromHeight(AppMetrics.topBarHeight),
               ),
               onPressed: _busy || _unknown || _restoring ? null : _pick,
               icon: const Icon(
                 Icons.upload_file_outlined,
-                size: AppLayout.iconLg,
+                size: AppMetrics.iconLg,
               ),
               label: const Text('选择课表或目标文件'),
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             Text(
               '支持 MissionBook 目标大纲或目标计划 JSON。文件读取后先预览，确认后才保存。',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             AppExpansionTile(
               key: const Key('goal-import-paste-toggle'),
               title: const Text('粘贴 JSON'),
               onExpansionChanged: (value) => setState(() => _pasteOpen = value),
-              childrenPadding: const EdgeInsets.only(top: AppLayout.spaceMd),
+              childrenPadding: const EdgeInsets.only(top: AppMetrics.spaceMd),
               children: [
                 AppTextField(
                   key: const Key('goal-import-input'),
@@ -469,7 +469,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                     }),
                   ],
                 ),
-                const SizedBox(height: AppLayout.spaceSm),
+                const SizedBox(height: AppMetrics.spaceSm),
                 FilledButton.icon(
                   key: const Key('goal-import-preview'),
                   onPressed:
@@ -509,14 +509,14 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
               key: const Key('goal-import-format-help'),
               title: const Text('查看支持的格式'),
               childrenPadding: const EdgeInsets.only(
-                top: AppLayout.spaceMd,
-                bottom: AppLayout.spaceLg,
+                top: AppMetrics.spaceMd,
+                bottom: AppMetrics.spaceLg,
               ),
               children: [
                 const Text(
                   '普通文本、Excel 或任意 JSON 不能直接导入。下面是目标大纲的最小格式；课表请使用 MissionBook 课表导出文件。',
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 const SelectableText(_outlineExample),
                 TextButton.icon(
                   onPressed: () async {
@@ -553,14 +553,14 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
           ],
           if (_error != null)
             Padding(
-              padding: const EdgeInsets.only(top: AppLayout.spaceLg),
+              padding: const EdgeInsets.only(top: AppMetrics.spaceLg),
               child: Semantics(
                 liveRegion: true,
                 child: Container(
-                  padding: const EdgeInsets.all(AppLayout.spaceLg),
+                  padding: const EdgeInsets.all(AppMetrics.spaceLg),
                   decoration: BoxDecoration(
                     color: AppColors.errorSoft,
-                    borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+                    borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -571,13 +571,13 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                           color: AppColors.error,
                         ),
                       ),
-                      const SizedBox(height: AppLayout.spaceSm),
+                      const SizedBox(height: AppMetrics.spaceSm),
                       Text(
                         _error!,
                         key: const Key('goal-import-error'),
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
-                      const SizedBox(height: AppLayout.spaceSm),
+                      const SizedBox(height: AppMetrics.spaceSm),
                       const Text('已有目标与任务不会因此改变。'),
                     ],
                   ),
@@ -585,38 +585,38 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
               ),
             ),
           if (preview != null) ...[
-            const Divider(height: AppLayout.space3Xl),
+            const Divider(height: AppMetrics.space3Xl),
             Text(preview.title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: AppLayout.spaceXs),
+            const SizedBox(height: AppMetrics.spaceXs),
             Text(
               '完整大纲 · ${preview.nodeCount} 个节点；${preview.missionCount} 个任务，共 ${preview.totalMinutes} 分钟',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             Wrap(
-              spacing: AppLayout.spaceSm,
-              runSpacing: AppLayout.spaceSm,
+              spacing: AppMetrics.spaceSm,
+              runSpacing: AppMetrics.spaceSm,
               children: [
                 Chip(
                   avatar: const Icon(
                     Icons.calendar_month,
-                    size: AppLayout.iconSm,
+                    size: AppMetrics.iconSm,
                   ),
                   label: Text('固定 ${preview.fixedCount}'),
                 ),
                 const Chip(
-                  avatar: Icon(Icons.history, size: AppLayout.iconSm),
+                  avatar: Icon(Icons.history, size: AppMetrics.iconSm),
                   label: Text('保留历史计划'),
                 ),
               ],
             ),
             if (preview.existingGoalId != null) ...[
-              const SizedBox(height: AppLayout.spaceSm),
+              const SizedBox(height: AppMetrics.spaceSm),
               const Text('此包已导入，确认会返回原目标，不重复创建。'),
             ],
             if (preview.duplicateGoalId != null &&
                 preview.existingGoalId == null) ...[
-              const SizedBox(height: AppLayout.spaceSm),
+              const SizedBox(height: AppMetrics.spaceSm),
               const Text('相同计划内容曾以其他包编号导入，本次确认将创建独立副本。'),
             ],
             if (_reviewCode == 'DUE_AUTO_START' || _allowDue)
@@ -651,11 +651,11 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                   style: TextStyle(color: AppColors.error),
                 ),
               ),
-            const SizedBox(height: AppLayout.spaceXl),
+            const SizedBox(height: AppMetrics.spaceXl),
             FilledButton.icon(
               key: const Key('goal-import-confirm'),
               style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(AppLayout.actionMinHeight),
+                minimumSize: const Size.fromHeight(AppMetrics.actionMinHeight),
               ),
               onPressed:
                   _busy ||
@@ -675,7 +675,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                     : '导入 ${preview.missionCount > 0 ? '${preview.missionCount} 个任务' : '${preview.nodeCount} 个节点'}',
               ),
             ),
-            const SizedBox(height: AppLayout.spaceXl),
+            const SizedBox(height: AppMetrics.spaceXl),
             Row(
               children: [
                 Text('预览内容', style: Theme.of(context).textTheme.titleSmall),
@@ -686,10 +686,10 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                 ),
               ],
             ),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             Wrap(
-              spacing: AppLayout.spaceSm,
-              runSpacing: AppLayout.spaceSm,
+              spacing: AppMetrics.spaceSm,
+              runSpacing: AppMetrics.spaceSm,
               children: [
                 ChoiceChip(
                   label: const Text('任务'),
@@ -717,7 +717,7 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                 ),
               ],
             ),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             FutureBuilder<List<GoalImportEntry>>(
               key: ValueKey(preview.jobId + _kind + _offset.toString()),
               future: _page,
@@ -750,10 +750,10 @@ class GoalPackageImportSectionState extends State<GoalPackageImportSection> {
                       if (index > 0) const Divider(height: 1),
                       _entry(entry),
                     ],
-                    const SizedBox(height: AppLayout.spaceSm),
+                    const SizedBox(height: AppMetrics.spaceSm),
                     Wrap(
-                      spacing: AppLayout.spaceSm,
-                      runSpacing: AppLayout.spaceXs,
+                      spacing: AppMetrics.spaceSm,
+                      runSpacing: AppMetrics.spaceXs,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         TextButton(

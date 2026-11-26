@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../application/goals/goal_service.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal_node.dart';
 import '../../widgets/adaptive_sheet.dart';
@@ -220,14 +221,14 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                     ),
                   ],
                 ),
-                const SizedBox(height: AppLayout.spaceXs),
+                const SizedBox(height: AppMetrics.spaceXs),
                 Text(
                   '${editing ? '所属位置' : '添加到'} · ${widget.contextTitle}',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: AppLayout.sectionGap),
+                const SizedBox(height: AppMetrics.sectionGap),
                 AppTextField(
                   key: const Key('node-title-input'),
                   controller: _title,
@@ -240,7 +241,7 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                   validator: (value) =>
                       value == null || value.trim().isEmpty ? '请填写节点名称' : null,
                 ),
-                const SizedBox(height: AppLayout.spaceXl),
+                const SizedBox(height: AppMetrics.spaceXl),
                 AppTextField(
                   key: const Key('node-description-input'),
                   controller: _description,
@@ -250,7 +251,7 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                   label: '节点说明（选填）',
                   hint: '需要时再补充范围或学习重点',
                 ),
-                const SizedBox(height: AppLayout.sectionGap),
+                const SizedBox(height: AppMetrics.sectionGap),
                 if (_error != null) ...[
                   Semantics(
                     liveRegion: true,
@@ -264,7 +265,7 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                       onPressed: _saving ? null : _confirmResult,
                       child: const Text('确认结果并继续编辑'),
                     ),
-                  const SizedBox(height: AppLayout.spaceMd),
+                  const SizedBox(height: AppMetrics.spaceMd),
                 ],
                 FilledButton.icon(
                   key: const Key('node-save'),
@@ -272,7 +273,7 @@ class _GoalNodeEditorState extends State<GoalNodeEditor> {
                   icon: Icon(_saving ? Icons.hourglass_top : Icons.check),
                   label: Text(_saving ? '正在保存…' : (_locked ? '重试保存' : '保存节点')),
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, AppLayout.actionMinHeight),
+                    minimumSize: const Size(0, AppMetrics.actionMinHeight),
                   ),
                 ),
               ],

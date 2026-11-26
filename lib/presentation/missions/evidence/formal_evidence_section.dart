@@ -14,7 +14,7 @@ import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_expansion.dart';
 import '../shared/mission_execution_display.dart';
 import '../../attachments/attachment_image_loader.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 
 String evidenceTypeLabel(ContentType type) => switch (type) {
   ContentType.text => '文字记录',
@@ -212,10 +212,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
     } catch (error) {
       if (mounted) {
         setState(
-          () => _error = userErrorMessage(
-            error,
-            fallback: '选择替代附件失败，请重新选择',
-          ),
+          () => _error = userErrorMessage(error, fallback: '选择替代附件失败，请重新选择'),
         );
       }
     } finally {
@@ -354,11 +351,11 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
     final theme = Theme.of(context);
     return Container(
       key: Key('formal-evidence-${item.id}'),
-      margin: const EdgeInsets.only(top: AppLayout.spaceMd),
-      padding: const EdgeInsets.all(AppLayout.spaceMd),
+      margin: const EdgeInsets.only(top: AppMetrics.spaceMd),
+      padding: const EdgeInsets.all(AppMetrics.spaceMd),
       decoration: BoxDecoration(
         color: AppColors.background,
-        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -372,9 +369,9 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                       : item.type == ContentType.file
                       ? Icons.attach_file_rounded
                       : Icons.notes_rounded,
-                  size: AppLayout.iconSm,
+                  size: AppMetrics.iconSm,
                 ),
-                const SizedBox(width: AppLayout.spaceSm),
+                const SizedBox(width: AppMetrics.spaceSm),
               ],
               Expanded(
                 child: Text(
@@ -389,11 +386,11 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                   key: Key('evidence-correct-${item.id}'),
                   tooltip: '修正这份材料',
                   constraints: const BoxConstraints(
-                    minWidth: AppLayout.touchTargetMin,
-                    minHeight: AppLayout.touchTargetMin,
+                    minWidth: AppMetrics.touchTargetMin,
+                    minHeight: AppMetrics.touchTargetMin,
                   ),
                   padding: EdgeInsets.zero,
-                  iconSize: AppLayout.iconSm,
+                  iconSize: AppMetrics.iconSm,
                   onPressed:
                       _busy ||
                           (item.attachmentStorageKey != null &&
@@ -423,7 +420,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
           if (item.type == ContentType.file) _file(item),
           if (item.content?.trim().isNotEmpty == true) ...[
             if (item.attachmentStorageKey != null)
-              const SizedBox(height: AppLayout.spaceSm),
+              const SizedBox(height: AppMetrics.spaceSm),
             SelectableText(item.content!, style: theme.textTheme.bodyLarge),
           ],
           if (item.sourceRecordId != null)
@@ -446,7 +443,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Divider(height: AppLayout.spaceXxl),
+        const Divider(height: AppMetrics.spaceXxl),
         const Text('修正草稿 · 原材料会保留'),
         if (draft.type == ContentType.image)
           _image(
@@ -455,7 +452,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
           ),
         if (draft.type == ContentType.file)
           Text('附件：${draft.attachmentFileName}'),
-        const SizedBox(height: AppLayout.spaceSm),
+        const SizedBox(height: AppMetrics.spaceSm),
         TextField(
           key: const Key('evidence-correction-content'),
           controller: _content,
@@ -468,9 +465,9 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                 : '附件说明（选填）',
           ),
         ),
-        const SizedBox(height: AppLayout.spaceMd),
+        const SizedBox(height: AppMetrics.spaceMd),
         Wrap(
-          spacing: AppLayout.spaceSm,
+          spacing: AppMetrics.spaceSm,
           children: [
             FilledButton(
               key: const Key('evidence-correction-save'),
@@ -487,10 +484,8 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                 onPressed: _busy || _pending != null
                     ? null
                     : _replaceAttachment,
-                icon: const Icon(Icons.swap_horiz, size: AppLayout.iconSm),
-                label: Text(
-                  draft.type == ContentType.image ? '更换图片' : '更换文件',
-                ),
+                icon: const Icon(Icons.swap_horiz, size: AppMetrics.iconSm),
+                label: Text(draft.type == ContentType.image ? '更换图片' : '更换文件'),
               ),
           ],
         ),
@@ -523,18 +518,21 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
         key: Key('evidence-section-${_detail.mission.id}'),
         color: widget.compact ? AppColors.background : AppColors.card,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppLayout.radiusXl),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusXl),
           side: const BorderSide(color: AppColors.hairline),
         ),
         child: Padding(
-          padding: EdgeInsets.all(AppLayout.spaceMd),
+          padding: EdgeInsets.all(AppMetrics.spaceMd),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.perm_media_outlined, size: AppLayout.iconMd),
-                  const SizedBox(width: AppLayout.spaceSm),
+                  const Icon(
+                    Icons.perm_media_outlined,
+                    size: AppMetrics.iconMd,
+                  ),
+                  const SizedBox(width: AppMetrics.spaceSm),
                   Expanded(
                     child: Text(
                       '任务材料 · ${effective.length} 份',
@@ -543,7 +541,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                   ),
                 ],
               ),
-              const SizedBox(height: AppLayout.spaceSm),
+              const SizedBox(height: AppMetrics.spaceSm),
               if (_receipt != null) Text(_receipt!),
               if (_attachmentError != null) ...[
                 Text(
@@ -563,11 +561,11 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                         box.maxWidth >=
                             560 * MediaQuery.textScalerOf(context).scale(1);
                     final width = twoColumns
-                        ? (box.maxWidth - AppLayout.spaceMd) / 2
+                        ? (box.maxWidth - AppMetrics.spaceMd) / 2
                         : box.maxWidth;
                     return Wrap(
-                      spacing: AppLayout.spaceMd,
-                      runSpacing: AppLayout.spaceMd,
+                      spacing: AppMetrics.spaceMd,
+                      runSpacing: AppMetrics.spaceMd,
                       children: [
                         for (final item in images)
                           SizedBox(width: width, child: _item(context, item)),
@@ -578,7 +576,7 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
               for (final item in others) _item(context, item),
               if (_draft != null)
                 Padding(
-                  padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+                  padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
                   child: _editor(context),
                 ),
               if (corrections.isNotEmpty)
@@ -586,13 +584,13 @@ class FormalEvidenceSectionState extends State<FormalEvidenceSection>
                   key: const Key('evidence-correction-history'),
                   title: Text('修正历史 · ${corrections.length} 条'),
                   childrenPadding: const EdgeInsets.only(
-                    top: AppLayout.spaceSm,
+                    top: AppMetrics.spaceSm,
                   ),
                   children: [
                     for (final item in _detail.evidence)
                       Padding(
                         padding: const EdgeInsets.only(
-                          bottom: AppLayout.spaceMd,
+                          bottom: AppMetrics.spaceMd,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,

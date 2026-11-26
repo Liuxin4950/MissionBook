@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/application/settings/motion_settings.dart';
 import 'package:mission_book/presentation/widgets/app_top_bar.dart';
 import 'package:mission_book/presentation/widgets/detail_pane.dart';
-import 'package:mission_book/presentation/widgets/motion_settings_scope.dart';
+import 'package:mission_book/presentation/motion/motion_settings_scope.dart';
 
 void main() {
   late DetailPaneController pane;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 
 /// 读取或解码失败只影响图片展示，保留已有说明与独立的操作入口。
 class AttachmentImageStatus extends StatelessWidget {
@@ -24,7 +24,7 @@ class AttachmentImageStatus extends StatelessWidget {
     constraints: BoxConstraints(minHeight: height),
     child: Center(
       child: Padding(
-        padding: EdgeInsets.all(compact ? 0 : AppLayout.spaceMd),
+        padding: EdgeInsets.all(compact ? 0 : AppMetrics.spaceMd),
         child: compact && failed
             ? onRetry == null
                   ? Tooltip(
@@ -44,7 +44,7 @@ class AttachmentImageStatus extends StatelessWidget {
                     Icons.broken_image_outlined,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(height: AppLayout.spaceSm),
+                  const SizedBox(height: AppMetrics.spaceSm),
                   Text(
                     '图片无法显示：$name。内容仍然保留。',
                     textAlign: TextAlign.center,

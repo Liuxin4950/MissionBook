@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/colors.dart';
 import 'app_selection_option.dart';
 
@@ -41,7 +41,7 @@ class AppDropdownFormField<T> extends StatelessWidget {
         isExpanded: isExpanded,
         dropdownColor: AppColors.card,
         elevation: 2,
-        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
         menuMaxHeight: 360,
         // 允许大字和长选项自然增高，菜单超出可用高度后滚动。
         itemHeight: null,

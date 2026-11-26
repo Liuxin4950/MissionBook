@@ -22,7 +22,7 @@ import '../shared/mission_execution_display.dart';
 import '../../attachments/attachment_image_loader.dart';
 import 'formal_evidence_section.dart';
 import '../../attachments/photo_capture_panel.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 
 /// 同一任务上下文内的材料区域：编辑草稿、一次提交、查看正式材料。
 /// 页面刷新必须保留本组件的 key；草稿只在提交成功或明确丢弃后清除。
@@ -477,9 +477,9 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (timedOut) const Text('材料超时'),
-          if (timedOut) const SizedBox(height: AppLayout.spaceMd),
+          if (timedOut) const SizedBox(height: AppMetrics.spaceMd),
           if (hasFormal) _formalMaterials(context),
-          if (hasFormal) const SizedBox(height: AppLayout.spaceMd),
+          if (hasFormal) const SizedBox(height: AppMetrics.spaceMd),
           AppSectionCard(
             padding: EdgeInsets.zero,
             child: AppSettingsRow(
@@ -504,10 +504,10 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
       explicitChildNodes: true,
       child: Container(
         key: Key('evidence-section-${_detail.mission.id}'),
-        padding: const EdgeInsets.all(AppLayout.spaceXl),
+        padding: const EdgeInsets.all(AppMetrics.spaceXl),
         decoration: BoxDecoration(
           color: AppColors.primarySoft,
-          borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -520,7 +520,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                   : '任务材料',
               style: theme.textTheme.titleMedium,
             ),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             if (_canSubmit)
               Text(
                 requiredEvidence
@@ -535,7 +535,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
               ),
             if (_detail.executionPlan.verificationCriteria?.trim().isNotEmpty ==
                 true) ...[
-              const SizedBox(height: AppLayout.spaceSm),
+              const SizedBox(height: AppMetrics.spaceSm),
               Text(_detail.executionPlan.verificationCriteria!),
             ],
             if (timedOut) const Text('完成报告已保存，强制材料未按时提交。'),
@@ -552,9 +552,9 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                 ),
               ),
             if (_expanded && (_canSubmit || hasDraft)) ...[
-              const SizedBox(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceLg),
               const Text('草稿（未提交）'),
-              const SizedBox(height: AppLayout.spaceMd),
+              const SizedBox(height: AppMetrics.spaceMd),
               for (final draft in _drafts) ...[
                 Row(
                   children: [
@@ -577,7 +577,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                     draft.attachmentStorageKey!,
                     draft.attachmentFileName ?? '图片',
                   ),
-                  const SizedBox(height: AppLayout.spaceMd),
+                  const SizedBox(height: AppMetrics.spaceMd),
                 ],
                 Semantics(
                   container: true,
@@ -599,12 +599,12 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                     onChanged: (value) => _updateContent(draft.id, value),
                   ),
                 ),
-                const SizedBox(height: AppLayout.spaceXl),
+                const SizedBox(height: AppMetrics.spaceXl),
               ],
               if (_canSubmit)
                 Wrap(
-                  spacing: AppLayout.spaceMd,
-                  runSpacing: AppLayout.spaceSm,
+                  spacing: AppMetrics.spaceMd,
+                  runSpacing: AppMetrics.spaceSm,
                   children: [
                     OutlinedButton.icon(
                       key: const Key('evidence-add-text'),
@@ -652,7 +652,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                   ],
                 ),
               if (_cameraOpen) ...[
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 PhotoCapturePanel(
                   title: _detail.mission.title,
                   onConfirmed: _confirmCameraImage,
@@ -665,7 +665,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
               ],
               if (_imageError != null) ...[
                 Text(_imageError!, style: TextStyle(color: AppColors.error)),
-                const SizedBox(height: AppLayout.spaceSm),
+                const SizedBox(height: AppMetrics.spaceSm),
                 OutlinedButton(
                   onPressed: _prepareImages,
                   child: const Text('重试图片准备'),
@@ -673,12 +673,12 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
               ],
               if (_busy)
                 const Padding(
-                  padding: EdgeInsets.only(top: AppLayout.spaceMd),
+                  padding: EdgeInsets.only(top: AppMetrics.spaceMd),
                   child: LinearProgressIndicator(),
                 ),
               if (_canSubmit)
                 Padding(
-                  padding: const EdgeInsets.only(top: AppLayout.spaceLg),
+                  padding: const EdgeInsets.only(top: AppMetrics.spaceLg),
                   child: FilledButton(
                     key: const Key('evidence-submit'),
                     onPressed: _busy || (_drafts.isEmpty && _pending == null)
@@ -706,7 +706,7 @@ class MissionEvidenceSectionState extends State<MissionEvidenceSection>
                 child: const Text('放弃提交并结束'),
               ),
             if (_error != null) ...[
-              const SizedBox(height: AppLayout.spaceMd),
+              const SizedBox(height: AppMetrics.spaceMd),
               Semantics(
                 liveRegion: true,
                 child: Text(_error!, style: TextStyle(color: AppColors.error)),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../application/settings/motion_settings.dart';
-import 'app_motion.dart';
+import '../../core/theme/app_motion.dart';
 
 /// 路由、主导航和预览共用的转场绘制；切换风格时保留内容子树。
 class AppPageMotion extends StatelessWidget {

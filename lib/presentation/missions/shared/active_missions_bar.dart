@@ -2,7 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';
 import '../../widgets/adaptive_sheet.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import 'mission_phase_icon.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/mission_detail.dart';
@@ -102,13 +103,13 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
             ),
             child: ListView(
               shrinkWrap: true,
-              padding: const EdgeInsets.all(AppLayout.spaceLg),
+              padding: const EdgeInsets.all(AppMetrics.spaceLg),
               children: [
                 Text(
                   '当前任务',
                   style: Theme.of(sheetContext).textTheme.titleMedium,
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 for (final detail in active)
                   ListTile(
                     leading: MissionPhaseIcon(phase: detail.phase),
@@ -157,10 +158,10 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
         top: false,
         bottom: !compact,
         minimum: const EdgeInsets.fromLTRB(
-          AppLayout.spaceLg,
-          AppLayout.spaceSm,
-          AppLayout.spaceLg,
-          AppLayout.spaceSm,
+          AppMetrics.spaceLg,
+          AppMetrics.spaceSm,
+          AppMetrics.spaceLg,
+          AppMetrics.spaceSm,
         ),
         child: Center(
           heightFactor: 1,
@@ -169,7 +170,7 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
             child: Material(
               color: Theme.of(context).colorScheme.surfaceContainerLow,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+                borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
                 side: BorderSide(
                   color: Theme.of(context).colorScheme.outlineVariant,
                 ),
@@ -183,13 +184,13 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
                       onTap: () => _open(detail),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: AppLayout.spaceMd,
-                          vertical: AppLayout.spaceSm,
+                          horizontal: AppMetrics.spaceMd,
+                          vertical: AppMetrics.spaceSm,
                         ),
                         child: Row(
                           children: [
                             MissionPhaseIcon(phase: detail.phase),
-                            const SizedBox(width: AppLayout.spaceMd),
+                            const SizedBox(width: AppMetrics.spaceMd),
                             Expanded(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
@@ -227,7 +228,7 @@ class _ActiveMissionsBarState extends State<ActiveMissionsBar>
                     )
                   else
                     const Padding(
-                      padding: EdgeInsets.only(right: AppLayout.spaceMd),
+                      padding: EdgeInsets.only(right: AppMetrics.spaceMd),
                       child: Icon(Icons.chevron_right),
                     ),
                 ],

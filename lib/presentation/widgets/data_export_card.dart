@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../application/backup/backup_service.dart';
 import '../../application/settings/app_device.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/colors.dart';
 import '../me/backup_scope_page.dart';
 import 'adaptive_sheet.dart';
@@ -73,7 +73,7 @@ class _DataExportCardState extends State<DataExportCard> {
       final text = Theme.of(sheetContext).textTheme;
       return SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppLayout.spaceXl),
+          padding: const EdgeInsets.all(AppMetrics.spaceXl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -82,22 +82,22 @@ class _DataExportCardState extends State<DataExportCard> {
                 children: [
                   const Icon(
                     Icons.archive_outlined,
-                    size: AppLayout.iconMd,
+                    size: AppMetrics.iconMd,
                     color: AppColors.primary,
                   ),
-                  const SizedBox(width: AppLayout.spaceSm),
+                  const SizedBox(width: AppMetrics.spaceSm),
                   Expanded(child: Text('本地备份说明', style: text.titleMedium)),
                 ],
               ),
-              const SizedBox(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceLg),
               _detail(
                 sheetContext,
                 '包含',
                 '数据库完整快照、正式材料原件和已保存的助手会话；导出前可勾选是否带走 API Key 与助手设置、本机资料与偏好、离线语音模型。',
               ),
-              const SizedBox(height: AppLayout.spaceMd),
+              const SizedBox(height: AppMetrics.spaceMd),
               _detail(sheetContext, '不含', '未发送草稿与缓存文件。'),
-              const SizedBox(height: AppLayout.spaceMd),
+              const SizedBox(height: AppMetrics.spaceMd),
               _detail(
                 sheetContext,
                 '恢复',
@@ -105,7 +105,7 @@ class _DataExportCardState extends State<DataExportCard> {
                     ? '在数据备份页选择 ZIP，核对范围后恢复；恢复会替换当前业务数据。'
                     : '当前只支持导出，应用内暂不支持导入恢复。',
               ),
-              const SizedBox(height: AppLayout.spaceXl),
+              const SizedBox(height: AppMetrics.spaceXl),
               FilledButton(
                 key: const Key('backup-info-close'),
                 onPressed: () => Navigator.of(sheetContext).pop(),
@@ -122,7 +122,7 @@ class _DataExportCardState extends State<DataExportCard> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(label, style: Theme.of(context).textTheme.titleSmall),
-      const SizedBox(height: AppLayout.spaceXs),
+      const SizedBox(height: AppMetrics.spaceXs),
       Text(
         value,
         style: Theme.of(
@@ -140,19 +140,19 @@ class _DataExportCardState extends State<DataExportCard> {
       onPressed: _exporting || _choosing ? null : _export,
       style: TextButton.styleFrom(
         textStyle: text.labelMedium,
-        minimumSize: const Size(0, AppLayout.touchTargetMin),
+        minimumSize: const Size(0, AppMetrics.touchTargetMin),
         padding: const EdgeInsets.symmetric(
-          horizontal: AppLayout.spaceMd,
-          vertical: AppLayout.spaceSm,
+          horizontal: AppMetrics.spaceMd,
+          vertical: AppMetrics.spaceSm,
         ),
       ),
       icon: _exporting
           ? const SizedBox(
-              width: AppLayout.iconSm,
-              height: AppLayout.iconSm,
+              width: AppMetrics.iconSm,
+              height: AppMetrics.iconSm,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : const Icon(Icons.file_download_outlined, size: AppLayout.iconSm),
+          : const Icon(Icons.file_download_outlined, size: AppMetrics.iconSm),
       label: Text(_exporting ? '正在导出…' : (_backupFailed ? '重试导出' : '导出备份')),
     );
     return AppSectionCard(
@@ -168,34 +168,34 @@ class _DataExportCardState extends State<DataExportCard> {
                 constraints: const BoxConstraints(minHeight: 56),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: AppLayout.spaceLg,
-                    vertical: AppLayout.spaceSm,
+                    horizontal: AppMetrics.spaceLg,
+                    vertical: AppMetrics.spaceSm,
                   ),
                   child: Row(
                     children: [
                       const Icon(
                         Icons.archive_outlined,
-                        size: AppLayout.iconMd,
+                        size: AppMetrics.iconMd,
                         color: AppColors.textSecondary,
                       ),
-                      const SizedBox(width: AppLayout.spaceMd),
+                      const SizedBox(width: AppMetrics.spaceMd),
                       Expanded(
                         child: Row(
                           children: [
                             Flexible(
                               child: Text('本地备份', style: text.titleMedium),
                             ),
-                            const SizedBox(width: AppLayout.spaceXs),
+                            const SizedBox(width: AppMetrics.spaceXs),
                             IconButton(
                               key: const Key('backup-info'),
                               onPressed: _showDetails,
                               tooltip: '备份说明',
                               icon: const Icon(Icons.info_outline_rounded),
-                              iconSize: AppLayout.iconSm,
+                              iconSize: AppMetrics.iconSm,
                               style: IconButton.styleFrom(
                                 foregroundColor: AppColors.textSecondary,
                                 minimumSize: const Size.square(
-                                  AppLayout.touchTargetMin,
+                                  AppMetrics.touchTargetMin,
                                 ),
                                 padding: EdgeInsets.zero,
                               ),
@@ -204,7 +204,7 @@ class _DataExportCardState extends State<DataExportCard> {
                         ),
                       ),
                       if (inline) ...[
-                        const SizedBox(width: AppLayout.spaceSm),
+                        const SizedBox(width: AppMetrics.spaceSm),
                         action,
                       ],
                     ],
@@ -214,20 +214,20 @@ class _DataExportCardState extends State<DataExportCard> {
               if (!inline)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    AppLayout.spaceLg,
+                    AppMetrics.spaceLg,
                     0,
-                    AppLayout.spaceLg,
-                    AppLayout.spaceSm,
+                    AppMetrics.spaceLg,
+                    AppMetrics.spaceSm,
                   ),
                   child: Align(alignment: Alignment.centerLeft, child: action),
                 ),
               if (_backupMessage != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    AppLayout.spaceLg,
+                    AppMetrics.spaceLg,
                     0,
-                    AppLayout.spaceLg,
-                    AppLayout.spaceMd,
+                    AppMetrics.spaceLg,
+                    AppMetrics.spaceMd,
                   ),
                   child: Semantics(
                     liveRegion: true,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../application/goals/goal_service.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/detail_pane.dart';
 import 'goal_import_section.dart';

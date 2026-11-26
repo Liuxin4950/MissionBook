@@ -13,7 +13,7 @@ import '../../widgets/app_expansion.dart';
 import '../../widgets/detail_pane.dart';
 
 import '../../../application/missions/mission_service.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/failure_record.dart';
 import '../../../domain/entities/mission_detail.dart';
@@ -193,7 +193,7 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
             popUpAnimationStyle: AppMotion.overlayStyle(context),
             key: const Key('record-more'),
             tooltip: '记录更多操作',
-            icon: const Icon(Icons.more_horiz, size: AppLayout.iconLg),
+            icon: const Icon(Icons.more_horiz, size: AppMetrics.iconLg),
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'time', child: Text('更正实际日期 / 时段')),
               if (RecordScope.maybeOf(context) != null)
@@ -246,18 +246,18 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
               label: Text('$_refreshError，点击重试'),
             ),
           MissionHeading(detail: detail, showPhase: false),
-          const SizedBox(height: AppLayout.spaceXl),
+          const SizedBox(height: AppMetrics.spaceXl),
           Align(
             alignment: Alignment.centerLeft,
             child: Container(
               key: const Key('execution-result'),
               padding: const EdgeInsets.symmetric(
-                horizontal: AppLayout.spaceMd,
-                vertical: AppLayout.spaceSm,
+                horizontal: AppMetrics.spaceMd,
+                vertical: AppMetrics.spaceSm,
               ),
               decoration: BoxDecoration(
                 color: AppColors.primarySoft,
-                borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+                borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
               ),
               child: Text(
                 completed ? '用户报告：已完成' : '用户报告：未完成',
@@ -265,7 +265,7 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
               ),
             ),
           ),
-          const SizedBox(height: AppLayout.sectionGap),
+          const SizedBox(height: AppMetrics.sectionGap),
           AppSectionCard(
             key: const Key('execution-summary'),
             child: Column(
@@ -273,12 +273,12 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
               children: [
                 if (detail.effectiveUserReport case final report?) ...[
                   Text('实际发生', style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: AppLayout.spaceSm),
+                  const SizedBox(height: AppMetrics.spaceSm),
                   Text(
                     report.occurrenceDate,
                     style: theme.textTheme.titleMedium,
                   ),
-                  const SizedBox(height: AppLayout.spaceSm),
+                  const SizedBox(height: AppMetrics.spaceSm),
                   Text(
                     report.actualStart == null
                         ? '具体时段未记录'
@@ -287,25 +287,25 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
                   if (detail.events.any(
                     (e) => e.type == ExecutionEventType.start,
                   ))
-                    const SizedBox(height: AppLayout.spaceLg),
+                    const SizedBox(height: AppMetrics.spaceLg),
                 ],
                 if (detail.events.any(
                   (e) => e.type == ExecutionEventType.start,
                 )) ...[
                   Text('应用计时', style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: AppLayout.spaceSm),
+                  const SizedBox(height: AppMetrics.spaceSm),
                   Text(
                     focusDuration(times.focus),
                     style: theme.textTheme.titleMedium,
                   ),
-                  const SizedBox(height: AppLayout.spaceSm),
+                  const SizedBox(height: AppMetrics.spaceSm),
                   AppExpansionTile(
                     title: const Text('计时明细'),
                     insetHeader: false,
                     children: [
                       Wrap(
-                        spacing: AppLayout.spaceXl,
-                        runSpacing: AppLayout.spaceMd,
+                        spacing: AppMetrics.spaceXl,
+                        runSpacing: AppMetrics.spaceMd,
                         children: [
                           _SummaryValue(
                             label: '原计划',
@@ -348,7 +348,7 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
           for (final failure in detail.failures)
             if (failure.userReasonCategory != null ||
                 failure.userReasonText?.trim().isNotEmpty == true) ...[
-              const SizedBox(height: AppLayout.sectionGap),
+              const SizedBox(height: AppMetrics.sectionGap),
               Text('未完成原因', style: theme.textTheme.titleMedium),
               if (failure.userReasonCategory != null)
                 Text(
@@ -358,15 +358,15 @@ class _MissionRecordWorkspaceState extends State<MissionRecordWorkspace>
               if (failure.userReasonText?.trim().isNotEmpty == true)
                 Text(failure.userReasonText!),
             ],
-          const SizedBox(height: AppLayout.sectionGap),
+          const SizedBox(height: AppMetrics.sectionGap),
           MissionEvidenceSection(
             key: ValueKey('record-evidence-${detail.mission.id}'),
             detail: detail,
             service: service,
           ),
-          const SizedBox(height: AppLayout.sectionGap),
+          const SizedBox(height: AppMetrics.sectionGap),
           MissionEventTimeline(detail: detail),
-          const SizedBox(height: AppLayout.spaceLg),
+          const SizedBox(height: AppMetrics.spaceLg),
           Align(
             alignment: Alignment.centerRight,
             child: MissionRetryButton(
@@ -391,7 +391,7 @@ class _SummaryValue extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     children: [
       Text(label, style: Theme.of(context).textTheme.bodyMedium),
-      const SizedBox(height: AppLayout.spaceXs),
+      const SizedBox(height: AppMetrics.spaceXs),
       Text(value, style: Theme.of(context).textTheme.titleMedium),
     ],
   );

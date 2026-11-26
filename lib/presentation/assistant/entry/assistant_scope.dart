@@ -11,7 +11,7 @@ import '../../goals/detail/goal_detail_page.dart';
 import '../../missions/detail/mission_detail_page.dart';
 import '../../widgets/detail_pane.dart';
 import '../chat/assistant_page.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
 
 class AssistantScope extends InheritedWidget {
   const AssistantScope({

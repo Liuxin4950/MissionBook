@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 
 /// 只把助手明确标记的 JSON 数据转成原生图表，不执行模型提供的代码。
 class AssistantChartMarkdownElementBuilder extends MarkdownElementBuilder {
@@ -128,17 +128,17 @@ class _ChartFrame extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppLayout.spaceMd),
+      padding: const EdgeInsets.all(AppMetrics.spaceMd),
       decoration: BoxDecoration(
         color: colors.surfaceContainer,
         border: Border.all(color: colors.outlineVariant),
-        borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusSm),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           child,
         ],
       ),
@@ -168,7 +168,7 @@ class _BarChart extends StatelessWidget {
         for (var index = 0; index < data.points.length; index++)
           Padding(
             padding: EdgeInsets.only(
-              bottom: index + 1 == data.points.length ? 0 : AppLayout.spaceSm,
+              bottom: index + 1 == data.points.length ? 0 : AppMetrics.spaceSm,
             ),
             child: Semantics(
               label: _pointLabel(data.points[index], data.unit),
@@ -183,7 +183,7 @@ class _BarChart extends StatelessWidget {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
-                  const SizedBox(width: AppLayout.spaceSm),
+                  const SizedBox(width: AppMetrics.spaceSm),
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, constraints) {
@@ -221,7 +221,7 @@ class _BarChart extends StatelessWidget {
                                         ? colors.tertiary
                                         : colors.primary,
                                     borderRadius: BorderRadius.circular(
-                                      AppLayout.radiusXs,
+                                      AppMetrics.radiusXs,
                                     ),
                                   ),
                                 ),
@@ -232,7 +232,7 @@ class _BarChart extends StatelessWidget {
                       },
                     ),
                   ),
-                  const SizedBox(width: AppLayout.spaceSm),
+                  const SizedBox(width: AppMetrics.spaceSm),
                   SizedBox(
                     width: 64,
                     child: Text(
@@ -274,10 +274,10 @@ class _LineChart extends StatelessWidget {
             child: const SizedBox.expand(),
           ),
         ),
-        const SizedBox(height: AppLayout.spaceXs),
+        const SizedBox(height: AppMetrics.spaceXs),
         Wrap(
-          spacing: AppLayout.spaceMd,
-          runSpacing: AppLayout.spaceXs,
+          spacing: AppMetrics.spaceMd,
+          runSpacing: AppMetrics.spaceXs,
           children: [
             for (final point in data.points)
               Semantics(

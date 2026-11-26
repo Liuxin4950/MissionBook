@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_motion.dart';
-import '../../core/theme/app_page_motion.dart';
 import '../../application/settings/motion_settings.dart';
+import '../../core/theme/app_motion.dart';
+import 'app_page_motion.dart';
 import 'motion_settings_scope.dart';
 
 /// 内容身份变化时短暂进入，保留子树 State；连续切换以最后一次内容为准。

@@ -3,7 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/execution_event.dart';
 import '../../../domain/entities/mission_detail.dart';
@@ -58,14 +59,14 @@ class MissionHeading extends StatelessWidget {
     final badge = Container(
       key: const Key('mission-phase'),
       padding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceMd,
-        vertical: AppLayout.spaceSm,
+        horizontal: AppMetrics.spaceMd,
+        vertical: AppMetrics.spaceSm,
       ),
       decoration: BoxDecoration(
         color: detail.phase == MissionPhase.running
             ? AppColors.accent
             : AppColors.primarySoft,
-        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
       ),
       child: Text(
         phaseLabel(detail.phase, schedule: detail.schedule),
@@ -76,8 +77,8 @@ class MissionHeading extends StatelessWidget {
     final heading = !showPhase
         ? title
         : Wrap(
-            spacing: AppLayout.spaceLg,
-            runSpacing: AppLayout.spaceMd,
+            spacing: AppMetrics.spaceLg,
+            runSpacing: AppMetrics.spaceMd,
             crossAxisAlignment: WrapCrossAlignment.start,
             children: [title, badge],
           );
@@ -92,7 +93,7 @@ class MissionHeading extends StatelessWidget {
             context,
           ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
         ),
-        const SizedBox(height: AppLayout.spaceSm),
+        const SizedBox(height: AppMetrics.spaceSm),
         heading,
       ],
     );
@@ -189,7 +190,7 @@ class MissionActionFeedback extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       if (controller.error != null) ...[
-        const SizedBox(height: AppLayout.spaceLg),
+        const SizedBox(height: AppMetrics.spaceLg),
         Semantics(
           liveRegion: true,
           child: Text(
@@ -198,8 +199,8 @@ class MissionActionFeedback extends StatelessWidget {
           ),
         ),
         Wrap(
-          spacing: AppLayout.spaceSm,
-          runSpacing: AppLayout.spaceSm,
+          spacing: AppMetrics.spaceSm,
+          runSpacing: AppMetrics.spaceSm,
           children: [
             if (controller.pending != null)
               FilledButton(
@@ -223,7 +224,7 @@ class MissionActionFeedback extends StatelessWidget {
       ],
       if (controller.busy)
         const Padding(
-          padding: EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
+          padding: EdgeInsets.symmetric(vertical: AppMetrics.spaceSm),
           child: Text('正在保存，请稍候…'),
         ),
     ],
@@ -240,10 +241,10 @@ class MissionEventTimeline extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Text('本次时间线', style: Theme.of(context).textTheme.titleMedium),
-      const SizedBox(height: AppLayout.spaceLg),
+      const SizedBox(height: AppMetrics.spaceLg),
       for (final event in detail.events)
         Padding(
-          padding: const EdgeInsets.only(bottom: AppLayout.spaceLg),
+          padding: const EdgeInsets.only(bottom: AppMetrics.spaceLg),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -255,7 +256,7 @@ class MissionEventTimeline extends StatelessWidget {
                 ExecutionEventType.end => Icons.stop_circle_outlined,
                 ExecutionEventType.stop => Icons.timer_off_outlined,
               }, color: AppColors.primary),
-              const SizedBox(width: AppLayout.spaceLg),
+              const SizedBox(width: AppMetrics.spaceLg),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

@@ -3,7 +3,8 @@ import '../../../application/errors/user_error_message.dart';
 import 'package:flutter/material.dart';
 
 import '../../../application/assistant/assistant_controller.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../application/assistant/assistant_conversation_store.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/app_confirm_dialog.dart';
@@ -60,7 +61,7 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
                             onPressed: () => setState(_search.clear),
                             icon: const Icon(
                               Icons.close_rounded,
-                              size: AppLayout.iconSm,
+                              size: AppMetrics.iconSm,
                             ),
                           ),
                   ),
@@ -109,10 +110,10 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
         rows.add(
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              AppLayout.spaceXs,
-              AppLayout.spaceXl,
-              AppLayout.spaceXs,
-              AppLayout.spaceSm,
+              AppMetrics.spaceXs,
+              AppMetrics.spaceXl,
+              AppMetrics.spaceXs,
+              AppMetrics.spaceSm,
             ),
             child: Text(
               group,
@@ -127,7 +128,7 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
       final selected = conversation.id == controller.currentSessionId;
       rows.add(
         Padding(
-          padding: const EdgeInsets.only(bottom: AppLayout.spaceXs),
+          padding: const EdgeInsets.only(bottom: AppMetrics.spaceXs),
           child: AppInteractiveSurface(
             key: ValueKey('assistant-conversation-${conversation.id}'),
             selected: selected,
@@ -136,10 +137,10 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
                 ? null
                 : () => _open(context, conversation),
             semanticsLabel: conversation.title,
-            borderRadius: AppLayout.radiusMd,
+            borderRadius: AppMetrics.radiusMd,
             padding: const EdgeInsets.symmetric(
-              horizontal: AppLayout.spaceMd,
-              vertical: AppLayout.spaceMd,
+              horizontal: AppMetrics.spaceMd,
+              vertical: AppMetrics.spaceMd,
             ),
             child: Row(
               children: [
@@ -149,10 +150,10 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
                   foregroundColor: AppColors.primary,
                   child: Icon(
                     Icons.chat_bubble_outline_rounded,
-                    size: AppLayout.iconMd,
+                    size: AppMetrics.iconMd,
                   ),
                 ),
-                const SizedBox(width: AppLayout.spaceMd),
+                const SizedBox(width: AppMetrics.spaceMd),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,10 +164,10 @@ class _AssistantHistoryPageState extends State<AssistantHistoryPage> {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
-                      const SizedBox(height: AppLayout.spaceXs),
+                      const SizedBox(height: AppMetrics.spaceXs),
                       Wrap(
-                        spacing: AppLayout.spaceSm,
-                        runSpacing: AppLayout.spaceXs,
+                        spacing: AppMetrics.spaceSm,
+                        runSpacing: AppMetrics.spaceXs,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(

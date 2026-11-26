@@ -11,7 +11,7 @@ import '../../../domain/rules/historical_completion_rules.dart';
 import 'assistant_schedule_card.dart';
 import 'assistant_outline_editor.dart';
 import '../../../application/assistant/assistant_goal_outline.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../widgets/app_expansion.dart';
 
 class AssistantOperationCard extends StatefulWidget {
@@ -67,26 +67,26 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
     if (!operation.isWrite) {
       if (operation.status == AssistantOperationStatus.waitingConfirmation) {
         return Padding(
-          padding: const EdgeInsets.only(bottom: AppLayout.spaceLg),
+          padding: const EdgeInsets.only(bottom: AppMetrics.spaceLg),
           child: Card(
             child: Padding(
-              padding: const EdgeInsets.all(AppLayout.spaceLg),
+              padding: const EdgeInsets.all(AppMetrics.spaceLg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _Header(operation: operation),
-                  const SizedBox(height: AppLayout.spaceSm),
+                  const SizedBox(height: AppMetrics.spaceSm),
                   const Text('询问权限下，查询应用数据也需要你确认。查询结果会提供给当前模型。'),
                   if (operation.input.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                        vertical: AppLayout.spaceSm,
+                        vertical: AppMetrics.spaceSm,
                       ),
                       child: Text(jsonEncode(operation.input)),
                     ),
                   Wrap(
                     alignment: WrapAlignment.end,
-                    spacing: AppLayout.spaceSm,
+                    spacing: AppMetrics.spaceSm,
                     children: [
                       TextButton(
                         onPressed: () =>
@@ -118,11 +118,11 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
       return _settledCard(operation, skippedCount);
     }
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppLayout.spaceLg),
+      padding: const EdgeInsets.only(bottom: AppMetrics.spaceLg),
       child: Material(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppLayout.radiusXl),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusXl),
           side: BorderSide(
             color: operation.status == AssistantOperationStatus.failed
                 ? AppColors.error
@@ -130,12 +130,12 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(AppLayout.spaceLg),
+          padding: const EdgeInsets.all(AppMetrics.spaceLg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _Header(operation: operation),
-              const SizedBox(height: AppLayout.spaceMd),
+              const SizedBox(height: AppMetrics.spaceMd),
               if (_editing &&
                   operation.status ==
                       AssistantOperationStatus.waitingConfirmation)
@@ -162,7 +162,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
                   AppExpansionTile(
                     insetHeader: false,
                     headerPadding: const EdgeInsets.symmetric(
-                      vertical: AppLayout.spaceXs,
+                      vertical: AppMetrics.spaceXs,
                     ),
                     childrenPadding: EdgeInsets.zero,
                     title: Text(
@@ -196,7 +196,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
               ],
               if (operation.status == AssistantOperationStatus.unknown)
                 Padding(
-                  padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+                  padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
                   child: FilledButton.icon(
                     onPressed: () => widget.controller.resolveUnknownOutcome(
                       operation.callId,
@@ -225,7 +225,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         side: const BorderSide(color: AppColors.hairline),
       ),
       clipBehavior: Clip.antiAlias,
@@ -234,24 +234,24 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
         initiallyExpanded: widget.initiallyExpanded,
         insetHeader: false,
         headerPadding: const EdgeInsets.symmetric(
-          horizontal: AppLayout.spaceMd,
+          horizontal: AppMetrics.spaceMd,
         ),
         childrenPadding: const EdgeInsets.fromLTRB(
-          AppLayout.spaceMd,
+          AppMetrics.spaceMd,
           0,
-          AppLayout.spaceMd,
-          AppLayout.spaceMd,
+          AppMetrics.spaceMd,
+          AppMetrics.spaceMd,
         ),
         leading: Icon(
           succeeded ? Icons.check_circle_outline : Icons.close_rounded,
-          size: AppLayout.iconSm,
+          size: AppMetrics.iconSm,
           color: succeeded ? AppColors.primary : AppColors.textSecondary,
         ),
         title: _Header(operation: operation, compact: true),
         children: [
           if (!succeeded)
             Padding(
-              padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+              padding: const EdgeInsets.only(bottom: AppMetrics.spaceSm),
               child: Text(
                 '本次操作已取消，未写入数据',
                 style: Theme.of(context).textTheme.bodySmall,
@@ -273,13 +273,13 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
   List<Widget> _historySummary(AssistantOperation operation, int skippedCount) {
     if (operation.toolName != 'completeHistory') return const [];
     return [
-      const SizedBox(height: AppLayout.spaceSm),
+      const SizedBox(height: AppMetrics.spaceSm),
       Wrap(
-        spacing: AppLayout.spaceSm,
-        runSpacing: AppLayout.spaceSm,
+        spacing: AppMetrics.spaceSm,
+        runSpacing: AppMetrics.spaceSm,
         children: [
           Chip(
-            avatar: const Icon(Icons.task_alt, size: AppLayout.iconSm),
+            avatar: const Icon(Icons.task_alt, size: AppMetrics.iconSm),
             label: Text(switch (operation.status) {
               AssistantOperationStatus.succeeded =>
                 '${_receipt?['completedCount'] ?? 0} 项已补记',
@@ -299,9 +299,9 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
         AppExpansionTile(
           insetHeader: false,
           headerPadding: const EdgeInsets.symmetric(
-            vertical: AppLayout.spaceXs,
+            vertical: AppMetrics.spaceXs,
           ),
-          childrenPadding: const EdgeInsets.only(top: AppLayout.spaceSm),
+          childrenPadding: const EdgeInsets.only(top: AppMetrics.spaceSm),
           title: const Text('查看本批任务'),
           children: [_historyList(operation.historyMissions)],
         ),
@@ -441,7 +441,7 @@ class _AssistantOperationCardState extends State<AssistantOperationCard> {
     return [
       for (final row in rows)
         Padding(
-          padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+          padding: const EdgeInsets.only(bottom: AppMetrics.spaceSm),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -499,7 +499,7 @@ class _Header extends StatelessWidget {
                 : Theme.of(context).textTheme.titleMedium,
           ),
         ),
-        const SizedBox(width: AppLayout.spaceSm),
+        const SizedBox(width: AppMetrics.spaceSm),
         Text(
           status,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -528,16 +528,16 @@ class _WaitingActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+    padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
     child: Wrap(
       alignment: WrapAlignment.end,
-      spacing: AppLayout.spaceSm,
-      runSpacing: AppLayout.spaceSm,
+      spacing: AppMetrics.spaceSm,
+      runSpacing: AppMetrics.spaceSm,
       children: [
         TextButton(onPressed: onCancel, child: const Text('取消')),
         OutlinedButton.icon(
           onPressed: onEdit,
-          icon: const Icon(Icons.edit_outlined, size: AppLayout.iconSm),
+          icon: const Icon(Icons.edit_outlined, size: AppMetrics.iconSm),
           label: const Text('修改'),
         ),
         FilledButton(onPressed: onConfirm, child: const Text('确认执行')),
@@ -573,20 +573,20 @@ class _ReadResultCard extends StatelessWidget {
             : '已'}${assistantToolLabel(operation.toolName)}';
     return Padding(
       key: ValueKey('assistant-read-${operation.callId}'),
-      padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+      padding: const EdgeInsets.only(bottom: AppMetrics.spaceSm),
       child: AppExpansionTile(
         key: PageStorageKey('read-${operation.callId}'),
         initiallyExpanded: initiallyExpanded,
         insetHeader: false,
         headerPadding: const EdgeInsets.symmetric(
-          horizontal: AppLayout.spaceMd,
-          vertical: AppLayout.spaceXs,
+          horizontal: AppMetrics.spaceMd,
+          vertical: AppMetrics.spaceXs,
         ),
         childrenPadding: const EdgeInsets.fromLTRB(
-          AppLayout.spaceMd,
+          AppMetrics.spaceMd,
           0,
-          AppLayout.spaceMd,
-          AppLayout.spaceMd,
+          AppMetrics.spaceMd,
+          AppMetrics.spaceMd,
         ),
         leading: running
             ? const SizedBox(
@@ -596,7 +596,7 @@ class _ReadResultCard extends StatelessWidget {
               )
             : Icon(
                 failed ? Icons.error_outline : Icons.check_circle_outline,
-                size: AppLayout.iconSm,
+                size: AppMetrics.iconSm,
                 color: failed ? colors.error : colors.primary,
               ),
         title: Text(
@@ -640,7 +640,7 @@ class _ResultDetails extends StatelessWidget {
       children: [
         if (message != null)
           Padding(
-            padding: const EdgeInsets.only(top: AppLayout.spaceSm),
+            padding: const EdgeInsets.only(top: AppMetrics.spaceSm),
             child: Text(
               '$message'
                   .replaceFirst('Invalid argument(s): ', '')
@@ -652,8 +652,8 @@ class _ResultDetails extends StatelessWidget {
           ),
         if (references is List)
           Wrap(
-            spacing: AppLayout.spaceSm,
-            runSpacing: AppLayout.spaceXs,
+            spacing: AppMetrics.spaceSm,
+            runSpacing: AppMetrics.spaceXs,
             children: [
               for (final reference in references)
                 if (reference is Map<String, dynamic> &&
@@ -667,7 +667,7 @@ class _ResultDetails extends StatelessWidget {
                       reference['type'] == 'goal'
                           ? Icons.track_changes
                           : Icons.task_outlined,
-                      size: AppLayout.iconSm,
+                      size: AppMetrics.iconSm,
                     ),
                     label: Text('打开${reference['title'] ?? '记录'}'),
                   ),
@@ -685,7 +685,7 @@ class _ResultDetails extends StatelessWidget {
             AppExpansionTile(
               insetHeader: false,
               headerPadding: const EdgeInsets.symmetric(
-                vertical: AppLayout.spaceXs,
+                vertical: AppMetrics.spaceXs,
               ),
               childrenPadding: EdgeInsets.zero,
               title: Text(
@@ -701,10 +701,10 @@ class _ResultDetails extends StatelessWidget {
   Widget _rawData(BuildContext context, Map<String, Object?> decoded) =>
       Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(AppLayout.spaceMd),
+        padding: const EdgeInsets.all(AppMetrics.spaceMd),
         decoration: BoxDecoration(
           color: AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         ),
         child: _OperationRawData(
           text: const JsonEncoder.withIndent('  ').convert(decoded),
@@ -956,7 +956,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
           _field('why', '为什么（可留空）'),
         if (_error != null)
           Padding(
-            padding: const EdgeInsets.only(top: AppLayout.spaceSm),
+            padding: const EdgeInsets.only(top: AppMetrics.spaceSm),
             child: Text(
               _error!,
               style: Theme.of(
@@ -965,10 +965,10 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
             ),
           ),
         Padding(
-          padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+          padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
           child: Wrap(
             alignment: WrapAlignment.end,
-            spacing: AppLayout.spaceSm,
+            spacing: AppMetrics.spaceSm,
             children: [
               TextButton(onPressed: widget.onCancel, child: const Text('取消修改')),
               FilledButton(onPressed: _save, child: const Text('保存提案')),
@@ -985,7 +985,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
     int maxLines = 1,
     TextInputType? keyboardType,
   }) => Padding(
-    padding: const EdgeInsets.only(bottom: AppLayout.spaceMd),
+    padding: const EdgeInsets.only(bottom: AppMetrics.spaceMd),
     child: TextField(
       controller: _controllers[key],
       onChanged: (_) {
@@ -998,7 +998,7 @@ class _AssistantProposalEditorState extends State<AssistantProposalEditor> {
   );
 
   Widget _choice(String key, String label, List<String> values) => Padding(
-    padding: const EdgeInsets.only(bottom: AppLayout.spaceMd),
+    padding: const EdgeInsets.only(bottom: AppMetrics.spaceMd),
     child: AppDropdownFormField<String>(
       initialValue: values.contains(_draft[key]) ? _draft[key] as String : null,
       decoration: InputDecoration(labelText: label),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../application/backup/backup_service.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/layout/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/colors.dart';
 import '../widgets/app_section_card.dart';
 import '../widgets/app_section_header.dart';
@@ -45,12 +46,12 @@ class _BackupScopePageState extends State<BackupScopePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const AppSectionHeader('始终包含'),
-                            const SizedBox(height: AppLayout.spaceSm),
+                            const SizedBox(height: AppMetrics.spaceSm),
                             Text(
                               '任务、目标、记录、正式材料原件、长期记忆与已保存的助手会话。',
                               style: text.bodyLarge,
                             ),
-                            const SizedBox(height: AppLayout.spaceXs),
+                            const SizedBox(height: AppMetrics.spaceXs),
                             Text(
                               '恢复要求数据库快照与材料原件完全对应，这两部分不能单独取消。',
                               style: text.bodyMedium,
@@ -58,7 +59,7 @@ class _BackupScopePageState extends State<BackupScopePage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: AppLayout.spaceLg),
+                      const SizedBox(height: AppMetrics.spaceLg),
                       AppSectionCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,7 +84,7 @@ class _BackupScopePageState extends State<BackupScopePage> {
                         ),
                       ),
                       if (_selected.contains(BackupResource.speechModel)) ...[
-                        const SizedBox(height: AppLayout.spaceMd),
+                        const SizedBox(height: AppMetrics.spaceMd),
                         Text(
                           '已勾选离线语音模型：备份包增加约 228 MiB，导出与恢复都会明显变慢；本机未安装时不会写入模型文件。',
                           style: text.bodyMedium?.copyWith(

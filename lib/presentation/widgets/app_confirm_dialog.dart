@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/app_motion.dart';
 
 /// 应用共用的双按钮确认框。这里只展示文案并返回选择，业务仍由页面处理。
@@ -45,21 +45,21 @@ class AppConfirmDialog extends StatelessWidget {
     final colors = theme.colorScheme;
     final buttonStyle = theme.textTheme.labelLarge;
     final buttonShape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+      borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
     );
 
     return Dialog(
       backgroundColor: colors.surfaceContainerLow,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      insetPadding: const EdgeInsets.all(AppLayout.spaceXxl),
+      insetPadding: const EdgeInsets.all(AppMetrics.spaceXxl),
       constraints: const BoxConstraints(maxWidth: 360),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
       ),
       // 高度由内容决定；横屏或大字体时整个内容可以滚动。
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppLayout.spaceXxl),
+        padding: const EdgeInsets.all(AppMetrics.spaceXxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -68,14 +68,14 @@ class AppConfirmDialog extends StatelessWidget {
               namesRoute: true,
               child: Text(title, style: theme.textTheme.titleLarge),
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             Text(
               message,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colors.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: AppLayout.spaceXxl),
+            const SizedBox(height: AppMetrics.spaceXxl),
             LayoutBuilder(
               builder: (context, constraints) {
                 // 窄屏或放大字号时改成纵排，给按钮文字留出完整空间。
@@ -87,10 +87,10 @@ class AppConfirmDialog extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: colors.primary,
                     foregroundColor: colors.onPrimary,
-                    minimumSize: const Size(0, AppLayout.touchTargetMin),
+                    minimumSize: const Size(0, AppMetrics.touchTargetMin),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppLayout.spaceLg,
-                      vertical: AppLayout.spaceMd,
+                      horizontal: AppMetrics.spaceLg,
+                      vertical: AppMetrics.spaceMd,
                     ),
                     textStyle: buttonStyle,
                     shape: buttonShape,
@@ -102,10 +102,10 @@ class AppConfirmDialog extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: colors.primary,
                     side: BorderSide(color: colors.outline),
-                    minimumSize: const Size(0, AppLayout.touchTargetMin),
+                    minimumSize: const Size(0, AppMetrics.touchTargetMin),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppLayout.spaceLg,
-                      vertical: AppLayout.spaceMd,
+                      horizontal: AppMetrics.spaceLg,
+                      vertical: AppMetrics.spaceMd,
                     ),
                     textStyle: buttonStyle,
                     shape: buttonShape,
@@ -117,7 +117,7 @@ class AppConfirmDialog extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       cancelButton,
-                      const SizedBox(height: AppLayout.spaceMd),
+                      const SizedBox(height: AppMetrics.spaceMd),
                       confirmButton,
                     ],
                   );
@@ -125,7 +125,7 @@ class AppConfirmDialog extends StatelessWidget {
                 return Row(
                   children: [
                     Expanded(child: cancelButton),
-                    const SizedBox(width: AppLayout.spaceMd),
+                    const SizedBox(width: AppMetrics.spaceMd),
                     Expanded(child: confirmButton),
                   ],
                 );

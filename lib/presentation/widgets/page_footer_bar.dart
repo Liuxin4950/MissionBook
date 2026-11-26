@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/layout/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 
 /// 主操作固定在滚动区外：统一左右边距、限宽居中、主按钮占满可用宽。
 /// 页面底部与宽屏右栏共用同一形态；键盘避让由调用方按所在容器处理
@@ -9,8 +10,8 @@ class PageFooterBar extends StatelessWidget {
   const PageFooterBar({
     super.key,
     required this.child,
-    this.topPadding = AppLayout.spaceSm,
-    this.bottomPadding = AppLayout.spaceLg,
+    this.topPadding = AppMetrics.spaceSm,
+    this.bottomPadding = AppMetrics.spaceLg,
     this.maxContentWidth = AppLayout.maxPageWidth,
   });
 

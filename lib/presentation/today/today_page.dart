@@ -7,7 +7,8 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../../application/missions/mission_service.dart';
 import '../../application/goals/goal_service.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/layout/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/colors.dart';
 import '../widgets/app_page_header.dart';
@@ -461,7 +462,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                     if (widget.fullSchedule)
                       Padding(
                         padding: const EdgeInsets.only(
-                          bottom: AppLayout.spaceLg,
+                          bottom: AppMetrics.spaceLg,
                         ),
                         child: Text(
                           display.scheduleDateLabel(_selectedDate),
@@ -469,13 +470,13 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                         ),
                       )
                     else ...[
-                      const SizedBox(height: AppLayout.spaceMd),
+                      const SizedBox(height: AppMetrics.spaceMd),
                       _WeekStrip(
                         selectedDate: _selectedDate,
                         today: _today,
                         onSelect: _changeDate,
                       ),
-                      const SizedBox(height: AppLayout.spaceMd),
+                      const SizedBox(height: AppMetrics.spaceMd),
                     ],
                     IgnorePointer(
                       ignoring: _isChangingDate,
@@ -510,17 +511,17 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                     ),
                     if (!widget.fullSchedule &&
                         _pendingEvidence.isNotEmpty) ...[
-                      const SizedBox(height: AppLayout.sectionGap),
+                      const SizedBox(height: AppMetrics.sectionGap),
                       Text(
                         '待补材料',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      const SizedBox(height: AppLayout.spaceSm),
+                      const SizedBox(height: AppMetrics.spaceSm),
                       for (final detail in _pendingEvidence)
                         Padding(
                           key: ValueKey('today-pending-${detail.mission.id}'),
                           padding: const EdgeInsets.only(
-                            top: AppLayout.spaceSm,
+                            top: AppMetrics.spaceSm,
                           ),
                           child: ListTile(
                             contentPadding: EdgeInsets.zero,
@@ -552,7 +553,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     final hasSnapshot = _loadedDate != null;
     if (_isLoading && !hasSnapshot) {
       return const Padding(
-        padding: EdgeInsets.symmetric(vertical: AppLayout.touchTargetMin),
+        padding: EdgeInsets.symmetric(vertical: AppMetrics.touchTargetMin),
         child: Center(child: CircularProgressIndicator()),
       );
     }
@@ -560,7 +561,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       return Column(
         children: [
           Text(_errorText!),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           OutlinedButton(onPressed: _loadMissions, child: const Text('重新加载')),
         ],
       );
@@ -585,7 +586,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
               onOpenMission: _openDetail,
               onCreate: _openCreate,
             ),
-            const SizedBox(height: AppLayout.sectionGap),
+            const SizedBox(height: AppMetrics.sectionGap),
             _ScheduleOverview(missions: missions),
           ],
         );
@@ -608,9 +609,9 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
             onOpen: _openDetail,
             showViewToggle: false,
             additionalHeaderExtent:
-                AppLayout.touchTargetMin +
-                AppLayout.spaceXs * 2 +
-                AppLayout.spaceMd,
+                AppMetrics.touchTargetMin +
+                AppMetrics.spaceXs * 2 +
+                AppMetrics.spaceMd,
             onShowList: () => setState(() => _dayTimeline = false),
             layoutBuilder: (now) => TimetableDay.fromScheduled(
               scheduled
@@ -633,9 +634,9 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                 paperBackground: missions.isEmpty,
                 padding: EdgeInsets.fromLTRB(
                   inset,
-                  AppLayout.spaceMd,
+                  AppMetrics.spaceMd,
                   inset,
-                  AppLayout.spaceMd,
+                  AppMetrics.spaceMd,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -661,14 +662,14 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                             padding: EdgeInsets.zero,
                             minimumSize: const Size(
                               0,
-                              AppLayout.touchTargetMin,
+                              AppMetrics.touchTargetMin,
                             ),
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                           label: const Text('查看全部'),
                           icon: const Icon(
                             Icons.chevron_right_rounded,
-                            size: AppLayout.iconSm,
+                            size: AppMetrics.iconSm,
                           ),
                           iconAlignment: IconAlignment.end,
                         ),
@@ -716,7 +717,7 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                       : 'day-schedule-list-mode',
                 ),
               ),
-              const SizedBox(height: AppLayout.spaceMd),
+              const SizedBox(height: AppMetrics.spaceMd),
             ],
             if (errorText != null)
               Row(
@@ -742,14 +743,14 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                       children: [schedule],
                     ),
                   ),
-                  const SizedBox(width: AppLayout.sectionGap),
+                  const SizedBox(width: AppMetrics.sectionGap),
                   Expanded(flex: 2, child: side),
                 ],
               )
             else ...[
               schedule,
               if (!widget.fullSchedule) ...[
-                const SizedBox(height: AppLayout.sectionGap),
+                const SizedBox(height: AppMetrics.sectionGap),
                 side,
               ],
             ],
@@ -795,7 +796,7 @@ class _TodayHeader extends StatelessWidget {
           title: '今天',
           showTitle: false,
           subtitle: Wrap(
-            spacing: AppLayout.spaceXs,
+            spacing: AppMetrics.spaceXs,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               TextButton.icon(
@@ -803,19 +804,19 @@ class _TodayHeader extends StatelessWidget {
                 onPressed: onPickDate,
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: AppLayout.spaceSm,
+                    horizontal: AppMetrics.spaceSm,
                   ),
-                  minimumSize: const Size(0, AppLayout.touchTargetMin),
+                  minimumSize: const Size(0, AppMetrics.touchTargetMin),
                   backgroundColor: AppColors.surfaceMuted,
                   foregroundColor: theme.colorScheme.onSurfaceVariant,
                   alignment: Alignment.centerLeft,
                   textStyle: theme.textTheme.bodyMedium,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                    borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
                   ),
                 ),
                 label: Text(compactDate ? compactDateLabel : dateLabel),
-                icon: const Icon(Icons.expand_more, size: AppLayout.iconSm),
+                icon: const Icon(Icons.expand_more, size: AppMetrics.iconSm),
                 iconAlignment: IconAlignment.end,
               ),
               if (showReturnToday)
@@ -825,14 +826,14 @@ class _TodayHeader extends StatelessWidget {
                   onPressed: onReturnToday,
                   style: IconButton.styleFrom(
                     fixedSize: const Size(
-                      AppLayout.touchTargetMin,
-                      AppLayout.touchTargetMin,
+                      AppMetrics.touchTargetMin,
+                      AppMetrics.touchTargetMin,
                     ),
                     shape: const CircleBorder(),
                   ),
                   icon: const Icon(
                     Icons.today_outlined,
-                    size: AppLayout.iconMd,
+                    size: AppMetrics.iconMd,
                   ),
                 ),
             ],
@@ -915,7 +916,7 @@ class _WeekStrip extends StatelessWidget {
                   key: const Key('today-week-selection'),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primary,
-                    borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                    borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
                   ),
                   child: const SizedBox.expand(),
                 ),
@@ -954,17 +955,17 @@ class _WeekStrip extends StatelessWidget {
                           ),
                           color: Colors.transparent,
                           borderRadius: BorderRadius.circular(
-                            AppLayout.radiusMd,
+                            AppMetrics.radiusMd,
                           ),
                           child: InkWell(
                             onTap: () => onSelect(date),
                             borderRadius: BorderRadius.circular(
-                              AppLayout.radiusMd,
+                              AppMetrics.radiusMd,
                             ),
                             child: Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(
-                                  AppLayout.radiusMd,
+                                  AppMetrics.radiusMd,
                                 ),
                                 border: isToday
                                     ? Border.all(
@@ -979,7 +980,7 @@ class _WeekStrip extends StatelessWidget {
                                     : null,
                               ),
                               padding: const EdgeInsets.symmetric(
-                                vertical: AppLayout.spaceMd,
+                                vertical: AppMetrics.spaceMd,
                               ),
                               child: Column(
                                 children: [
@@ -998,7 +999,7 @@ class _WeekStrip extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: AppLayout.spaceXs),
+                                  const SizedBox(height: AppMetrics.spaceXs),
                                   FittedBox(
                                     child: label(
                                       '${date.day}',
@@ -1078,13 +1079,13 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
         return Material(
           key: const Key('today-flexible-section'),
           color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(AppLayout.radiusXl),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusXl),
           child: Padding(
             padding: EdgeInsets.fromLTRB(
               inset,
-              AppLayout.spaceMd,
+              AppMetrics.spaceMd,
               inset,
-              AppLayout.spaceMd,
+              AppMetrics.spaceMd,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1102,12 +1103,12 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                       style: TextButton.styleFrom(
                         textStyle: theme.textTheme.labelSmall,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: AppLayout.spaceSm,
+                          horizontal: AppMetrics.spaceSm,
                         ),
                       ),
                       icon: const Icon(
                         Icons.add_rounded,
-                        size: AppLayout.iconSm,
+                        size: AppMetrics.iconSm,
                       ),
                       label: const Text('添加'),
                     ),
@@ -1130,7 +1131,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                     ),
                   if (_expanded && widget.items.length > 50)
                     Wrap(
-                      spacing: AppLayout.spaceSm,
+                      spacing: AppMetrics.spaceSm,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         TextButton(
@@ -1164,7 +1165,7 @@ class _FlexibleMissionSectionState extends State<_FlexibleMissionSection> {
                             ),
                             icon: Icon(
                               _expanded ? Icons.expand_less : Icons.expand_more,
-                              size: AppLayout.iconSm,
+                              size: AppMetrics.iconSm,
                             ),
                             label: Text(
                               _expanded ? '收起' : '展开全部（${widget.items.length}）',
@@ -1194,7 +1195,7 @@ class _FlexibleMissionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       key: ValueKey('mission-${item.id}'),
-      padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+      padding: const EdgeInsets.only(bottom: AppMetrics.spaceSm),
       child: _MissionDetailLink(
         label: _missionSemanticsLabel(item),
         hint: missionOpenLabel(item.phase),
@@ -1203,14 +1204,14 @@ class _FlexibleMissionRow extends StatelessWidget {
         // 外层 bottom: 8 只负责行间距，不能替代背景与图标/文字之间的距离。
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: AppLayout.spaceMd,
-            vertical: AppLayout.spaceSm,
+            horizontal: AppMetrics.spaceMd,
+            vertical: AppMetrics.spaceSm,
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               MissionPhaseIcon(phase: item.phase),
-              const SizedBox(width: AppLayout.spaceMd),
+              const SizedBox(width: AppMetrics.spaceMd),
               Expanded(child: _MissionDetails(item: item)),
             ],
           ),
@@ -1248,7 +1249,7 @@ class _MissionDetailLink extends StatelessWidget {
         type: MaterialType.transparency,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
           child: child,
         ),
       ),
@@ -1278,7 +1279,7 @@ class _MissionDetails extends StatelessWidget {
             color: item.isCancelled ? theme.colorScheme.onSurfaceVariant : null,
           ),
         ),
-        const SizedBox(height: AppLayout.spaceXs),
+        const SizedBox(height: AppMetrics.spaceXs),
         if (item.location case final location?) ...[
           Text(
             '📍 $location',
@@ -1287,7 +1288,7 @@ class _MissionDetails extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: _todayMetadataStyle(context),
           ),
-          const SizedBox(height: AppLayout.spaceXs),
+          const SizedBox(height: AppMetrics.spaceXs),
         ],
         Text(item.durationLabel, style: _todayMetadataStyle(context)),
         if (item.timeZoneLabel != null)
@@ -1306,7 +1307,7 @@ class _SectionEmptyHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
+      padding: const EdgeInsets.symmetric(vertical: AppMetrics.spaceSm),
       child: Text(
         message,
         style: _todayMetadataStyle(

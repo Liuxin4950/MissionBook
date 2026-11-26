@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../../application/assistant/assistant_controller.dart';
 import '../../../application/errors/user_error_message.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_top_bar.dart';
@@ -132,7 +133,7 @@ class _AssistantSettingsFormState extends State<AssistantSettingsForm> {
             (box.maxHeight -
                     keyboard -
                     MediaQuery.paddingOf(context).top -
-                    AppLayout.topBarHeight)
+                    AppMetrics.topBarHeight)
                 .clamp(0.0, double.infinity);
         return Scaffold(
           appBar: AppTopBar(
@@ -172,7 +173,7 @@ class _AssistantSettingsFormState extends State<AssistantSettingsForm> {
                         if (widget.error != null || widget.message != null)
                           Padding(
                             padding: const EdgeInsets.only(
-                              bottom: AppLayout.spaceSm,
+                              bottom: AppMetrics.spaceSm,
                             ),
                             child: Semantics(
                               liveRegion: true,
@@ -191,7 +192,7 @@ class _AssistantSettingsFormState extends State<AssistantSettingsForm> {
                           key: const Key('assistant-save-settings'),
                           style: FilledButton.styleFrom(
                             minimumSize: const Size.fromHeight(
-                              AppLayout.actionMinHeight,
+                              AppMetrics.actionMinHeight,
                             ),
                           ),
                           onPressed: widget.busy ? null : widget.onSave,

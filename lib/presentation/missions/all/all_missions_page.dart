@@ -12,7 +12,8 @@ import '../../widgets/detail_pane.dart';
 
 import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal.dart';
 import '../../../domain/entities/mission_detail.dart';
@@ -271,7 +272,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
         : '筛选任务，$_activeFilterCount项条件';
     final icon = Icon(
       _showFilters ? Icons.tune_rounded : Icons.tune,
-      size: AppLayout.iconMd,
+      size: AppMetrics.iconMd,
     );
     return Semantics(
       expanded: _showFilters,
@@ -305,7 +306,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
       actions: [
         _filterAction(context),
         _maintenanceMenu(context),
-        const SizedBox(width: AppLayout.spaceSm),
+        const SizedBox(width: AppMetrics.spaceSm),
       ],
     ),
     body: SafeArea(
@@ -366,20 +367,20 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                     horizontal:
                         MediaQuery.sizeOf(context).width <
                             AppLayout.mediumBreakpoint
-                        ? AppLayout.spaceSm
-                        : AppLayout.spaceXxl,
-                    vertical: AppLayout.spaceMd,
+                        ? AppMetrics.spaceSm
+                        : AppMetrics.spaceXxl,
+                    vertical: AppMetrics.spaceMd,
                   ),
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
                     _dateNavigation(context),
                     if (_showFilters) ...[
-                      const SizedBox(height: AppLayout.spaceLg),
+                      const SizedBox(height: AppMetrics.spaceLg),
                       _filters(context, all, today),
                     ],
                     if (!_showFilters && _activeFilterCount > 0)
                       Padding(
-                        padding: const EdgeInsets.only(top: AppLayout.spaceSm),
+                        padding: const EdgeInsets.only(top: AppMetrics.spaceSm),
                         child: Text(
                           '筛选：${_filterLabels.join(' · ')}',
                           style: Theme.of(context).textTheme.bodyMedium,
@@ -387,13 +388,13 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                       ),
                     if (snapshot.hasError)
                       Padding(
-                        padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+                        padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
                         child: TextButton(
                           onPressed: _refresh,
                           child: const Text('刷新失败，当前保留上次读取的任务，点击重试'),
                         ),
                       ),
-                    const SizedBox(height: AppLayout.spaceSm),
+                    const SizedBox(height: AppMetrics.spaceSm),
                     if (_weekStart != null)
                       MissionWeekTimetable(
                         start: _weekStart!,
@@ -435,21 +436,21 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                           DateTime.parse(date),
                           matches,
                         ),
-                    const SizedBox(height: AppLayout.sectionGap),
+                    const SizedBox(height: AppMetrics.sectionGap),
                     AppSectionCard(
                       padding: EdgeInsets.zero,
                       child: AppExpansionTile(
                         key: const Key('all-missions-statistics'),
                         insetHeader: false,
                         headerPadding: const EdgeInsets.symmetric(
-                          horizontal: AppLayout.spaceLg,
-                          vertical: AppLayout.spaceXs,
+                          horizontal: AppMetrics.spaceLg,
+                          vertical: AppMetrics.spaceXs,
                         ),
                         childrenPadding: const EdgeInsets.fromLTRB(
-                          AppLayout.spaceLg,
+                          AppMetrics.spaceLg,
                           0,
-                          AppLayout.spaceLg,
-                          AppLayout.spaceMd,
+                          AppMetrics.spaceLg,
+                          AppMetrics.spaceMd,
                         ),
                         title: Text(
                           '完成统计',
@@ -484,7 +485,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
         )
         .toList();
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppLayout.sectionGap),
+      padding: const EdgeInsets.only(bottom: AppMetrics.sectionGap),
       child: AppSectionCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -530,7 +531,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
       _pastUnstarted = false;
     });
     return AppSectionCard(
-      padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceXs),
+      padding: const EdgeInsets.symmetric(vertical: AppMetrics.spaceXs),
       child: Column(
         children: [
           Row(
@@ -628,11 +629,11 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 TextButton(onPressed: _resetFilters, child: const Text('重置筛选')),
             ],
           ),
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           AdaptiveColumns(
             minColumnWidth: 150,
             maxColumns: 2,
-            spacing: AppLayout.spaceMd,
+            spacing: AppMetrics.spaceMd,
             children: [
               AppDropdownFormField<_TaskDateScope>(
                 key: ValueKey(
@@ -701,7 +702,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
             ],
           ),
           if (widget.goals != null) ...[
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             FutureBuilder<List<Goal>>(
               future: _goalChoices,
               builder: (context, snapshot) {
@@ -764,15 +765,15 @@ class _AllMissionsPageState extends State<AllMissionsPage>
     final theme = Theme.of(context);
     return Padding(
       key: Key('all-mission-${detail.mission.id}'),
-      padding: EdgeInsets.only(bottom: embedded ? 0 : AppLayout.spaceSm),
+      padding: EdgeInsets.only(bottom: embedded ? 0 : AppMetrics.spaceSm),
       child: Material(
         color: embedded ? Colors.transparent : AppColors.card,
-        borderRadius: BorderRadius.circular(AppLayout.radiusXl),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusXl),
         clipBehavior: Clip.antiAlias,
         child: ListTile(
           contentPadding: EdgeInsets.symmetric(
-            horizontal: embedded ? 0 : AppLayout.spaceLg,
-            vertical: AppLayout.spaceSm,
+            horizontal: embedded ? 0 : AppMetrics.spaceLg,
+            vertical: AppMetrics.spaceSm,
           ),
           leading: MissionPhaseIcon(phase: detail.phase),
           title: Text(detail.mission.title, style: theme.textTheme.labelSmall),
@@ -858,19 +859,19 @@ class _AllMissionsPageState extends State<AllMissionsPage>
         DateTime(today.year, today.month, today.day - offset),
     ];
     return Padding(
-      padding: const EdgeInsets.only(top: AppLayout.spaceSm),
+      padding: const EdgeInsets.only(top: AppMetrics.spaceSm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('最近 7 天', style: theme.textTheme.titleMedium),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           Text(
             '计划 $planned 项 · 报告完成 $recentCompleted 项',
             style: theme.textTheme.bodyMedium,
           ),
-          const SizedBox(height: AppLayout.spaceXl),
+          const SizedBox(height: AppMetrics.spaceXl),
           Text('近 30 天完成记录', style: theme.textTheme.titleMedium),
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           LayoutBuilder(
             builder: (context, box) {
               final columns = box.maxWidth >= 420 ? 15 : 10;
@@ -883,8 +884,8 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                 child: SizedBox(
                   width: columns * cell + (columns - 1) * 6,
                   child: Wrap(
-                    spacing: AppLayout.spaceSm,
-                    runSpacing: AppLayout.spaceSm,
+                    spacing: AppMetrics.spaceSm,
+                    runSpacing: AppMetrics.spaceSm,
                     children: [
                       for (final day in days)
                         Tooltip(
@@ -901,7 +902,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
                                     ? AppColors.primary
                                     : AppColors.primarySoft,
                                 borderRadius: BorderRadius.circular(
-                                  AppLayout.radiusXs,
+                                  AppMetrics.radiusXs,
                                 ),
                               ),
                             ),
@@ -913,7 +914,7 @@ class _AllMissionsPageState extends State<AllMissionsPage>
               );
             },
           ),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           Text('深色方格表示当天有完成报告；计划与完成分别计算。', style: theme.textTheme.bodySmall),
         ],
       ),
@@ -951,11 +952,11 @@ class _PagedMissionRowsState extends State<_PagedMissionRows> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('任务量较大，使用分页列表。共 $count 项，每页 50 项；本视图不绘制课表交集。'),
-        const SizedBox(height: AppLayout.spaceMd),
+        const SizedBox(height: AppMetrics.spaceMd),
         for (final detail in widget.records.skip(start).take(50))
           widget.buildRow(detail),
         Wrap(
-          spacing: AppLayout.spaceSm,
+          spacing: AppMetrics.spaceSm,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             TextButton(

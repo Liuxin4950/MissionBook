@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/colors.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/layout/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import 'adaptive_sheet.dart';
 
 /// 在手机使用底部弹层，较宽窗口使用居中对话框；确认后才返回日期。
@@ -149,10 +150,10 @@ class _DatePickerContentState extends State<_DatePickerContent> {
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-          AppLayout.spaceXl,
-          AppLayout.spaceXl,
-          AppLayout.spaceXl,
-          AppLayout.spaceMd,
+          AppMetrics.spaceXl,
+          AppMetrics.spaceXl,
+          AppMetrics.spaceXl,
+          AppMetrics.spaceMd,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -164,16 +165,16 @@ class _DatePickerContentState extends State<_DatePickerContent> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(widget.title, style: text.titleLarge),
-                    const SizedBox(height: AppLayout.spaceSm),
+                    const SizedBox(height: AppMetrics.spaceSm),
                     Text(
                       '${_selected.year}年${_selected.month}月${_selected.day}日',
                       key: const Key('app-date-selected'),
                       style: text.bodyMedium,
                     ),
-                    const SizedBox(height: AppLayout.spaceMd),
+                    const SizedBox(height: AppMetrics.spaceMd),
                     Wrap(
-                      spacing: AppLayout.spaceSm,
-                      runSpacing: AppLayout.spaceXs,
+                      spacing: AppMetrics.spaceSm,
+                      runSpacing: AppMetrics.spaceXs,
                       children: [
                         OutlinedButton(
                           key: const Key('app-date-today'),
@@ -207,17 +208,17 @@ class _DatePickerContentState extends State<_DatePickerContent> {
                             _typing
                                 ? Icons.calendar_month_outlined
                                 : Icons.edit_outlined,
-                            size: AppLayout.iconSm,
+                            size: AppMetrics.iconSm,
                           ),
                           label: Text(_typing ? '选择日历' : '输入日期'),
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppLayout.spaceXs),
+                    const SizedBox(height: AppMetrics.spaceXs),
                     if (_typing)
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                          vertical: AppLayout.spaceLg,
+                          vertical: AppMetrics.spaceLg,
                         ),
                         child: TextField(
                           key: const Key('app-date-input'),
@@ -244,10 +245,10 @@ class _DatePickerContentState extends State<_DatePickerContent> {
                 ),
               ),
             ),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             Wrap(
               alignment: WrapAlignment.end,
-              spacing: AppLayout.spaceSm,
+              spacing: AppMetrics.spaceSm,
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),

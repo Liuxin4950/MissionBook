@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../application/assistant/assistant_controller.dart';
 import '../../../application/assistant/assistant_speech.dart';
 import '../../../application/errors/user_error_message.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/app_settings_row.dart';
 import '../../widgets/app_dropdown_form_field.dart';
@@ -104,7 +104,7 @@ class _SpeechFormState extends State<_SpeechForm> {
       children: [
         _buildSpeechSection(),
         if (widget.createVoiceTest != null) ...[
-          const SizedBox(height: AppLayout.spaceLg),
+          const SizedBox(height: AppMetrics.spaceLg),
           AppSectionCard(
             padding: EdgeInsets.zero,
             child: AppSettingsRow(
@@ -187,12 +187,12 @@ class _SpeechFormState extends State<_SpeechForm> {
   }
 
   Widget _buildSpeechSection() => AppSectionCard(
-    padding: const EdgeInsets.all(AppLayout.spaceLg),
+    padding: const EdgeInsets.all(AppMetrics.spaceLg),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('语音输入', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: AppLayout.spaceMd),
+        const SizedBox(height: AppMetrics.spaceMd),
         AppDropdownFormField<bool>(
           key: const Key('assistant-speech-mode'),
           initialValue: _transcription,
@@ -206,7 +206,7 @@ class _SpeechFormState extends State<_SpeechForm> {
               ? null
               : (value) => setState(() => _transcription = value ?? false),
         ),
-        const SizedBox(height: AppLayout.spaceMd),
+        const SizedBox(height: AppMetrics.spaceMd),
         if (!_transcription) ...[
           const OfflineSpeechModelSection(),
         ] else ...[
@@ -214,7 +214,7 @@ class _SpeechFormState extends State<_SpeechForm> {
             '录音最长 50 秒；录音会发送到你配置的转写服务，使用独立 API Key。',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           TextField(
             controller: _speechEndpoint,
             enabled: !_saving && !widget.controller.isBusy,
@@ -225,7 +225,7 @@ class _SpeechFormState extends State<_SpeechForm> {
               hintText: 'https://服务地址/v1/audio/transcriptions',
             ),
           ),
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           TextField(
             controller: _speechModel,
             enabled: !_saving && !widget.controller.isBusy,
@@ -235,7 +235,7 @@ class _SpeechFormState extends State<_SpeechForm> {
               hintText: '填写服务支持的语音模型',
             ),
           ),
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           TextField(
             controller: _speechCredential,
             enabled: !_saving && !widget.controller.isBusy,
@@ -269,7 +269,7 @@ class _SpeechFormState extends State<_SpeechForm> {
                 child: const Text('清除转写 Key'),
               ),
             ),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           const Text('浏览器需服务允许 CORS；本机 HTTP 仅限 localhost。'),
         ],
       ],

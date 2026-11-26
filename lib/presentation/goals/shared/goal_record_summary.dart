@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
 import '../../../core/theme/colors.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/app_motion.dart';
 
 /// 目标卡和详情共用的任务完成进度；节点全部直接任务报告完成后才计为完成。
@@ -99,7 +99,7 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
             children: [
               Expanded(
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppLayout.radiusXs),
+                  borderRadius: BorderRadius.circular(AppMetrics.radiusXs),
                   child: TweenAnimationBuilder<double>(
                     tween: Tween(
                       begin: value.completed / value.total,
@@ -109,24 +109,24 @@ class _GoalRecordSummaryState extends State<GoalRecordSummary> {
                     curve: AppMotion.curve,
                     builder: (context, progress, _) => LinearProgressIndicator(
                       value: progress,
-                      minHeight: AppLayout.spaceXs,
+                      minHeight: AppMetrics.spaceXs,
                       color: AppColors.primary,
                       backgroundColor: AppColors.primarySoft,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: AppLayout.spaceSm),
+              const SizedBox(width: AppMetrics.spaceSm),
               Ink(
                 key: Key('goal-coverage-count-${widget.goalId}'),
                 decoration: BoxDecoration(
                   color: AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(AppLayout.radiusPill),
+                  borderRadius: BorderRadius.circular(AppMetrics.radiusPill),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: AppLayout.spaceSm,
-                    vertical: AppLayout.spaceXs,
+                    horizontal: AppMetrics.spaceSm,
+                    vertical: AppMetrics.spaceXs,
                   ),
                   child: Text(
                     '${value.completed}/${value.total}',

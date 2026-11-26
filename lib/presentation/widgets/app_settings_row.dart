@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/colors.dart';
 
 /// 设置类页面的统一行：56 高、图标、标题、短说明与尾部动作。
@@ -36,19 +36,19 @@ class AppSettingsRow extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 56),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: AppLayout.spaceLg,
-              vertical: AppLayout.spaceSm,
+              horizontal: AppMetrics.spaceLg,
+              vertical: AppMetrics.spaceSm,
             ),
             child: Row(
               children: [
                 Icon(
                   icon,
-                  size: AppLayout.iconMd,
+                  size: AppMetrics.iconMd,
                   color: enabled
                       ? AppColors.textSecondary
                       : AppColors.onDisabled,
                 ),
-                const SizedBox(width: AppLayout.spaceMd),
+                const SizedBox(width: AppMetrics.spaceMd),
                 Expanded(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -81,12 +81,12 @@ class AppSettingsRow extends StatelessWidget {
                   ),
                 ),
                 if (trailing != null) ...[
-                  const SizedBox(width: AppLayout.spaceSm),
+                  const SizedBox(width: AppMetrics.spaceSm),
                   trailing!,
                 ] else if (active)
                   const Icon(
                     Icons.chevron_right,
-                    size: AppLayout.iconMd,
+                    size: AppMetrics.iconMd,
                     color: AppColors.textSecondary,
                   ),
               ],

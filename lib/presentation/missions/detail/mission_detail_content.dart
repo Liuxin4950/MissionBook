@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../widgets/app_section_card.dart';
 import 'package:timezone/timezone.dart' as tz;
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/mission.dart';
 import '../../../domain/entities/mission_detail.dart';
@@ -53,7 +54,7 @@ class MissionDetailContent extends StatelessWidget {
                     padding: materialSection != null && footer != null
                         ? AppLayout.pagePadding(
                             context,
-                          ).copyWith(bottom: AppLayout.spaceXs)
+                          ).copyWith(bottom: AppMetrics.spaceXs)
                         : AppLayout.pagePadding(context),
                     children: [
                       // 路径名称来自详情查询；没有归属时真实显示独立任务。
@@ -64,11 +65,11 @@ class MissionDetailContent extends StatelessWidget {
                             color: AppColors.textSecondary,
                           ),
                         ),
-                      const SizedBox(height: AppLayout.spaceMd),
+                      const SizedBox(height: AppMetrics.spaceMd),
                       MissionHeading(detail: detail),
-                      const SizedBox(height: AppLayout.sectionGap),
+                      const SizedBox(height: AppMetrics.sectionGap),
                       _ScheduleCard(schedule: detail.schedule),
-                      const SizedBox(height: AppLayout.sectionGap),
+                      const SizedBox(height: AppMetrics.sectionGap),
                       if (_hasText(mission.location))
                         _DetailSection(
                           title: '地点',
@@ -77,7 +78,7 @@ class MissionDetailContent extends StatelessWidget {
                       if (cancelledAt != null)
                         Padding(
                           padding: const EdgeInsets.only(
-                            bottom: AppLayout.sectionGap,
+                            bottom: AppMetrics.sectionGap,
                           ),
                           child: Text(
                             '没有执行记录',
@@ -98,13 +99,13 @@ class MissionDetailContent extends StatelessWidget {
                       actionFeedback,
                       if (isCancelling)
                         const Padding(
-                          padding: EdgeInsets.only(bottom: AppLayout.spaceLg),
+                          padding: EdgeInsets.only(bottom: AppMetrics.spaceLg),
                           child: Text('正在取消…'),
                         ),
                       if (cancelError != null)
                         Padding(
                           padding: const EdgeInsets.only(
-                            bottom: AppLayout.spaceLg,
+                            bottom: AppMetrics.spaceLg,
                           ),
                           child: Semantics(
                             liveRegion: true,
@@ -126,8 +127,8 @@ class MissionDetailContent extends StatelessWidget {
                           children: [
                             AppExpansionTile(
                               childrenPadding: const EdgeInsets.only(
-                                top: AppLayout.spaceSm,
-                                bottom: AppLayout.spaceXl,
+                                top: AppMetrics.spaceSm,
+                                bottom: AppMetrics.spaceXl,
                               ),
                               expandedCrossAxisAlignment:
                                   CrossAxisAlignment.stretch,
@@ -145,7 +146,7 @@ class MissionDetailContent extends StatelessWidget {
                             const Divider(height: 1),
                           ],
                         ),
-                        const SizedBox(height: AppLayout.sectionGap),
+                        const SizedBox(height: AppMetrics.sectionGap),
                       ],
                       if (plan.steps.isNotEmpty ||
                           plan.objective.trim() != mission.title.trim())
@@ -161,7 +162,7 @@ class MissionDetailContent extends StatelessWidget {
                                 ),
                               ),
                               if (plan.steps.isNotEmpty) ...[
-                                const SizedBox(height: AppLayout.spaceXl),
+                                const SizedBox(height: AppMetrics.spaceXl),
                                 for (
                                   var index = 0;
                                   index < plan.steps.length;
@@ -178,17 +179,17 @@ class MissionDetailContent extends StatelessWidget {
                         ),
                       if (showMaterialRequirements) ...[
                         const Divider(height: 1, color: AppColors.hairline),
-                        const SizedBox(height: AppLayout.spaceXl),
+                        const SizedBox(height: AppMetrics.spaceXl),
                         _MaterialRequirementsCard(detail: detail),
                       ],
                       if (materialSection != null) ...[
                         if (showMaterialRequirements)
-                          const SizedBox(height: AppLayout.sectionGap),
+                          const SizedBox(height: AppMetrics.sectionGap),
                         materialSection!,
                       ],
                       if (showNotes) ...[
                         if (showMaterialRequirements || materialSection != null)
-                          const SizedBox(height: AppLayout.sectionGap),
+                          const SizedBox(height: AppMetrics.sectionGap),
                         _DetailSection(title: '补充说明', child: Text(plan.notes!)),
                       ],
                     ],
@@ -209,8 +210,8 @@ class MissionDetailContent extends StatelessWidget {
                           top: false,
                           child: PageFooterBar(
                             topPadding: materialSection != null
-                                ? AppLayout.spaceXs
-                                : AppLayout.spaceSm,
+                                ? AppMetrics.spaceXs
+                                : AppMetrics.spaceSm,
                             child: footer!,
                           ),
                         ),
@@ -261,19 +262,19 @@ class _ActionStep extends StatelessWidget {
               if (!last)
                 Expanded(
                   child: Container(
-                    width: AppLayout.strokeThin,
+                    width: AppMetrics.strokeThin,
                     color: AppColors.hairline,
                   ),
                 ),
             ],
           ),
         ),
-        const SizedBox(width: AppLayout.spaceXl),
+        const SizedBox(width: AppMetrics.spaceXl),
         Expanded(
           child: Padding(
             padding: EdgeInsets.only(
-              top: AppLayout.spaceXs,
-              bottom: last ? 0 : AppLayout.spaceMd,
+              top: AppMetrics.spaceXs,
+              bottom: last ? 0 : AppMetrics.spaceMd,
             ),
             child: Text(text, style: Theme.of(context).textTheme.titleSmall),
           ),
@@ -300,48 +301,50 @@ class _MaterialRequirementsCard extends StatelessWidget {
     return Container(
       key: const Key('mission-material-card'),
       padding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceXl,
-        vertical: AppLayout.spaceLg,
+        horizontal: AppMetrics.spaceXl,
+        vertical: AppMetrics.spaceLg,
       ),
       decoration: BoxDecoration(
         color: AppColors.primarySoft,
-        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
-            padding: EdgeInsets.only(top: AppLayout.spaceMd),
+            padding: EdgeInsets.only(top: AppMetrics.spaceMd),
             child: Icon(
               Icons.attach_file_rounded,
-              size: AppLayout.iconLg,
+              size: AppMetrics.iconLg,
               color: AppColors.primary,
             ),
           ),
-          const SizedBox(width: AppLayout.spaceLg),
+          const SizedBox(width: AppMetrics.spaceLg),
           Expanded(
             child: AppExpansionTile(
               insetHeader: false,
               headerPadding: const EdgeInsets.symmetric(
-                vertical: AppLayout.spaceXs,
+                vertical: AppMetrics.spaceXs,
               ),
-              childrenPadding: const EdgeInsets.only(bottom: AppLayout.spaceXs),
+              childrenPadding: const EdgeInsets.only(
+                bottom: AppMetrics.spaceXs,
+              ),
               initiallyExpanded: true,
               expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
               title: Wrap(
-                spacing: AppLayout.spaceMd,
-                runSpacing: AppLayout.spaceSm,
+                spacing: AppMetrics.spaceMd,
+                runSpacing: AppMetrics.spaceSm,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text('材料要求', style: theme.textTheme.titleMedium),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppLayout.spaceMd,
-                      vertical: AppLayout.spaceXs,
+                      horizontal: AppMetrics.spaceMd,
+                      vertical: AppMetrics.spaceXs,
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.accent.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(AppLayout.radiusXl),
+                      borderRadius: BorderRadius.circular(AppMetrics.radiusXl),
                     ),
                     child: Text(
                       label,
@@ -370,17 +373,17 @@ class _MaterialRequirementsCard extends StatelessWidget {
                 if (policy == VerificationPolicy.requiredEvidence &&
                     deadline != null) ...[
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: AppLayout.spaceMd),
+                    padding: EdgeInsets.symmetric(vertical: AppMetrics.spaceMd),
                     child: Divider(height: 1, color: AppColors.hairline),
                   ),
                   Wrap(
-                    spacing: AppLayout.spaceSm,
-                    runSpacing: AppLayout.spaceXs,
+                    spacing: AppMetrics.spaceSm,
+                    runSpacing: AppMetrics.spaceXs,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       const Icon(
                         Icons.access_time,
-                        size: AppLayout.iconMd,
+                        size: AppMetrics.iconMd,
                         color: AppColors.textSecondary,
                       ),
                       Text(
@@ -414,7 +417,7 @@ class _DetailSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppLayout.sectionGap),
+      padding: const EdgeInsets.only(bottom: AppMetrics.sectionGap),
       child: AppSectionCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -426,7 +429,7 @@ class _DetailSection extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             DefaultTextStyle.merge(
               style: Theme.of(context).textTheme.bodyMedium,
               child: child,
@@ -491,7 +494,7 @@ class _ScheduleCard extends StatelessWidget {
                 time,
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                    vertical: AppLayout.spaceLg,
+                    vertical: AppMetrics.spaceLg,
                   ),
                   child: divider,
                 ),
@@ -508,7 +511,7 @@ class _ScheduleCard extends StatelessWidget {
                 Expanded(flex: 2, child: time),
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: AppLayout.spaceMd,
+                    horizontal: AppMetrics.spaceMd,
                   ),
                   child: divider,
                 ),
@@ -542,9 +545,9 @@ class _ScheduleFact extends StatelessWidget {
       children: [
         // 图标是文字的视觉提示，不单独重复朗读。
         ExcludeSemantics(
-          child: Icon(icon, size: AppLayout.iconLg, color: foreground),
+          child: Icon(icon, size: AppMetrics.iconLg, color: foreground),
         ),
-        const SizedBox(width: AppLayout.spaceMd),
+        const SizedBox(width: AppMetrics.spaceMd),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -553,7 +556,7 @@ class _ScheduleFact extends StatelessWidget {
                 label,
                 style: theme.textTheme.bodyMedium?.copyWith(color: foreground),
               ),
-              const SizedBox(height: AppLayout.spaceXs),
+              const SizedBox(height: AppMetrics.spaceXs),
               Text(
                 value,
                 style: theme.textTheme.bodyMedium?.copyWith(color: foreground),

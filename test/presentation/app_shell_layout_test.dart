@@ -11,7 +11,7 @@ import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
 import 'package:mission_book/data/repositories/drift_mission_repository.dart';
 import 'package:mission_book/presentation/today/today_page.dart';
-import 'package:mission_book/presentation/widgets/motion_settings_scope.dart';
+import 'package:mission_book/presentation/motion/motion_settings_scope.dart';
 import '../support/me_fakes.dart';
 
 void main() {

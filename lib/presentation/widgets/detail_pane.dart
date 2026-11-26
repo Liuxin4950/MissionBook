@@ -5,10 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/layout/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/colors.dart';
-import 'motion_settings_scope.dart';
+import '../motion/motion_settings_scope.dart';
 
 /// 稳定标记：只有助手会话路由允许使用可调分屏，普通详情保持既有布局。
 const assistantConversationPaneIdentity = 'assistant-conversation';
@@ -738,7 +739,7 @@ class _PaneSplitDoorState extends State<PaneSplitDoor> {
                                   ? AppColors.primary.withValues(alpha: .62)
                                   : AppColors.hairline.withValues(alpha: .72),
                               borderRadius: BorderRadius.circular(
-                                AppLayout.radiusXs,
+                                AppMetrics.radiusXs,
                               ),
                             ),
                           ),

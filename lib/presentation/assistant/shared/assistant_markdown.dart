@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import 'assistant_markdown_cache.dart';
 import 'assistant_markdown_chart.dart';
 
@@ -132,11 +132,11 @@ class _AssistantMarkdownState extends State<AssistantMarkdown> {
       h5: headingStyle,
       h6: headingStyle,
       listBullet: bodyStyle,
-      blockSpacing: widget.compact ? AppLayout.spaceXs : AppLayout.spaceSm,
+      blockSpacing: widget.compact ? AppMetrics.spaceXs : AppMetrics.spaceSm,
       code: theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
       codeblockDecoration: BoxDecoration(
         color: colors.surfaceContainer,
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
       ),
       tableColumnWidth: const FlexColumnWidth(),
     );
@@ -263,7 +263,7 @@ class _AssistantMarkdownBlockState extends State<_AssistantMarkdownBlock>
       imageDirectory: null,
       imageBuilder: (uri, title, alt) => TextButton.icon(
         onPressed: () => widget.openLink(context, uri.toString()),
-        icon: const Icon(Icons.image_outlined, size: AppLayout.iconSm),
+        icon: const Icon(Icons.image_outlined, size: AppMetrics.iconSm),
         label: Text(alt?.isNotEmpty == true ? alt! : title ?? '查看图片链接'),
       ),
       checkboxBuilder: null,

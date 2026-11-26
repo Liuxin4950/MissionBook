@@ -2,7 +2,7 @@ import '../../widgets/app_date_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../domain/entities/mission_schedule_revision.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 
 /// 日期、时长和时间安排；只管理日历展开，排期草稿仍由页面保存。
 class MissionScheduleFields extends StatefulWidget {
@@ -53,7 +53,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
         child: Material(
           color: colors.primaryContainer.withValues(alpha: 0.45),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+            borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
             side: BorderSide(color: colors.outlineVariant),
           ),
           clipBehavior: Clip.antiAlias,
@@ -81,8 +81,8 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
                         constraints.maxWidth >= 240 * scale;
                     return Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: AppLayout.spaceMd,
-                        vertical: AppLayout.spaceMd,
+                        horizontal: AppMetrics.spaceMd,
+                        vertical: AppMetrics.spaceMd,
                       ),
                       child: Row(
                         children: [
@@ -90,9 +90,9 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
                             Icon(
                               Icons.calendar_today_outlined,
                               color: colors.onSurface,
-                              size: AppLayout.iconLg,
+                              size: AppMetrics.iconLg,
                             ),
-                            const SizedBox(width: AppLayout.spaceMd),
+                            const SizedBox(width: AppMetrics.spaceMd),
                           ],
                           Expanded(
                             child: Text(
@@ -104,7 +104,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
                             _calendarExpanded
                                 ? Icons.expand_less
                                 : Icons.expand_more,
-                            size: AppLayout.iconMd,
+                            size: AppMetrics.iconMd,
                           ),
                         ],
                       ),
@@ -150,7 +150,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
           return Column(
             children: [
               _dateField(),
-              const SizedBox(height: AppLayout.spaceXl),
+              const SizedBox(height: AppMetrics.spaceXl),
               _durationField(),
             ],
           );
@@ -159,7 +159,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(flex: 3, child: _dateField()),
-            const SizedBox(width: AppLayout.spaceLg),
+            const SizedBox(width: AppMetrics.spaceLg),
             Expanded(flex: 2, child: _durationField()),
           ],
         );
@@ -173,7 +173,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
     final selection = DecoratedBox(
       decoration: BoxDecoration(
         color: colors.primaryContainer,
-        borderRadius: BorderRadius.circular(AppLayout.radiusPill),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusPill),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -198,7 +198,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   label,
-                  const SizedBox(height: AppLayout.spaceMd),
+                  const SizedBox(height: AppMetrics.spaceMd),
                   selection,
                 ],
               );
@@ -209,11 +209,11 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
             );
           },
         ),
-        const SizedBox(height: AppLayout.spaceLg),
+        const SizedBox(height: AppMetrics.spaceLg),
         // 条件字段原位出现，不打开新路由；自选时明确说明没有固定开始时刻。
         if (widget.timePolicy == TimePolicy.fixed) ...[
           Text('开始时间 · 24小时制', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -227,7 +227,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
                 ),
               ),
               const Padding(
-                padding: EdgeInsets.symmetric(horizontal: AppLayout.spaceMd),
+                padding: EdgeInsets.symmetric(horizontal: AppMetrics.spaceMd),
                 child: Text(':'),
               ),
               Expanded(
@@ -241,7 +241,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
               ),
             ],
           ),
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           Text(
             '到点自动开始，按计划时长停止并待确认；执行中加时会顺延，暂停不顺延。开始前可修改排期。',
             style: Theme.of(context).textTheme.bodyMedium,
@@ -251,7 +251,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
             '当天自行安排，无固定开始时刻。',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
-        const SizedBox(height: AppLayout.spaceSm),
+        const SizedBox(height: AppMetrics.spaceSm),
         Text(
           widget.timeZone == defaultScheduleTimeZone
               ? '排期时区：上海（Asia/Shanghai）'
@@ -283,8 +283,8 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
           disabledForegroundColor: colors.onSurfaceVariant,
           minimumSize: const Size(72, 48),
           padding: const EdgeInsets.symmetric(
-            horizontal: AppLayout.spaceLg,
-            vertical: AppLayout.spaceMd,
+            horizontal: AppMetrics.spaceLg,
+            vertical: AppMetrics.spaceMd,
           ),
           shape: const StadiumBorder(),
           textStyle: Theme.of(context).textTheme.labelMedium,
@@ -333,7 +333,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
     children: [
       _scheduleFields(),
       if (_calendarExpanded) ...[
-        const SizedBox(height: AppLayout.spaceMd),
+        const SizedBox(height: AppMetrics.spaceMd),
         // 日历留在当前表单，选择后只更新日期；不会写库或额外增加页面往返。
         IgnorePointer(
           ignoring: !widget.enabled,
@@ -352,7 +352,7 @@ class _MissionScheduleFieldsState extends State<MissionScheduleFields> {
         ),
       ],
       const Padding(
-        padding: EdgeInsets.symmetric(vertical: AppLayout.sectionGap),
+        padding: EdgeInsets.symmetric(vertical: AppMetrics.sectionGap),
         child: Divider(height: 1),
       ),
       _timeFields(),
@@ -378,7 +378,7 @@ InputDecoration missionInputDecoration(
     suffixIcon: suffix == null
         ? null
         : Padding(
-            padding: const EdgeInsets.only(right: AppLayout.spaceMd),
+            padding: const EdgeInsets.only(right: AppMetrics.spaceMd),
             child: Center(
               widthFactor: 1,
               child: Text(
@@ -419,7 +419,7 @@ class MissionInputLabel extends StatelessWidget {
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ),
-        const SizedBox(height: AppLayout.spaceSm),
+        const SizedBox(height: AppMetrics.spaceSm),
         field,
       ],
     );

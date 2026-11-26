@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../../../application/assistant/assistant_settings.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
@@ -54,6 +54,9 @@ class _WindowsOverlay extends StatefulWidget {
 }
 
 class _WindowsOverlayState extends State<_WindowsOverlay> {
+  // 与 Windows 原生边缘把手的逻辑高度对齐。
+  static const _edgeHandleHeight = 42.0;
+
   final _input = TextEditingController();
   final _inputFocus = FocusNode();
   final _scroll = ScrollController();
@@ -538,7 +541,7 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
 
   Widget _badge() => Material(
     color: AppColors.primarySoft,
-    borderRadius: BorderRadius.circular(AppLayout.radiusPill),
+    borderRadius: BorderRadius.circular(AppMetrics.radiusPill),
     child: InkWell(
       onTap: () => _mode('chat', focus: true),
       child: Semantics(
@@ -547,7 +550,7 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppLayout.spaceXs),
+            padding: const EdgeInsets.symmetric(horizontal: AppMetrics.spaceXs),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -587,11 +590,11 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
               ? Alignment.centerLeft
               : Alignment.centerRight,
           child: Container(
-            width: AppLayout.spaceXs,
-            height: AppLayout.desktopOverlayHandleHeight,
+            width: AppMetrics.spaceXs,
+            height: _edgeHandleHeight,
             decoration: BoxDecoration(
               color: AppColors.primary,
-              borderRadius: BorderRadius.circular(AppLayout.radiusXs),
+              borderRadius: BorderRadius.circular(AppMetrics.radiusXs),
             ),
           ),
         ),
@@ -637,14 +640,14 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Padding(
-                    padding: const EdgeInsets.all(AppLayout.spaceXs),
+                    padding: const EdgeInsets.all(AppMetrics.spaceXs),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           icon,
                           color: AppColors.primary,
-                          size: AppLayout.iconMd,
+                          size: AppMetrics.iconMd,
                         ),
                         Text(
                           label,
@@ -668,8 +671,8 @@ class _WindowsOverlayState extends State<_WindowsOverlay> {
     color: AppColors.card,
     child: Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceMd,
-        vertical: AppLayout.spaceXs,
+        horizontal: AppMetrics.spaceMd,
+        vertical: AppMetrics.spaceXs,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

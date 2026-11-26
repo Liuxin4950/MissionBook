@@ -6,6 +6,8 @@ import '../../core/theme/colors.dart';
 
 /// 完整品牌封面。停留由 App 管理，用户可提前进入，不显示虚构加载进度。
 class LaunchPage extends StatelessWidget {
+  static const _entranceDuration = Duration(milliseconds: 450);
+
   const LaunchPage({super.key, this.onContinue});
 
   final VoidCallback? onContinue;
@@ -29,7 +31,7 @@ class LaunchPage extends StatelessWidget {
                       ),
                       child: TweenAnimationBuilder<double>(
                         tween: Tween(begin: 0, end: 1),
-                        duration: AppMotion.resolve(context, AppMotion.launch),
+                        duration: AppMotion.resolve(context, _entranceDuration),
                         curve: AppMotion.curve,
                         builder: (context, value, child) => Opacity(
                           opacity: value,

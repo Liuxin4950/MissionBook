@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/app_motion.dart';
 import '../widgets/adaptive_columns.dart';
 
@@ -28,12 +28,12 @@ class MotionSettingsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SafeArea(
     child: SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
+      padding: const EdgeInsets.symmetric(vertical: AppMetrics.spaceSm),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppLayout.spaceLg),
+            padding: const EdgeInsets.symmetric(horizontal: AppMetrics.spaceLg),
             child: Row(
               children: [
                 Expanded(
@@ -52,31 +52,31 @@ class MotionSettingsPanel extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppLayout.spaceLg),
+            padding: const EdgeInsets.symmetric(horizontal: AppMetrics.spaceLg),
             child: Material(
               color: Theme.of(context).colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+              borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
               clipBehavior: Clip.antiAlias,
               child: preview,
             ),
           ),
           if (MediaQuery.disableAnimationsOf(context))
             const Padding(
-              padding: EdgeInsets.all(AppLayout.spaceSm),
+              padding: EdgeInsets.all(AppMetrics.spaceSm),
               child: Text('减少动效已生效'),
             ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppLayout.spaceLg),
+            padding: const EdgeInsets.symmetric(horizontal: AppMetrics.spaceLg),
             child: AdaptiveColumns(
               minColumnWidth: 156,
               maxColumns: maxOptionColumns,
-              spacing: AppLayout.spaceXs,
+              spacing: AppMetrics.spaceXs,
               children: options,
             ),
           ),
           if (error != null)
             Padding(
-              padding: const EdgeInsets.all(AppLayout.spaceMd),
+              padding: const EdgeInsets.all(AppMetrics.spaceMd),
               child: Text(
                 error!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
@@ -112,18 +112,18 @@ class MotionSettingsOption extends StatelessWidget {
     return Material(
       animationDuration: duration,
       color: selected ? colors.primaryContainer : colors.surface,
-      borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+      borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
       child: ListTile(
-        minTileHeight: AppLayout.actionMinHeight,
-        minLeadingWidth: AppLayout.iconMd,
-        horizontalTitleGap: AppLayout.spaceSm,
+        minTileHeight: AppMetrics.actionMinHeight,
+        minLeadingWidth: AppMetrics.iconMd,
+        horizontalTitleGap: AppMetrics.spaceSm,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppLayout.spaceMd,
+          horizontal: AppMetrics.spaceMd,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         ),
-        leading: Icon(icon, size: AppLayout.iconMd),
+        leading: Icon(icon, size: AppMetrics.iconMd),
         title: Text(label),
         selected: selected,
         enabled: enabled,
@@ -135,7 +135,7 @@ class MotionSettingsOption extends StatelessWidget {
             opacity: selected ? 1 : 0,
             duration: duration,
             child: const ExcludeSemantics(
-              child: Icon(Icons.check, size: AppLayout.iconSm),
+              child: Icon(Icons.check, size: AppMetrics.iconSm),
             ),
           ),
         ),

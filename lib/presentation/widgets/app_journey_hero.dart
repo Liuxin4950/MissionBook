@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/colors.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 
 const journeyArtwork = 'assets/illustrations/journey-garden-v2.png';
 
@@ -21,7 +21,7 @@ class AppJourneyHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+    borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
     child: ColoredBox(
       color: AppColors.card,
       child: LayoutBuilder(
@@ -40,7 +40,7 @@ class AppJourneyHero extends StatelessWidget {
           );
           final words = Padding(
             padding: EdgeInsets.all(
-              wide ? AppLayout.space3Xl : AppLayout.spaceXl,
+              wide ? AppMetrics.space3Xl : AppMetrics.spaceXl,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -54,14 +54,14 @@ class AppJourneyHero extends StatelessWidget {
                   cacheWidth: 144,
                   excludeFromSemantics: true,
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 Text(title, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: AppLayout.spaceSm),
+                const SizedBox(height: AppMetrics.spaceSm),
                 Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(height: AppLayout.spaceXl),
+                const SizedBox(height: AppMetrics.spaceXl),
                 ConstrainedBox(
                   constraints: const BoxConstraints(
-                    minHeight: AppLayout.actionMinHeight,
+                    minHeight: AppMetrics.actionMinHeight,
                   ),
                   child: Align(alignment: Alignment.centerLeft, child: actions),
                 ),

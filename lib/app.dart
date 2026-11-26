@@ -19,7 +19,7 @@ import 'application/settings/motion_settings.dart';
 import 'application/settings/onboarding_store.dart';
 import 'data/settings/motion_settings_store.dart';
 import 'data/settings/onboarding_store.dart';
-import 'presentation/widgets/motion_settings_scope.dart';
+import 'presentation/motion/motion_settings_scope.dart';
 import 'dart:async';
 import 'dart:io';
 import 'application/missions/planned_mission_scheduler.dart';
@@ -70,7 +70,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:path_provider/path_provider.dart';
 import 'presentation/launch/launch_page.dart';
 import 'presentation/onboarding/onboarding_page.dart';
-import 'core/theme/app_layout.dart';
+import 'core/theme/app_metrics.dart';
 import 'core/theme/app_motion.dart';
 
 part 'app_services.dart';
@@ -142,7 +142,7 @@ class _AppHostState extends State<App> {
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(AppLayout.spaceXl),
+            padding: const EdgeInsets.all(AppMetrics.spaceXl),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -151,19 +151,19 @@ class _AppHostState extends State<App> {
                   size: 40,
                   color: AppColors.primary,
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 const Text('正在准备书祺', style: AppTypography.pageTitle),
-                const SizedBox(height: AppLayout.spaceSm),
+                const SizedBox(height: AppMetrics.spaceSm),
                 Text(
                   _startupError == null ? '正在打开本机工作区…' : '工作区启动失败，请检查运行环境后重试。',
                   style: AppTypography.metadata,
                   textAlign: TextAlign.center,
                 ),
                 if (_startupError == null) ...[
-                  const SizedBox(height: AppLayout.spaceLg),
+                  const SizedBox(height: AppMetrics.spaceLg),
                   const CircularProgressIndicator(semanticsLabel: '正在启动'),
                 ] else ...[
-                  const SizedBox(height: AppLayout.spaceLg),
+                  const SizedBox(height: AppMetrics.spaceLg),
                   FilledButton.icon(
                     onPressed: _startDesktopWorkspace,
                     icon: const Icon(Icons.refresh_rounded),
@@ -225,6 +225,8 @@ class _AppWorkspace extends StatefulWidget {
 }
 
 class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
+  static const _launchHold = Duration(milliseconds: 2600);
+
   bool _restoring = false;
   Future<void>? _notificationInitialization;
   Future<void>? _restoreShutdown;
@@ -335,7 +337,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
       );
       if (_launchComplete) return;
       _launchTimer = Timer(
-        reduced ? Duration.zero : AppMotion.launchHold,
+        reduced ? Duration.zero : _launchHold,
         _completeLaunch,
       );
     });
@@ -732,7 +734,7 @@ class _AppState extends State<_AppWorkspace> with WidgetsBindingObserver {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             CircularProgressIndicator(),
-                            SizedBox(height: AppLayout.spaceLg),
+                            SizedBox(height: AppMetrics.spaceLg),
                             Text('正在恢复数据，请稍候…'),
                           ],
                         ),

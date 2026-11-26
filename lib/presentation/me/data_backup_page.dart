@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../application/backup/backup_service.dart';
 import '../../application/settings/app_device.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/layout/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../widgets/app_section_card.dart';
 import '../widgets/app_section_header.dart';
 import '../widgets/app_top_bar.dart';
@@ -38,12 +39,12 @@ class DataBackupPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const AppSectionHeader('完整本地备份'),
-                    const SizedBox(height: AppLayout.spaceMd),
+                    const SizedBox(height: AppMetrics.spaceMd),
                     Text(
                       '包含任务、目标、记录、正式材料原件、长期记忆和已保存的助手会话。',
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),
-                    const SizedBox(height: AppLayout.spaceSm),
+                    const SizedBox(height: AppMetrics.spaceSm),
                     Text(
                       '导出前可选择是否带走 API Key 与助手设置、本机资料与偏好、离线语音模型。恢复时包内存在的资源会一并写回，未包含的类别保留当前设备值。',
                       style: Theme.of(context).textTheme.bodyMedium,
@@ -51,10 +52,10 @@ class DataBackupPage extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceLg),
               DataExportCard(backup: backup, device: device),
               if (backup case final BackupRestorer restorer) ...[
-                const SizedBox(height: AppLayout.spaceLg),
+                const SizedBox(height: AppMetrics.spaceLg),
                 BackupRestoreCard(
                   restorer: restorer,
                   selectBackup: selectBackup,

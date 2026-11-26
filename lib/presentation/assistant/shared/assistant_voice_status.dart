@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../application/assistant/assistant_speech.dart';
 import '../../../core/theme/colors.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 
 /// 浮层与对话输入共用的真实录音状态，不以装饰波形模拟音量。
 class AssistantVoiceStatus extends StatelessWidget {
@@ -33,14 +33,14 @@ class AssistantVoiceStatus extends StatelessWidget {
       liveRegion: !recording,
       child: Container(
         padding: const EdgeInsets.symmetric(
-          horizontal: AppLayout.spaceMd,
-          vertical: AppLayout.spaceSm,
+          horizontal: AppMetrics.spaceMd,
+          vertical: AppMetrics.spaceSm,
         ),
         decoration: BoxDecoration(
           color: voice.error == null
               ? AppColors.primarySoft
               : Theme.of(context).colorScheme.errorContainer,
-          borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         ),
         child: Row(
           children: [
@@ -57,12 +57,12 @@ class AssistantVoiceStatus extends StatelessWidget {
                     : recording
                     ? Icons.mic_rounded
                     : Icons.check_circle_outline,
-                size: AppLayout.iconMd,
+                size: AppMetrics.iconMd,
                 color: voice.error == null
                     ? AppColors.primary
                     : AppColors.error,
               ),
-            const SizedBox(width: AppLayout.spaceSm),
+            const SizedBox(width: AppMetrics.spaceSm),
             Expanded(
               child: Text(title, style: Theme.of(context).textTheme.bodyMedium),
             ),
@@ -76,7 +76,7 @@ class AssistantVoiceStatus extends StatelessWidget {
               IconButton(
                 tooltip: '取消本次语音',
                 onPressed: onCancel,
-                icon: const Icon(Icons.close_rounded, size: AppLayout.iconSm),
+                icon: const Icon(Icons.close_rounded, size: AppMetrics.iconSm),
               ),
           ],
         ),
@@ -123,7 +123,7 @@ class _AssistantVoiceDraftState extends State<AssistantVoiceDraft> {
     decoration: const InputDecoration(
       labelText: '识别文字',
       hintText: '可以修改后再发送',
-      contentPadding: EdgeInsets.all(AppLayout.spaceMd),
+      contentPadding: EdgeInsets.all(AppMetrics.spaceMd),
     ),
   );
 }

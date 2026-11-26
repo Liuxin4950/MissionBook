@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import 'adaptive_sheet.dart';
 
 /// 设置说明共用自适应弹层与次级关闭按钮。
@@ -12,15 +12,15 @@ Future<void> showAppInfoSheet(
   builder: (context) => SafeArea(
     top: false,
     child: SingleChildScrollView(
-      padding: const EdgeInsets.all(AppLayout.spaceXxl),
+      padding: const EdgeInsets.all(AppMetrics.spaceXxl),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           Text(message),
-          const SizedBox(height: AppLayout.spaceLg),
+          const SizedBox(height: AppMetrics.spaceLg),
           OutlinedButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('知道了'),

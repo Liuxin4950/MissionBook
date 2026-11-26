@@ -10,7 +10,8 @@ import 'presentation/assistant/entry/assistant_scope.dart';
 import 'presentation/assistant/settings/assistant_settings_page.dart';
 import 'application/missions/mission_service.dart';
 import 'application/notifications/app_notification_service.dart';
-import 'core/theme/app_layout.dart';
+import 'core/layout/app_layout.dart';
+import 'core/theme/app_metrics.dart';
 import 'core/theme/app_motion.dart';
 import 'core/theme/colors.dart';
 import 'presentation/missions/execution/mission_execution_page.dart';
@@ -26,8 +27,8 @@ import 'application/settings/app_device.dart';
 import 'presentation/me/me_page.dart';
 import 'presentation/widgets/detail_pane.dart';
 import 'presentation/widgets/app_interactive_surface.dart';
-import 'presentation/widgets/app_content_transition.dart';
-import 'presentation/widgets/motion_settings_scope.dart';
+import 'presentation/motion/app_content_transition.dart';
+import 'presentation/motion/motion_settings_scope.dart';
 
 /// 管理顶层导航入口，并保留各页状态、转交共享业务对象。
 class AppShell extends StatefulWidget {
@@ -555,8 +556,8 @@ class _AppShellState extends State<AppShell> {
                     children: [
                       _buildSideRail(),
                       const VerticalDivider(
-                        width: AppLayout.strokeThin,
-                        thickness: AppLayout.strokeThin,
+                        width: AppMetrics.strokeThin,
+                        thickness: AppMetrics.strokeThin,
                       ),
                       Expanded(
                         child: Column(
@@ -720,9 +721,9 @@ class _AppShellState extends State<AppShell> {
   ) {
     final available =
         itemWidth -
-        AppLayout.spaceMd * 2 -
-        AppLayout.iconLg -
-        AppLayout.spaceSm;
+        AppMetrics.spaceMd * 2 -
+        AppMetrics.iconLg -
+        AppMetrics.spaceSm;
     final base = Theme.of(context).textTheme.labelMedium ?? const TextStyle();
     final style = base.copyWith(fontWeight: FontWeight.w600);
     final scaler = MediaQuery.textScalerOf(context);
@@ -759,8 +760,8 @@ class _AppShellState extends State<AppShell> {
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              vertical: AppLayout.spaceLg,
-              horizontal: AppLayout.spaceSm,
+              vertical: AppMetrics.spaceLg,
+              horizontal: AppMetrics.spaceSm,
             ),
             child: LayoutBuilder(
               builder: (context, constraints) => SingleChildScrollView(
@@ -772,8 +773,8 @@ class _AppShellState extends State<AppShell> {
                       children: [
                         Padding(
                           padding: const EdgeInsets.only(
-                            top: AppLayout.spaceSm,
-                            bottom: AppLayout.spaceXxl,
+                            top: AppMetrics.spaceSm,
+                            bottom: AppMetrics.spaceXxl,
                           ),
                           child: SizedBox(
                             width: double.infinity,
@@ -807,7 +808,7 @@ class _AppShellState extends State<AppShell> {
                               )
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: AppLayout.spaceXs,
+                                    vertical: AppMetrics.spaceXs,
                                   ),
                                   child: SizedBox(
                                     key: _railItemKeys[index],
@@ -830,8 +831,8 @@ class _AppShellState extends State<AppShell> {
                         if (widget.assistant != null)
                           Padding(
                             padding: const EdgeInsets.symmetric(
-                              vertical: AppLayout.spaceMd,
-                              horizontal: AppLayout.spaceLg,
+                              vertical: AppMetrics.spaceMd,
+                              horizontal: AppMetrics.spaceLg,
                             ),
                             child: Align(
                               // 展开与收起都以导航栏中线对齐，圆形入口不随宽度变化偏左。
@@ -861,9 +862,9 @@ class _AppShellState extends State<AppShell> {
       top: false,
       minimum: EdgeInsets.fromLTRB(
         margin,
-        AppLayout.spaceSm,
+        AppMetrics.spaceSm,
         margin,
-        AppLayout.spaceMd,
+        AppMetrics.spaceMd,
       ),
       child: Center(
         heightFactor: 1,
@@ -871,12 +872,12 @@ class _AppShellState extends State<AppShell> {
           constraints: const BoxConstraints(maxWidth: AppLayout.maxPageWidth),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppLayout.radiusPill),
+              borderRadius: BorderRadius.circular(AppMetrics.radiusPill),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withValues(alpha: 0.07),
-                  blurRadius: AppLayout.shadowBlur,
-                  offset: const Offset(0, AppLayout.shadowOffsetY),
+                  blurRadius: AppMetrics.shadowBlur,
+                  offset: const Offset(0, AppMetrics.shadowOffsetY),
                 ),
               ],
             ),
@@ -885,12 +886,12 @@ class _AppShellState extends State<AppShell> {
               shape: const StadiumBorder(),
               clipBehavior: Clip.antiAlias,
               child: Padding(
-                padding: const EdgeInsets.all(AppLayout.spaceXs),
+                padding: const EdgeInsets.all(AppMetrics.spaceXs),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final rightPaneWidth = widget.assistant == null
                         ? 0.0
-                        : 56 + AppLayout.spaceXs * 2;
+                        : 56 + AppMetrics.spaceXs * 2;
                     final itemWidth =
                         (constraints.maxWidth - rightPaneWidth) / 4;
                     return Stack(
@@ -912,7 +913,7 @@ class _AppShellState extends State<AppShell> {
                           width: itemWidth,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: AppLayout.spaceMd,
+                              horizontal: AppMetrics.spaceMd,
                             ),
                             child: _navigationSelection(),
                           ),
@@ -936,7 +937,7 @@ class _AppShellState extends State<AppShell> {
                             if (widget.assistant != null)
                               Padding(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: AppLayout.spaceXs,
+                                  horizontal: AppMetrics.spaceXs,
                                 ),
                                 child: AssistantLauncher(key: _assistantEntry),
                               ),
@@ -993,8 +994,8 @@ class _AppShellState extends State<AppShell> {
     final duration = AppMotion.resolve(context, AppMotion.quick);
     final iconWidget = SizedBox(
       key: ValueKey('navigation-icon-$index'),
-      width: AppLayout.iconLg,
-      height: AppLayout.iconLg,
+      width: AppMetrics.iconLg,
+      height: AppMetrics.iconLg,
       child: AnimatedScale(
         key: ValueKey(duration),
         scale: selected ? 1.06 : 1,
@@ -1006,7 +1007,7 @@ class _AppShellState extends State<AppShell> {
           curve: AppMotion.curve,
           builder: (_, color, _) => Icon(
             selected ? selectedIcon : icon,
-            size: AppLayout.iconLg,
+            size: AppMetrics.iconLg,
             color: color,
           ),
         ),
@@ -1039,7 +1040,7 @@ class _AppShellState extends State<AppShell> {
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     iconWidget,
-                    const SizedBox(width: AppLayout.spaceSm),
+                    const SizedBox(width: AppMetrics.spaceSm),
                     labelWidget,
                   ],
                 )
@@ -1057,7 +1058,7 @@ class _AppShellState extends State<AppShell> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       iconWidget,
-                      const SizedBox(width: AppLayout.spaceSm),
+                      const SizedBox(width: AppMetrics.spaceSm),
                       SizedBox(
                         width: labelSlotWidth,
                         child: Align(
@@ -1085,10 +1086,10 @@ class _AppShellState extends State<AppShell> {
         selectedColor: Colors.transparent,
         baseColor: Colors.transparent,
         onTap: selectPage,
-        borderRadius: AppLayout.radiusMd,
+        borderRadius: AppMetrics.radiusMd,
         padding: const EdgeInsets.symmetric(
-          horizontal: AppLayout.spaceMd,
-          vertical: AppLayout.spaceSm,
+          horizontal: AppMetrics.spaceMd,
+          vertical: AppMetrics.spaceSm,
         ),
         child: content,
       ),
@@ -1188,7 +1189,7 @@ Widget _railSelectionSurface() => DecoratedBox(
   decoration: ShapeDecoration(
     color: AppColors.primarySoft,
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+      borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
     ),
   ),
   child: const SizedBox.expand(),

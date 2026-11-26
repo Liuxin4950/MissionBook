@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mission_book/core/theme/app_layout.dart';
+import 'package:mission_book/core/layout/app_layout.dart';
+import 'package:mission_book/core/theme/app_metrics.dart';
 
 void main() {
   test('窗口分档按语义断点划分：compact<600、medium<840、expanded 起', () {
@@ -12,14 +13,13 @@ void main() {
   });
 
   test('双栏按内容区宽度启用：凑不齐左右最小宽就落回单列', () {
-    // 840 宽窗口扣掉侧栏约 80 后只剩 760，不足 864：不能硬切双栏。
-    expect(AppLayout.canSplitPane(840 - 80), isFalse);
+    expect(AppLayout.canShowSplitPaneForWindow(840), isFalse);
     expect(AppLayout.canSplitPane(AppLayout.paneMinContentWidth - 1), isFalse);
     expect(AppLayout.canSplitPane(AppLayout.paneMinContentWidth), isTrue);
   });
 
-  test('页面区块与分栏间距统一为 16', () {
-    expect(AppLayout.sectionGap, 16);
+  test('页面区块间距 16，分栏间距 24', () {
+    expect(AppMetrics.sectionGap, 16);
     expect(AppLayout.paneGap, 24);
     expect(AppLayout.paneMinContentWidth, 864);
   });

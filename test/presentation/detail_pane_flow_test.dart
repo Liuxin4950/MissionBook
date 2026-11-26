@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mission_book/app_shell.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
-import 'package:mission_book/core/theme/app_layout.dart';
+import 'package:mission_book/core/layout/app_layout.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';

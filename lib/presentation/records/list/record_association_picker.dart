@@ -34,9 +34,9 @@ class _AssociationDialogState extends State<_AssociationDialog> {
   Widget build(BuildContext context) => AlertDialog(
     backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
     surfaceTintColor: Colors.transparent,
-    insetPadding: const EdgeInsets.all(AppLayout.spaceXxl),
+    insetPadding: const EdgeInsets.all(AppMetrics.spaceXxl),
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+      borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
     ),
     title: Text(widget.material ? '用作任务材料' : '记录归属'),
     content: SizedBox(
@@ -60,7 +60,7 @@ class _AssociationDialogState extends State<_AssociationDialog> {
                   load();
                 },
               ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             TextField(
               style: Theme.of(context).textTheme.bodyLarge,
               decoration: const InputDecoration(labelText: '搜索名称'),

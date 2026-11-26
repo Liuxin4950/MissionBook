@@ -3,7 +3,8 @@ import 'package:agent_core/agent_core.dart';
 
 import '../../../application/assistant/assistant_controller.dart';
 import '../../../application/errors/user_error_message.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../widgets/adaptive_columns.dart';
@@ -114,7 +115,7 @@ class _ModelOverviewState extends State<_ModelOverview> {
               children: [
                 if (_controller.catalogWarning != null) ...[
                   AppSectionCard(
-                    padding: const EdgeInsets.all(AppLayout.spaceLg),
+                    padding: const EdgeInsets.all(AppMetrics.spaceLg),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -122,7 +123,7 @@ class _ModelOverviewState extends State<_ModelOverview> {
                           '模型配置需要检查',
                           style: Theme.of(context).textTheme.titleSmall,
                         ),
-                        const SizedBox(height: AppLayout.spaceSm),
+                        const SizedBox(height: AppMetrics.spaceSm),
                         Text(
                           _controller.catalogWarning!,
                           style: const TextStyle(color: AppColors.error),
@@ -130,7 +131,7 @@ class _ModelOverviewState extends State<_ModelOverview> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: AppLayout.spaceLg),
+                  const SizedBox(height: AppMetrics.spaceLg),
                 ],
                 AdaptiveColumns(
                   minColumnWidth: AppLayout.paneLeftMin,
@@ -255,7 +256,7 @@ class _ModelOverviewState extends State<_ModelOverview> {
                   ],
                 ),
                 if (archivedModels.isNotEmpty) ...[
-                  const SizedBox(height: AppLayout.spaceLg),
+                  const SizedBox(height: AppMetrics.spaceLg),
                   AppSectionCard(
                     padding: EdgeInsets.zero,
                     child: AppExpansionTile(
@@ -284,7 +285,7 @@ class _ModelOverviewState extends State<_ModelOverview> {
                   ),
                 ],
                 if (_error != null || _message != null) ...[
-                  const SizedBox(height: AppLayout.spaceLg),
+                  const SizedBox(height: AppMetrics.spaceLg),
                   Semantics(
                     liveRegion: true,
                     child: Text(

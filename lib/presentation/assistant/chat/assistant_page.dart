@@ -13,7 +13,8 @@ import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/adaptive_sheet.dart';
 import '../../../application/assistant/assistant_speech.dart';
 import '../../../data/assistant/assistant_attachment_picker.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/app_page_header.dart';
 import '../../widgets/app_illustration.dart';
@@ -309,7 +310,7 @@ class _AssistantPageState extends State<AssistantPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: widget.showBack
         ? PreferredSize(
-            preferredSize: const Size.fromHeight(AppLayout.topBarHeight),
+            preferredSize: const Size.fromHeight(AppMetrics.topBarHeight),
             child: ListenableBuilder(
               listenable: widget.controller,
               builder: (context, _) => AppTopBar(
@@ -372,7 +373,7 @@ class _AssistantPageState extends State<AssistantPage> {
                           style: TextButton.styleFrom(
                             minimumSize: const Size(
                               0,
-                              AppLayout.touchTargetMin,
+                              AppMetrics.touchTargetMin,
                             ),
                           ),
                           onPressed: controller.isBusy ? null : _switchModel,
@@ -386,10 +387,10 @@ class _AssistantPageState extends State<AssistantPage> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const SizedBox(width: AppLayout.spaceXs),
+                              const SizedBox(width: AppMetrics.spaceXs),
                               const Icon(
                                 Icons.expand_more_rounded,
-                                size: AppLayout.iconSm,
+                                size: AppMetrics.iconSm,
                               ),
                             ],
                           ),
@@ -398,7 +399,7 @@ class _AssistantPageState extends State<AssistantPage> {
                     ),
                   if (controller.unavailableReference != null)
                     Padding(
-                      padding: const EdgeInsets.all(AppLayout.spaceMd),
+                      padding: const EdgeInsets.all(AppMetrics.spaceMd),
                       child: Text(
                         controller.unavailableReference!,
                         style: Theme.of(context).textTheme.bodySmall,
@@ -409,7 +410,7 @@ class _AssistantPageState extends State<AssistantPage> {
                       key: const Key('assistant-memory-warning'),
                       liveRegion: true,
                       child: Padding(
-                        padding: const EdgeInsets.all(AppLayout.spaceMd),
+                        padding: const EdgeInsets.all(AppMetrics.spaceMd),
                         child: Text(
                           controller.memoryWarning!,
                           style: Theme.of(context).textTheme.bodySmall,
@@ -474,10 +475,10 @@ class _AssistantPageState extends State<AssistantPage> {
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-          AppLayout.spaceXl,
-          AppLayout.spaceLg,
-          AppLayout.spaceMd,
-          AppLayout.spaceXl,
+          AppMetrics.spaceXl,
+          AppMetrics.spaceLg,
+          AppMetrics.spaceMd,
+          AppMetrics.spaceXl,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -496,25 +497,25 @@ class _AssistantPageState extends State<AssistantPage> {
                   onPressed: controller.isBusy ? null : _openHistory,
                   icon: const Icon(
                     Icons.search_rounded,
-                    size: AppLayout.iconMd,
+                    size: AppMetrics.iconMd,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             OutlinedButton.icon(
               key: const Key('assistant-sidebar-new'),
               style: OutlinedButton.styleFrom(
                 backgroundColor: AppColors.card,
                 foregroundColor: AppColors.primary,
-                minimumSize: const Size.fromHeight(AppLayout.touchTargetMin),
+                minimumSize: const Size.fromHeight(AppMetrics.touchTargetMin),
                 alignment: AlignmentDirectional.centerStart,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppLayout.spaceMd,
+                  horizontal: AppMetrics.spaceMd,
                 ),
                 side: const BorderSide(color: AppColors.hairline),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+                  borderRadius: BorderRadius.circular(AppMetrics.radiusSm),
                 ),
               ),
               onPressed: controller.isBusy ? null : _newSession,
@@ -522,23 +523,23 @@ class _AssistantPageState extends State<AssistantPage> {
               label: const Text('开启新会话'),
             ),
             if (conversations.isNotEmpty) ...[
-              const SizedBox(height: AppLayout.spaceMd),
-              const Divider(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceMd),
+              const Divider(height: AppMetrics.spaceLg),
               Text(
                 '最近会话',
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: AppColors.textSecondary,
                 ),
               ),
-              const SizedBox(height: AppLayout.spaceSm),
+              const SizedBox(height: AppMetrics.spaceSm),
             ] else
-              const SizedBox(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceLg),
             Expanded(
               child: conversations.isEmpty
                   ? Align(
                       alignment: Alignment.topCenter,
                       child: Padding(
-                        padding: const EdgeInsets.only(top: AppLayout.spaceLg),
+                        padding: const EdgeInsets.only(top: AppMetrics.spaceLg),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -546,7 +547,7 @@ class _AssistantPageState extends State<AssistantPage> {
                               Icons.forum_outlined,
                               color: Theme.of(context).colorScheme.outline,
                             ),
-                            const SizedBox(height: AppLayout.spaceSm),
+                            const SizedBox(height: AppMetrics.spaceSm),
                             Text(
                               '还没有会话',
                               style: Theme.of(context).textTheme.bodySmall,
@@ -559,7 +560,7 @@ class _AssistantPageState extends State<AssistantPage> {
                       padding: EdgeInsets.zero,
                       itemCount: conversations.length,
                       separatorBuilder: (_, _) =>
-                          const SizedBox(height: AppLayout.spaceXs),
+                          const SizedBox(height: AppMetrics.spaceXs),
                       itemBuilder: (context, index) {
                         final item = conversations[index];
                         final selected = item.id == controller.currentSessionId;
@@ -574,33 +575,33 @@ class _AssistantPageState extends State<AssistantPage> {
                           semanticsLabel: item.title,
                           selectedColor: AppColors.card,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: AppLayout.spaceSm,
-                            vertical: AppLayout.spaceMd,
+                            horizontal: AppMetrics.spaceSm,
+                            vertical: AppMetrics.spaceMd,
                           ),
-                          borderRadius: AppLayout.radiusSm,
+                          borderRadius: AppMetrics.radiusSm,
                           child: Row(
                             children: [
                               Container(
-                                width: AppLayout.spaceXs,
-                                height: AppLayout.iconLg,
+                                width: AppMetrics.spaceXs,
+                                height: AppMetrics.iconLg,
                                 decoration: BoxDecoration(
                                   color: selected
                                       ? AppColors.primary
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(
-                                    AppLayout.radiusXs,
+                                    AppMetrics.radiusXs,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: AppLayout.spaceSm),
+                              const SizedBox(width: AppMetrics.spaceSm),
                               Icon(
                                 Icons.chat_bubble_outline_rounded,
-                                size: AppLayout.iconSm,
+                                size: AppMetrics.iconSm,
                                 color: selected
                                     ? colors.primary
                                     : colors.onSurfaceVariant,
                               ),
-                              const SizedBox(width: AppLayout.spaceSm),
+                              const SizedBox(width: AppMetrics.spaceSm),
                               Expanded(
                                 child: Text(
                                   item.title,
@@ -1024,7 +1025,7 @@ class _AssistantPageState extends State<AssistantPage> {
                   if (current is _MessageBubble && !current.firstSlice) {
                     return const SizedBox.shrink();
                   }
-                  return const SizedBox(height: AppLayout.spaceMd);
+                  return const SizedBox(height: AppMetrics.spaceMd);
                 },
                 itemBuilder: (_, index) => children[index],
               ),
@@ -1032,7 +1033,7 @@ class _AssistantPageState extends State<AssistantPage> {
             if (_showJumpToLatest)
               Positioned(
                 right: AppLayout.horizontalPadding(context),
-                bottom: AppLayout.spaceMd,
+                bottom: AppMetrics.spaceMd,
                 child: Semantics(
                   button: true,
                   label: '回到最新消息',
@@ -1177,7 +1178,7 @@ class _EditMessageDialogState extends State<_EditMessageDialog> {
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('编辑后重发'),
     scrollable: true,
-    insetPadding: const EdgeInsets.all(AppLayout.spaceLg),
+    insetPadding: const EdgeInsets.all(AppMetrics.spaceLg),
     content: SizedBox(
       width: 560,
       child: TextField(

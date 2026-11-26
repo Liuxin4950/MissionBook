@@ -23,7 +23,8 @@ import 'assistant_speech_settings_page.dart';
 import 'assistant_supervision_settings.dart';
 
 import '../../../application/assistant/assistant_controller.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/adaptive_columns.dart';
 import '../../widgets/app_expansion.dart';
@@ -208,7 +209,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                           color: AppColors.error,
                         ),
                       ),
-                      const SizedBox(height: AppLayout.spaceLg),
+                      const SizedBox(height: AppMetrics.spaceLg),
                       FilledButton(
                         key: const Key('assistant-settings-retry'),
                         onPressed: _retryPrepare,
@@ -277,7 +278,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildPersonaSection(),
-          const SizedBox(height: AppLayout.spaceLg),
+          const SizedBox(height: AppMetrics.spaceLg),
           if (RecordScope.maybeOf(context) != null) ...[
             AppSectionCard(
               padding: EdgeInsets.zero,
@@ -296,8 +297,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                   if (RecordScope.maybeOf(context)?.web != null) ...[
                     const Divider(
                       height: 1,
-                      indent: AppLayout.spaceLg,
-                      endIndent: AppLayout.spaceLg,
+                      indent: AppMetrics.spaceLg,
+                      endIndent: AppMetrics.spaceLg,
                     ),
                     AppSettingsRow(
                       key: const Key('assistant-web-settings-entry'),
@@ -312,8 +313,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                   ],
                   const Divider(
                     height: 1,
-                    indent: AppLayout.spaceLg,
-                    endIndent: AppLayout.spaceLg,
+                    indent: AppMetrics.spaceLg,
+                    endIndent: AppMetrics.spaceLg,
                   ),
                   AppSettingsRow(
                     key: const Key('assistant-analysis-settings-entry'),
@@ -329,7 +330,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                 ],
               ),
             ),
-            const SizedBox(height: AppLayout.spaceLg),
+            const SizedBox(height: AppMetrics.spaceLg),
           ],
           AppSectionCard(
             padding: EdgeInsets.zero,
@@ -353,8 +354,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                 ),
                 const Divider(
                   height: 1,
-                  indent: AppLayout.spaceLg,
-                  endIndent: AppLayout.spaceLg,
+                  indent: AppMetrics.spaceLg,
+                  endIndent: AppMetrics.spaceLg,
                 ),
                 AppSettingsRow(
                   key: const Key('assistant-speech-settings-entry'),
@@ -380,8 +381,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                   if (scope.backup != null && scope.device != null) ...[
                     const Divider(
                       height: 1,
-                      indent: AppLayout.spaceLg,
-                      endIndent: AppLayout.spaceLg,
+                      indent: AppMetrics.spaceLg,
+                      endIndent: AppMetrics.spaceLg,
                     ),
                     AppSettingsRow(
                       key: const Key('assistant-backup-entry'),
@@ -400,14 +401,14 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
               ],
             ),
           ),
-          const SizedBox(height: AppLayout.spaceLg),
+          const SizedBox(height: AppMetrics.spaceLg),
           _buildPermissionSection(),
           if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) ...[
-            const SizedBox(height: AppLayout.spaceLg),
+            const SizedBox(height: AppMetrics.spaceLg),
             const AssistantSupervisionSettings(),
           ],
           if (_overlaySupported) ...[
-            const SizedBox(height: AppLayout.spaceLg),
+            const SizedBox(height: AppMetrics.spaceLg),
             AppSectionCard(
               padding: EdgeInsets.zero,
               child: AppSettingsRow(
@@ -439,7 +440,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
               ),
             ),
           ],
-          const SizedBox(height: AppLayout.spaceLg),
+          const SizedBox(height: AppMetrics.spaceLg),
           AppSectionCard(
             padding: EdgeInsets.zero,
             child: AppSettingsRow(
@@ -490,8 +491,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       key: const Key('assistant-persona-section'),
       insetHeader: false,
       headerPadding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceLg,
-        vertical: AppLayout.spaceMd,
+        horizontal: AppMetrics.spaceLg,
+        vertical: AppMetrics.spaceMd,
       ),
       leading: AssistantPersonaAvatar(
         avatar: _avatar,
@@ -507,10 +508,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
         ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
       ),
       childrenPadding: const EdgeInsets.fromLTRB(
-        AppLayout.spaceLg,
-        AppLayout.spaceSm,
-        AppLayout.spaceLg,
-        AppLayout.spaceLg,
+        AppMetrics.spaceLg,
+        AppMetrics.spaceSm,
+        AppMetrics.spaceLg,
+        AppMetrics.spaceLg,
       ),
       children: [
         AdaptiveColumns(
@@ -541,7 +542,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
             ),
           ],
         ),
-        const SizedBox(height: AppLayout.spaceLg),
+        const SizedBox(height: AppMetrics.spaceLg),
         AppSettingsRow(
           key: const Key('assistant-persona-role'),
           icon: Icons.badge_outlined,
@@ -561,15 +562,15 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
               ? null
               : () => _editPersonaText(AssistantPersonaTextKind.replyStyle),
         ),
-        const SizedBox(height: AppLayout.spaceLg),
+        const SizedBox(height: AppMetrics.spaceLg),
         Text('角色头像', style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: AppLayout.spaceSm),
+        const SizedBox(height: AppMetrics.spaceSm),
         AdaptiveColumns(
           minColumnWidth: 104,
           maxColumns: AppLayout.windowClassOf(context) == WindowClass.compact
               ? 2
               : 4,
-          spacing: AppLayout.spaceSm,
+          spacing: AppMetrics.spaceSm,
           children: [
             for (final choice in [
               (AssistantAvatar.spark, '书祺'),
@@ -605,7 +606,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       style: TextButton.styleFrom(
         padding: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
           side: const BorderSide(color: AppColors.hairline),
         ),
       ),
@@ -626,7 +627,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
               size: 40,
               color: enabled ? AppColors.primary : AppColors.onDisabled,
             ),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             Text(label, textAlign: TextAlign.center),
           ],
         ),
@@ -641,7 +642,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       style: TextButton.styleFrom(
         padding: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
           side: const BorderSide(color: AppColors.hairline),
         ),
       ),
@@ -656,7 +657,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
               const SizedBox.square(
                 dimension: 40,
                 child: Padding(
-                  padding: EdgeInsets.all(AppLayout.spaceSm),
+                  padding: EdgeInsets.all(AppMetrics.spaceSm),
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               )
@@ -668,7 +669,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
               )
             else
               const Icon(Icons.add_photo_alternate_outlined, size: 40),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             Text(_pickingAvatar ? '处理中' : '自定义', textAlign: TextAlign.center),
           ],
         ),
@@ -717,12 +718,12 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
       key: const Key('assistant-permission-section'),
       insetHeader: false,
       headerPadding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceLg,
-        vertical: AppLayout.spaceSm,
+        horizontal: AppMetrics.spaceLg,
+        vertical: AppMetrics.spaceSm,
       ),
       leading: const Icon(
         Icons.shield_outlined,
-        size: AppLayout.iconMd,
+        size: AppMetrics.iconMd,
         color: AppColors.textSecondary,
       ),
       title: Text('操作权限', style: Theme.of(context).textTheme.titleSmall),
@@ -733,10 +734,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
         ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
       ),
       childrenPadding: const EdgeInsets.fromLTRB(
-        AppLayout.spaceLg,
-        AppLayout.spaceSm,
-        AppLayout.spaceLg,
-        AppLayout.spaceLg,
+        AppMetrics.spaceLg,
+        AppMetrics.spaceSm,
+        AppMetrics.spaceLg,
+        AppMetrics.spaceLg,
       ),
       children: [
         for (final mode in AssistantPermissionMode.values)
@@ -754,12 +755,12 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                   _permission == mode
                       ? Icons.radio_button_checked
                       : Icons.radio_button_off,
-                  size: AppLayout.iconMd,
+                  size: AppMetrics.iconMd,
                   color: _permission == mode
                       ? AppColors.primary
                       : AppColors.textSecondary,
                 ),
-                const SizedBox(width: AppLayout.spaceSm),
+                const SizedBox(width: AppMetrics.spaceSm),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -768,7 +769,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage>
                         mode.label,
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
-                      const SizedBox(height: AppLayout.spaceXs),
+                      const SizedBox(height: AppMetrics.spaceXs),
                       Text(
                         mode.description,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(

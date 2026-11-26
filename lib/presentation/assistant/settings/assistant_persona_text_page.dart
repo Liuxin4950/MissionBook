@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../application/assistant/assistant_settings.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../widgets/adaptive_sheet.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_section_card.dart';
@@ -109,13 +110,13 @@ class _AssistantPersonaTextPageState extends State<AssistantPersonaTextPage> {
       builder: (sheetContext) => SafeArea(
         top: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppLayout.spaceXl),
+          padding: const EdgeInsets.all(AppMetrics.spaceXl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text('$_title怎么写', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceLg),
               Wrap(
                 alignment: WrapAlignment.spaceBetween,
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -129,7 +130,7 @@ class _AssistantPersonaTextPageState extends State<AssistantPersonaTextPage> {
                 ],
               ),
               SelectableText(_example),
-              const SizedBox(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceLg),
               Wrap(
                 alignment: WrapAlignment.spaceBetween,
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -146,7 +147,7 @@ class _AssistantPersonaTextPageState extends State<AssistantPersonaTextPage> {
                 ],
               ),
               SelectableText(_generationPrompt),
-              const SizedBox(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceLg),
               OutlinedButton(
                 onPressed: () => Navigator.pop(sheetContext),
                 child: const Text('知道了'),
@@ -199,7 +200,7 @@ class _AssistantPersonaTextPageState extends State<AssistantPersonaTextPage> {
                       : '风格调整语气、结构和解释方式。提问引导聚焦关键取舍，不会要求你逐项填写任务；操作仍按权限处理。',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-                const SizedBox(height: AppLayout.spaceLg),
+                const SizedBox(height: AppMetrics.spaceLg),
                 AppSectionCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -208,10 +209,10 @@ class _AssistantPersonaTextPageState extends State<AssistantPersonaTextPage> {
                         '预设参考',
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
-                      const SizedBox(height: AppLayout.spaceSm),
+                      const SizedBox(height: AppMetrics.spaceSm),
                       Wrap(
-                        spacing: AppLayout.spaceSm,
-                        runSpacing: AppLayout.spaceSm,
+                        spacing: AppMetrics.spaceSm,
+                        runSpacing: AppMetrics.spaceSm,
                         children: [
                           for (final preset in _presets)
                             ChoiceChip(
@@ -222,7 +223,7 @@ class _AssistantPersonaTextPageState extends State<AssistantPersonaTextPage> {
                             ),
                         ],
                       ),
-                      const SizedBox(height: AppLayout.spaceLg),
+                      const SizedBox(height: AppMetrics.spaceLg),
                       TextField(
                         key: const Key('persona-text-input'),
                         controller: _text,

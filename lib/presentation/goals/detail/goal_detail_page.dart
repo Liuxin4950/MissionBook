@@ -14,7 +14,8 @@ import '../../widgets/detail_pane.dart';
 
 import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal.dart';
 import '../../widgets/app_top_bar.dart';
@@ -197,7 +198,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                                 goal.title,
                                 style: theme.textTheme.titleMedium,
                               ),
-                              const SizedBox(height: AppLayout.spaceXs),
+                              const SizedBox(height: AppMetrics.spaceXs),
                               Text(
                                 goalStatusLabel(goal.status),
                                 style: theme.textTheme.bodySmall,
@@ -212,7 +213,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                           enabled: !_busy,
                           icon: const Icon(
                             Icons.more_horiz,
-                            size: AppLayout.iconMd,
+                            size: AppMetrics.iconMd,
                           ),
                           onSelected: (action) {
                             switch (action) {
@@ -259,7 +260,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppLayout.spaceMd),
+                    const SizedBox(height: AppMetrics.spaceMd),
                     Row(
                       key: Key('goal-progress-row-${goal.id}'),
                       children: [
@@ -279,12 +280,12 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                               _outlineKey.currentState?.addRootNode(),
                           icon: const Icon(
                             Icons.add_rounded,
-                            size: AppLayout.iconMd,
+                            size: AppMetrics.iconMd,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppLayout.spaceSm),
+                    const SizedBox(height: AppMetrics.spaceSm),
                     GoalOutlineSection(
                       key: _outlineKey,
                       service: widget.service,
@@ -293,16 +294,16 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                       goalId: goal.id,
                       goalTitle: goal.title,
                     ),
-                    const SizedBox(height: AppLayout.spaceLg),
+                    const SizedBox(height: AppMetrics.spaceLg),
                     if (goal.description != null || goal.why != null)
                       AppExpansionTile(
                         key: const Key('goal-description-toggle'),
                         insetHeader: false,
                         headerPadding: const EdgeInsets.symmetric(
-                          vertical: AppLayout.spaceSm,
+                          vertical: AppMetrics.spaceSm,
                         ),
                         childrenPadding: const EdgeInsets.only(
-                          bottom: AppLayout.spaceLg,
+                          bottom: AppMetrics.spaceLg,
                         ),
                         title: Text('目标说明', style: theme.textTheme.titleSmall),
                         children: [
@@ -312,9 +313,9 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                               style: theme.textTheme.bodyMedium,
                             ),
                           if (goal.why != null) ...[
-                            const SizedBox(height: AppLayout.spaceMd),
+                            const SizedBox(height: AppMetrics.spaceMd),
                             Text('为什么想实现', style: theme.textTheme.titleSmall),
-                            const SizedBox(height: AppLayout.spaceSm),
+                            const SizedBox(height: AppMetrics.spaceSm),
                             SelectableText(
                               goal.why!,
                               style: theme.textTheme.bodyMedium,
@@ -323,10 +324,10 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                         ],
                       ),
                     if (RecordScope.maybeOf(context) != null) ...[
-                      const SizedBox(height: AppLayout.spaceMd),
+                      const SizedBox(height: AppMetrics.spaceMd),
                       AppSectionCard(
                         padding: const EdgeInsets.symmetric(
-                          vertical: AppLayout.spaceSm,
+                          vertical: AppMetrics.spaceSm,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -340,7 +341,7 @@ class _GoalDetailPageState extends State<GoalDetailPage> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: AppLayout.spaceLg),
+                    const SizedBox(height: AppMetrics.spaceLg),
                     Text(
                       '创建于 ${_date(goal.createdAt.toLocal())}',
                       style: theme.textTheme.bodySmall?.copyWith(

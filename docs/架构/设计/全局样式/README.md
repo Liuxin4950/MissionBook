@@ -7,6 +7,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [字体规范](字体规范.md) | 文字角色、逻辑字号与系统文字缩放 |
+| [主题与布局边界](#主题与布局边界) | 样式尺寸、窗口宽度与分栏策略的代码分工 |
 
 ## 文件地图
 
@@ -15,14 +16,15 @@
 | [colors.dart](../../../../lib/core/theme/colors.dart) | 颜色语义来源 |
 | [app_theme.dart](../../../../lib/core/theme/app_theme.dart) | 按钮、输入、卡片等全局组件主题 |
 | [app_typography.dart](../../../../lib/core/theme/app_typography.dart) | 文字角色 |
-| [app_layout.dart](../../../../lib/core/theme/app_layout.dart) | 间距、圆角、触控、工作区宽度和响应式断点 |
+| [app_metrics.dart](../../../../lib/core/theme/app_metrics.dart) | 通用间距、圆角、触控与组件视觉尺寸 |
+| [app_layout.dart](../../../../lib/core/layout/app_layout.dart) | 页面限宽、响应式边距、窗口断点与分栏规则 |
 | [detail_pane.dart](../../../../lib/presentation/widgets/detail_pane.dart) | 宽屏并排、窄屏接管的持久详情导航栈 |
 | [app_interactive_surface.dart](../../../../lib/presentation/widgets/app_interactive_surface.dart) | 可选中交互行的内边距、悬停、聚焦与选中表面 |
 | [app_motion.dart](../../../../lib/core/theme/app_motion.dart) | 动效节奏与减少动效 |
-| [app_page_transitions.dart](../../../../lib/core/theme/app_page_transitions.dart) | 页面风格、平台交互返回与路由进出时长 |
-| [app_page_motion.dart](../../../../lib/core/theme/app_page_motion.dart) | 路由、主导航与预览共用的淡入、位移及缩放绘制 |
-| [motion_settings_scope.dart](../../../../lib/presentation/widgets/motion_settings_scope.dart) | 本机偏好、主题和完整导航树的动效装配 |
-| [app_content_transition.dart](../../../../lib/presentation/widgets/app_content_transition.dart) | 保留子树状态的主导航内容进入 |
+| [app_page_transitions.dart](../../../../lib/presentation/motion/app_page_transitions.dart) | 页面风格、平台交互返回与路由进出时长 |
+| [app_page_motion.dart](../../../../lib/presentation/motion/app_page_motion.dart) | 路由、主导航与预览共用的淡入、位移及缩放绘制 |
+| [motion_settings_scope.dart](../../../../lib/presentation/motion/motion_settings_scope.dart) | 本机偏好、主题和完整导航树的动效装配 |
+| [app_content_transition.dart](../../../../lib/presentation/motion/app_content_transition.dart) | 保留子树状态的主导航内容进入 |
 | [widgets](../../../../lib/presentation/widgets) | 共享确认、空态、分区标题及图片加载反馈 |
 | [app_selection_option.dart](../../../../lib/presentation/widgets/app_selection_option.dart) | 表单下拉和快捷选择菜单共用的选中项外观 |
 | [launch_page.dart](../../../../lib/presentation/launch/launch_page.dart) | 冷启动品牌页与减少动效处理 |
@@ -52,13 +54,31 @@
 
 ## 首次体验与媒体上下文
 
-冷启动封面使用既有标识、品牌名和一句标语，移除大场景插画与加载进度条。普通启动停留 `launchHold` 2600ms，完成标记读回后可点“进入”提前离开；减少动效时不强制停留。首次引导不申请权限、不写业务数据库，只在完成或跳过成功后保存既有本机完成标记。设置的“帮助 → 使用引导”通过统一页面工作区打开，窄窗时由同一栈全屏呈现，结束时回到原设置，不重写完成标记。
+冷启动封面使用既有标识、品牌名和一句标语，移除大场景插画与加载进度条。普通启动由 App 控制封面停留 2600ms，完成标记读回后可点“进入”提前离开；减少动效时不强制停留。首次引导不申请权限、不写业务数据库，只在完成或跳过成功后保存既有本机完成标记。设置的“帮助 → 使用引导”通过统一页面工作区打开，窄窗时由同一栈全屏呈现，结束时回到原设置，不重写完成标记。
 
 首次引导以同一任务卡片接续“今天 → 目标 → 助手”，共享 `AnimationController` 的 0–2 进度驱动位置、尺寸、文字淡化与目标连线；无循环漂浮。手机保留已确认的纵向布局。可用宽度至少 600、高度至少 560 且字号缩放小于 1.7 时进入平板布局：示意画布改为 560×360 的横向归属关系，文案、步骤与按钮组成连续操作区。宽度至少 960 且宽高比至少 1.05 时，演示与操作分列；其余平板采用限宽纵向组合，不硬塞两列。窄窗口、短横屏和大字号使用可滚动内容与底部操作区。断点按逻辑像素和当前窗口计算，旋转与缩放保留步骤。
 
 画布属于带独立无障碍描述的操作示意，不发起业务写入；图中文字随画布缩放，主文案和按钮继续响应系统字号。触屏拖动与按钮驱动同一进度，左右方向键只换步骤；减少动效立即收敛到目的步骤，主按钮和跳过共用防重与失败重试。当前截图、交互与验收边界见[首次体验重做](../../../审查/2026-11-17-新手引导与封面.md)。
 
 相机和屏幕捕获保留黑色媒体画布以保证内容对比度，但操作面板仍复用品牌绿、暖白和 48dp 触控约束：相机使用中央快门与底部操作面板，长截图使用状态胶囊及“完成 / 取消”控制条，采集由服务自动轮询。媒体上下文是颜色表面的应用，不是新的主题。
+
+## 主题与布局边界
+
+`core/theme` 定义全局颜色、文字角色、视觉尺寸和共享动效。`core/layout` 独立管理页面限宽、导航栏占宽、表单两列断点和分栏几何。因此调整全局间距只会影响使用该间距的界面，分栏门槛由布局模块自己控制。执行页圆环留白和 Windows 悬浮助手专用尺寸由各自组件管理。
+
+`presentation/motion` 实现转场绘制、路由适配和偏好装配。`MotionSettingsHost` 读取本机与系统偏好，把它们应用到路由主题和控件反馈。`AppShell` 与 `DetailPane` 使用布局规则渲染工作区，处理导航和拖动。
+
+```mermaid
+flowchart LR
+    shell[AppShell 和 DetailPane] -->|应用宽度规则| layout[core/layout AppLayout]
+    shell -->|读取视觉样式| metrics[core/theme AppMetrics]
+    theme[core/theme AppTheme] -->|读取组件尺寸| metrics
+    host[MotionSettingsHost] -->|读取偏好| settings[MotionSettings]
+    host -->|配置路由转场| route[AppPageTransitionsBuilder]
+    route -->|绘制自定义转场| page[AppPageMotion]
+    content[AppContentTransition] -->|绘制主导航切换| page
+    page -->|读取缓动曲线| motion[core/theme AppMotion]
+```
 
 ## 布局与状态流
 
@@ -71,7 +91,7 @@
 
 扩展导航阈值为 1200。所有 AppShell 页面共用同一右侧工作区，按实际内容宽度 480 + 24（分页门槽）+ 360 = 864 判断，不能仅凭设备型号或方向强制分栏；常规 88 + 1dp 侧栏时窗口最早 953 进入分屏。表单两列按自身面板 560 判断；普通详情右栏上限 640、仪表盘工作区上限 1920。助手会话并排时右栏上限 1180，全屏时内容外框可随桌面工作区放宽至 1920；宽布局的会话侧栏按页面宽度的 20% 自适应并限制在 272–360，侧栏仍按文字缩放和实际宽度判断是否显示，空间不足就隐藏而不挤压对话区。助手模型和服务配置使用等宽 AdaptiveColumns，两列各至少 480，并随系统字号增加所需空间，详见[助手界面布局](../../前端/助手与总结/总览.md#设置页面与自适应布局)。
 
-quick/standard/navigation/exit/entrance/launch 为 180/240/280/200/420/450ms；storyTransition 为 520ms，封面停留 launchHold 为 2600ms。组件通过 AppMotion.resolve 响应减少动效，弹层、对话框与 PopupMenuButton 使用 AppMotion.overlayStyle 显式配置进入和退出。
+共享的 `quick`、`standard`、`navigation`、`exit`、`entrance` 分别为 180、240、280、200、420ms。封面入场 450ms 由 `LaunchPage` 定义，首次引导换页 520ms 由 `OnboardingPage` 定义。组件通过 AppMotion.resolve 响应减少动效，弹层、对话框与 PopupMenuButton 使用 AppMotion.overlayStyle 显式配置进入和退出。
 
 ## 宽屏工作区：橱窗门、侧栏与助手发送
 

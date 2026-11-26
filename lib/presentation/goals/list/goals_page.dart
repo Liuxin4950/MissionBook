@@ -10,7 +10,8 @@ import '../../widgets/detail_pane.dart';
 
 import '../../../application/goals/goal_service.dart';
 import '../../../application/missions/mission_service.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../widgets/app_page_header.dart';
 import '../../widgets/app_segmented_control.dart';
 import '../../../core/theme/colors.dart';
@@ -283,9 +284,9 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                                     children: [
                                       Icon(
                                         Icons.upload_file_outlined,
-                                        size: AppLayout.iconMd,
+                                        size: AppMetrics.iconMd,
                                       ),
-                                      SizedBox(width: AppLayout.spaceMd),
+                                      SizedBox(width: AppMetrics.spaceMd),
                                       Text('导入目标大纲'),
                                     ],
                                   ),
@@ -296,9 +297,9 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                                   children: [
                                     Icon(
                                       Icons.archive_outlined,
-                                      size: AppLayout.iconMd,
+                                      size: AppMetrics.iconMd,
                                     ),
-                                    SizedBox(width: AppLayout.spaceMd),
+                                    SizedBox(width: AppMetrics.spaceMd),
                                     Text('已放弃的目标'),
                                   ],
                                 ),
@@ -326,9 +327,9 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                         ],
                       ),
                     ),
-                    const SizedBox(height: AppLayout.spaceLg),
+                    const SizedBox(height: AppMetrics.spaceLg),
                     _statusTabs(context),
-                    const SizedBox(height: AppLayout.spaceMd),
+                    const SizedBox(height: AppMetrics.spaceMd),
                     if (_selectedStatus == GoalStatus.dropped &&
                         (waiting || snapshot.hasError || visible.isNotEmpty))
                       Align(
@@ -341,7 +342,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                       ),
                     if (waiting)
                       const Padding(
-                        padding: EdgeInsets.all(AppLayout.space3Xl),
+                        padding: EdgeInsets.all(AppMetrics.space3Xl),
                         child: Center(child: CircularProgressIndicator()),
                       )
                     else if (snapshot.hasError)
@@ -383,7 +384,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
         return Wrap(
           key: const Key('goal-workspace'),
           spacing: AppLayout.paneGap,
-          runSpacing: AppLayout.spaceMd,
+          runSpacing: AppMetrics.spaceMd,
           children: [
             SizedBox(
               key: const Key('goal-library-pane'),
@@ -392,7 +393,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                 key: const Key('goal-card-grid'),
                 minColumnWidth: AppLayout.paneRightMin,
                 maxColumns: selected == null ? 3 : 1,
-                spacing: AppLayout.spaceMd,
+                spacing: AppMetrics.spaceMd,
                 children: [
                   for (final goal in visible)
                     Padding(
@@ -414,7 +415,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
                           ),
                           // 手机上目录紧跟被选目标，不需要越过其他目标才能找到路径。
                           if (!split && selected?.id == goal.id) ...[
-                            const SizedBox(height: AppLayout.spaceSm),
+                            const SizedBox(height: AppMetrics.spaceSm),
                             _pathPanel(goal),
                           ],
                         ],
@@ -437,7 +438,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
 
   Widget _pathPanel(Goal goal) => AppSectionCard(
     key: const Key('goal-path-panel'),
-    padding: const EdgeInsets.all(AppLayout.spaceSm),
+    padding: const EdgeInsets.all(AppMetrics.spaceSm),
     child: GoalOutlineSection(
       key: _outlineKey,
       service: widget.service,
@@ -499,7 +500,7 @@ class _GoalsPageState extends State<GoalsPage> with WidgetsBindingObserver {
             : TextButton.icon(
                 key: const Key('goal-return-active'),
                 onPressed: () => _selectStatus(GoalStatus.active),
-                icon: const Icon(Icons.arrow_back, size: AppLayout.iconSm),
+                icon: const Icon(Icons.arrow_back, size: AppMetrics.iconSm),
                 label: const Text('查看进行中'),
               ),
       ),
@@ -532,10 +533,10 @@ class _GoalCard extends StatelessWidget {
     return Material(
       color: AppColors.card,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
         side: BorderSide(
           color: selected ? AppColors.primary : AppColors.hairline,
-          width: selected ? AppLayout.strokeFocus : AppLayout.strokeThin,
+          width: selected ? AppMetrics.strokeFocus : AppMetrics.strokeThin,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -545,7 +546,7 @@ class _GoalCard extends StatelessWidget {
         child: InkWell(
           key: Key('goal-outline-toggle-${goal.id}'),
           onTap: onToggleOutline,
-          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -553,16 +554,16 @@ class _GoalCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.all(AppLayout.spaceMd),
+                      padding: const EdgeInsets.all(AppMetrics.spaceMd),
                       child: Row(
                         key: Key('goal-${goal.id}'),
                         children: [
                           Icon(
                             selected ? Icons.expand_less : Icons.expand_more,
-                            size: AppLayout.iconMd,
+                            size: AppMetrics.iconMd,
                             color: AppColors.primary,
                           ),
-                          const SizedBox(width: AppLayout.spaceSm),
+                          const SizedBox(width: AppMetrics.spaceSm),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -575,7 +576,7 @@ class _GoalCard extends StatelessWidget {
                                       : TextOverflow.ellipsis,
                                   style: theme.textTheme.titleSmall,
                                 ),
-                                const SizedBox(height: AppLayout.spaceXs),
+                                const SizedBox(height: AppMetrics.spaceXs),
                                 Text(
                                   goalStatusLabel(goal.status),
                                   style: theme.textTheme.bodySmall,
@@ -593,19 +594,19 @@ class _GoalCard extends StatelessWidget {
                     onPressed: onTap,
                     icon: const Icon(
                       Icons.chevron_right_rounded,
-                      size: AppLayout.iconMd,
+                      size: AppMetrics.iconMd,
                     ),
                   ),
-                  const SizedBox(width: AppLayout.spaceXs),
+                  const SizedBox(width: AppMetrics.spaceXs),
                 ],
               ),
               if (missionService != null || onAddNode != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    AppLayout.spaceMd,
+                    AppMetrics.spaceMd,
                     0,
-                    AppLayout.spaceXs,
-                    AppLayout.spaceXs,
+                    AppMetrics.spaceXs,
+                    AppMetrics.spaceXs,
                   ),
                   child: Row(
                     key: Key('goal-progress-row-${goal.id}'),
@@ -626,7 +627,7 @@ class _GoalCard extends StatelessWidget {
                           onPressed: onAddNode,
                           icon: const Icon(
                             Icons.add_rounded,
-                            size: AppLayout.iconMd,
+                            size: AppMetrics.iconMd,
                           ),
                         ),
                     ],

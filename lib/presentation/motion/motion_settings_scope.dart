@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../application/settings/motion_settings.dart';
-import '../../core/theme/app_page_transitions.dart';
 import '../../core/theme/app_motion.dart';
+import 'app_page_transitions.dart';
 
 /// 把本机选择统一应用到页面、弹层和导航动画。
 class MotionSettingsHost extends StatelessWidget {

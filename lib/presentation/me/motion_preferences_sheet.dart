@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../application/settings/motion_settings.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/app_motion.dart';
 import '../widgets/app_expansion.dart';
 import 'motion_settings_panel.dart';
@@ -38,24 +38,24 @@ class _MotionPreferencesSheetState extends State<MotionPreferencesSheet> {
         preview: AppExpansionTile(
           title: const Text('组件预览'),
           initiallyExpanded: true,
-          childrenPadding: const EdgeInsets.all(AppLayout.spaceMd),
+          childrenPadding: const EdgeInsets.all(AppMetrics.spaceMd),
           children: [
             AppSegmentedControl<int>(
               options: const {0: '待办', 1: '完成'},
               selected: _selected,
               onSelected: (value) => setState(() => _selected = value),
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             AnimatedContainer(
               key: const Key('motion-component-preview'),
               duration: duration,
               curve: AppMotion.curve,
-              padding: const EdgeInsets.all(AppLayout.spaceMd),
+              padding: const EdgeInsets.all(AppMetrics.spaceMd),
               decoration: BoxDecoration(
                 color: _selected == 0
                     ? colors.surfaceContainer
                     : colors.primaryContainer,
-                borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
               ),
               child: Row(
                 children: [
@@ -70,7 +70,7 @@ class _MotionPreferencesSheetState extends State<MotionPreferencesSheet> {
                       key: ValueKey(_selected),
                     ),
                   ),
-                  const SizedBox(width: AppLayout.spaceMd),
+                  const SizedBox(width: AppMetrics.spaceMd),
                   Expanded(
                     child: TweenAnimationBuilder<double>(
                       tween: Tween(begin: .25, end: _selected == 0 ? .25 : 1),
@@ -80,7 +80,7 @@ class _MotionPreferencesSheetState extends State<MotionPreferencesSheet> {
                         key: const Key('motion-preview-progress'),
                         value: value,
                         borderRadius: BorderRadius.circular(
-                          AppLayout.radiusPill,
+                          AppMetrics.radiusPill,
                         ),
                       ),
                     ),

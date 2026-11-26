@@ -6,7 +6,7 @@ import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal_outline_import.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import 'goal_package_import_section.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 
 /// 在目标页原位粘贴或读取 JSON、预览完整树，再由用户明确确认一次提交。
 class GoalImportSection extends StatefulWidget {
@@ -179,16 +179,16 @@ class GoalImportSectionState extends State<GoalImportSection> {
     final preview = _preview;
     return Container(
       key: const Key('goal-import-section'),
-      padding: const EdgeInsets.all(AppLayout.spaceXl),
+      padding: const EdgeInsets.all(AppMetrics.spaceXl),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('导入目标大纲', style: theme.textTheme.titleMedium),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           TextField(
             key: const Key('goal-import-input'),
             controller: _input,
@@ -202,14 +202,14 @@ class GoalImportSectionState extends State<GoalImportSection> {
               filled: true,
               fillColor: AppColors.primarySoft.withValues(alpha: .5),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+                borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
               ),
             ),
           ),
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           Wrap(
-            spacing: AppLayout.spaceSm,
-            runSpacing: AppLayout.spaceSm,
+            spacing: AppMetrics.spaceSm,
+            runSpacing: AppMetrics.spaceSm,
             children: [
               OutlinedButton.icon(
                 key: const Key('goal-import-file'),
@@ -228,7 +228,7 @@ class GoalImportSectionState extends State<GoalImportSection> {
             ],
           ),
           if (_error != null) ...[
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             Semantics(
               liveRegion: true,
               child: Text(
@@ -247,21 +247,21 @@ class GoalImportSectionState extends State<GoalImportSection> {
               child: const Text('确认保存结果并继续'),
             ),
           if (preview != null) ...[
-            const SizedBox(height: AppLayout.spaceXl),
+            const SizedBox(height: AppMetrics.spaceXl),
             const Divider(height: 1),
-            const SizedBox(height: AppLayout.spaceLg),
+            const SizedBox(height: AppMetrics.spaceLg),
             Text(preview.title, style: theme.textTheme.titleMedium),
             if (preview.description != null)
               Text(preview.description!, style: theme.textTheme.bodyMedium),
             if (preview.why != null)
               Text('为什么：${preview.why!}', style: theme.textTheme.bodyMedium),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             Text(
               '完整大纲 · ${preview.nodeCount} 个节点',
               style: theme.textTheme.titleSmall,
             ),
             for (final node in preview.nodes) _node(context, node, 0),
-            const SizedBox(height: AppLayout.spaceLg),
+            const SizedBox(height: AppMetrics.spaceLg),
             FilledButton.icon(
               key: const Key('goal-import-confirm'),
               onPressed: _saving || _saved ? null : _save,
@@ -284,8 +284,8 @@ class GoalImportSectionState extends State<GoalImportSection> {
 
   Widget _node(BuildContext context, GoalImportNode node, int depth) => Padding(
     padding: EdgeInsets.only(
-      left: depth * AppLayout.spaceMd,
-      top: AppLayout.spaceSm,
+      left: depth * AppMetrics.spaceMd,
+      top: AppMetrics.spaceSm,
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

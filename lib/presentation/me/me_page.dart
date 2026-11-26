@@ -8,7 +8,8 @@ import '../../application/goals/goal_service.dart';
 import '../../application/missions/mission_service.dart';
 import '../../application/notifications/app_notification_service.dart';
 import '../../application/settings/app_device.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/layout/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/colors.dart';
 import '../../domain/entities/execution_event.dart';
 import '../../domain/entities/goal.dart';
@@ -267,7 +268,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                 icon: const Icon(Icons.settings_outlined),
               ),
             ),
-            const SizedBox(height: AppLayout.sectionGap),
+            const SizedBox(height: AppMetrics.sectionGap),
             AdaptiveColumns(
               key: const Key('me-workspace-columns'),
               minColumnWidth: 400,
@@ -284,7 +285,7 @@ class _MePageState extends State<MePage> with WidgetsBindingObserver {
                       onRetry: _loadProfile,
                     ),
                     if (_statsError == null && _recentRecords.isNotEmpty) ...[
-                      const SizedBox(height: AppLayout.sectionGap),
+                      const SizedBox(height: AppMetrics.sectionGap),
                       _RecentRecords(
                         records: _recentRecords,
                         onOpen: _openRecord,
@@ -341,7 +342,7 @@ class _ProfileCard extends StatelessWidget {
             excludeFromSemantics: true,
           ),
           Padding(
-            padding: const EdgeInsets.all(AppLayout.spaceXl),
+            padding: const EdgeInsets.all(AppMetrics.spaceXl),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -354,7 +355,7 @@ class _ProfileCard extends StatelessWidget {
                         color: AppColors.primary,
                       ),
                     ),
-                    const SizedBox(width: AppLayout.spaceMd),
+                    const SizedBox(width: AppMetrics.spaceMd),
                     Expanded(
                       child: Text(
                         profile?.name ?? (error == null ? '正在读取资料…' : '本机资料'),
@@ -368,14 +369,14 @@ class _ProfileCard extends StatelessWidget {
                       onPressed: onEdit,
                       icon: const Icon(
                         Icons.edit_outlined,
-                        size: AppLayout.iconMd,
+                        size: AppMetrics.iconMd,
                       ),
                     ),
                   ],
                 ),
                 if (profile?.bio.isNotEmpty == true)
                   Padding(
-                    padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+                    padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
                     child: Text(profile!.bio, style: text.bodyLarge),
                   ),
                 if (error != null) ...[
@@ -409,7 +410,7 @@ class _RecentRecords extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const AppSectionHeader('最近的行动'),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           for (final record in records)
             ListTile(
               key: ValueKey('profile-record-${record.mission.id}'),
@@ -454,11 +455,11 @@ class _ActivityOverview extends StatelessWidget {
             header: true,
             child: Text('我的行动记录', style: text.titleMedium),
           ),
-          const SizedBox(height: AppLayout.spaceLg),
+          const SizedBox(height: AppMetrics.spaceLg),
           AdaptiveColumns(
             minColumnWidth: 88,
             maxColumns: 3,
-            spacing: AppLayout.spaceMd,
+            spacing: AppMetrics.spaceMd,
             children: [
               _ActivityStat(
                 icon: Icons.flag_outlined,
@@ -486,15 +487,15 @@ class _ActivityOverview extends StatelessWidget {
             style: text.bodyMedium,
           ),
           if (goals.isNotEmpty) ...[
-            const SizedBox(height: AppLayout.spaceXl),
+            const SizedBox(height: AppMetrics.spaceXl),
             const Divider(height: 1),
-            const SizedBox(height: AppLayout.spaceLg),
+            const SizedBox(height: AppMetrics.spaceLg),
             Semantics(
               container: true,
               header: true,
               child: Text('进行中的目标', style: text.titleMedium),
             ),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             for (final goal in goals)
               ListTile(
                 key: ValueKey('profile-goal-${goal.id}'),
@@ -543,23 +544,23 @@ class _ActivityStat extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppLayout.spaceXs,
-        vertical: AppLayout.spaceSm,
+        horizontal: AppMetrics.spaceXs,
+        vertical: AppMetrics.spaceSm,
       ),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: AppLayout.iconLg, color: AppColors.primary),
-          const SizedBox(height: AppLayout.spaceMd),
+          Icon(icon, size: AppMetrics.iconLg, color: AppColors.primary),
+          const SizedBox(height: AppMetrics.spaceMd),
           Tooltip(
             message: label == '累计专注' ? '仅统计已结束任务的实际专注时间' : label,
             child: Text(label, style: text.bodySmall),
           ),
-          const SizedBox(height: AppLayout.spaceXs),
+          const SizedBox(height: AppMetrics.spaceXs),
           Text(
             value == null ? '—' : '$value $unit',
             key: ValueKey('profile-stat-$label'),
@@ -643,16 +644,16 @@ class _ProfileEditorState extends State<_ProfileEditor> {
       constraints: const BoxConstraints(maxWidth: 480),
       backgroundColor: AppColors.card,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppLayout.spaceXxl),
+        padding: const EdgeInsets.all(AppMetrics.spaceXxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text('编辑本机资料', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: AppLayout.spaceXxl),
+            const SizedBox(height: AppMetrics.spaceXxl),
             AppTextField(
               key: const Key('profile-name-input'),
               label: '称呼',
@@ -661,7 +662,7 @@ class _ProfileEditorState extends State<_ProfileEditor> {
               maxLines: 1,
               readOnly: _saving,
             ),
-            const SizedBox(height: AppLayout.spaceXl),
+            const SizedBox(height: AppMetrics.spaceXl),
             AppTextField(
               key: const Key('profile-bio-input'),
               label: '个人简介',
@@ -673,7 +674,7 @@ class _ProfileEditorState extends State<_ProfileEditor> {
             ),
             if (_error != null)
               Padding(
-                padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+                padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
                 child: Semantics(
                   liveRegion: true,
                   child: Text(
@@ -682,11 +683,11 @@ class _ProfileEditorState extends State<_ProfileEditor> {
                   ),
                 ),
               ),
-            const SizedBox(height: AppLayout.spaceXxl),
+            const SizedBox(height: AppMetrics.spaceXxl),
             Wrap(
               alignment: WrapAlignment.end,
-              spacing: AppLayout.spaceMd,
-              runSpacing: AppLayout.spaceSm,
+              spacing: AppMetrics.spaceMd,
+              runSpacing: AppMetrics.spaceSm,
               children: [
                 TextButton(
                   onPressed: _saving ? null : _cancel,

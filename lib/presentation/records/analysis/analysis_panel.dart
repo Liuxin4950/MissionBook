@@ -4,7 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../widgets/app_expansion.dart';
 import '../../widgets/app_confirm_dialog.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../shared/record_scope.dart';
 import '../../widgets/adaptive_sheet.dart';
 
@@ -18,7 +18,7 @@ Future<void> showAnalysisSummary(
   context: context,
   builder: (context) => SafeArea(
     child: SingleChildScrollView(
-      padding: const EdgeInsets.all(AppLayout.spaceXl),
+      padding: const EdgeInsets.all(AppMetrics.spaceXl),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -34,7 +34,7 @@ Future<void> showAnalysisSummary(
               IconButton(
                 tooltip: '关闭摘要',
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close_rounded, size: AppLayout.iconLg),
+                icon: const Icon(Icons.close_rounded, size: AppMetrics.iconLg),
               ),
             ],
           ),
@@ -198,7 +198,7 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                 if (s.hasError)
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppLayout.spaceLg,
+                      horizontal: AppMetrics.spaceLg,
                     ),
                     child: TextButton(
                       onPressed: load,
@@ -207,7 +207,7 @@ class _AnalysisPanelState extends State<AnalysisPanel> {
                   ),
                 if (a?['content'] != null)
                   Padding(
-                    padding: const EdgeInsets.all(AppLayout.spaceMd),
+                    padding: const EdgeInsets.all(AppMetrics.spaceMd),
                     child: SelectableText(
                       a!['content'] as String,
                       style: Theme.of(context).textTheme.bodyLarge,

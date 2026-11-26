@@ -1,7 +1,7 @@
 import 'app_animated_size.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/colors.dart';
 
@@ -17,14 +17,14 @@ class AppExpansionTile extends StatefulWidget {
     this.initiallyExpanded = false,
     this.onExpansionChanged,
     this.headerPadding = const EdgeInsets.symmetric(
-      horizontal: AppLayout.spaceMd,
-      vertical: AppLayout.spaceSm,
+      horizontal: AppMetrics.spaceMd,
+      vertical: AppMetrics.spaceSm,
     ),
     this.childrenPadding = const EdgeInsets.fromLTRB(
-      AppLayout.spaceLg,
-      AppLayout.spaceSm,
-      AppLayout.spaceLg,
-      AppLayout.spaceLg,
+      AppMetrics.spaceLg,
+      AppMetrics.spaceSm,
+      AppMetrics.spaceLg,
+      AppMetrics.spaceLg,
     ),
     this.insetHeader = true,
     this.iconColor,
@@ -91,11 +91,11 @@ class _AppExpansionTileState extends State<AppExpansionTile> {
       children: [
         Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: widget.insetHeader ? AppLayout.spaceSm : 0,
+            horizontal: widget.insetHeader ? AppMetrics.spaceSm : 0,
           ),
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+            borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
             clipBehavior: Clip.antiAlias,
             child: Semantics(
               button: true,
@@ -104,7 +104,7 @@ class _AppExpansionTileState extends State<AppExpansionTile> {
                 onTap: _toggle,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(
-                    minHeight: AppLayout.touchTargetMin,
+                    minHeight: AppMetrics.touchTargetMin,
                   ),
                   child: Padding(
                     padding: widget.headerPadding,
@@ -112,7 +112,7 @@ class _AppExpansionTileState extends State<AppExpansionTile> {
                       children: [
                         if (widget.leading != null) ...[
                           widget.leading!,
-                          const SizedBox(width: AppLayout.spaceMd),
+                          const SizedBox(width: AppMetrics.spaceMd),
                         ],
                         Expanded(
                           child: Column(
@@ -133,7 +133,7 @@ class _AppExpansionTileState extends State<AppExpansionTile> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: AppLayout.spaceSm),
+                        const SizedBox(width: AppMetrics.spaceSm),
                         widget.trailing ??
                             AnimatedRotation(
                               turns: _expanded ? .5 : 0,
@@ -141,7 +141,7 @@ class _AppExpansionTileState extends State<AppExpansionTile> {
                               curve: AppMotion.curve,
                               child: Icon(
                                 Icons.expand_more,
-                                size: AppLayout.iconLg,
+                                size: AppMetrics.iconLg,
                                 color:
                                     widget.iconColor ?? AppColors.textSecondary,
                               ),

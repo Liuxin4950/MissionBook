@@ -22,7 +22,8 @@ import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/settings/motion_settings.dart';
 import 'package:mission_book/application/records/record_service.dart';
-import 'package:mission_book/core/theme/app_layout.dart';
+import 'package:mission_book/core/layout/app_layout.dart';
+import 'package:mission_book/core/theme/app_metrics.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/core/theme/colors.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
@@ -44,7 +45,7 @@ import 'package:mission_book/presentation/assistant/settings/assistant_speech_se
 import 'package:mission_book/presentation/records/shared/record_scope.dart';
 import 'package:mission_book/presentation/records/list/records_page.dart';
 import 'package:mission_book/presentation/widgets/app_interactive_surface.dart';
-import 'package:mission_book/presentation/widgets/motion_settings_scope.dart';
+import 'package:mission_book/presentation/motion/motion_settings_scope.dart';
 
 import '../../support/assistant_fakes.dart';
 import '../../support/me_fakes.dart';
@@ -1199,8 +1200,8 @@ void main() {
       );
       for (final name in ['spark', 'book', 'compass', 'custom']) {
         final size = tester.getSize(find.byKey(Key('assistant-avatar-$name')));
-        expect(size.width, greaterThanOrEqualTo(AppLayout.touchTargetMin));
-        expect(size.height, greaterThanOrEqualTo(AppLayout.touchTargetMin));
+        expect(size.width, greaterThanOrEqualTo(AppMetrics.touchTargetMin));
+        expect(size.height, greaterThanOrEqualTo(AppMetrics.touchTargetMin));
       }
       expect(assistant.persona.avatar, AssistantAvatar.spark);
       final defaultChoice = find.byKey(const Key('assistant-avatar-spark'));
@@ -1316,7 +1317,7 @@ void main() {
       expect(textBubble.bottom, lessThan(launcher.top));
       expect(
         launcher.top - textBubble.bottom,
-        closeTo(AppLayout.spaceXxl, 0.1),
+        closeTo(AppMetrics.spaceXxl, 0.1),
       );
       expect(
         tester.getSemantics(find.text('文字')),
@@ -1757,7 +1758,7 @@ void main() {
     for (var index = 0; index < rects.length; index++) {
       expect(
         rects[index].height,
-        greaterThanOrEqualTo(AppLayout.touchTargetMin),
+        greaterThanOrEqualTo(AppMetrics.touchTargetMin),
       );
       if (index > 0) {
         expect(rects[index].left, rects.first.left);
@@ -2295,7 +2296,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester.getSize(actions).shortestSide,
-        greaterThanOrEqualTo(AppLayout.touchTargetMin),
+        greaterThanOrEqualTo(AppMetrics.touchTargetMin),
       );
       await tester.tap(actions);
       await tester.pumpAndSettle();
@@ -2683,7 +2684,7 @@ void main() {
         expect(tester.getTopLeft(connection).dy, tester.getTopLeft(models).dy);
         expect(
           tester.getTopLeft(models).dx - tester.getTopRight(connection).dx,
-          AppLayout.sectionGap,
+          AppMetrics.sectionGap,
         );
       } else {
         expect(
@@ -2730,7 +2731,7 @@ void main() {
       );
       expect(
         tester.getSize(saveProvider).height,
-        greaterThanOrEqualTo(AppLayout.actionMinHeight),
+        greaterThanOrEqualTo(AppMetrics.actionMinHeight),
       );
       await tester.tap(saveProvider);
       await pumpUntil(

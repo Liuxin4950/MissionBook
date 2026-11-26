@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../../application/backup/backup_service.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/colors.dart';
 import '../../data/backup/backup_file_picker.dart';
 import '../widgets/app_confirm_dialog.dart';
@@ -125,9 +125,8 @@ class _BackupRestoreCardState extends State<BackupRestoreCard> {
         // 校验或恢复期间返回键被拦截，必须给出原因，不能静默无响应。
         if (!didPop && mounted) {
           setState(
-            () => _message = _restoring
-                ? '正在恢复数据，请等待完成后再返回'
-                : '正在校验备份，请等待完成后再返回',
+            () =>
+                _message = _restoring ? '正在恢复数据，请等待完成后再返回' : '正在校验备份，请等待完成后再返回',
           );
         }
       },
@@ -136,12 +135,12 @@ class _BackupRestoreCardState extends State<BackupRestoreCard> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const AppSectionHeader('导入并恢复'),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             Text(
               '选择 MissionBook 导出的 ZIP，校验后核对范围。恢复会替换全部业务数据，并重新打开工作区。',
               style: text.bodyMedium,
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             OutlinedButton.icon(
               key: const Key('backup-select-import'),
               onPressed: _busy ? null : _select,
@@ -149,12 +148,12 @@ class _BackupRestoreCardState extends State<BackupRestoreCard> {
               label: Text(_busy && !_restoring ? '正在校验…' : '选择备份 ZIP'),
             ),
             if (plan != null) ...[
-              const SizedBox(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceLg),
               Text(
                 '备份时间：${_date(plan.exportedAt.toLocal())}',
                 style: text.bodyMedium,
               ),
-              const SizedBox(height: AppLayout.spaceSm),
+              const SizedBox(height: AppMetrics.spaceSm),
               for (final entry in const {
                 'goals': '目标',
                 'goal_nodes': '节点',
@@ -168,7 +167,7 @@ class _BackupRestoreCardState extends State<BackupRestoreCard> {
                 'assistant_session_records': '会话日志',
               }.entries)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: AppLayout.spaceXs),
+                  padding: const EdgeInsets.only(bottom: AppMetrics.spaceXs),
                   child: Text(
                     '${entry.value}：${plan.counts[entry.key] ?? 0}（当前 ${plan.currentCounts[entry.key] ?? 0}）',
                     style: text.bodyMedium,
@@ -178,14 +177,14 @@ class _BackupRestoreCardState extends State<BackupRestoreCard> {
                 '附件：${plan.attachmentCount} 个 · ${(plan.attachmentBytes / 1048576).toStringAsFixed(1)} MiB',
                 style: text.bodyMedium,
               ),
-              const SizedBox(height: AppLayout.spaceXs),
+              const SizedBox(height: AppMetrics.spaceXs),
               Text(
                 plan.resources.isEmpty
                     ? '本机资源：未包含，保留当前设备设置'
                     : '本机资源：${plan.resources.map((r) => r.label).join('、')}',
                 style: text.bodyMedium,
               ),
-              const SizedBox(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceLg),
               FilledButton(
                 key: const Key('backup-confirm-import'),
                 onPressed: _busy ? null : _restore,
@@ -194,12 +193,12 @@ class _BackupRestoreCardState extends State<BackupRestoreCard> {
             ],
             if (_busy)
               const Padding(
-                padding: EdgeInsets.only(top: AppLayout.spaceMd),
+                padding: EdgeInsets.only(top: AppMetrics.spaceMd),
                 child: LinearProgressIndicator(),
               ),
             if (_error != null || _message != null)
               Padding(
-                padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+                padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
                 child: Semantics(
                   liveRegion: true,
                   child: Text(

@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../application/assistant/assistant_speech.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../widgets/app_section_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../shared/assistant_voice_status.dart';
@@ -63,21 +64,21 @@ class _AssistantSpeechTestPageState extends State<AssistantSpeechTestPage>
                         '使用已保存的识别方式与服务。转写服务会接收本次录音，并可能计费。识别文字仅在这里展示。',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
-                      const SizedBox(height: AppLayout.spaceLg),
+                      const SizedBox(height: AppMetrics.spaceLg),
                       AssistantVoiceStatus(
                         voice: _voice,
                         onCancel: _voice.listening || _voice.busy
                             ? _voice.cancel
                             : null,
                       ),
-                      const SizedBox(height: AppLayout.spaceLg),
+                      const SizedBox(height: AppMetrics.spaceLg),
                       if (_voice.text.isNotEmpty) ...[
                         SelectableText(
                           _voice.text,
                           key: const Key('speech-test-result'),
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
-                        const SizedBox(height: AppLayout.spaceLg),
+                        const SizedBox(height: AppMetrics.spaceLg),
                       ],
                       FilledButton.icon(
                         key: const Key('speech-test-record'),

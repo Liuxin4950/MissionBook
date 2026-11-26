@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../application/settings/motion_settings.dart';
-import 'app_motion.dart';
+import '../../core/theme/app_motion.dart';
 import 'app_page_motion.dart';
 
 /// 页面风格统一作用于普通路由和详情栏内的 MaterialPageRoute。

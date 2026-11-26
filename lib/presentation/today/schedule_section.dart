@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/app_motion.dart';
 import '../../domain/entities/mission_phase.dart';
 import '../missions/shared/mission_phase_display.dart';
@@ -18,15 +18,15 @@ import 'today_display.dart' as display;
 /// 宽面板（高/中密度）16dp，窄栏 12dp；首页分区共用内容边线。
 double todaySectionInset(double availableWidth) =>
     availableWidth >= _widePanelMinWidth
-    ? AppLayout.spaceLg
-    : AppLayout.spaceMd;
+    ? AppMetrics.spaceLg
+    : AppMetrics.spaceMd;
 
 // 断点只影响分区的内边距，任务行在同一信息层级下按文字实际宽度换行。
 const _widePanelMinWidth = 480.0;
-const _trackWidth = AppLayout.spaceLg;
-const _nodeSize = AppLayout.spaceSm;
-const _terminalTrackInset = AppLayout.spaceMd;
-const _minProgressTrackWidth = AppLayout.space3Xl * 2;
+const _trackWidth = AppMetrics.spaceLg;
+const _nodeSize = AppMetrics.spaceSm;
+const _terminalTrackInset = AppMetrics.spaceMd;
+const _minProgressTrackWidth = AppMetrics.space3Xl * 2;
 
 // 等宽数字只在平台上可用时生效，缺字体时继续使用系统默认字形。
 const _tabularFigures = [FontFeature.tabularFigures()];
@@ -141,10 +141,10 @@ class _ScheduleSectionState extends State<ScheduleSection>
     final rowExtent =
         titleHeight +
         metaHeight +
-        AppLayout.spaceSm * 2 +
-        AppLayout.strokeThin +
+        AppMetrics.spaceSm * 2 +
+        AppMetrics.strokeThin +
         (widget.items.any((item) => item.location != null)
-            ? metaHeight + AppLayout.spaceXs
+            ? metaHeight + AppMetrics.spaceXs
             : 0);
     final visibleHeight =
         widget.visibleHeight ?? MediaQuery.sizeOf(context).height;
@@ -170,9 +170,9 @@ class _ScheduleSectionState extends State<ScheduleSection>
           key: const Key('today-schedule-section'),
           padding: EdgeInsets.fromLTRB(
             inset,
-            AppLayout.spaceMd,
+            AppMetrics.spaceMd,
             inset,
-            AppLayout.spaceMd,
+            AppMetrics.spaceMd,
           ),
           paperBackground: widget.illustrateEmpty && items.isEmpty,
           child: Column(
@@ -183,8 +183,8 @@ class _ScheduleSectionState extends State<ScheduleSection>
                 children: [
                   Expanded(
                     child: Wrap(
-                      spacing: AppLayout.spaceSm,
-                      runSpacing: AppLayout.spaceXs,
+                      spacing: AppMetrics.spaceSm,
+                      runSpacing: AppMetrics.spaceXs,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         if (!widget.fullList)
@@ -209,7 +209,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
                       style: TextButton.styleFrom(
                         textStyle: theme.textTheme.labelSmall,
                         padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, AppLayout.touchTargetMin),
+                        minimumSize: const Size(0, AppMetrics.touchTargetMin),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       child: const Text('查看全部 ›'),
@@ -222,7 +222,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
                   onCreate: widget.onCreate,
                 )
               else ...[
-                const SizedBox(height: AppLayout.spaceXs),
+                const SizedBox(height: AppMetrics.spaceXs),
                 AppAnimatedSize(
                   duration: _motionDuration(context),
                   curve: AppMotion.curve,
@@ -246,7 +246,7 @@ class _ScheduleSectionState extends State<ScheduleSection>
               ],
               if (widget.fullList && widget.items.length > 50)
                 Wrap(
-                  spacing: AppLayout.spaceSm,
+                  spacing: AppMetrics.spaceSm,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     TextButton(
@@ -274,9 +274,9 @@ class _ScheduleSectionState extends State<ScheduleSection>
                     style: TextButton.styleFrom(
                       textStyle: theme.textTheme.labelSmall,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: AppLayout.spaceSm,
+                        horizontal: AppMetrics.spaceSm,
                       ),
-                      minimumSize: const Size(0, AppLayout.touchTargetMin),
+                      minimumSize: const Size(0, AppMetrics.touchTargetMin),
                     ),
                     child: Text('另有 $hidden 项'),
                   ),
@@ -369,9 +369,9 @@ class ScheduleMissionRow extends StatelessWidget {
       titleStyle,
       MediaQuery.textScalerOf(context),
     );
-    final headerLineHeight = math.max(titleLineHeight, AppLayout.iconMd);
-    final nodeCenterY = AppLayout.spaceSm + headerLineHeight / 2;
-    final radius = BorderRadius.circular(AppLayout.radiusMd);
+    final headerLineHeight = math.max(titleLineHeight, AppMetrics.iconMd);
+    final nodeCenterY = AppMetrics.spaceSm + headerLineHeight / 2;
+    final radius = BorderRadius.circular(AppMetrics.radiusMd);
     return Semantics(
       container: true,
       excludeSemantics: true,
@@ -395,7 +395,7 @@ class ScheduleMissionRow extends StatelessWidget {
             borderRadius: radius,
             child: ConstrainedBox(
               constraints: const BoxConstraints(
-                minHeight: AppLayout.touchTargetMin,
+                minHeight: AppMetrics.touchTargetMin,
               ),
               child: Stack(
                 alignment: AlignmentDirectional.topStart,
@@ -406,17 +406,17 @@ class ScheduleMissionRow extends StatelessWidget {
                       left: 0,
                       right: 0,
                       child: SizedBox(
-                        height: AppLayout.strokeThin,
+                        height: AppMetrics.strokeThin,
                         child: ColoredBox(color: colors.outlineVariant),
                       ),
                     ),
                   PositionedDirectional(
-                    start: (_trackWidth - AppLayout.strokeThin) / 2,
+                    start: (_trackWidth - AppMetrics.strokeThin) / 2,
                     top: isFirst ? nodeCenterY : 0,
                     bottom: isLast ? _terminalTrackInset : 0,
                     child: SizedBox(
                       key: ValueKey('schedule-track-${item.id}'),
-                      width: AppLayout.strokeThin,
+                      width: AppMetrics.strokeThin,
                       child: ColoredBox(color: colors.outlineVariant),
                     ),
                   ),
@@ -436,13 +436,13 @@ class ScheduleMissionRow extends StatelessWidget {
                           color: current
                               ? colors.primary
                               : colors.onSurfaceVariant,
-                          width: AppLayout.strokeThin,
+                          width: AppMetrics.strokeThin,
                         ),
                         boxShadow: current
                             ? [
                                 BoxShadow(
                                   color: colors.tertiaryContainer,
-                                  spreadRadius: AppLayout.strokeFocus,
+                                  spreadRadius: AppMetrics.strokeFocus,
                                 ),
                               ]
                             : null,
@@ -452,9 +452,9 @@ class ScheduleMissionRow extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsetsDirectional.fromSTEB(
                       _trackWidth,
-                      AppLayout.spaceSm,
-                      AppLayout.spaceSm,
-                      AppLayout.spaceSm,
+                      AppMetrics.spaceSm,
+                      AppMetrics.spaceSm,
+                      AppMetrics.spaceSm,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -478,24 +478,24 @@ class ScheduleMissionRow extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: AppLayout.spaceXs),
+                            const SizedBox(width: AppMetrics.spaceXs),
                             Padding(
                               padding: EdgeInsets.only(
-                                top: (headerLineHeight - AppLayout.iconMd) / 2,
+                                top: (headerLineHeight - AppMetrics.iconMd) / 2,
                               ),
                               child: Icon(
                                 Icons.chevron_right_rounded,
                                 key: ValueKey('schedule-open-${item.id}'),
-                                size: AppLayout.iconMd,
+                                size: AppMetrics.iconMd,
                                 color: colors.onSurfaceVariant,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: AppLayout.spaceXs),
+                        const SizedBox(height: AppMetrics.spaceXs),
                         Padding(
                           padding: const EdgeInsetsDirectional.only(
-                            start: AppLayout.spaceSm,
+                            start: AppMetrics.spaceSm,
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -508,7 +508,7 @@ class ScheduleMissionRow extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                   style: metaStyle,
                                 ),
-                                const SizedBox(height: AppLayout.spaceXs),
+                                const SizedBox(height: AppMetrics.spaceXs),
                               ],
                               _ScheduleMetadata(
                                 item: item,
@@ -517,7 +517,7 @@ class ScheduleMissionRow extends StatelessWidget {
                                 statusStyle: statusStyle,
                               ),
                               if (current) ...[
-                                const SizedBox(height: AppLayout.spaceXs),
+                                const SizedBox(height: AppMetrics.spaceXs),
                                 _PlanProgress(
                                   id: item.id,
                                   progress: display.plannedTimeSlotProgress(
@@ -567,7 +567,7 @@ class _ScheduleMetadata extends StatelessWidget {
       children: [
         Text(time, key: ValueKey('schedule-meta-${item.id}'), style: metaStyle),
         if (item.timeZoneLabel case final zone?) ...[
-          const SizedBox(height: AppLayout.spaceXs),
+          const SizedBox(height: AppMetrics.spaceXs),
           Text(
             zone,
             key: ValueKey('schedule-timezone-${item.id}'),
@@ -579,8 +579,8 @@ class _ScheduleMetadata extends StatelessWidget {
     final statusGroup = Wrap(
       alignment: WrapAlignment.end,
       crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: AppLayout.spaceSm,
-      runSpacing: AppLayout.spaceXs,
+      spacing: AppMetrics.spaceSm,
+      runSpacing: AppMetrics.spaceXs,
       children: [
         Text(
           status,
@@ -594,7 +594,7 @@ class _ScheduleMetadata extends StatelessWidget {
       builder: (context, box) {
         final timeWidth = _singleLineWidth(context, time, metaStyle);
         final statusWidth = _singleLineWidth(context, status, statusStyle);
-        const gap = AppLayout.spaceSm;
+        const gap = AppMetrics.spaceSm;
         if (timeWidth + gap + statusWidth <= box.maxWidth) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -609,7 +609,7 @@ class _ScheduleMetadata extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             timeGroup,
-            const SizedBox(height: AppLayout.spaceXs),
+            const SizedBox(height: AppMetrics.spaceXs),
             statusGroup,
           ],
         );
@@ -643,8 +643,8 @@ class _PlanProgress extends StatelessWidget {
       builder: (context, value, _) => LinearProgressIndicator(
         key: ValueKey('schedule-plan-progress-$id'),
         value: value,
-        minHeight: AppLayout.spaceXs,
-        borderRadius: BorderRadius.circular(AppLayout.radiusXs),
+        minHeight: AppMetrics.spaceXs,
+        borderRadius: BorderRadius.circular(AppMetrics.radiusXs),
         color: colors.primary,
         backgroundColor: colors.outlineVariant,
         trackGap: 0,
@@ -661,13 +661,13 @@ class _PlanProgress extends StatelessWidget {
       builder: (context, box) {
         final needed =
             _singleLineWidth(context, label, style) +
-            AppLayout.spaceSm +
+            AppMetrics.spaceSm +
             _minProgressTrackWidth;
         if (box.maxWidth >= needed) {
           return Row(
             children: [
               Expanded(child: track),
-              const SizedBox(width: AppLayout.spaceSm),
+              const SizedBox(width: AppMetrics.spaceSm),
               remaining,
             ],
           );
@@ -676,7 +676,7 @@ class _PlanProgress extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             track,
-            const SizedBox(height: AppLayout.spaceXs),
+            const SizedBox(height: AppMetrics.spaceXs),
             remaining,
           ],
         );

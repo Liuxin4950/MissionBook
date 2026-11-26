@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/colors.dart';
 import 'app_interactive_surface.dart';
 
@@ -39,13 +39,13 @@ class AppSelectionOption extends StatelessWidget {
               child: child,
             ),
           ),
-          const SizedBox(width: AppLayout.spaceSm),
+          const SizedBox(width: AppMetrics.spaceSm),
           SizedBox(
-            width: AppLayout.iconSm,
+            width: AppMetrics.iconSm,
             child: selected
                 ? const Icon(
                     Icons.check_rounded,
-                    size: AppLayout.iconSm,
+                    size: AppMetrics.iconSm,
                     color: AppColors.primary,
                   )
                 : null,

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/colors.dart';
 import '../../data/settings/today_widget_appearance.dart';
 import '../widgets/app_segmented_control.dart';
@@ -49,7 +49,7 @@ class TodayWidgetPreviewPane extends StatelessWidget {
           optionKey: (value) =>
               ValueKey('today-widget-preview-size-${value.name}'),
         ),
-        const SizedBox(height: AppLayout.spaceSm),
+        const SizedBox(height: AppMetrics.spaceSm),
         AppSegmentedControl<TodayWidgetTheme>(
           options: const {
             TodayWidgetTheme.light: '浅色示例',
@@ -60,21 +60,21 @@ class TodayWidgetPreviewPane extends StatelessWidget {
           optionKey: (value) =>
               ValueKey('today-widget-preview-theme-${value.name}'),
         ),
-        const SizedBox(height: AppLayout.spaceSm),
+        const SizedBox(height: AppMetrics.spaceSm),
         Container(
           key: const Key('today-widget-preview-frame'),
-          padding: const EdgeInsets.all(AppLayout.spaceMd),
+          padding: const EdgeInsets.all(AppMetrics.spaceMd),
           decoration: BoxDecoration(
             color: AppColors.surfaceMuted,
-            borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+            borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
           ),
           child: _previewBody(context),
         ),
         if (current != null && error == null) ...[
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           Wrap(
-            spacing: AppLayout.spaceSm,
-            runSpacing: AppLayout.spaceXs,
+            spacing: AppMetrics.spaceSm,
+            runSpacing: AppMetrics.spaceXs,
             children: [
               Text(
                 '示例数据',
@@ -104,7 +104,7 @@ class TodayWidgetPreviewPane extends StatelessWidget {
             ],
           ),
         ],
-        const SizedBox(height: AppLayout.spaceXs),
+        const SizedBox(height: AppMetrics.spaceXs),
         Text(
           '预览使用与桌面相同的排版计划，实际 Launcher 裁边可能有细微差异。',
           style: theme.textTheme.bodySmall?.copyWith(
@@ -136,7 +136,7 @@ class TodayWidgetPreviewPane extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: AppLayout.spaceXs),
+            const SizedBox(height: AppMetrics.spaceXs),
             TextButton(
               key: const Key('today-widget-preview-retry'),
               onPressed: onRetry,

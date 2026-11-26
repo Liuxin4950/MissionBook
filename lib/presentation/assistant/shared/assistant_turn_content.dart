@@ -2,7 +2,7 @@ import 'package:agent_core/agent_core.dart';
 import 'package:flutter/material.dart';
 
 import '../../../application/assistant/assistant_controller.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../operations/assistant_operation_card.dart';
 import 'assistant_markdown.dart';
 import 'assistant_thinking.dart';
@@ -111,7 +111,7 @@ class AssistantTurnContent extends StatelessWidget {
     } else if (running && messages.isEmpty) {
       children.add(
         const Padding(
-          padding: EdgeInsets.all(AppLayout.spaceSm),
+          padding: EdgeInsets.all(AppMetrics.spaceSm),
           child: Text('正在准备请求…'),
         ),
       );
@@ -131,14 +131,14 @@ class AssistantTurnContent extends StatelessWidget {
     if (streaming && message.content.isEmpty) {
       children.add(
         const Padding(
-          padding: EdgeInsets.all(AppLayout.spaceSm),
+          padding: EdgeInsets.all(AppMetrics.spaceSm),
           child: Row(
             children: [
               SizedBox.square(
-                dimension: AppLayout.iconSm,
+                dimension: AppMetrics.iconSm,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              SizedBox(width: AppLayout.spaceSm),
+              SizedBox(width: AppMetrics.spaceSm),
               Text('正在等待模型响应…'),
             ],
           ),
@@ -189,7 +189,7 @@ class AssistantTurnContent extends StatelessWidget {
                       operation.status == AssistantOperationStatus.succeeded
                           ? Icons.check_circle_outline
                           : Icons.receipt_long_outlined,
-                      size: AppLayout.iconSm,
+                      size: AppMetrics.iconSm,
                     ),
                     label: Text(
                       '${assistantToolLabel(block.name)} · ${assistantOperationStatusLabel(operation.status, compact: true)}',
@@ -291,7 +291,7 @@ class AssistantTurnContent extends StatelessWidget {
     if (interrupted != null) {
       children.add(
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceSm),
+          padding: const EdgeInsets.symmetric(vertical: AppMetrics.spaceSm),
           child: Text(
             '本次输出未完成 · ${interrupted.message}${interrupted.willRetry ? '（已安排重试）' : ''}',
             style: Theme.of(context).textTheme.bodySmall,
@@ -303,7 +303,7 @@ class AssistantTurnContent extends StatelessWidget {
     return [
       Padding(
         key: ValueKey(key),
-        padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+        padding: const EdgeInsets.only(bottom: AppMetrics.spaceSm),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: children,

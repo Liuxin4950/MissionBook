@@ -13,7 +13,7 @@ import 'package:mission_book/application/assistant/assistant_controller.dart';
 import 'package:mission_book/application/assistant/assistant_speech.dart';
 import 'package:mission_book/application/goals/goal_service.dart';
 import 'package:mission_book/application/missions/mission_service.dart';
-import 'package:mission_book/core/theme/app_layout.dart';
+import 'package:mission_book/core/theme/app_metrics.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/core/theme/colors.dart';
 import 'package:mission_book/data/assistant/drift_session_store.dart';
@@ -206,7 +206,7 @@ void main() {
 
     final icon = sendIcon(tester);
     expect(icon.icon, Icons.arrow_upward_rounded);
-    expect(icon.size, AppLayout.iconMd);
+    expect(icon.size, AppMetrics.iconMd);
     expect(icon.color, AppColors.textSecondary);
 
     // 不可发：没有动作，读屏报告禁用按钮。
@@ -230,7 +230,7 @@ void main() {
     for (final key in toolKeys) {
       final tool = find.byKey(Key(key));
       expect(tool, findsOneWidget, reason: '$key 应留在工具行');
-      expect(tester.getSize(tool).height, AppLayout.touchTargetMin);
+      expect(tester.getSize(tool).height, AppMetrics.touchTargetMin);
       expect(tester.getCenter(tool).dy, tester.getCenter(send).dy);
     }
 
@@ -255,7 +255,7 @@ void main() {
     expect(surfaceColor(tester), AppColors.primary);
     final icon = sendIcon(tester);
     expect(icon.icon, Icons.arrow_upward_rounded);
-    expect(icon.size, AppLayout.iconMd);
+    expect(icon.size, AppMetrics.iconMd);
     expect(icon.color, AppTheme.light.colorScheme.onPrimary);
     expect(tester.getSize(sendSurface), const Size(36, 36));
     expect(tester.getSize(send), const Size(48, 48));
@@ -301,7 +301,7 @@ void main() {
     expect(surfaceColor(tester), AppColors.primarySoft);
     final icon = sendIcon(tester);
     expect(icon.icon, Icons.stop_rounded);
-    expect(icon.size, AppLayout.iconMd);
+    expect(icon.size, AppMetrics.iconMd);
     expect(icon.color, AppColors.primary);
     expect(tester.getSize(sendSurface), const Size(36, 36));
     expect(tester.getSize(send), const Size(48, 48));
@@ -337,7 +337,7 @@ void main() {
     // 附件菜单与发送在同一行、等高，发送在最右端。
     final attachment = find.byKey(const Key('assistant-add-attachment'));
     expect(tester.getCenter(attachment).dy, tester.getCenter(send).dy);
-    expect(tester.getSize(attachment).height, AppLayout.touchTargetMin);
+    expect(tester.getSize(attachment).height, AppMetrics.touchTargetMin);
     expect(
       tester.getBottomRight(send).dx,
       greaterThan(tester.getBottomRight(attachment).dx),
@@ -371,8 +371,8 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(tester.getCenter(attachment).dy, tester.getCenter(send).dy);
     expect(tester.getCenter(mic).dy, tester.getCenter(send).dy);
-    expect(tester.getSize(attachment).height, AppLayout.touchTargetMin);
-    expect(tester.getSize(mic).height, AppLayout.touchTargetMin);
+    expect(tester.getSize(attachment).height, AppMetrics.touchTargetMin);
+    expect(tester.getSize(mic).height, AppMetrics.touchTargetMin);
     expect(tester.getCenter(reasoning).dy, tester.getCenter(context).dy);
     expect(
       tester.getCenter(reasoning).dy,
@@ -394,7 +394,7 @@ void main() {
     );
     expect(
       tester.getSize(send),
-      const Size(AppLayout.touchTargetMin, AppLayout.touchTargetMin),
+      const Size(AppMetrics.touchTargetMin, AppMetrics.touchTargetMin),
     );
     expect(send.hitTestable(), findsOneWidget);
 

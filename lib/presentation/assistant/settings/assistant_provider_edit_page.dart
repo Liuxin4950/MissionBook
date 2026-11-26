@@ -4,7 +4,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../../application/assistant/assistant_controller.dart';
 import '../../../application/errors/user_error_message.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../widgets/adaptive_columns.dart';
@@ -159,12 +160,12 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
       children: [
         AppSectionCard(
           key: const Key('assistant-provider-connection-section'),
-          padding: const EdgeInsets.all(AppLayout.spaceLg),
+          padding: const EdgeInsets.all(AppMetrics.spaceLg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text('连接', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceLg),
               TextField(
                 key: const Key('assistant-provider-name'),
                 enabled: !_busy,
@@ -174,7 +175,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                   hintText: '本机 Ollama、公司网关',
                 ),
               ),
-              const SizedBox(height: AppLayout.spaceMd),
+              const SizedBox(height: AppMetrics.spaceMd),
               TextField(
                 key: const Key('assistant-provider-address'),
                 enabled: !_busy,
@@ -188,12 +189,12 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                       : 'http://localhost:11434/v1',
                 ),
               ),
-              const SizedBox(height: AppLayout.spaceMd),
+              const SizedBox(height: AppMetrics.spaceMd),
               AdaptiveColumns(
                 minColumnWidth:
-                    (AppLayout.formTwoColumnMinWidth - AppLayout.spaceMd) / 2,
+                    (AppLayout.formTwoColumnMinWidth - AppMetrics.spaceMd) / 2,
                 maxColumns: 2,
-                spacing: AppLayout.spaceMd,
+                spacing: AppMetrics.spaceMd,
                 children: [
                   AppDropdownFormField<ModelProtocol>(
                     key: ValueKey('assistant-provider-protocol-$_protocol'),
@@ -243,7 +244,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: AppLayout.spaceSm),
+              const SizedBox(height: AppMetrics.spaceSm),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('API Key 鉴权'),
@@ -258,7 +259,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                     : (value) => setState(() => _requiresCredential = value),
               ),
               if (_requiresCredential) ...[
-                const SizedBox(height: AppLayout.spaceSm),
+                const SizedBox(height: AppMetrics.spaceSm),
                 TextField(
                   key: const Key('assistant-provider-credential'),
                   enabled: !_busy && !_clearCredential,
@@ -307,18 +308,18 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
         ),
         AppSectionCard(
           key: const Key('assistant-provider-models-section'),
-          padding: const EdgeInsets.all(AppLayout.spaceLg),
+          padding: const EdgeInsets.all(AppMetrics.spaceLg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Wrap(
                 alignment: WrapAlignment.spaceBetween,
                 crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: AppLayout.spaceSm,
+                spacing: AppMetrics.spaceSm,
                 children: [
                   ConstrainedBox(
                     constraints: const BoxConstraints(
-                      minHeight: AppLayout.touchTargetMin,
+                      minHeight: AppMetrics.touchTargetMin,
                     ),
                     child: Align(
                       widthFactor: 1,
@@ -332,7 +333,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                   TextButton.icon(
                     key: const Key('assistant-provider-fetch-models'),
                     style: TextButton.styleFrom(
-                      minimumSize: const Size(0, AppLayout.touchTargetMin),
+                      minimumSize: const Size(0, AppMetrics.touchTargetMin),
                     ),
                     onPressed: _fetching
                         ? () => _modelFetch?.cancel()
@@ -359,7 +360,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                 ),
               if (_models.isEmpty)
                 const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppLayout.spaceMd),
+                  padding: EdgeInsets.symmetric(vertical: AppMetrics.spaceMd),
                   child: Text('暂无模型', textAlign: TextAlign.center),
                 ),
               for (final model in _models)
@@ -369,7 +370,7 @@ class _AssistantProviderEditPageState extends State<AssistantProviderEditPage> {
                   onToggle: _busy ? null : () => _toggleModelArchived(model),
                   onDelete: _busy ? null : () => _deleteModel(model),
                 ),
-              const SizedBox(height: AppLayout.spaceSm),
+              const SizedBox(height: AppMetrics.spaceSm),
               OutlinedButton.icon(
                 key: const Key('assistant-provider-add-model'),
                 onPressed: _busy ? null : () => _editModel(null),
@@ -712,10 +713,10 @@ class _ModelEditSheetState extends State<_ModelEditSheet> {
     top: false,
     child: Padding(
       padding: EdgeInsets.only(
-        left: AppLayout.spaceLg,
-        right: AppLayout.spaceLg,
-        top: AppLayout.spaceLg,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + AppLayout.spaceLg,
+        left: AppMetrics.spaceLg,
+        right: AppMetrics.spaceLg,
+        top: AppMetrics.spaceLg,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + AppMetrics.spaceLg,
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -726,7 +727,7 @@ class _ModelEditSheetState extends State<_ModelEditSheet> {
               widget.initial == null ? '添加模型' : '编辑模型',
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             TextField(
               key: const Key('assistant-model-id'),
               controller: _modelId,
@@ -736,7 +737,7 @@ class _ModelEditSheetState extends State<_ModelEditSheet> {
                 hintText: '供应商要求的 model id',
               ),
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             TextField(
               controller: _label,
               decoration: const InputDecoration(
@@ -744,12 +745,12 @@ class _ModelEditSheetState extends State<_ModelEditSheet> {
                 hintText: '聊天页展示用',
               ),
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             AdaptiveColumns(
               minColumnWidth:
-                  (AppLayout.formTwoColumnMinWidth - AppLayout.spaceMd) / 2,
+                  (AppLayout.formTwoColumnMinWidth - AppMetrics.spaceMd) / 2,
               maxColumns: 2,
-              spacing: AppLayout.spaceMd,
+              spacing: AppMetrics.spaceMd,
               children: [
                 TextField(
                   controller: _contextWindow,
@@ -763,13 +764,13 @@ class _ModelEditSheetState extends State<_ModelEditSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             TextField(
               controller: _outputLimit,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: '模型输出硬上限（可选）'),
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             AppDropdownFormField<ReasoningEffort>(
               isExpanded: true,
               initialValue: _reasoning,
@@ -798,11 +799,11 @@ class _ModelEditSheetState extends State<_ModelEditSheet> {
                   style: const TextStyle(color: AppColors.error),
                 ),
               ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             OverflowBar(
               alignment: MainAxisAlignment.end,
-              spacing: AppLayout.spaceMd,
-              overflowSpacing: AppLayout.spaceSm,
+              spacing: AppMetrics.spaceMd,
+              overflowSpacing: AppMetrics.spaceSm,
               children: [
                 OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),

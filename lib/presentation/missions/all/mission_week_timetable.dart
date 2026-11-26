@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/mission_detail.dart';
@@ -95,7 +95,7 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * .7,
           child: ListView(
-            padding: const EdgeInsets.all(AppLayout.spaceXxl),
+            padding: const EdgeInsets.all(AppMetrics.spaceXxl),
             children: [
               Text(
                 '${timetableDateKey(day.date)} · ${timetableWeekdays[day.date.weekday - 1]}',
@@ -103,7 +103,7 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
               ),
               if (day.layout.slots.isEmpty && day.other.isEmpty)
                 const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppLayout.spaceLg),
+                  padding: EdgeInsets.symmetric(vertical: AppMetrics.spaceLg),
                   child: Text('这一天没有符合条件的任务。'),
                 ),
               for (final slot in day.layout.slots)
@@ -167,7 +167,7 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
               key: const Key('timetable-conflicts'),
               icon: const Icon(
                 Icons.warning_amber_rounded,
-                size: AppLayout.iconSm,
+                size: AppMetrics.iconSm,
               ),
               label: const Text('查看时间冲突'),
               style: TextButton.styleFrom(foregroundColor: AppColors.error),
@@ -183,14 +183,14 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
           ),
         if (empty)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceMd),
+            padding: const EdgeInsets.symmetric(vertical: AppMetrics.spaceMd),
             child: Text(
               widget.filtered ? '本周没有符合筛选条件的任务。' : '本周暂无任务安排。',
               style: theme.textTheme.bodyMedium,
             ),
           ),
         _grid(context, week, now),
-        const SizedBox(height: AppLayout.spaceSm),
+        const SizedBox(height: AppMetrics.spaceSm),
         Text(
           '北京时间 · 同名任务同色，棕色为实际执行；点击日期查看完整安排。',
           style: theme.textTheme.bodySmall,
@@ -201,7 +201,7 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
               (detail) => (detail.phase == MissionPhase.cancelled) == cancelled,
             ),
           )) ...[
-            const SizedBox(height: AppLayout.sectionGap),
+            const SizedBox(height: AppMetrics.sectionGap),
             _otherSection(context, week, cancelled: cancelled),
           ],
       ],
@@ -234,7 +234,7 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
                   .toList(),
             ])
               if (records.isNotEmpty) ...[
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 Text(
                   '${timetableWeekdays[day.date.weekday - 1]} · ${day.date.month}月${day.date.day}日',
                   style: theme.textTheme.labelLarge,
@@ -285,10 +285,10 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
     )..layout();
-    final gutter = labelPainter.width + AppLayout.spaceSm;
+    final gutter = labelPainter.width + AppMetrics.spaceSm;
     labelPainter.dispose();
     return AppSectionCard(
-      padding: const EdgeInsets.symmetric(vertical: AppLayout.spaceXs),
+      padding: const EdgeInsets.symmetric(vertical: AppMetrics.spaceXs),
       child: LayoutBuilder(
         builder: (context, box) {
           final dayWidth = (box.maxWidth - gutter) / 7;
@@ -323,11 +323,11 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
                           onTap: day.supported ? () => _showDay(day) : null,
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(
-                              minHeight: AppLayout.touchTargetMin,
+                              minHeight: AppMetrics.touchTargetMin,
                             ),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                vertical: AppLayout.spaceXs,
+                                vertical: AppMetrics.spaceXs,
                               ),
                               child: Column(
                                 children: [
@@ -336,7 +336,9 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
                                         .substring(1),
                                     style: headerStyle,
                                   ),
-                                  const SizedBox(height: AppLayout.spaceXs / 2),
+                                  const SizedBox(
+                                    height: AppMetrics.spaceXs / 2,
+                                  ),
                                   ConstrainedBox(
                                     constraints: BoxConstraints(
                                       minWidth: math.min(
@@ -354,19 +356,19 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
                                             ? AppColors.primary
                                             : Colors.transparent,
                                         borderRadius: BorderRadius.circular(
-                                          AppLayout.radiusSm,
+                                          AppMetrics.radiusSm,
                                         ),
                                       ),
                                       child: Padding(
                                         padding: EdgeInsets.symmetric(
                                           horizontal: math.min(
-                                            AppLayout.spaceXs,
+                                            AppMetrics.spaceXs,
                                             math.max(
                                               2.0,
                                               (dayWidth - 22 * scale) / 2,
                                             ),
                                           ),
-                                          vertical: AppLayout.spaceXs - 1,
+                                          vertical: AppMetrics.spaceXs - 1,
                                         ),
                                         child: Text(
                                           day.supported
@@ -545,7 +547,7 @@ class _MissionWeekTimetableState extends State<MissionWeekTimetable>
               : multiple
               ? AppColors.surfaceMuted
               : palette.surface,
-          borderRadius: BorderRadius.circular(AppLayout.radiusXs),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusXs),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             key: Key('week-task-${first.id}'),

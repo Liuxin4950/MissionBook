@@ -15,7 +15,7 @@ import '../shared/assistant_voice_status.dart';
 import '../shared/assistant_avatar.dart';
 import 'assistant_scope.dart';
 import '../settings/assistant_settings_page.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../widgets/detail_pane.dart';
 
@@ -308,11 +308,11 @@ class AssistantLauncherState extends State<AssistantLauncher>
     final choiceSize = math.max(
       56.0,
       MediaQuery.textScalerOf(context).scale(12) * 1.4 +
-          AppLayout.iconMd +
-          AppLayout.spaceSm * 2,
+          AppMetrics.iconMd +
+          AppMetrics.spaceSm * 2,
     );
     const choiceGap = 32.0;
-    const anchorGap = AppLayout.spaceXxl;
+    const anchorGap = AppMetrics.spaceXxl;
     const choiceCount = 2;
     final columns = bounds.width >= choiceSize * 2 + choiceGap ? 2 : 1;
     final rows = (choiceCount / columns).ceil();
@@ -347,7 +347,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
     int? selected;
     final choices = _choices(context, _anchor());
     for (var index = 0; index < choices.length; index++) {
-      if (choices[index].inflate(AppLayout.spaceSm).contains(position)) {
+      if (choices[index].inflate(AppMetrics.spaceSm).contains(position)) {
         selected = index;
       }
     }
@@ -536,7 +536,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
                       elevation: 4,
                       shadowColor: AppColors.shadow,
                       color: AppColors.card,
-                      borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+                      borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
                       clipBehavior: Clip.antiAlias,
                       child: _bubbleContent(),
                     ),
@@ -595,7 +595,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
                     ),
                     child: _opening
                         ? const Padding(
-                            padding: EdgeInsets.all(AppLayout.spaceLg),
+                            padding: EdgeInsets.all(AppMetrics.spaceLg),
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: AppColors.onPrimary,
@@ -608,7 +608,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
                                 ? Icons.mic_rounded
                                 : Icons.auto_awesome,
                             color: AppColors.onPrimary,
-                            size: AppLayout.iconLg,
+                            size: AppMetrics.iconLg,
                           )
                         : LayoutBuilder(
                             builder: (context, constraints) => Center(
@@ -620,7 +620,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
                                     controller.persona.avatar ==
                                         AssistantAvatar.spark
                                     ? constraints.biggest.shortestSide
-                                    : AppLayout.iconLg,
+                                    : AppMetrics.iconLg,
                                 color: AppColors.onPrimary,
                               ),
                             ),
@@ -689,7 +689,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
                   Icon(
                     index == 0 ? Icons.keyboard_outlined : Icons.mic_none,
                     color: AppColors.primary,
-                    size: AppLayout.iconMd,
+                    size: AppMetrics.iconMd,
                   ),
                   Text(
                     index == 0 ? '文字' : '语音',
@@ -773,9 +773,9 @@ class AssistantLauncherState extends State<AssistantLauncher>
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(
-            AppLayout.spaceLg,
-            AppLayout.spaceXs,
-            AppLayout.spaceXs,
+            AppMetrics.spaceLg,
+            AppMetrics.spaceXs,
+            AppMetrics.spaceXs,
             0,
           ),
           child: Row(
@@ -784,16 +784,16 @@ class AssistantLauncherState extends State<AssistantLauncher>
                 const Icon(
                   Icons.mic_none_rounded,
                   color: AppColors.primary,
-                  size: AppLayout.iconMd,
+                  size: AppMetrics.iconMd,
                 )
               else
                 AssistantPersonaAvatar(
                   avatar: controller.persona.avatar,
                   customAvatarBase64: controller.persona.customAvatarBase64,
                   color: AppColors.primary,
-                  size: AppLayout.iconMd,
+                  size: AppMetrics.iconMd,
                 ),
-              const SizedBox(width: AppLayout.spaceSm),
+              const SizedBox(width: AppMetrics.spaceSm),
               Expanded(
                 child: Text(
                   _recording ? '语音输入' : controller.persona.name,
@@ -805,12 +805,12 @@ class AssistantLauncherState extends State<AssistantLauncher>
               IconButton(
                 tooltip: '展开同一对话',
                 onPressed: _transitioning ? null : _expand,
-                icon: const Icon(Icons.open_in_full, size: AppLayout.iconSm),
+                icon: const Icon(Icons.open_in_full, size: AppMetrics.iconSm),
               ),
               IconButton(
                 tooltip: '收起气泡',
                 onPressed: _closeBubble,
-                icon: const Icon(Icons.close_rounded, size: AppLayout.iconMd),
+                icon: const Icon(Icons.close_rounded, size: AppMetrics.iconMd),
               ),
             ],
           ),
@@ -819,10 +819,10 @@ class AssistantLauncherState extends State<AssistantLauncher>
           child: SingleChildScrollView(
             key: const Key('assistant-bubble-scroll'),
             padding: const EdgeInsets.fromLTRB(
-              AppLayout.spaceLg,
-              AppLayout.spaceSm,
-              AppLayout.spaceLg,
-              AppLayout.spaceMd,
+              AppMetrics.spaceLg,
+              AppMetrics.spaceSm,
+              AppMetrics.spaceLg,
+              AppMetrics.spaceMd,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -830,7 +830,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
               children: [
                 if (_recording) ...[
                   AssistantVoiceStatus(voice: voice),
-                  const SizedBox(height: AppLayout.spaceMd),
+                  const SizedBox(height: AppMetrics.spaceMd),
                   if (voice.text.isNotEmpty ||
                       (!voice.busy && !voice.listening && voice.error == null))
                     AssistantVoiceDraft(voice: voice)
@@ -844,7 +844,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
                       style: text.bodyMedium,
                     ),
                   if (voice.error != null) ...[
-                    const SizedBox(height: AppLayout.spaceSm),
+                    const SizedBox(height: AppMetrics.spaceSm),
                     Text(
                       voice.error!,
                       style: text.bodyMedium?.copyWith(color: AppColors.error),
@@ -864,7 +864,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
                         },
                         icon: const Icon(
                           Icons.settings_voice_outlined,
-                          size: AppLayout.iconSm,
+                          size: AppMetrics.iconSm,
                         ),
                         label: const Text('语音设置'),
                       ),
@@ -878,10 +878,12 @@ class AssistantLauncherState extends State<AssistantLauncher>
                 ] else ...[
                   if (_sentMessage != null)
                     Container(
-                      padding: const EdgeInsets.all(AppLayout.spaceMd),
+                      padding: const EdgeInsets.all(AppMetrics.spaceMd),
                       decoration: BoxDecoration(
                         color: AppColors.primarySoft,
-                        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                        borderRadius: BorderRadius.circular(
+                          AppMetrics.radiusMd,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -892,7 +894,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
                               color: AppColors.textSecondary,
                             ),
                           ),
-                          const SizedBox(height: AppLayout.spaceXs),
+                          const SizedBox(height: AppMetrics.spaceXs),
                           Text(
                             _sentMessage!.text,
                             key: const Key('assistant-bubble-request'),
@@ -901,10 +903,10 @@ class AssistantLauncherState extends State<AssistantLauncher>
                         ],
                       ),
                     ),
-                  const SizedBox(height: AppLayout.spaceMd),
+                  const SizedBox(height: AppMetrics.spaceMd),
                   timeline,
                   if (controller.errorMessage != null) ...[
-                    const SizedBox(height: AppLayout.spaceSm),
+                    const SizedBox(height: AppMetrics.spaceSm),
                     Text(
                       controller.errorMessage!,
                       style: text.bodyMedium?.copyWith(color: AppColors.error),
@@ -921,15 +923,15 @@ class AssistantLauncherState extends State<AssistantLauncher>
         const Divider(height: 1),
         Padding(
           padding: const EdgeInsets.fromLTRB(
-            AppLayout.spaceMd,
-            AppLayout.spaceSm,
-            AppLayout.spaceMd,
-            AppLayout.spaceSm,
+            AppMetrics.spaceMd,
+            AppMetrics.spaceSm,
+            AppMetrics.spaceMd,
+            AppMetrics.spaceSm,
           ),
           child: Wrap(
             alignment: WrapAlignment.end,
-            spacing: AppLayout.spaceSm,
-            runSpacing: AppLayout.spaceXs,
+            spacing: AppMetrics.spaceSm,
+            runSpacing: AppMetrics.spaceXs,
             children: [
               if (_recording) ...[
                 TextButton(
@@ -942,7 +944,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
                     onPressed: voice.stop,
                     icon: const Icon(
                       Icons.stop_rounded,
-                      size: AppLayout.iconSm,
+                      size: AppMetrics.iconSm,
                     ),
                     label: const Text('结束录音'),
                   )
@@ -964,7 +966,7 @@ class AssistantLauncherState extends State<AssistantLauncher>
                         : _sendVoice,
                     icon: const Icon(
                       Icons.arrow_upward_rounded,
-                      size: AppLayout.iconSm,
+                      size: AppMetrics.iconSm,
                     ),
                     label: const Text('发送'),
                   ),

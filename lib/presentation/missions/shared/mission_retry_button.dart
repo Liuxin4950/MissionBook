@@ -1,4 +1,4 @@
-import 'package:mission_book/core/theme/app_layout.dart';
+import 'package:mission_book/core/theme/app_metrics.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/detail_pane.dart';
 
@@ -57,7 +57,7 @@ class _MissionRetryButtonState extends State<MissionRetryButton> {
           key: const Key('mission-retry'),
           onPressed: _opening ? null : _open,
           style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(AppLayout.actionMinHeight),
+            minimumSize: const Size.fromHeight(AppMetrics.actionMinHeight),
             shape: const StadiumBorder(),
           ),
           child: const Text('再次尝试'),

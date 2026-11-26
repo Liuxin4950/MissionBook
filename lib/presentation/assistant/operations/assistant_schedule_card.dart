@@ -8,7 +8,7 @@ import '../../../application/assistant/assistant_controller.dart';
 import '../../../application/assistant/assistant_schedule.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/mission_schedule_revision.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../widgets/app_expansion.dart';
 
 /// 一份真实计划的预览、逐项修改与保存结果；窄屏沿阅读顺序纵向排列。
@@ -105,10 +105,10 @@ class AssistantScheduleCard extends StatelessWidget {
     }
     return Container(
       key: ValueKey('assistant-plan-${operation.callId}'),
-      padding: const EdgeInsets.all(AppLayout.spaceLg),
+      padding: const EdgeInsets.all(AppMetrics.spaceLg),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(AppLayout.radiusXl),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusXl),
         border: Border.all(
           color: failed
               ? AppColors.error
@@ -122,7 +122,7 @@ class AssistantScheduleCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Padding(
-                padding: EdgeInsets.only(top: 2, right: AppLayout.spaceMd),
+                padding: EdgeInsets.only(top: 2, right: AppMetrics.spaceMd),
                 child: Icon(
                   Icons.event_note_outlined,
                   color: AppColors.primary,
@@ -136,10 +136,10 @@ class AssistantScheduleCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           Wrap(
-            spacing: AppLayout.spaceMd,
-            runSpacing: AppLayout.spaceSm,
+            spacing: AppMetrics.spaceMd,
+            runSpacing: AppMetrics.spaceSm,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
@@ -148,12 +148,12 @@ class AssistantScheduleCard extends StatelessWidget {
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppLayout.spaceMd,
-                  vertical: AppLayout.spaceXs,
+                  horizontal: AppMetrics.spaceMd,
+                  vertical: AppMetrics.spaceXs,
                 ),
                 decoration: BoxDecoration(
                   color: failed ? AppColors.errorSoft : AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+                  borderRadius: BorderRadius.circular(AppMetrics.radiusSm),
                 ),
                 child: Text(
                   status,
@@ -168,24 +168,24 @@ class AssistantScheduleCard extends StatelessWidget {
               result?['page'] is Map &&
               (result!['page'] as Map)['complete'] == false)
             const Padding(
-              padding: EdgeInsets.only(top: AppLayout.spaceSm),
+              padding: EdgeInsets.only(top: AppMetrics.spaceSm),
               child: Text('已保存全部条目；当前展示前20项的任务入口，其余可通过操作回执查看。'),
             ),
-          const SizedBox(height: AppLayout.spaceLg),
+          const SizedBox(height: AppMetrics.spaceLg),
           for (var index = 0; index < items.length; index++) ...[
-            if (index > 0) const SizedBox(height: AppLayout.spaceMd),
+            if (index > 0) const SizedBox(height: AppMetrics.spaceMd),
             _item(context, items[index], index, editable, saved),
           ],
           if (operation.planChecking)
             const Padding(
-              padding: EdgeInsets.only(top: AppLayout.spaceMd),
+              padding: EdgeInsets.only(top: AppMetrics.spaceMd),
               child: LinearProgressIndicator(minHeight: 2),
             ),
           if (failed &&
               result?['status'] == 'blocked' &&
               result?['issues'] is List)
             Padding(
-              padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+              padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -207,7 +207,7 @@ class AssistantScheduleCard extends StatelessWidget {
             )
           else if (operation.planPreviewError != null || failed)
             Padding(
-              padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+              padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
               child: Text(
                 operation.planPreviewError ??
                     '${result?['message'] ?? operation.output ?? '计划未保存，请重新检查'}',
@@ -219,7 +219,7 @@ class AssistantScheduleCard extends StatelessWidget {
               onPressed: operation.planChecking
                   ? null
                   : () => controller.refreshPlanPreview(operation.callId),
-              icon: const Icon(Icons.refresh, size: AppLayout.iconSm),
+              icon: const Icon(Icons.refresh, size: AppMetrics.iconSm),
               label: const Text('重新检查安排'),
             ),
           if (failed)
@@ -229,16 +229,16 @@ class AssistantScheduleCard extends StatelessWidget {
                   : () => controller.send(
                       '请重新查询相关任务与排期，核对并调整下面这份未保存的计划，继续使用计划卡提出，不直接重放旧操作。\n${jsonEncode(operation.input)}',
                     ),
-              icon: const Icon(Icons.refresh, size: AppLayout.iconSm),
+              icon: const Icon(Icons.refresh, size: AppMetrics.iconSm),
               label: const Text('重新核对这份计划'),
             ),
           if (_waiting) ...[
-            const SizedBox(height: AppLayout.spaceLg),
+            const SizedBox(height: AppMetrics.spaceLg),
             Text(
               '整份计划一起保存。时间冲突或任务已变化时，整份计划都不会保存。',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             LayoutBuilder(
               builder: (context, constraints) {
                 final confirm = FilledButton.icon(
@@ -258,7 +258,7 @@ class AssistantScheduleCard extends StatelessWidget {
                           }
                         }
                       : null,
-                  icon: const Icon(Icons.check, size: AppLayout.iconSm),
+                  icon: const Icon(Icons.check, size: AppMetrics.iconSm),
                   label: Text('确认保存 ${items.length} 项'),
                 );
                 final cancel = TextButton(
@@ -274,7 +274,7 @@ class AssistantScheduleCard extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           cancel,
-                          const SizedBox(width: AppLayout.spaceSm),
+                          const SizedBox(width: AppMetrics.spaceSm),
                           confirm,
                         ],
                       );
@@ -282,7 +282,7 @@ class AssistantScheduleCard extends StatelessWidget {
             ),
           ],
           if (operation.status == AssistantOperationStatus.unknown) ...[
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             const Text('保存结果尚未确认，请先核对，避免重复创建任务。'),
             TextButton.icon(
               onPressed: () =>
@@ -336,7 +336,7 @@ class AssistantScheduleCard extends StatelessWidget {
           style: Theme.of(context).textTheme.titleSmall,
         ),
         if (location != null && location.trim().isNotEmpty) ...[
-          const SizedBox(height: AppLayout.spaceXs),
+          const SizedBox(height: AppMetrics.spaceXs),
           Text(
             '📍 $location',
             maxLines: 1,
@@ -345,13 +345,13 @@ class AssistantScheduleCard extends StatelessWidget {
           ),
         ],
         if (objective != null && objective != item['title']) ...[
-          const SizedBox(height: AppLayout.spaceXs),
+          const SizedBox(height: AppMetrics.spaceXs),
           Text(objective, style: Theme.of(context).textTheme.bodySmall),
         ],
       ],
     );
     return Container(
-      padding: const EdgeInsets.all(AppLayout.spaceMd),
+      padding: const EdgeInsets.all(AppMetrics.spaceMd),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border.all(
@@ -359,7 +359,7 @@ class AssistantScheduleCard extends StatelessWidget {
               ? AppColors.hairline
               : AppColors.warning.withValues(alpha: .4),
         ),
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -367,8 +367,8 @@ class AssistantScheduleCard extends StatelessWidget {
           Wrap(
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: AppLayout.spaceMd,
-            runSpacing: AppLayout.spaceXs,
+            spacing: AppMetrics.spaceMd,
+            runSpacing: AppMetrics.spaceXs,
             children: [
               Text(
                 '${item['scheduledDate']}',
@@ -384,14 +384,14 @@ class AssistantScheduleCard extends StatelessWidget {
                     ).textTheme.labelSmall?.copyWith(color: AppColors.primary),
                   ),
                   if (_waiting) ...[
-                    const SizedBox(width: AppLayout.spaceXs),
+                    const SizedBox(width: AppMetrics.spaceXs),
                     IconButton(
                       key: ValueKey('edit-plan-$id'),
                       tooltip: '修改第 ${index + 1} 项安排',
                       visualDensity: VisualDensity.compact,
                       icon: const Icon(
                         Icons.edit_outlined,
-                        size: AppLayout.iconSm,
+                        size: AppMetrics.iconSm,
                       ),
                       onPressed: editable ? () => _edit(context, item) : null,
                     ),
@@ -407,7 +407,7 @@ class AssistantScheduleCard extends StatelessWidget {
                       visualDensity: VisualDensity.compact,
                       icon: const Icon(
                         Icons.close_rounded,
-                        size: AppLayout.iconSm,
+                        size: AppMetrics.iconSm,
                       ),
                       onPressed:
                           editable &&
@@ -431,7 +431,7 @@ class AssistantScheduleCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SizedBox(width: 220, child: time),
-                      const SizedBox(width: AppLayout.spaceLg),
+                      const SizedBox(width: AppMetrics.spaceLg),
                       Expanded(child: content),
                     ],
                   )
@@ -439,14 +439,14 @@ class AssistantScheduleCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       time,
-                      const SizedBox(height: AppLayout.spaceSm),
+                      const SizedBox(height: AppMetrics.spaceSm),
                       content,
                     ],
                   ),
           ),
           if (before != null)
             Padding(
-              padding: const EdgeInsets.only(top: AppLayout.spaceXs),
+              padding: const EdgeInsets.only(top: AppMetrics.spaceXs),
               child: Text(
                 '原安排：${before.schedule.scheduledDate} · ${oldLocal == null ? '自选时间' : '${_two(oldLocal.hour)}:${_two(oldLocal.minute)}'} · ${before.schedule.plannedDurationMinutes} 分钟',
                 style: Theme.of(
@@ -458,7 +458,7 @@ class AssistantScheduleCard extends StatelessWidget {
             AppExpansionTile(
               insetHeader: false,
               headerPadding: const EdgeInsets.symmetric(
-                vertical: AppLayout.spaceXs,
+                vertical: AppMetrics.spaceXs,
               ),
               childrenPadding: EdgeInsets.zero,
               title: Text(
@@ -470,7 +470,9 @@ class AssistantScheduleCard extends StatelessWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+                      padding: const EdgeInsets.only(
+                        bottom: AppMetrics.spaceSm,
+                      ),
                       child: Text('• $step'),
                     ),
                   ),
@@ -478,7 +480,7 @@ class AssistantScheduleCard extends StatelessWidget {
             ),
           if (item['notes'] is String && (item['notes'] as String).isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: AppLayout.spaceXs),
+              padding: const EdgeInsets.only(top: AppMetrics.spaceXs),
               child: Text(
                 '${item['notes']}',
                 style: Theme.of(context).textTheme.bodySmall,
@@ -487,11 +489,11 @@ class AssistantScheduleCard extends StatelessWidget {
           if (_waiting)
             for (final conflict in messages)
               Container(
-                margin: const EdgeInsets.only(top: AppLayout.spaceSm),
-                padding: const EdgeInsets.all(AppLayout.spaceSm),
+                margin: const EdgeInsets.only(top: AppMetrics.spaceSm),
+                padding: const EdgeInsets.all(AppMetrics.spaceSm),
                 decoration: BoxDecoration(
                   color: AppColors.warningSoft,
-                  borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+                  borderRadius: BorderRadius.circular(AppMetrics.radiusSm),
                 ),
                 child: Text(
                   conflict.message,
@@ -508,7 +510,7 @@ class AssistantScheduleCard extends StatelessWidget {
                   'mission',
                   saved[id]!['missionId'] as String,
                 ),
-                icon: const Icon(Icons.open_in_new, size: AppLayout.iconSm),
+                icon: const Icon(Icons.open_in_new, size: AppMetrics.iconSm),
                 label: const Text('打开任务'),
               ),
             ),
@@ -630,7 +632,7 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
     child: Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppLayout.spaceXl),
+        padding: const EdgeInsets.all(AppMetrics.spaceXl),
         child: Form(
           key: _form,
           child: Column(
@@ -638,7 +640,7 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('修改安排', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: AppLayout.spaceLg),
+              const SizedBox(height: AppMetrics.spaceLg),
               TextFormField(
                 controller: _title,
                 enabled: !_saving && widget.row['kind'] == 'CREATE',
@@ -646,7 +648,7 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
                 validator: (value) => value!.trim().isEmpty ? '请填写名称' : null,
               ),
               if (widget.row['kind'] == 'CREATE') ...[
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 TextFormField(
                   controller: _objective,
                   enabled: !_saving,
@@ -654,7 +656,7 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
                   maxLines: 3,
                   decoration: const InputDecoration(labelText: '具体目标（可选）'),
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 TextFormField(
                   key: const Key('plan-item-location'),
                   controller: _location,
@@ -662,7 +664,7 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
                   decoration: const InputDecoration(labelText: '地点（可选）'),
                 ),
               ],
-              const SizedBox(height: AppLayout.spaceMd),
+              const SizedBox(height: AppMetrics.spaceMd),
               TextFormField(
                 controller: _date,
                 enabled: !_saving,
@@ -673,7 +675,7 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
                     tooltip: '选择日期',
                     icon: const Icon(
                       Icons.calendar_today_outlined,
-                      size: AppLayout.iconMd,
+                      size: AppMetrics.iconMd,
                     ),
                     onPressed: _saving
                         ? null
@@ -702,7 +704,7 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
                   }
                 },
               ),
-              const SizedBox(height: AppLayout.spaceMd),
+              const SizedBox(height: AppMetrics.spaceMd),
               TextFormField(
                 controller: _minutes,
                 enabled: !_saving,
@@ -715,7 +717,7 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
                       : null;
                 },
               ),
-              const SizedBox(height: AppLayout.spaceSm),
+              const SizedBox(height: AppMetrics.spaceSm),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('固定开始时间'),
@@ -743,13 +745,13 @@ class _PlanItemEditorState extends State<_PlanItemEditor> {
                 ),
               if (_error != null)
                 Padding(
-                  padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+                  padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
                   child: Text(
                     _error!,
                     style: const TextStyle(color: AppColors.error),
                   ),
                 ),
-              const SizedBox(height: AppLayout.spaceXl),
+              const SizedBox(height: AppMetrics.spaceXl),
               FilledButton(
                 onPressed: _saving ? null : _save,
                 child: Text(_saving ? '检查安排中…' : '更新预览'),

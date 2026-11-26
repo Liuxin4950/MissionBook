@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/colors.dart';
 import '../../core/theme/app_typography.dart';
@@ -22,10 +22,13 @@ class OnboardingPage extends StatefulWidget {
 
 class _OnboardingPageState extends State<OnboardingPage>
     with SingleTickerProviderStateMixin {
+  // 连续画布留出辨认形状移动和路径接续的时间。
+  static const _storyTransitionDuration = Duration(milliseconds: 520);
+
   late final _progress = AnimationController(
     vsync: this,
     upperBound: 2,
-    duration: AppMotion.storyTransition,
+    duration: _storyTransitionDuration,
   )..addListener(_updateStep);
   var _page = 0;
   var _destination = 0;
@@ -106,7 +109,7 @@ class _OnboardingPageState extends State<OnboardingPage>
     } else {
       _progress.animateTo(
         target,
-        duration: AppMotion.storyTransition,
+        duration: _storyTransitionDuration,
         curve: AppMotion.curve,
       );
     }
@@ -201,7 +204,7 @@ class _OnboardingPageState extends State<OnboardingPage>
           height: 26,
           excludeFromSemantics: true,
         ),
-        const SizedBox(width: AppLayout.spaceSm),
+        const SizedBox(width: AppMetrics.spaceSm),
         const Expanded(child: Text('MissionBook')),
         TextButton(
           key: const Key('onboarding-skip'),
@@ -436,7 +439,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                                       ? AppColors.primary
                                       : AppColors.hairline,
                                   borderRadius: BorderRadius.circular(
-                                    AppLayout.radiusXs,
+                                    AppMetrics.radiusXs,
                                   ),
                                 ),
                               ),

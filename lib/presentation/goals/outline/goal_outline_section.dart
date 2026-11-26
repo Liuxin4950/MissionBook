@@ -21,10 +21,10 @@ import '../../../application/missions/mission_service.dart';
 import '../../../domain/entities/goal.dart';
 import '../../../domain/entities/mission_detail.dart';
 import 'goal_missions_section.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/app_motion.dart';
 
-const _nodeRowPadding = AppLayout.spaceXs;
+const _nodeRowPadding = AppMetrics.spaceXs;
 
 /// 目标卡和详情共用的节点工作区，独立管理查询、展开与节点编辑交互。
 class GoalOutlineSection extends StatefulWidget {
@@ -240,7 +240,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     padding: EdgeInsets.zero,
     decoration: BoxDecoration(
       color: widget.embedded ? AppColors.card : AppColors.background,
-      borderRadius: BorderRadius.circular(AppLayout.radiusXxl),
+      borderRadius: BorderRadius.circular(AppMetrics.radiusXxl),
     ),
     child: FutureBuilder<List<GoalNode>>(
       key: ValueKey(widget.goalId),
@@ -251,7 +251,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
             !snapshot.hasData &&
             snapshot.connectionState != ConnectionState.done) {
           return const Padding(
-            padding: EdgeInsets.all(AppLayout.spaceXxl),
+            padding: EdgeInsets.all(AppMetrics.spaceXxl),
             child: Center(child: CircularProgressIndicator()),
           );
         }
@@ -340,29 +340,29 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
               ),
             if (shown.length > 6 || _query.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(bottom: AppLayout.spaceSm),
+                padding: const EdgeInsets.only(bottom: AppMetrics.spaceSm),
                 child: ListenableBuilder(
                   listenable: _searchFocus,
                   builder: (context, _) => Stack(
                     alignment: Alignment.center,
                     children: [
                       Positioned.fill(
-                        top: AppLayout.spaceSm,
-                        bottom: AppLayout.spaceSm,
+                        top: AppMetrics.spaceSm,
+                        bottom: AppMetrics.spaceSm,
                         child: DecoratedBox(
                           key: const Key('goal-node-search-surface'),
                           decoration: BoxDecoration(
                             color: AppColors.card,
                             borderRadius: BorderRadius.circular(
-                              AppLayout.radiusMd,
+                              AppMetrics.radiusMd,
                             ),
                             border: Border.all(
                               color: _searchFocus.hasFocus
                                   ? AppColors.primary
                                   : AppColors.hairline,
                               width: _searchFocus.hasFocus
-                                  ? AppLayout.strokeFocus
-                                  : AppLayout.strokeThin,
+                                  ? AppMetrics.strokeFocus
+                                  : AppMetrics.strokeThin,
                             ),
                           ),
                         ),
@@ -385,20 +385,20 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                           alignLabelWithHint: false,
                           isDense: true,
                           constraints: const BoxConstraints(
-                            minHeight: AppLayout.touchTargetMin,
+                            minHeight: AppMetrics.touchTargetMin,
                           ),
                           contentPadding: const EdgeInsets.symmetric(
-                            horizontal: AppLayout.spaceMd,
-                            vertical: AppLayout.spaceSm,
+                            horizontal: AppMetrics.spaceMd,
+                            vertical: AppMetrics.spaceSm,
                           ),
                           prefixIconConstraints: const BoxConstraints(
-                            minWidth: AppLayout.touchTargetMin,
-                            minHeight: AppLayout.touchTargetMin,
+                            minWidth: AppMetrics.touchTargetMin,
+                            minHeight: AppMetrics.touchTargetMin,
                           ),
                           hintStyle: theme.textTheme.bodySmall,
                           prefixIcon: const Icon(
                             Icons.search_rounded,
-                            size: AppLayout.iconSm,
+                            size: AppMetrics.iconSm,
                           ),
                           suffixIcon: _query.isEmpty
                               ? null
@@ -410,7 +410,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                                   }),
                                   icon: const Icon(
                                     Icons.close_rounded,
-                                    size: AppLayout.iconSm,
+                                    size: AppMetrics.iconSm,
                                   ),
                                 ),
                         ),
@@ -422,7 +422,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
             if (_operationError != null)
               Padding(
                 padding: const EdgeInsets.symmetric(
-                  vertical: AppLayout.spaceSm,
+                  vertical: AppMetrics.spaceSm,
                 ),
                 child: Semantics(
                   liveRegion: true,
@@ -434,28 +434,28 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
               ),
             if (entries.isEmpty && query.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.all(AppLayout.spaceLg),
+                padding: const EdgeInsets.all(AppMetrics.spaceLg),
                 child: Text('没有匹配的节点', style: theme.textTheme.bodySmall),
               ),
             if (shown.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(
-                  vertical: AppLayout.spaceXxl,
+                  vertical: AppMetrics.spaceXxl,
                 ),
                 child: Column(
                   children: [
                     const Icon(
                       Icons.route_outlined,
-                      size: AppLayout.iconDisplay,
+                      size: AppMetrics.iconDisplay,
                       color: AppColors.textSecondary,
                     ),
-                    const SizedBox(height: AppLayout.spaceMd),
+                    const SizedBox(height: AppMetrics.spaceMd),
                     Text(
                       '把目标分成容易着手的几部分',
                       style: theme.textTheme.titleSmall,
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: AppLayout.spaceSm),
+                    const SizedBox(height: AppMetrics.spaceSm),
                     Text(
                       '先添加一个节点，需要时再细分。',
                       style: theme.textTheme.bodyMedium,
@@ -530,7 +530,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                     showingArchive
                         ? Icons.arrow_back
                         : Icons.inventory_2_outlined,
-                    size: AppLayout.iconSm,
+                    size: AppMetrics.iconSm,
                   ),
                   label: Text(
                     showingArchive ? '返回当前路径' : '已归档节点 · ${archived.length}',
@@ -572,14 +572,14 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
       children: [
         Icon(
           icon,
-          size: AppLayout.iconSm,
+          size: AppMetrics.iconSm,
           color: !enabled
               ? AppColors.onDisabled
               : destructive
               ? AppColors.error
               : AppColors.textSecondary,
         ),
-        const SizedBox(width: AppLayout.spaceMd),
+        const SizedBox(width: AppMetrics.spaceMd),
         Flexible(
           child: Text(
             label,
@@ -603,7 +603,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
         color: AppColors.card,
         elevation: 2,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
         ),
         key: Key('node-menu-${node.id}'),
         tooltip: '',
@@ -758,7 +758,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
               curve: AppMotion.curve,
               child: const Icon(
                 Icons.chevron_right,
-                size: AppLayout.iconMd,
+                size: AppMetrics.iconMd,
                 color: AppColors.primary,
               ),
             ),
@@ -770,7 +770,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
     ].join(' · ');
     return Padding(
       key: Key('node-row-${node.id}'),
-      padding: EdgeInsets.only(top: entry.depth == 0 ? AppLayout.spaceXs : 0),
+      padding: EdgeInsets.only(top: entry.depth == 0 ? AppMetrics.spaceXs : 0),
       child: CustomPaint(
         foregroundPainter: _TreeGuidePainter(
           entry.guides,
@@ -784,7 +784,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
             color: entry.depth == 0
                 ? AppColors.surfaceMuted.withValues(alpha: .65)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+            borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               key: Key('node-press-${node.id}'),
@@ -793,7 +793,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                   : widget.missionService != null
                   ? () => _taskSections[node.id]?.currentState?.toggleTasks()
                   : null,
-              borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+              borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
               onLongPress: archived || _busy
                   ? null
                   : () => _edit(node: node, parent: byId[node.parentNodeId]),
@@ -831,14 +831,14 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                                           treeToggle ??
                                           const Icon(
                                             Icons.radio_button_unchecked,
-                                            size: AppLayout.iconSm,
+                                            size: AppMetrics.iconSm,
                                             color: AppColors.outline,
                                           ),
                                     ),
                                     Expanded(
                                       child: Padding(
                                         padding: const EdgeInsets.symmetric(
-                                          vertical: AppLayout.spaceMd,
+                                          vertical: AppMetrics.spaceMd,
                                         ),
                                         child: Text(
                                           node.title,
@@ -854,7 +854,7 @@ class GoalOutlineSectionState extends State<GoalOutlineSection>
                                 if (annotation.isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(
-                                      left: AppLayout.touchTargetMin,
+                                      left: AppMetrics.touchTargetMin,
                                     ),
                                     child: Text(
                                       annotation,

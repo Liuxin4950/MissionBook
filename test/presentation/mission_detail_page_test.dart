@@ -10,7 +10,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:mission_book/application/missions/mission_service.dart';
-import 'package:mission_book/core/theme/app_layout.dart';
+import 'package:mission_book/core/theme/app_metrics.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/domain/entities/execution_plan.dart';
 import 'package:mission_book/domain/entities/mission.dart';
@@ -229,8 +229,8 @@ void main() {
       find.byKey(const Key('mission-detail-list')),
     );
     final footer = tester.widget<PageFooterBar>(find.byType(PageFooterBar));
-    expect((list.padding! as EdgeInsets).bottom, AppLayout.spaceXs);
-    expect(footer.topPadding, AppLayout.spaceXs);
+    expect((list.padding! as EdgeInsets).bottom, AppMetrics.spaceXs);
+    expect(footer.topPadding, AppMetrics.spaceXs);
   });
 
   testWidgets('一次读取后显示自选详情，隐藏未填写内容和未实现动作；重建不重复查询', (tester) async {
@@ -322,10 +322,10 @@ void main() {
     final notes = tester.getRect(find.text('补充说明'));
     // 两个分区都是共享内容卡：间距由上方卡内边距、分区间距和下方卡内边距组成。
     // 只校验这三段标准间距，多出分隔线或额外留白都会让间距变大而失败。
-    const cardPadding = AppLayout.spaceMd;
+    const cardPadding = AppMetrics.spaceMd;
     expect(
       notes.top - objective.bottom,
-      closeTo(cardPadding + AppLayout.sectionGap + cardPadding, 0.5),
+      closeTo(cardPadding + AppMetrics.sectionGap + cardPadding, 0.5),
     );
     expect(find.byType(Divider), findsNothing);
     expect(tester.takeException(), isNull);

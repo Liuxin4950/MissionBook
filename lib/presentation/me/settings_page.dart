@@ -1,6 +1,6 @@
 import '../../application/errors/user_error_message.dart';
 import '../../application/settings/motion_settings.dart';
-import '../widgets/motion_settings_scope.dart';
+import '../motion/motion_settings_scope.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -21,7 +21,8 @@ import '../assistant/settings/assistant_settings_page.dart';
 
 import '../../application/backup/backup_service.dart';
 import '../../application/settings/app_device.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/layout/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/colors.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/detail_pane.dart';
@@ -161,7 +162,7 @@ class _SettingsPageState extends State<SettingsPage>
             mainAxisSize: MainAxisSize.min,
             children: [
               const Padding(
-                padding: EdgeInsets.all(AppLayout.spaceLg),
+                padding: EdgeInsets.all(AppMetrics.spaceLg),
                 child: Text('计划任务提醒时间'),
               ),
               for (final value in [-1, 0, 5, 10, 15, 30, 60])
@@ -283,19 +284,19 @@ class _SettingsPageState extends State<SettingsPage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppSectionHeader(title, subtle: true),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           if (card)
             AppSectionCard(padding: EdgeInsets.zero, child: child)
           else
             child,
-          const SizedBox(height: AppLayout.spaceXl),
+          const SizedBox(height: AppMetrics.spaceXl),
         ],
       );
 
   static const _rowDivider = Divider(
     height: 1,
-    indent: AppLayout.spaceLg,
-    endIndent: AppLayout.spaceLg,
+    indent: AppMetrics.spaceLg,
+    endIndent: AppMetrics.spaceLg,
   );
 
   Widget _interfaceSection(
@@ -315,7 +316,7 @@ class _SettingsPageState extends State<SettingsPage>
             subtitle: '样式、字号、间距与显示内容',
             trailing: Icon(
               _showTodayWidgetEditor ? Icons.expand_less : Icons.expand_more,
-              size: AppLayout.iconMd,
+              size: AppMetrics.iconMd,
               color: AppColors.textSecondary,
             ),
             onTap: _toggleTodayWidgetEditor,
@@ -397,10 +398,10 @@ class _SettingsPageState extends State<SettingsPage>
         _rowDivider,
         Padding(
           padding: const EdgeInsets.fromLTRB(
-            AppLayout.spaceLg,
-            AppLayout.spaceSm,
-            AppLayout.spaceLg,
-            AppLayout.spaceMd,
+            AppMetrics.spaceLg,
+            AppMetrics.spaceSm,
+            AppMetrics.spaceLg,
+            AppMetrics.spaceMd,
           ),
           child: Text(
             error,
@@ -417,10 +418,10 @@ class _SettingsPageState extends State<SettingsPage>
     mainAxisSize: MainAxisSize.min,
     children: [
       Text(value, style: Theme.of(context).textTheme.bodyMedium),
-      const SizedBox(width: AppLayout.spaceXs),
+      const SizedBox(width: AppMetrics.spaceXs),
       const Icon(
         Icons.chevron_right,
-        size: AppLayout.iconMd,
+        size: AppMetrics.iconMd,
         color: AppColors.textSecondary,
       ),
     ],
@@ -620,20 +621,20 @@ class _SettingsPageState extends State<SettingsPage>
           if (caption != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                AppLayout.spaceLg,
-                AppLayout.spaceXs,
-                AppLayout.spaceLg,
-                AppLayout.spaceMd,
+                AppMetrics.spaceLg,
+                AppMetrics.spaceXs,
+                AppMetrics.spaceLg,
+                AppMetrics.spaceMd,
               ),
               child: Text(caption, style: text.bodySmall),
             ),
           if (_scheduleSettingsError != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                AppLayout.spaceLg,
+                AppMetrics.spaceLg,
                 0,
-                AppLayout.spaceLg,
-                AppLayout.spaceMd,
+                AppMetrics.spaceLg,
+                AppMetrics.spaceMd,
               ),
               child: Semantics(
                 liveRegion: true,
@@ -679,7 +680,7 @@ class _SettingsPageState extends State<SettingsPage>
               subtitle: _capabilities?.version ?? '版本读取中…',
               trailing: Icon(
                 _about ? Icons.expand_less : Icons.expand_more,
-                size: AppLayout.iconMd,
+                size: AppMetrics.iconMd,
                 color: AppColors.textSecondary,
               ),
               onTap: () => setState(() => _about = !_about),
@@ -688,10 +689,10 @@ class _SettingsPageState extends State<SettingsPage>
           if (_about)
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                AppLayout.spaceLg,
+                AppMetrics.spaceLg,
                 0,
-                AppLayout.spaceLg,
-                AppLayout.spaceLg,
+                AppMetrics.spaceLg,
+                AppMetrics.spaceLg,
               ),
               child: Text('把目标落到行动，让记录忠于事实。数据保存在当前设备。', style: text.bodyMedium),
             ),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mission_book/core/theme/app_layout.dart';
+import 'package:mission_book/core/layout/app_layout.dart';
 import 'package:mission_book/presentation/widgets/detail_pane.dart';
 
 DetailPaneController assistantController() {

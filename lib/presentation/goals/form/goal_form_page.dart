@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../application/goals/goal_service.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../../domain/entities/goal.dart';
 import '../../widgets/app_confirm_dialog.dart';
@@ -241,7 +242,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                           widget.goal == null ? '你希望做到什么？' : '调整目标内容',
                           style: theme.textTheme.titleLarge,
                         ),
-                        const SizedBox(height: AppLayout.sectionGap),
+                        const SizedBox(height: AppMetrics.sectionGap),
                         AppTextField(
                           key: const Key('goal-title-input'),
                           controller: _title,
@@ -256,7 +257,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                               ? '请填写目标名称'
                               : null,
                         ),
-                        const SizedBox(height: AppLayout.spaceXl),
+                        const SizedBox(height: AppMetrics.spaceXl),
                         AppTextField(
                           key: const Key('goal-description-input'),
                           controller: _description,
@@ -266,7 +267,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                           minLines: 3,
                           maxLines: 8,
                         ),
-                        const SizedBox(height: AppLayout.spaceXl),
+                        const SizedBox(height: AppMetrics.spaceXl),
                         AppTextField(
                           key: const Key('goal-why-input'),
                           controller: _why,
@@ -276,7 +277,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                           minLines: 2,
                           maxLines: 6,
                         ),
-                        const SizedBox(height: AppLayout.sectionGap),
+                        const SizedBox(height: AppMetrics.sectionGap),
                         DropdownButtonFormField<int>(
                           initialValue: _desire ?? 0,
                           decoration: const InputDecoration(labelText: '希望程度'),
@@ -310,7 +311,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                               onPressed: _saving ? null : _adoptLatest,
                               child: const Text('放弃本次修改并读取最新内容'),
                             ),
-                          const SizedBox(height: AppLayout.spaceMd),
+                          const SizedBox(height: AppMetrics.spaceMd),
                         ],
                       ],
                     ),
@@ -338,7 +339,7 @@ class _GoalFormPageState extends State<GoalFormPage> {
                           : '保存修改'),
               ),
               style: FilledButton.styleFrom(
-                minimumSize: const Size(0, AppLayout.actionMinHeight),
+                minimumSize: const Size(0, AppMetrics.actionMinHeight),
               ),
             ),
           ),

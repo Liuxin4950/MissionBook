@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../widgets/adaptive_sheet.dart';
 import '../shared/mission_phase_display.dart';
@@ -20,21 +20,21 @@ Future<void> showTimetableConflicts(
       child: SizedBox(
         height: MediaQuery.sizeOf(context).height * .65,
         child: ListView(
-          padding: const EdgeInsets.all(AppLayout.spaceXxl),
+          padding: const EdgeInsets.all(AppMetrics.spaceXxl),
           children: [
             Text('计划时间冲突', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             const Text('以下计划时段重叠，点击任务查看或调整。'),
             for (final entry in days)
               if (entry.layout.conflicts.isNotEmpty) ...[
-                const SizedBox(height: AppLayout.spaceLg),
+                const SizedBox(height: AppMetrics.spaceLg),
                 Text(
                   timetableDateKey(entry.day),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 for (final conflict
                     in selected?.conflicts ?? entry.layout.conflicts) ...[
-                  const SizedBox(height: AppLayout.spaceMd),
+                  const SizedBox(height: AppMetrics.spaceMd),
                   Text(
                     '${timetableClock(conflict.start)}–${timetableClock(conflict.end)}'
                     ' · 重叠 ${(conflict.end - conflict.start).ceil()} 分钟',

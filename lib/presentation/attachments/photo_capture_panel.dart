@@ -6,7 +6,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/colors.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/app_typography.dart';
 import '../../application/errors/user_error_message.dart';
 
@@ -324,10 +324,10 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => Padding(
           padding: const EdgeInsets.fromLTRB(
-            AppLayout.spaceXl,
+            AppMetrics.spaceXl,
             0,
-            AppLayout.spaceXl,
-            AppLayout.spaceXxl,
+            AppMetrics.spaceXl,
+            AppMetrics.spaceXxl,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -408,22 +408,22 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
     button: true,
     label: tooltip,
     child: SizedBox(
-      width: AppLayout.touchTargetMin,
-      height: AppLayout.touchTargetMin,
+      width: AppMetrics.touchTargetMin,
+      height: AppMetrics.touchTargetMin,
       child: IconButton(
         tooltip: tooltip,
         onPressed: onPressed,
         style: IconButton.styleFrom(
           fixedSize: const Size(
-            AppLayout.touchTargetMin,
-            AppLayout.touchTargetMin,
+            AppMetrics.touchTargetMin,
+            AppMetrics.touchTargetMin,
           ),
           foregroundColor: AppColors.onMedia,
           disabledForegroundColor: AppColors.onMedia.withValues(alpha: .42),
           backgroundColor: Colors.black.withValues(alpha: .28),
           shape: const CircleBorder(),
         ),
-        icon: Icon(icon, size: AppLayout.iconMd),
+        icon: Icon(icon, size: AppMetrics.iconMd),
       ),
     ),
   );
@@ -471,7 +471,7 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
                   padding: EdgeInsets.zero,
                 ),
                 icon: hasCapture
-                    ? const Icon(Icons.check_rounded, size: AppLayout.iconLg)
+                    ? const Icon(Icons.check_rounded, size: AppMetrics.iconLg)
                     : const Icon(
                         Icons.circle,
                         color: AppColors.onPrimary,
@@ -522,14 +522,14 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
           if (_error != null)
             Center(
               child: Padding(
-                padding: const EdgeInsets.all(AppLayout.spaceXxl),
+                padding: const EdgeInsets.all(AppMetrics.spaceXxl),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: .52),
-                    borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+                    borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.all(AppLayout.spaceLg),
+                    padding: const EdgeInsets.all(AppMetrics.spaceLg),
                     child: Text(
                       _error!,
                       textAlign: TextAlign.center,
@@ -543,8 +543,8 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
             child: Stack(
               children: [
                 Positioned(
-                  top: AppLayout.spaceSm,
-                  left: AppLayout.spaceSm,
+                  top: AppMetrics.spaceSm,
+                  left: AppMetrics.spaceSm,
                   child: IconButton(
                     tooltip: '返回',
                     onPressed: _busy
@@ -552,8 +552,8 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
                         : (widget.onBack ?? widget.onCancel),
                     style: IconButton.styleFrom(
                       fixedSize: const Size(
-                        AppLayout.touchTargetMin,
-                        AppLayout.touchTargetMin,
+                        AppMetrics.touchTargetMin,
+                        AppMetrics.touchTargetMin,
                       ),
                       backgroundColor: Colors.black.withValues(alpha: .38),
                       foregroundColor: AppColors.onMedia,
@@ -583,16 +583,16 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
                   ),
                 ),
                 Positioned(
-                  left: AppLayout.spaceXl,
-                  right: AppLayout.spaceXl,
-                  bottom: AppLayout.spaceMd,
+                  left: AppMetrics.spaceXl,
+                  right: AppMetrics.spaceXl,
+                  bottom: AppMetrics.spaceMd,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (_capture == null && _maxZoom > _minZoom)
                         Padding(
                           padding: const EdgeInsets.only(
-                            bottom: AppLayout.spaceMd,
+                            bottom: AppMetrics.spaceMd,
                           ),
                           child: _zoomDial(onMedia: true),
                         ),
@@ -646,24 +646,24 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
     }
     return Container(
       key: const Key('evidence-camera-panel'),
-      padding: const EdgeInsets.all(AppLayout.spaceLg),
+      padding: const EdgeInsets.all(AppMetrics.spaceLg),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(AppLayout.radiusXl),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusXl),
         border: Border.all(color: AppColors.hairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('为「${widget.title}」拍照', style: theme.textTheme.titleSmall),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
           const Text('照片确认后加入当前草稿，保存后生效。'),
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           if (_capture != null)
             AspectRatio(
               aspectRatio: 4 / 3,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
                 child: Image.memory(_capture!, fit: BoxFit.cover),
               ),
             )
@@ -671,7 +671,7 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
             AspectRatio(
               aspectRatio: controller.value.aspectRatio,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
                 child: _interactivePreview(
                   controller,
                   CameraPreview(controller),
@@ -681,15 +681,15 @@ class _PhotoCapturePanelState extends State<PhotoCapturePanel>
           else if (_busy)
             const Center(child: CircularProgressIndicator()),
           if (_error != null) ...[
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             Text(_error!, style: TextStyle(color: AppColors.error)),
           ],
           if (_capture == null && controller != null && _maxZoom > _minZoom)
             _zoomDial(onMedia: false),
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           Wrap(
-            spacing: AppLayout.spaceSm,
-            runSpacing: AppLayout.spaceSm,
+            spacing: AppMetrics.spaceSm,
+            runSpacing: AppMetrics.spaceSm,
             children: [
               if (_capture == null && controller != null)
                 FilledButton.icon(

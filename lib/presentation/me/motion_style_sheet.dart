@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 
 import '../../application/settings/motion_settings.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import 'motion_settings_panel.dart';
 
 /// 页面风格即时保存，内嵌真实路由供用户预览进入与返回。
@@ -66,18 +66,18 @@ class _MotionStyleSheetState extends State<MotionStyleSheet> {
         ? Theme.of(context).colorScheme.primaryContainer
         : Theme.of(context).colorScheme.surfaceContainerLow,
     child: Padding(
-      padding: const EdgeInsets.all(AppLayout.spaceMd),
+      padding: const EdgeInsets.all(AppMetrics.spaceMd),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (!opened)
             for (var index = 0; index < 2; index++)
               Padding(
-                padding: const EdgeInsets.all(AppLayout.spaceXs),
+                padding: const EdgeInsets.all(AppMetrics.spaceXs),
                 child: Row(
                   children: [
-                    Icon(Icons.radio_button_unchecked, size: AppLayout.iconSm),
-                    const SizedBox(width: AppLayout.spaceSm),
+                    Icon(Icons.radio_button_unchecked, size: AppMetrics.iconSm),
+                    const SizedBox(width: AppMetrics.spaceSm),
                     Expanded(
                       child: LinearProgressIndicator(
                         value: index == 0 ? .65 : .35,
@@ -90,7 +90,7 @@ class _MotionStyleSheetState extends State<MotionStyleSheet> {
             Icon(
               Icons.task_alt,
               color: Theme.of(context).colorScheme.primary,
-              size: AppLayout.iconLg,
+              size: AppMetrics.iconLg,
             ),
           TextButton.icon(
             icon: Icon(opened ? Icons.arrow_back : Icons.play_arrow_outlined),

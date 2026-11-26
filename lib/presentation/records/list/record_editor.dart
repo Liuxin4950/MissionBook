@@ -213,11 +213,11 @@ class _RecordEditorState extends State<RecordEditor> {
   Widget _pickerRow() => AdaptiveColumns(
     minColumnWidth: 210,
     maxColumns: 2,
-    spacing: AppLayout.spaceMd,
+    spacing: AppMetrics.spaceMd,
     children: [
       SizedBox(
         width: double.infinity,
-        height: AppLayout.touchTargetMin,
+        height: AppMetrics.touchTargetMin,
         child: FilledButton.tonalIcon(
           key: const Key('record-pick-photo'),
           onPressed: _busy ? null : _photo,
@@ -227,7 +227,7 @@ class _RecordEditorState extends State<RecordEditor> {
       ),
       SizedBox(
         width: double.infinity,
-        height: AppLayout.touchTargetMin,
+        height: AppMetrics.touchTargetMin,
         child: OutlinedButton.icon(
           key: const Key('record-pick-file'),
           onPressed: _busy ? null : () => _pick(file: true),
@@ -242,7 +242,7 @@ class _RecordEditorState extends State<RecordEditor> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Text('记录类型', style: Theme.of(context).textTheme.titleSmall),
-      const SizedBox(height: AppLayout.spaceSm),
+      const SizedBox(height: AppMetrics.spaceSm),
       IgnorePointer(
         ignoring: _busy,
         child: AppSegmentedControl<ContentType>(
@@ -270,10 +270,10 @@ class _RecordEditorState extends State<RecordEditor> {
           children: [
             Icon(
               image ? Icons.image_outlined : Icons.description_outlined,
-              size: AppLayout.iconMd,
+              size: AppMetrics.iconMd,
               color: AppColors.textSecondary,
             ),
-            const SizedBox(width: AppLayout.spaceMd),
+            const SizedBox(width: AppMetrics.spaceMd),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,7 +294,7 @@ class _RecordEditorState extends State<RecordEditor> {
           ],
         ),
         if (image) ...[
-          const SizedBox(height: AppLayout.spaceMd),
+          const SizedBox(height: AppMetrics.spaceMd),
           AttachmentImageLoader(
             future: _attachmentImage,
             name: name,
@@ -307,7 +307,7 @@ class _RecordEditorState extends State<RecordEditor> {
             }),
           ),
         ],
-        const SizedBox(height: AppLayout.spaceSm),
+        const SizedBox(height: AppMetrics.spaceSm),
         Row(
           children: [
             TextButton.icon(
@@ -315,18 +315,18 @@ class _RecordEditorState extends State<RecordEditor> {
                   ? null
                   : (image ? _photo : () => _pick(file: true)),
               style: TextButton.styleFrom(
-                minimumSize: const Size(0, AppLayout.touchTargetMin),
+                minimumSize: const Size(0, AppMetrics.touchTargetMin),
               ),
-              icon: const Icon(Icons.refresh, size: AppLayout.iconSm),
+              icon: const Icon(Icons.refresh, size: AppMetrics.iconSm),
               label: Text(image ? '更换照片' : '更换文件'),
             ),
             const Spacer(),
             TextButton.icon(
               onPressed: _busy ? null : () => unawaited(_removeAttachment()),
               style: TextButton.styleFrom(
-                minimumSize: const Size(0, AppLayout.touchTargetMin),
+                minimumSize: const Size(0, AppMetrics.touchTargetMin),
               ),
-              icon: const Icon(Icons.delete_outline, size: AppLayout.iconSm),
+              icon: const Icon(Icons.delete_outline, size: AppMetrics.iconSm),
               label: const Text('移除'),
             ),
           ],
@@ -349,7 +349,7 @@ class _RecordEditorState extends State<RecordEditor> {
                   : '独立记录 · 可设置目标或节点');
     return Material(
       color: enabled ? AppColors.surfaceMuted : AppColors.disabled,
-      borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+      borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: canChangeOwnership
@@ -366,23 +366,23 @@ class _RecordEditorState extends State<RecordEditor> {
             : null,
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            minHeight: AppLayout.touchTargetMin,
+            minHeight: AppMetrics.touchTargetMin,
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: AppLayout.spaceLg,
-              vertical: AppLayout.spaceMd,
+              horizontal: AppMetrics.spaceLg,
+              vertical: AppMetrics.spaceMd,
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.link,
-                  size: AppLayout.iconMd,
+                  size: AppMetrics.iconMd,
                   color: enabled
                       ? AppColors.textSecondary
                       : AppColors.onDisabled,
                 ),
-                const SizedBox(width: AppLayout.spaceMd),
+                const SizedBox(width: AppMetrics.spaceMd),
                 Expanded(
                   child: Text(
                     label,
@@ -398,7 +398,7 @@ class _RecordEditorState extends State<RecordEditor> {
                 if (canChangeOwnership)
                   const Icon(
                     Icons.chevron_right,
-                    size: AppLayout.iconMd,
+                    size: AppMetrics.iconMd,
                     color: AppColors.textSecondary,
                   ),
               ],
@@ -478,10 +478,10 @@ class _RecordEditorState extends State<RecordEditor> {
                                 _attachmentSection(context)
                               else ...[
                                 _pickerRow(),
-                                const SizedBox(height: AppLayout.spaceLg),
+                                const SizedBox(height: AppMetrics.spaceLg),
                                 _typeSelector(context),
                               ],
-                              const SizedBox(height: AppLayout.spaceLg),
+                              const SizedBox(height: AppMetrics.spaceLg),
                               AppTextField(
                                 key: const Key('record-content-input'),
                                 label: _contentLabel,
@@ -495,7 +495,7 @@ class _RecordEditorState extends State<RecordEditor> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: AppLayout.spaceXl),
+                        const SizedBox(height: AppMetrics.spaceXl),
                         _associationRow(context),
                         if (widget.missionId == null)
                           TextButton.icon(
@@ -523,13 +523,13 @@ class _RecordEditorState extends State<RecordEditor> {
                             child: const Text('仅保存记录'),
                           ),
                         if (_error != null) ...[
-                          const SizedBox(height: AppLayout.spaceMd),
+                          const SizedBox(height: AppMetrics.spaceMd),
                           Container(
-                            padding: const EdgeInsets.all(AppLayout.spaceMd),
+                            padding: const EdgeInsets.all(AppMetrics.spaceMd),
                             decoration: BoxDecoration(
                               color: AppColors.errorSoft,
                               borderRadius: BorderRadius.circular(
-                                AppLayout.radiusMd,
+                                AppMetrics.radiusMd,
                               ),
                             ),
                             child: Text(
@@ -539,17 +539,17 @@ class _RecordEditorState extends State<RecordEditor> {
                             ),
                           ),
                         ],
-                        const SizedBox(height: AppLayout.spaceXl),
+                        const SizedBox(height: AppMetrics.spaceXl),
                         FilledButton(
                           onPressed: _busy ? null : _save,
                           style: FilledButton.styleFrom(
                             minimumSize: const Size.fromHeight(
-                              AppLayout.actionMinHeight,
+                              AppMetrics.actionMinHeight,
                             ),
                           ),
                           child: Text(_busy ? '正在保存…' : '保存记录'),
                         ),
-                        const SizedBox(height: AppLayout.spaceXl),
+                        const SizedBox(height: AppMetrics.spaceXl),
                       ],
                     ),
                   ),

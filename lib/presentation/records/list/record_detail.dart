@@ -186,12 +186,12 @@ class _RecordDetailState extends State<RecordDetail> {
                 return ListView(
                   padding: EdgeInsets.symmetric(
                     horizontal: AppLayout.horizontalPadding(context),
-                    vertical: AppLayout.spaceLg,
+                    vertical: AppMetrics.spaceLg,
                   ),
                   children: [
                     Wrap(
-                      spacing: AppLayout.spaceMd,
-                      runSpacing: AppLayout.spaceXs,
+                      spacing: AppMetrics.spaceMd,
+                      runSpacing: AppMetrics.spaceXs,
                       children: [
                         Text(
                           localizations.formatMediumDate(occurredAt),
@@ -210,7 +210,7 @@ class _RecordDetailState extends State<RecordDetail> {
                       ],
                     ),
                     if (r.materialMissionId != null) ...[
-                      const SizedBox(height: AppLayout.spaceSm),
+                      const SizedBox(height: AppMetrics.spaceSm),
                       Text(
                         '已提交到「${r.materialMissionTitle ?? '原任务'}」的材料内容保持不变',
                         style: Theme.of(context).textTheme.bodySmall,
@@ -226,9 +226,9 @@ class _RecordDetailState extends State<RecordDetail> {
                         ),
                       ),
                     if (r.type == ContentType.image) ...[
-                      const SizedBox(height: AppLayout.spaceLg),
+                      const SizedBox(height: AppMetrics.spaceLg),
                     ] else ...[
-                      const SizedBox(height: AppLayout.spaceXl),
+                      const SizedBox(height: AppMetrics.spaceXl),
                     ],
                     if (r.type == ContentType.image)
                       _RecordImage(

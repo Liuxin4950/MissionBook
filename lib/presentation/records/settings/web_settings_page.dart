@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_empty_state.dart';
 import '../../widgets/app_section_card.dart';
@@ -194,14 +195,14 @@ class _WebSettingsPageState extends State<WebSettingsPage> {
                                       '${_config?['month']} · 本地已预留 ${_config?['used'] ?? 0} 次搜索',
                                 ),
                               ),
-                              const SizedBox(height: AppLayout.spaceLg),
+                              const SizedBox(height: AppMetrics.spaceLg),
                               AppSectionCard(
                                 child: Column(
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
                                     const AppSectionHeader('搜索服务'),
-                                    const SizedBox(height: AppLayout.spaceLg),
+                                    const SizedBox(height: AppMetrics.spaceLg),
                                     TextField(
                                       key: const Key('web-api-key'),
                                       controller: _key,
@@ -227,7 +228,7 @@ class _WebSettingsPageState extends State<WebSettingsPage> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: AppLayout.spaceLg),
+                              const SizedBox(height: AppMetrics.spaceLg),
                               AppSectionCard(
                                 child: Column(
                                   crossAxisAlignment:
@@ -237,7 +238,7 @@ class _WebSettingsPageState extends State<WebSettingsPage> {
                                       '本地额度',
                                       style: theme.textTheme.titleMedium,
                                     ),
-                                    const SizedBox(height: AppLayout.spaceLg),
+                                    const SizedBox(height: AppMetrics.spaceLg),
                                     TextField(
                                       key: const Key('web-monthly-limit'),
                                       controller: _cap,
@@ -253,7 +254,7 @@ class _WebSettingsPageState extends State<WebSettingsPage> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: AppLayout.spaceLg),
+                              const SizedBox(height: AppMetrics.spaceLg),
                               AppSectionCard(
                                 padding: EdgeInsets.zero,
                                 child: AppSettingsRow(
@@ -282,14 +283,14 @@ class _WebSettingsPageState extends State<WebSettingsPage> {
                               if (_busy)
                                 const Padding(
                                   padding: EdgeInsets.only(
-                                    top: AppLayout.spaceLg,
+                                    top: AppMetrics.spaceLg,
                                   ),
                                   child: LinearProgressIndicator(),
                                 ),
                               if (_message != null)
                                 Padding(
                                   padding: const EdgeInsets.only(
-                                    top: AppLayout.spaceLg,
+                                    top: AppMetrics.spaceLg,
                                   ),
                                   child: Semantics(
                                     liveRegion: true,

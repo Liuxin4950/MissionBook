@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/colors.dart';
 
 /// 可复用的交互行表面，统一选中、悬停和键盘聚焦的颜色与内边距。
@@ -14,11 +14,11 @@ class AppInteractiveSurface extends StatefulWidget {
     this.baseColor = Colors.transparent,
     this.selectedColor = AppColors.primarySoft,
     this.padding = const EdgeInsets.symmetric(
-      horizontal: AppLayout.spaceMd,
-      vertical: AppLayout.spaceSm,
+      horizontal: AppMetrics.spaceMd,
+      vertical: AppMetrics.spaceSm,
     ),
-    this.minHeight = AppLayout.touchTargetMin,
-    this.borderRadius = AppLayout.radiusMd,
+    this.minHeight = AppMetrics.touchTargetMin,
+    this.borderRadius = AppMetrics.radiusMd,
     this.semanticsLabel,
   });
 

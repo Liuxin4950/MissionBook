@@ -8,7 +8,7 @@ import 'package:mission_book/application/settings/app_device.dart';
 import 'package:mission_book/application/settings/motion_settings.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
 import 'package:mission_book/presentation/me/settings_page.dart';
-import 'package:mission_book/presentation/widgets/motion_settings_scope.dart';
+import 'package:mission_book/presentation/motion/motion_settings_scope.dart';
 import '../support/me_fakes.dart';
 
 class _Backup implements BackupExporter {

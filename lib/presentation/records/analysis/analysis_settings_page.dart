@@ -1,7 +1,8 @@
 import '../../../domain/entities/analysis_scope.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/app_empty_state.dart';
 import '../../widgets/app_section_card.dart';
@@ -164,7 +165,7 @@ class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
                           padding: AppLayout.pagePadding(context),
                           children: [
                             const Text('关闭后，可在对应页面手动生成总结。'),
-                            const SizedBox(height: AppLayout.spaceLg),
+                            const SizedBox(height: AppMetrics.spaceLg),
                             AppSectionCard(
                               padding: EdgeInsets.zero,
                               child: Column(
@@ -204,7 +205,7 @@ class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: AppLayout.spaceLg),
+                            const SizedBox(height: AppMetrics.spaceLg),
                             AppSectionCard(
                               padding: EdgeInsets.zero,
                               child: AppSettingsRow(
@@ -217,7 +218,9 @@ class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
                                 trailing: Switch(
                                   key: const Key('analysis-auto-memory'),
                                   value: _memoryEnabled,
-                                  onChanged: _savingMemory ? null : toggleMemory,
+                                  onChanged: _savingMemory
+                                      ? null
+                                      : toggleMemory,
                                 ),
                                 onTap: () => toggleMemory(!_memoryEnabled),
                               ),
@@ -225,7 +228,7 @@ class _AnalysisSettingsPageState extends State<AnalysisSettingsPage> {
                             if (_message != null)
                               Padding(
                                 padding: const EdgeInsets.only(
-                                  top: AppLayout.spaceLg,
+                                  top: AppMetrics.spaceLg,
                                 ),
                                 child: Text(_message!),
                               ),

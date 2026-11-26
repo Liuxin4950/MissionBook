@@ -8,7 +8,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
 import 'package:uuid/uuid.dart';
 import '../../../application/records/record_service.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/layout/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 import '../../../core/theme/colors.dart';
 import '../../attachments/photo_capture_panel.dart';
 import '../../attachments/attachment_image_loader.dart';
@@ -187,10 +188,8 @@ class _RecordsPageState extends State<RecordsPage> {
                       padding: AppLayout.pagePadding(context),
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
-                          minHeight: (box.maxHeight - AppLayout.space3Xl).clamp(
-                            0,
-                            double.infinity,
-                          ),
+                          minHeight: (box.maxHeight - AppMetrics.space3Xl)
+                              .clamp(0, double.infinity),
                         ),
                         child: AppEmptyState(
                           title: '还没有记录',
@@ -227,7 +226,7 @@ class _RecordsPageState extends State<RecordsPage> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(
-                          bottom: AppLayout.spaceLg,
+                          bottom: AppMetrics.spaceLg,
                         ),
                         child: Text(
                           '共 ${data.total} 条记录',
@@ -241,14 +240,14 @@ class _RecordsPageState extends State<RecordsPage> {
                       )
                         Padding(
                           padding: const EdgeInsets.only(
-                            bottom: AppLayout.spaceMd,
+                            bottom: AppMetrics.spaceMd,
                           ),
                           child: wide
                               ? Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Expanded(child: tile(data.items[index])),
-                                    const SizedBox(width: AppLayout.spaceLg),
+                                    const SizedBox(width: AppMetrics.spaceLg),
                                     Expanded(
                                       child: index + 1 < data.items.length
                                           ? tile(data.items[index + 1])
@@ -261,7 +260,7 @@ class _RecordsPageState extends State<RecordsPage> {
                       if (_offset > 0 || data.nextOffset != null)
                         Wrap(
                           alignment: WrapAlignment.center,
-                          spacing: AppLayout.spaceMd,
+                          spacing: AppMetrics.spaceMd,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             TextButton(
@@ -410,7 +409,7 @@ class _RecordTile extends StatelessWidget {
       child: InkWell(
         onTap: onOpen,
         child: Padding(
-          padding: const EdgeInsets.all(AppLayout.spaceLg),
+          padding: const EdgeInsets.all(AppMetrics.spaceLg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -422,10 +421,10 @@ class _RecordTile extends StatelessWidget {
                         : item.type == ContentType.file
                         ? Icons.attach_file
                         : Icons.notes_rounded,
-                    size: AppLayout.iconMd,
+                    size: AppMetrics.iconMd,
                     color: AppColors.textSecondary,
                   ),
-                  const SizedBox(width: AppLayout.spaceSm),
+                  const SizedBox(width: AppMetrics.spaceSm),
                   Expanded(child: Text(date, style: text.bodySmall)),
                   PopupMenuButton<String>(
                     popUpAnimationStyle: AppMotion.overlayStyle(context),
@@ -434,7 +433,7 @@ class _RecordTile extends StatelessWidget {
                     itemBuilder: (_) => [
                       const PopupMenuItem(value: 'delete', child: Text('删除记录')),
                     ],
-                    icon: const Icon(Icons.more_horiz, size: AppLayout.iconMd),
+                    icon: const Icon(Icons.more_horiz, size: AppMetrics.iconMd),
                   ),
                 ],
               ),
@@ -447,7 +446,7 @@ class _RecordTile extends StatelessWidget {
                     service: service,
                   ),
                 ),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
               ],
               Text(
                 item.content?.isNotEmpty == true
@@ -458,7 +457,7 @@ class _RecordTile extends StatelessWidget {
                 style: text.bodyLarge,
               ),
               if (item.goalTitle != null) ...[
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
                 Text(
                   '${item.goalTitle}${item.nodeTitle == null ? '' : ' / ${item.nodeTitle}'}',
                   maxLines: 2,

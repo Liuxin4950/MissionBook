@@ -246,7 +246,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
       builder: (c, s) {
         if (s.hasError) {
           return Padding(
-            padding: const EdgeInsets.only(top: AppLayout.spaceSm),
+            padding: const EdgeInsets.only(top: AppMetrics.spaceSm),
             child: TextButton(
               onPressed: load,
               child: const Text('当日记录读取失败，点击重试'),
@@ -260,9 +260,9 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
           return const SizedBox.shrink();
         }
         return Padding(
-          padding: const EdgeInsets.only(top: AppLayout.spaceMd),
+          padding: const EdgeInsets.only(top: AppMetrics.spaceMd),
           child: AppSectionCard(
-            padding: const EdgeInsets.all(AppLayout.spaceMd),
+            padding: const EdgeInsets.all(AppMetrics.spaceMd),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -286,7 +286,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
                 ),
                 for (final r in items.take(3))
                   InkWell(
-                    borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                    borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
                     onTap: () => openDetailPane<void>(
                       context,
                       label: '记录详情',
@@ -294,7 +294,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        vertical: AppLayout.spaceSm,
+                        vertical: AppMetrics.spaceSm,
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -302,7 +302,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
                           if (r.type == ContentType.image) ...[
                             ClipRRect(
                               borderRadius: BorderRadius.circular(
-                                AppLayout.radiusSm,
+                                AppMetrics.radiusSm,
                               ),
                               child: _RecordImage(
                                 service: scope.service,
@@ -313,7 +313,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
                                 compact: true,
                               ),
                             ),
-                            const SizedBox(width: AppLayout.spaceMd),
+                            const SizedBox(width: AppMetrics.spaceMd),
                           ],
                           Expanded(
                             child: Column(
@@ -327,7 +327,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.bodyLarge,
                                 ),
-                                const SizedBox(height: AppLayout.spaceXs),
+                                const SizedBox(height: AppMetrics.spaceXs),
                                 Text(
                                   '${r.occurredAt.toLocal().hour.toString().padLeft(2, '0')}:${r.occurredAt.toLocal().minute.toString().padLeft(2, '0')}',
                                   style: Theme.of(context).textTheme.bodySmall,
@@ -337,7 +337,7 @@ class _DailyRecordsStripState extends State<DailyRecordsStrip> {
                           ),
                           const Icon(
                             Icons.chevron_right_rounded,
-                            size: AppLayout.iconSm,
+                            size: AppMetrics.iconSm,
                           ),
                         ],
                       ),

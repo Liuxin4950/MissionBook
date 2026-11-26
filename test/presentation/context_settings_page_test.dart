@@ -15,7 +15,7 @@ import 'package:mission_book/application/missions/mission_service.dart';
 import 'package:mission_book/application/records/record_service.dart';
 import 'package:mission_book/application/web/web_service.dart';
 import 'package:mission_book/core/theme/app_theme.dart';
-import 'package:mission_book/core/theme/app_layout.dart';
+import 'package:mission_book/core/theme/app_metrics.dart';
 import 'package:mission_book/data/analysis/drift_analysis_store.dart';
 import 'package:mission_book/data/local/app_database.dart';
 import 'package:mission_book/data/repositories/drift_goal_repository.dart';
@@ -191,7 +191,7 @@ void main() {
     expect(find.text('共 0 条记忆'), findsNothing);
     expect(
       tester.getSize(find.widgetWithText(FilledButton, '添加记忆')).height,
-      greaterThanOrEqualTo(AppLayout.actionMinHeight),
+      greaterThanOrEqualTo(AppMetrics.actionMinHeight),
     );
     await tester.tap(find.text('添加记忆'));
     await tester.pumpAndSettle();

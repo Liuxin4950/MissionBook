@@ -14,12 +14,12 @@ import '../../missions/record/mission_record_workspace.dart';
 import '../../missions/execution/mission_execution_page.dart';
 import '../../missions/shared/mission_phase_display.dart';
 import '../../missions/shared/mission_live_status.dart';
-import '../../../core/theme/app_layout.dart';
+import '../../../core/theme/app_metrics.dart';
 
 /// 目标或节点下的直接关联任务，操作转入独立任务页面。
 class GoalMissionsSection extends StatefulWidget {
   // 节点标记与树线共用定位尺寸，文字换行只增加行高，不移动标记。
-  static const markerExtent = AppLayout.touchTargetMin;
+  static const markerExtent = AppMetrics.touchTargetMin;
 
   const GoalMissionsSection({
     super.key,
@@ -70,7 +70,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
     onPressed: _opening ? null : () => _open(),
     icon: const Icon(
       Icons.add_rounded,
-      size: AppLayout.iconSm,
+      size: AppMetrics.iconSm,
       color: AppColors.primary,
     ),
   );
@@ -201,9 +201,9 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                 onPressed: _opening ? null : () => _open(),
                 style: TextButton.styleFrom(
                   textStyle: theme.textTheme.labelSmall,
-                  minimumSize: const Size(0, AppLayout.touchTargetMin),
+                  minimumSize: const Size(0, AppMetrics.touchTargetMin),
                 ),
-                icon: const Icon(Icons.add_rounded, size: AppLayout.iconSm),
+                icon: const Icon(Icons.add_rounded, size: AppMetrics.iconSm),
                 label: Text(widget.node == null ? '为目标建任务' : '新建任务'),
               )
             : null;
@@ -229,13 +229,13 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     : completed
                     ? Icons.receipt_long_outlined
                     : Icons.radio_button_unchecked,
-                size: AppLayout.iconSm,
+                size: AppMetrics.iconSm,
                 color: completed ? AppColors.primary : AppColors.outline,
               ),
         );
         return Padding(
           padding: EdgeInsets.only(
-            top: widget.node == null ? AppLayout.spaceLg : 0,
+            top: widget.node == null ? AppMetrics.spaceLg : 0,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -248,7 +248,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                       (widget.trailing == null || box.maxWidth >= 360);
                   final titleContent = Padding(
                     padding: const EdgeInsets.symmetric(
-                      vertical: AppLayout.spaceXs,
+                      vertical: AppMetrics.spaceXs,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,7 +292,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                               : (_expanded ? '收起任务' : '展开任务'),
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(
-                              minHeight: AppLayout.touchTargetMin,
+                              minHeight: AppMetrics.touchTargetMin,
                             ),
                             key: Key(
                               'node-title-${widget.node?.id ?? widget.goal.id}',
@@ -301,7 +301,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                                 ? InkWell(
                                     onTap: titleAction,
                                     borderRadius: BorderRadius.circular(
-                                      AppLayout.radiusSm,
+                                      AppMetrics.radiusSm,
                                     ),
                                     child: titleContent,
                                   )
@@ -319,7 +319,8 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                             hint: _expanded ? '收起任务' : '展开任务',
                             child: SizedBox(
                               width:
-                                  AppLayout.touchTargetMin + AppLayout.spaceSm,
+                                  AppMetrics.touchTargetMin +
+                                  AppMetrics.spaceSm,
                               child: TextButton(
                                 key: Key(
                                   'node-tasks-${widget.node?.id ?? widget.goal.id}',
@@ -328,10 +329,10 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                                 style: TextButton.styleFrom(
                                   minimumSize: const Size(
                                     0,
-                                    AppLayout.touchTargetMin,
+                                    AppMetrics.touchTargetMin,
                                   ),
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: AppLayout.spaceXs,
+                                    horizontal: AppMetrics.spaceXs,
                                   ),
                                   foregroundColor: AppColors.textSecondary,
                                   textStyle: theme.textTheme.bodySmall,
@@ -351,7 +352,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                                         _expanded
                                             ? Icons.expand_less
                                             : Icons.expand_more,
-                                        size: AppLayout.iconSm,
+                                        size: AppMetrics.iconSm,
                                       ),
                                     ],
                                   ),
@@ -369,8 +370,8 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
               if (widget.annotation?.isNotEmpty == true)
                 Padding(
                   padding: const EdgeInsets.only(
-                    left: AppLayout.touchTargetMin,
-                    bottom: AppLayout.spaceXs,
+                    left: AppMetrics.touchTargetMin,
+                    bottom: AppMetrics.spaceXs,
                   ),
                   child: Text(
                     widget.annotation!,
@@ -383,8 +384,8 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                   ))
                 Padding(
                   padding: const EdgeInsets.only(
-                    left: AppLayout.touchTargetMin,
-                    bottom: AppLayout.spaceSm,
+                    left: AppMetrics.touchTargetMin,
+                    bottom: AppMetrics.spaceSm,
                   ),
                   child: Text(
                     '待补材料',
@@ -396,8 +397,8 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
               if (_expanded && !available)
                 Padding(
                   padding: const EdgeInsets.only(
-                    left: AppLayout.touchTargetMin,
-                    bottom: AppLayout.spaceSm,
+                    left: AppMetrics.touchTargetMin,
+                    bottom: AppMetrics.spaceSm,
                   ),
                   child: Text(
                     widget.node?.archivedAt != null
@@ -410,7 +411,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                 Padding(
                   // 任务已有独立表面，只保留节点内边距；树层级由外层缩进表达。
                   padding: EdgeInsets.symmetric(
-                    horizontal: widget.node == null ? 0 : AppLayout.spaceSm,
+                    horizontal: widget.node == null ? 0 : AppMetrics.spaceSm,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -432,7 +433,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                         ),
                       if (direct.length > _pageSize)
                         Wrap(
-                          spacing: AppLayout.spaceSm,
+                          spacing: AppMetrics.spaceSm,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             TextButton(
@@ -477,12 +478,12 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
     final theme = Theme.of(context);
     final phase = phaseLabel(detail.phase, schedule: detail.schedule);
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppLayout.spaceXs),
+      padding: const EdgeInsets.only(bottom: AppMetrics.spaceXs),
       child: Material(
         key: ValueKey('goal-task-${detail.mission.id}'),
         color: emphasized ? AppColors.primarySoft : AppColors.surfaceMuted,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusSm),
           side: BorderSide(
             color: emphasized ? AppColors.primary : AppColors.hairline,
           ),
@@ -492,8 +493,8 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
           onTap: _opening ? null : () => _open(detail: detail),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: AppLayout.spaceMd,
-              vertical: AppLayout.spaceSm,
+              horizontal: AppMetrics.spaceMd,
+              vertical: AppMetrics.spaceSm,
             ),
             child: Row(
               children: [
@@ -505,7 +506,7 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                         detail.mission.title,
                         style: theme.textTheme.titleSmall,
                       ),
-                      const SizedBox(height: AppLayout.spaceXs),
+                      const SizedBox(height: AppMetrics.spaceXs),
                       Text(
                         '${detail.schedule.scheduledDate} · $phase · ${detail.schedule.plannedDurationMinutes} 分钟',
                         style: theme.textTheme.bodySmall,
@@ -520,12 +521,12 @@ class GoalMissionsSectionState extends State<GoalMissionsSection> {
                     ],
                   ),
                 ),
-                const SizedBox(width: AppLayout.spaceSm),
+                const SizedBox(width: AppMetrics.spaceSm),
                 Icon(
                   detail.phase == MissionPhase.closed
                       ? Icons.history_rounded
                       : Icons.chevron_right_rounded,
-                  size: AppLayout.iconSm,
+                  size: AppMetrics.iconSm,
                   color: AppColors.primary,
                 ),
               ],

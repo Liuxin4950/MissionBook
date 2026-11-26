@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/app_motion.dart';
 
 /// 等分可用宽度的分类栏。标签允许换行，不把最后一项藏到横向滚动区。
@@ -21,10 +21,10 @@ class AppSegmentedControl<T> extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(AppLayout.radiusLg),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusLg),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(AppLayout.spaceXs),
+        padding: const EdgeInsets.all(AppMetrics.spaceXs),
         child: Stack(
           children: [
             if (options.keys.contains(selected))
@@ -48,7 +48,9 @@ class AppSegmentedControl<T> extends StatelessWidget {
                       key: const Key('segmented-selection-surface'),
                       decoration: BoxDecoration(
                         color: theme.colorScheme.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+                        borderRadius: BorderRadius.circular(
+                          AppMetrics.radiusMd,
+                        ),
                       ),
                       child: const SizedBox.expand(),
                     ),
@@ -72,16 +74,16 @@ class AppSegmentedControl<T> extends StatelessWidget {
                               backgroundColor: Colors.transparent,
                               minimumSize: const Size(
                                 0,
-                                AppLayout.touchTargetMin,
+                                AppMetrics.touchTargetMin,
                               ),
                               padding: const EdgeInsets.symmetric(
-                                horizontal: AppLayout.spaceSm,
-                                vertical: AppLayout.spaceSm,
+                                horizontal: AppMetrics.spaceSm,
+                                vertical: AppMetrics.spaceSm,
                               ),
                               textStyle: theme.textTheme.labelMedium,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(
-                                  AppLayout.radiusMd,
+                                  AppMetrics.radiusMd,
                                 ),
                               ),
                             ).copyWith(

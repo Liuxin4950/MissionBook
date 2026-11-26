@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/colors.dart';
 import '../../data/settings/today_widget_appearance.dart';
 import '../widgets/app_confirm_dialog.dart';
@@ -322,10 +322,10 @@ class TodayWidgetAppearanceEditorState
       },
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-          AppLayout.spaceXl,
+          AppMetrics.spaceXl,
           0,
-          AppLayout.spaceXl,
-          AppLayout.spaceLg,
+          AppMetrics.spaceXl,
+          AppMetrics.spaceLg,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -345,7 +345,7 @@ class TodayWidgetAppearanceEditorState
               '只影响这台安卓设备的桌面，已添加的小组件无需重新添加。',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             if (_loadError case final error?) ...[
               _loadErrorView(error),
             ] else if (draft == null) ...[
@@ -356,7 +356,7 @@ class TodayWidgetAppearanceEditorState
             ] else ...[
               if (_loadNotice() case final notice?) ...[
                 _Notice(text: notice),
-                const SizedBox(height: AppLayout.spaceMd),
+                const SizedBox(height: AppMetrics.spaceMd),
               ],
               _editorBody(context, draft),
             ],
@@ -414,9 +414,9 @@ class TodayWidgetAppearanceEditorState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const AppSectionHeader('预览', subtle: true),
-              const SizedBox(height: AppLayout.spaceSm),
+              const SizedBox(height: AppMetrics.spaceSm),
               preview,
-              const SizedBox(height: AppLayout.spaceXl),
+              const SizedBox(height: AppMetrics.spaceXl),
               form,
             ],
           );
@@ -430,12 +430,12 @@ class TodayWidgetAppearanceEditorState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const AppSectionHeader('预览', subtle: true),
-                  const SizedBox(height: AppLayout.spaceSm),
+                  const SizedBox(height: AppMetrics.spaceSm),
                   preview,
                 ],
               ),
             ),
-            const SizedBox(width: AppLayout.spaceLg),
+            const SizedBox(width: AppMetrics.spaceLg),
             Expanded(flex: 6, child: form),
           ],
         );
@@ -464,7 +464,7 @@ class TodayWidgetAppearanceEditorState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const AppSectionHeader('样式与颜色', subtle: true),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             _fieldLabel('风格预设'),
             Text(
               '预设会一次调整版式、颜色、字号和间距；应用后仍可继续细调。',
@@ -472,9 +472,9 @@ class TodayWidgetAppearanceEditorState
                 context,
               ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
             ),
-            const SizedBox(height: AppLayout.spaceSm),
+            const SizedBox(height: AppMetrics.spaceSm),
             _presetPicker(context, draft),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             _fieldLabel('版式'),
             AppSegmentedControl<TodayWidgetStyle>(
               options: const {
@@ -489,7 +489,7 @@ class TodayWidgetAppearanceEditorState
               optionKey: (value) =>
                   ValueKey('today-widget-style-${value.name}'),
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             _fieldLabel('色彩'),
             AppSegmentedControl<TodayWidgetTheme>(
               options: const {
@@ -503,7 +503,7 @@ class TodayWidgetAppearanceEditorState
               optionKey: (value) =>
                   ValueKey('today-widget-theme-${value.name}'),
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             _fieldLabel('外框圆角'),
             AppSegmentedControl<int>(
               options: {
@@ -515,9 +515,9 @@ class TodayWidgetAppearanceEditorState
                   _apply((current) => current.copyWith(radiusDp: value)),
               optionKey: (value) => ValueKey('today-widget-radius-$value'),
             ),
-            const SizedBox(height: AppLayout.spaceXl),
+            const SizedBox(height: AppMetrics.spaceXl),
             const AppSectionHeader('字号', subtle: true),
-            const SizedBox(height: AppLayout.spaceXs),
+            const SizedBox(height: AppMetrics.spaceXs),
             _numberRow(
               label: '卡片标题',
               keyPrefix: 'headerSp',
@@ -542,9 +542,9 @@ class TodayWidgetAppearanceEditorState
               max: TodayWidgetAppearanceLimits.metaSpMax,
               unit: 'sp',
             ),
-            const SizedBox(height: AppLayout.spaceXl),
+            const SizedBox(height: AppMetrics.spaceXl),
             const AppSectionHeader('间距', subtle: true),
-            const SizedBox(height: AppLayout.spaceXs),
+            const SizedBox(height: AppMetrics.spaceXs),
             _numberRow(
               label: '外侧左右',
               keyPrefix: 'horizontalPaddingDp',
@@ -577,9 +577,9 @@ class TodayWidgetAppearanceEditorState
               max: TodayWidgetAppearanceLimits.rowGapDpMax,
               unit: 'dp',
             ),
-            const SizedBox(height: AppLayout.spaceXl),
+            const SizedBox(height: AppMetrics.spaceXl),
             const AppSectionHeader('显示内容', subtle: true),
-            const SizedBox(height: AppLayout.spaceXs),
+            const SizedBox(height: AppMetrics.spaceXs),
             _switchRow(
               switchKey: const Key('today-widget-showDetails'),
               title: '显示详细信息',
@@ -622,7 +622,7 @@ class TodayWidgetAppearanceEditorState
               onChanged: (value) =>
                   _apply((current) => current.copyWith(showMore: value)),
             ),
-            const SizedBox(height: AppLayout.spaceMd),
+            const SizedBox(height: AppMetrics.spaceMd),
             _fieldLabel('中、大号最多显示'),
             AppSegmentedControl<int>(
               options: {
@@ -638,7 +638,7 @@ class TodayWidgetAppearanceEditorState
                   _apply((current) => current.copyWith(rowLimit: value)),
               optionKey: (value) => ValueKey('today-widget-row-limit-$value'),
             ),
-            const SizedBox(height: AppLayout.spaceXl),
+            const SizedBox(height: AppMetrics.spaceXl),
             _saveFooter(context),
           ],
         ),
@@ -652,8 +652,8 @@ class TodayWidgetAppearanceEditorState
       builder: (context, constraints) {
         final tileWidth = constraints.maxWidth >= 620 ? 188.0 : 160.0;
         return Wrap(
-          spacing: AppLayout.spaceSm,
-          runSpacing: AppLayout.spaceSm,
+          spacing: AppMetrics.spaceSm,
+          runSpacing: AppMetrics.spaceSm,
           children: [
             for (final preset in TodayWidgetPreset.values)
               _presetTile(
@@ -684,7 +684,7 @@ class TodayWidgetAppearanceEditorState
       label: '${preset.label}预设，${preset.description}',
       child: InkWell(
         key: ValueKey('today-widget-preset-${preset.name}'),
-        borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+        borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
         onTap: _canEdit
             ? () => _apply((current) => preset.applyTo(current))
             : null,
@@ -692,19 +692,19 @@ class TodayWidgetAppearanceEditorState
           duration: const Duration(milliseconds: 120),
           width: width,
           constraints: const BoxConstraints(minHeight: 84),
-          padding: const EdgeInsets.all(AppLayout.spaceSm),
+          padding: const EdgeInsets.all(AppMetrics.spaceSm),
           decoration: BoxDecoration(
             color: selected
                 ? theme.colorScheme.primary.withValues(alpha: .08)
                 : theme.colorScheme.surface,
             border: Border.all(color: borderColor, width: selected ? 1.5 : 1),
-            borderRadius: BorderRadius.circular(AppLayout.radiusMd),
+            borderRadius: BorderRadius.circular(AppMetrics.radiusMd),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(_presetIcon(preset), color: theme.colorScheme.primary),
-              const SizedBox(width: AppLayout.spaceSm),
+              const SizedBox(width: AppMetrics.spaceSm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -752,8 +752,8 @@ class TodayWidgetAppearanceEditorState
 
   Widget _fieldLabel(String text) => Padding(
     padding: const EdgeInsets.only(
-      top: AppLayout.spaceXs,
-      bottom: AppLayout.spaceXs,
+      top: AppMetrics.spaceXs,
+      bottom: AppMetrics.spaceXs,
     ),
     child: Text(
       text,
@@ -852,7 +852,7 @@ class TodayWidgetAppearanceEditorState
               onPressed: _canEdit && value > min
                   ? () => _adjustNumber(keyPrefix, -1)
                   : null,
-              icon: const Icon(Icons.remove, size: AppLayout.iconMd),
+              icon: const Icon(Icons.remove, size: AppMetrics.iconMd),
             ),
             SizedBox(
               width: 56,
@@ -869,7 +869,7 @@ class TodayWidgetAppearanceEditorState
               onPressed: _canEdit && value < max
                   ? () => _adjustNumber(keyPrefix, 1)
                   : null,
-              icon: const Icon(Icons.add_rounded, size: AppLayout.iconMd),
+              icon: const Icon(Icons.add_rounded, size: AppMetrics.iconMd),
             ),
           ],
         ),
@@ -902,7 +902,7 @@ class TodayWidgetAppearanceEditorState
     final theme = Theme.of(context);
     return MergeSemantics(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: AppLayout.touchTargetMin),
+        constraints: const BoxConstraints(minHeight: AppMetrics.touchTargetMin),
         child: Row(
           children: [
             Expanded(
@@ -947,7 +947,7 @@ class TodayWidgetAppearanceEditorState
               ),
             ),
           ),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
         ],
         if (_widgetsWarning) ...[
           Row(
@@ -968,7 +968,7 @@ class TodayWidgetAppearanceEditorState
               ),
             ],
           ),
-          const SizedBox(height: AppLayout.spaceSm),
+          const SizedBox(height: AppMetrics.spaceSm),
         ],
         Row(
           children: [
@@ -979,7 +979,7 @@ class TodayWidgetAppearanceEditorState
                 child: const Text('恢复默认'),
               ),
             ),
-            const SizedBox(width: AppLayout.spaceMd),
+            const SizedBox(width: AppMetrics.spaceMd),
             Expanded(
               child: FilledButton(
                 key: const Key('today-widget-save'),
@@ -989,7 +989,7 @@ class TodayWidgetAppearanceEditorState
             ),
           ],
         ),
-        const SizedBox(height: AppLayout.spaceSm),
+        const SizedBox(height: AppMetrics.spaceSm),
         Semantics(
           liveRegion: true,
           child: Text(
@@ -1018,10 +1018,10 @@ class _Notice extends StatelessWidget {
     return Semantics(
       liveRegion: true,
       child: Container(
-        padding: const EdgeInsets.all(AppLayout.spaceSm),
+        padding: const EdgeInsets.all(AppMetrics.spaceSm),
         decoration: BoxDecoration(
           color: AppColors.warningSoft,
-          borderRadius: BorderRadius.circular(AppLayout.radiusSm),
+          borderRadius: BorderRadius.circular(AppMetrics.radiusSm),
         ),
         child: Text(
           text,

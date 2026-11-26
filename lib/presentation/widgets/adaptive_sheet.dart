@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_layout.dart';
+import '../../core/layout/app_layout.dart';
+import '../../core/theme/app_metrics.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/colors.dart';
 
@@ -41,7 +42,7 @@ Future<T?> showAdaptiveSheet<T>({
     builder: (dialogContext) => Dialog(
       backgroundColor: backgroundColor ?? AppColors.background,
       clipBehavior: Clip.antiAlias,
-      insetPadding: const EdgeInsets.all(AppLayout.spaceXxl),
+      insetPadding: const EdgeInsets.all(AppMetrics.spaceXxl),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: AppLayout.detailPaneMaxWidth,

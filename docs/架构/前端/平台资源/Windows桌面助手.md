@@ -46,7 +46,7 @@ flowchart LR
 
 完整对话继续在主窗口工作区显示，不在悬浮小窗另开完整会话页：原生“会话”入口恢复主窗口并通知 AppShell，AppShell 通过统一助手入口打开 DetailPaneController 中固定身份的助手页面。宽屏在右栏宽度足够时显示会话侧栏；正文不足时由 AssistantPage 按实际面板宽度隐藏侧栏。普通会话文本仍连续滚动，不增加页码分页。
 
-原生尺寸统一按逻辑像素命名并通过当前显示器 DPI 缩放：球体直径 56、工具球直径 50 且间隔 7、聊天面板间距 10、面板上限 368×478、横向最小展开阈值 280、纵向最小可用高度 230，安全区内缩 10；边缘把手为 4×42。命名常量集中在 [windows_assistant_overlay.cpp](../../../../windows/runner/windows_assistant_overlay.cpp)，Dart 侧以 `AppLayout.desktopToolbarVisualSize`（40）和 `desktopOverlayHandleHeight`（42）对应视觉尺寸，悬浮栏按钮点击区域保持 48。尺寸与实际多显示器/DPI 表现仍需 Windows 端验收。
+原生尺寸统一按逻辑像素命名并通过当前显示器 DPI 缩放：球体直径 56、工具球直径 50 且间隔 7、聊天面板间距 10、面板上限 368×478、横向最小展开阈值 280、纵向最小可用高度 230，安全区内缩 10；边缘把手为 4×42。命名常量集中在 [windows_assistant_overlay.cpp](../../../../windows/runner/windows_assistant_overlay.cpp)，Dart 侧由悬浮聊天组件定义 40dp 工具栏视觉尺寸，由悬浮层定义 42dp 边缘把手高度，悬浮栏按钮点击区域保持 48。尺寸与实际多显示器/DPI 表现仍需 Windows 端验收。
 
 悬浮球、工具球、图片徽标和边缘把手不显示 Flutter 默认 Tooltip，控件的 `Semantics` 标签继续提供读屏名称。聊天键盘为 Enter 发送、Shift+Enter 换行、Ctrl+Enter 兼容发送；输入法组合文字期间不发送。发送、快捷键和生成中停止使用同一份可用状态。用户离开最新消息位置后，输出更新不再强制滚动；只有出现新输出时才显示“回到最新”，点击后重新启用跟随。会话切换按会话身份保存/恢复滚动位置、跟随状态和未读新输出状态。
 

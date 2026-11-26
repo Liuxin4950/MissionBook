@@ -17,15 +17,6 @@ abstract final class AppMotion {
   /// 空态插画首次进入。
   static const entrance = Duration(milliseconds: 420);
 
-  /// 品牌启动页到主界面的过渡。
-  static const launch = Duration(milliseconds: 450);
-
-  /// 首次引导的连续画布：给形状移动、路径接续留出可辨认的时间。
-  static const storyTransition = Duration(milliseconds: 520);
-
-  /// 品牌封面的停留时间，与控件动画时长分开；用户可以提前进入。
-  static const launchHold = Duration(milliseconds: 2600);
-
   /// 手册定义的统一缓动曲线。
   static const curve = Cubic(0.22, 0.8, 0.24, 1);
 
